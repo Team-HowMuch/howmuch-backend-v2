@@ -75,7 +75,11 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
         try {
             smsSenderPort.send(identity.phoneNumber(), verificationCode);
         } catch (RuntimeException exception) {
-            smsVerificationStorePort.deleteByPhoneHash(phoneHash);
+            try {
+                smsVerificationStorePort.deleteByPhoneHash(phoneHash);
+            } catch (RuntimeException cleanupException) {
+                exception.addSuppressed(cleanupException);
+            }
             throw exception;
         }
 
