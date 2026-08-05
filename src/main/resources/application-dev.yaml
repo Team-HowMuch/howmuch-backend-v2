@@ -16,4 +16,4 @@ spring:
 howmuch:
   auth:
     sms:
-      sender: ${SMS_SENDER:solapi}
+      sender: ${SMS_SENDER:discord}
