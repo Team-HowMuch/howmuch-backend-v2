@@ -1,0 +1,10 @@
+.git
+.github
+.gradle
+build
+docs
+.env
+.env.*
+app.env
+.deploy.env*
+HELP.md

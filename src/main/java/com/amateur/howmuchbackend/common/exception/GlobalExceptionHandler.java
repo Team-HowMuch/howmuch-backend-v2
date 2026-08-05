@@ -52,6 +52,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<BaseResponse<ErrorResponse>> handleException(Exception ex) {
+        ex.printStackTrace();
+
         ErrorResponse error = ErrorResponse.of(
                 CommonStatusCode.INTERNAL_SERVER_ERROR.getHttpStatus().value(),
                 CommonStatusCode.INTERNAL_SERVER_ERROR.getCode(),
