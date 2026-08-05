@@ -72,7 +72,12 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
                 state,
                 Duration.between(now, expiresAt)
         );
-        smsSenderPort.send(identity.phoneNumber(), verificationCode);
+        try {
+            smsSenderPort.send(identity.phoneNumber(), verificationCode);
+        } catch (RuntimeException exception) {
+            smsVerificationStorePort.deleteByPhoneHash(phoneHash);
+            throw exception;
+        }
 
         return new SmsVerificationSentResponse(
                 state.verificationRequestId(),

@@ -15,6 +15,7 @@ public enum AuthStatusCode implements StatusCode {
     SMS_VERIFICATION_EXPIRED("인증번호가 만료되었습니다. 다시 요청해주세요.", HttpStatus.BAD_REQUEST),
     SMS_VERIFICATION_CODE_MISMATCH("인증번호가 일치하지 않습니다.", HttpStatus.BAD_REQUEST),
     SMS_VERIFICATION_ATTEMPTS_EXCEEDED("인증번호 확인 가능 횟수를 초과했습니다.", HttpStatus.TOO_MANY_REQUESTS),
+    SMS_SEND_FAILED("인증번호 전송에 실패했습니다. 잠시 후 다시 시도해주세요.", HttpStatus.BAD_GATEWAY),
     AUTH_CHALLENGE_EXPIRED("인증이 만료되었습니다. 다시 인증해주세요.", HttpStatus.BAD_REQUEST),
     INVALID_PIN_FORMAT("PIN은 6자리 숫자여야 합니다.", HttpStatus.BAD_REQUEST),
     PIN_ATTEMPTS_EXCEEDED("PIN 입력 가능 횟수를 초과했습니다.", HttpStatus.TOO_MANY_REQUESTS),
