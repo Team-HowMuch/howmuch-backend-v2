@@ -82,7 +82,7 @@ Both environments need automatic deployment before backend delivery can proceed 
 
 - The deployment concurrency group permits only one deployment per branch environment at a time.
 - A first deployment has no previous image to restore.
-- GHCR authentication for private image pulls is bootstrapped once on each EC2 host and is not transported by Actions.
+- GHCR authentication for private image pulls is refreshed by the deploy job using that run's `GITHUB_TOKEN`.
 
 ## 4. Contracts
 
@@ -108,7 +108,7 @@ N/A: no endpoint changes.
 
 - Database Entity, constraint, or query changes: none; each server supplies an existing PostgreSQL schema.
 - Redis key, TTL, or serialization changes: none; each server supplies its Redis connection.
-- External API or message changes: GHCR image publishing and SSH-based EC2 deployment.
+- External API or message changes: GHCR image publishing, GHCR pull authentication, and SSH-based EC2 deployment.
 - Environment variable or profile changes: production requires `REDIS_HOST`, `AUTH_IDENTITY_HMAC_SECRET`, and `JWT_SECRET`; production SMS defaults to `solapi` and therefore requires existing SOLAPI settings.
 
 ## 5. Design decisions
@@ -136,7 +136,7 @@ N/A: no endpoint changes.
 | Domain | None | Existing domain models |
 | Persistence | External PostgreSQL remains required | `application.yaml` |
 | Redis | External Redis remains required | `application-prod.yaml`, `application-dev.yaml` |
-| Security | Runtime secrets remain EC2-owned; SSH host keys are pinned | `app.env`, GitHub Environment secrets |
+| Security | Runtime secrets remain EC2-owned; changed SSH host keys are rejected after first contact | `app.env`, GitHub Environment secrets |
 | Configuration | Adds production profile and container deployment | `application-prod.yaml`, `compose.yml` |
 | Documentation | Records setup, exclusions, and verification | This Feature Plan |
 
@@ -212,6 +212,7 @@ The Gradle build requires PostgreSQL and Redis. CI supplies both service contain
 | 2026-08-05 | Use a Compose TCP health check | No external health URL will be added | Dependency-level readiness is not covered |
 | 2026-08-05 | Keep PostgreSQL and Redis outside Compose | They are provisioned separately on each server | Database schema and backups remain operational prerequisites |
 | 2026-08-05 | Increase the Gradle Wrapper network timeout to 60 seconds | The isolated Docker build exceeded the previous 10-second distribution download timeout | No retry script or additional build dependency was added |
+| 2026-08-06 | Authenticate the EC2 pull from the deploy job | GHCR access should be refreshed by the pipeline instead of a long-lived server PAT | `GITHUB_TOKEN` requires `packages: read`; first-contact SSH host verification is weaker |
 
 ## 11. Completion record
 
