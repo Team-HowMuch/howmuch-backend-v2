@@ -1,7 +1,7 @@
 # Feature Plan: Backend CI/CD
 
 - Status: Implemented, pending EC2 verification
-- Last updated: 2026-08-05
+- Last updated: 2026-08-06
 - Related issue:
 - Related ADR:
 
@@ -17,17 +17,17 @@ Both environments need automatic deployment before backend delivery can proceed 
 
 ### Success criteria
 
-- [x] Pull requests to `develop` and `main` compile and run the existing test suite.
-- [x] Pushes to `develop` and `main` publish a commit-addressable GHCR image.
+- [x] Pull requests to `develop` and `main` compile the application and build the image without publishing it.
+- [x] Pushes to `develop` and `main` publish branch-tagged GHCR images.
 - [x] A successful `develop` push targets the GitHub `development` environment.
 - [x] A successful `main` push targets the GitHub `production` environment.
-- [x] EC2 deployment waits for an internal TCP health check and restores the previous image when replacement fails.
+- [x] EC2 deployment pulls the branch image and starts it with Docker Compose.
 - [ ] Both environment workflows have completed successfully against their EC2 targets.
 
 ### Out of scope
 
-- Provisioning EC2, PostgreSQL, Redis, DNS, TLS, or a reverse proxy
-- Managing PostgreSQL or Redis with Compose
+- Provisioning EC2, DNS, TLS, or a reverse proxy
+- Committing the server-owned integrated Compose file to this repository
 - Adding an external HTTP health endpoint
 - Adding new test cases
 - Database migrations while Flyway remains disabled
@@ -46,43 +46,42 @@ Both environments need automatic deployment before backend delivery can proceed 
 |---|---|---|
 | Development deployment | Image built from a successful `develop` push | GitHub `development` environment |
 | Production deployment | Image built from a successful `main` push | GitHub `production` environment |
-| Runtime environment | Secrets and connection settings owned by one EC2 host | `${APP_DIR}/app.env` |
-| Deployment image | Immutable image selected by the build output | GHCR digest reference |
+| Runtime environment | Secrets and connection settings owned by one EC2 host | `${APP_DIR}/.env` |
+| Deployment image | Image selected by the target branch | GHCR branch tag |
 
 ### Actors and UseCases
 
 | Actor | Goal | UseCase |
 |---|---|---|
-| Developer | Reject a change that does not build or start its Spring context | Pull-request verification |
-| GitHub Actions | Publish the verified commit as one image | GHCR publication |
+| Developer | Reject a change that does not compile or build its image | Pull-request verification |
+| GitHub Actions | Publish the branch image and trigger the target deployment | GHCR publication and SSH deployment |
 | EC2 deploy user | Replace the running application without owning build tools | Compose deployment |
 
 ### State and invariants
 
-- State transitions: verified commit -> published digest -> deployed environment.
+- State transitions: compiled commit -> published branch tag -> deployed environment.
 - Rules that must always hold: pull requests never publish or deploy; only `develop` targets development; only `main` targets production; application secrets never enter the image or repository.
-- Invalid states: deployment without `app.env`, a mutable tag as the deployed reference, or concurrent deployments to the same branch environment.
+- Invalid states: deployment without `.env`, a missing branch image, or concurrent deployments to the same branch environment.
 
 ## 3. Scenarios
 
 ### Normal flow
 
-1. A pull request or branch push runs the Gradle build against CI PostgreSQL and Redis services.
-2. A successful branch push builds and publishes the Docker image to GHCR.
-3. The deploy job copies the shared Compose file to the selected EC2 host.
-4. Compose pulls the exact digest and waits for the application's internal port to become available.
+1. A pull request or branch push runs the Gradle build without tests.
+2. A successful branch push builds and publishes the branch-tagged Docker image to GHCR.
+3. The deploy job connects to the preconfigured EC2 directory.
+4. Compose pulls the branch image and starts the application.
 
 ### Failure flow
 
 - Gradle or Docker build failure: no image is published and no deployment starts.
 - Missing EC2 configuration: deployment fails before changing the running container.
-- Pull or startup failure: the previous Compose and image-reference files are restored and restarted when available.
+- Pull or startup failure: the deploy job fails and the existing container is left for manual inspection.
 
 ### Boundary conditions
 
 - The deployment concurrency group permits only one deployment per branch environment at a time.
-- A first deployment has no previous image to restore.
-- GHCR authentication for private image pulls is refreshed by the deploy job using that run's `GITHUB_TOKEN`.
+- GHCR authentication for private image pulls is refreshed by the deploy job using `GHCR_PAT`.
 
 ## 4. Contracts
 
@@ -122,10 +121,10 @@ N/A: no endpoint changes.
 ### Technology and patterns
 
 - Constraint to solve: deploy the same Java 21 application automatically to two EC2 environments with minimal server tooling.
-- Selected approach: one GitHub Actions workflow, one multi-stage Dockerfile, one app-only Compose file, GHCR digest deployment, and GitHub Environments for target-specific SSH settings.
-- Reason for selection: this avoids duplicated workflows, server-side builds, and runtime-secret transport through Actions.
+- Selected approach: one GitHub Actions workflow, one multi-stage Dockerfile, one app-only repository Compose file, and one server-owned Compose file that runs app, PostgreSQL, and Redis together; GHCR branch tags and GitHub Environments provide target-specific deployment settings.
+- Reason for selection: this follows the supplied pipeline shape and keeps the deployment path to `docker compose pull` and `docker compose up -d`.
 - Alternatives considered: JAR plus systemd was rejected because it requires Java and release wiring on each host; separate environment workflows were rejected because their build and deployment logic would drift.
-- Trade-offs and limits: internal TCP health proves that the application port opened, not that every dependency or business operation is healthy.
+- Trade-offs and limits: branch tags are mutable, deployment has no automatic rollback, and `up -d` does not wait for application readiness.
 
 ## 6. Impact surface
 
@@ -134,9 +133,9 @@ N/A: no endpoint changes.
 | API | None | Existing controllers and security paths |
 | Application | None | Existing UseCases and services |
 | Domain | None | Existing domain models |
-| Persistence | External PostgreSQL remains required | `application.yaml` |
-| Redis | External Redis remains required | `application-prod.yaml`, `application-dev.yaml` |
-| Security | Runtime secrets remain EC2-owned; changed SSH host keys are rejected after first contact | `app.env`, GitHub Environment secrets |
+| Persistence | PostgreSQL is managed by the server-owned Compose file | `application.yaml`, server Compose |
+| Redis | Redis is managed by the server-owned Compose file | `application-prod.yaml`, `application-dev.yaml`, server Compose |
+| Security | Runtime secrets remain EC2-owned; GHCR pull credentials are provided by the deploy job | `.env`, GitHub Environment secrets |
 | Configuration | Adds production profile and container deployment | `application-prod.yaml`, `compose.yml` |
 | Documentation | Records setup, exclusions, and verification | This Feature Plan |
 
@@ -170,20 +169,20 @@ ci(deploy): EC2 자동 배포 파이프라인 구성
 
 ```bash
 ./gradlew compileJava
-./gradlew clean build --no-daemon
+./gradlew clean build --no-daemon -x test
 docker build --tag howmuch-backend-v2:local .
-docker compose --env-file <deployment-env-file> config --quiet
+docker compose config --quiet
 git diff --check
 git status --short --untracked-files=all
 ```
 
-The Gradle build requires PostgreSQL and Redis. CI supplies both service containers and overrides JPA schema handling with `create-drop`. Runtime verification requires Docker Compose with `--wait`, an EC2-owned `app.env`, an existing database schema, external Redis, and an authenticated GHCR client when the package is private.
+The current CI build intentionally skips tests to match the requested minimal pipeline. Runtime verification requires Docker Compose, an EC2-owned integrated Compose file and `.env`, existing database volume data, and a GHCR credential with package pull access.
 
 ### Completion criteria
 
 - [x] Verified the repository-side user outcome defined under Purpose.
-- [ ] Verified normal and rollback flows against development EC2.
-- [ ] Verified normal and rollback flows against production EC2.
+- [ ] Verified normal deployment against development EC2.
+- [ ] Verified normal deployment against production EC2.
 - [x] Confirmed no API or Swagger contract changed.
 - [x] Recorded EC2 verification as not performed because host access and environment configuration are external prerequisites.
 
@@ -192,32 +191,31 @@ The Gradle build requires PostgreSQL and Redis. CI supplies both service contain
 | Item | Result | Evidence |
 |---|---|---|
 | Repository files | Passed | YAML syntax, Compose config, and `git diff --check` passed locally |
-| Existing test | Passed | `./gradlew clean build --no-daemon` passed with disposable PostgreSQL and Redis services |
+| Existing test | Not part of CI | The requested minimal workflow uses `-x test`; local test verification was performed separately |
 | Docker image | Passed | Multi-stage image built and ran as the non-root `appuser` |
-| Compose readiness | Passed | Application became `healthy` through the internal TCP check and `docker compose up --wait` completed |
+| Compose startup | Not run against EC2 | The workflow uses `docker compose up -d` on the target host |
 | EC2 deployment | Not run | GitHub Environments and EC2 bootstrap are not configured in this worktree |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
-| 2026-08-05 | Added and locally verified the minimal GHCR and Compose deployment path | Configure both EC2 targets | Same-host PostgreSQL and Redis must be reached through `host.docker.internal`, not container localhost |
+| 2026-08-06 | Simplified the workflow to the supplied GHCR and SSH Compose pattern | Configure both EC2 targets | Branch tags are mutable and failed startup requires manual recovery |
 
 ## 10. Decision log
 
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
 | 2026-08-05 | Use one workflow and GitHub Environment-scoped settings | Removes duplicate development and production deployment logic | Both environments must use the same secret and variable names |
-| 2026-08-05 | Deploy a GHCR digest | A branch tag is mutable and cannot identify the exact running artifact | Branch and SHA tags remain available for humans |
-| 2026-08-05 | Use a Compose TCP health check | No external health URL will be added | Dependency-level readiness is not covered |
-| 2026-08-05 | Keep PostgreSQL and Redis outside Compose | They are provisioned separately on each server | Database schema and backups remain operational prerequisites |
+| 2026-08-06 | Deploy branch tags with `docker compose pull` | Matches the supplied pipeline and keeps server setup small | The running image is not immutable |
+| 2026-08-06 | Keep the integrated Compose file server-owned | The server already owns PostgreSQL and Redis storage; the repository only publishes the app image | Keep the server Compose and `.env` synchronized with the image tag |
 | 2026-08-05 | Increase the Gradle Wrapper network timeout to 60 seconds | The isolated Docker build exceeded the previous 10-second distribution download timeout | No retry script or additional build dependency was added |
-| 2026-08-06 | Authenticate the EC2 pull from the deploy job | GHCR access should be refreshed by the pipeline instead of a long-lived server PAT | `GITHUB_TOKEN` requires `packages: read`; first-contact SSH host verification is weaker |
+| 2026-08-06 | Authenticate the EC2 pull from the deploy job with `GHCR_PAT` | Matches the supplied pipeline and avoids a separate server login bootstrap | The token must be stored in both GitHub Environments |
 
 ## 11. Completion record
 
 - Completed on:
-- Final behavior: Repository-side implementation is complete; EC2 validation remains.
-- Unverified items: Both real EC2 deployments and rollback behavior.
-- Remaining risks: EC2 CPU architecture and Compose version must match the published image and workflow commands.
+- Final behavior: Repository-side implementation follows the supplied minimal GHCR and SSH Compose pipeline; EC2 validation remains.
+- Unverified items: Both real EC2 deployments and recovery behavior.
+- Remaining risks: Mutable tags, no automatic rollback, SSH reachability from GitHub Actions, and EC2 CPU architecture.
 - Follow-up work: Configure GitHub Environments and bootstrap each EC2 host before merging.
