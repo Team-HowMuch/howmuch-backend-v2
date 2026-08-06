@@ -78,8 +78,6 @@ jobs:
       group: deploy-${{ github.ref_name }}
       cancel-in-progress: false
     env:
-      EC2_HOST: ${{ secrets.EC2_HOST }}
-      EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
       GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
       APP_DIR: ${{ vars.APP_DIR || '/opt/howmuch-infra' }}
@@ -91,9 +89,9 @@ jobs:
           GHCR_PAT: ${{ env.GHCR_PAT }}
           APP_DIR: ${{ env.APP_DIR }}
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST }}
           username: ubuntu
-          key: ${{ env.EC2_SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           envs: GHCR_USERNAME,GHCR_PAT,APP_DIR
           script: |
             set -eu
