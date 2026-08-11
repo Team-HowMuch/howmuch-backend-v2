@@ -7,8 +7,9 @@ import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStorageP
 import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
-import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
+import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,12 +26,12 @@ public class GetMyProfileImageService implements GetMyProfileImageUseCase {
     public ProfileImage getMyProfileImage() {
         CurrentActor actor = currentActorPort.getCurrentActor();
         User user = userRepositoryPort.findById(actor.userId())
-                .orElseThrow(() -> ApplicationException.of(CommonStatusCode.ENDPOINT_NOT_FOUND));
+                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
         if (user.avatarFileName() == null) {
-            throw ApplicationException.of(CommonStatusCode.ENDPOINT_NOT_FOUND);
+            throw ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND);
         }
 
         return profileImageStoragePort.load(user.avatarFileName())
-                .orElseThrow(() -> ApplicationException.of(CommonStatusCode.ENDPOINT_NOT_FOUND));
+                .orElseThrow(() -> ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
     }
 }

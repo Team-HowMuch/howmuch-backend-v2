@@ -9,6 +9,7 @@ import com.amateur.howmuchbackend.application.port.in.user.GetMyProfileUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.UpdateMyProfileUseCase;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,6 +35,7 @@ public class UserController implements UserDocs {
     public ResponseEntity<byte[]> getMyProfileImage() {
         ProfileImage image = getMyProfileImageUseCase.getMyProfileImage();
         return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
                 .contentType(MediaType.parseMediaType(image.contentType()))
                 .body(image.content());
     }
