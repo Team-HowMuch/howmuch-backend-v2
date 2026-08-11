@@ -1,6 +1,6 @@
 # Feature Plan: Profile
 
-- Status: In progress
+- Status: Ready for runtime verification
 - Last updated: 2026-08-11
 - Related issue: #9, #10
 - Related ADR: N/A
@@ -124,12 +124,12 @@ Existing behavior that must remain unchanged:
 ## 6. Implementation plan
 
 - [x] 기능 계획과 API 계약 기록
-- [ ] 사용자 프로필 데이터와 운영 DDL
-- [ ] 프로필 조회 및 아바타 반환 API
-- [ ] 닉네임 정책과 수정 UseCase
-- [ ] 로컬 아바타 저장 Adapter
-- [ ] 통합 multipart 수정 API와 Swagger
-- [ ] 검증 결과 기록
+- [x] 사용자 프로필 데이터와 운영 DDL
+- [x] 프로필 조회 및 아바타 반환 API
+- [x] 닉네임 정책과 수정 UseCase
+- [x] 로컬 아바타 저장 Adapter
+- [x] 통합 multipart 수정 API와 Swagger
+- [x] 정적 검증 결과 기록
 
 ### Expected commit boundaries
 
@@ -156,14 +156,17 @@ git status --short --untracked-files=all
 
 | Item | Result | Evidence |
 |---|---|---|
-| Compile | Pending | Final implementation commit |
-| Runtime API verification | Pending | PostgreSQL, Redis, and environment variables required |
+| Compile | Passed | `./gradlew compileJava` after each Java commit |
+| Diff validation | Passed | `git diff --check` before each commit |
+| Existing test | Not run | `contextLoads` requires PostgreSQL and Redis; localhost PostgreSQL is unavailable and Redis connection is blocked |
+| Runtime API verification | Pending | PostgreSQL, Redis, authenticated access token, and writable image storage path required |
 
 ## 8. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-08-11 | Feature plan and issue hierarchy prepared | Add profile data model | Manual DDL required before prod deployment |
+| 2026-08-11 | Profile data, retrieval, nickname policy, local storage, and multipart update API implemented | Run local API verification | Runtime dependencies are unavailable |
 
 ## 9. Decision log
 
