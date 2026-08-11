@@ -28,9 +28,11 @@ public class GetMyProfileService implements GetMyProfileUseCase {
         return new MyProfileResponse(
                 user.id(),
                 user.name(),
+                user.nickname(),
                 user.birthDate(),
                 user.gender(),
                 user.phoneNumber(),
+                user.avatarFileName() != null,
                 user.phoneVerified(),
                 user.role(),
                 user.lastLoginAt(),

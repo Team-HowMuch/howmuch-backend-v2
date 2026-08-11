@@ -9,9 +9,11 @@ import java.time.LocalDateTime;
 public record MyProfileResponse(
         Long userId,
         String name,
+        String nickname,
         LocalDate birthDate,
         Gender gender,
         String phoneNumber,
+        boolean hasAvatar,
         boolean phoneVerified,
         UserRole role,
         LocalDateTime lastLoginAt,
