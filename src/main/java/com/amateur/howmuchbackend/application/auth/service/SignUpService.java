@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.auth.service;
 
 import com.amateur.howmuchbackend.application.auth.policy.PinPolicy;
+import com.amateur.howmuchbackend.application.user.policy.NicknamePolicy;
 import com.amateur.howmuchbackend.application.port.in.auth.response.TokenResponse;
 import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -19,6 +20,7 @@ import java.time.ZoneOffset;
 @RequiredArgsConstructor
 public class SignUpService {
     private final PinPolicy pinPolicy;
+    private final NicknamePolicy nicknamePolicy;
     private final UserRepositoryPort userRepositoryPort;
     private final PasswordEncoder passwordEncoder;
     private final AuthTokenService authTokenService;
@@ -34,6 +36,7 @@ public class SignUpService {
 
         User user = User.register(
                 challenge.identity(),
+                nicknamePolicy.normalize(challenge.identity().name()),
                 passwordEncoder.encode(pin),
                 LocalDateTime.now(ZoneOffset.UTC)
         );

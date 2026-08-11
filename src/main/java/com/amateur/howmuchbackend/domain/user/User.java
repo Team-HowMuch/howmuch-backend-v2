@@ -23,12 +23,12 @@ public record User(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static User register(AuthIdentity identity, String pinHash, LocalDateTime now) {
+    public static User register(AuthIdentity identity, String nickname, String pinHash, LocalDateTime now) {
         return new User(
                 null,
                 identity.identityKey(),
                 identity.name(),
-                identity.name(),
+                nickname,
                 identity.birthDate(),
                 identity.gender(),
                 identity.phoneNumber(),
