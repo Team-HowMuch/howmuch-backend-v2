@@ -25,16 +25,6 @@ public class GetMyProfileService implements GetMyProfileUseCase {
         User user = userRepositoryPort.findById(actor.userId())
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
 
-        return new MyProfileResponse(
-                user.id(),
-                user.name(),
-                user.birthDate(),
-                user.gender(),
-                user.phoneNumber(),
-                user.phoneVerified(),
-                user.role(),
-                user.lastLoginAt(),
-                user.createdAt()
-        );
+        return MyProfileResponse.from(user);
     }
 }

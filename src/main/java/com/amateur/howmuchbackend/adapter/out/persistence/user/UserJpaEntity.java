@@ -34,6 +34,9 @@ public class UserJpaEntity extends BaseTimeJpaEntity {
     @Column(nullable = false, length = 100)
     private String name;
 
+    @Column(nullable = false, length = 20)
+    private String nickname;
+
     @Column(nullable = false)
     private LocalDate birthDate;
 
@@ -49,6 +52,9 @@ public class UserJpaEntity extends BaseTimeJpaEntity {
 
     @Column(length = 255)
     private String fcmToken;
+
+    @Column(name = "avatar_file_name", length = 100)
+    private String avatarFileName;
 
     @Column(nullable = false)
     private boolean phoneVerified;
@@ -69,11 +75,13 @@ public class UserJpaEntity extends BaseTimeJpaEntity {
     public void updateFrom(User user) {
         this.identityKey = user.identityKey();
         this.name = user.name();
+        this.nickname = user.nickname();
         this.birthDate = user.birthDate();
         this.gender = user.gender();
         this.phoneNumber = user.phoneNumber();
         this.pinHash = user.pinHash();
         this.fcmToken = user.fcmToken();
+        this.avatarFileName = user.avatarFileName();
         this.phoneVerified = user.phoneVerified();
         this.role = user.role();
         this.active = user.active();

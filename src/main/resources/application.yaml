@@ -1,6 +1,10 @@
 spring:
   application:
     name: howmuch-backend-v2
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   profiles:
     default: local
   flyway:
@@ -21,6 +25,9 @@ spring:
         format_sql: false
         default_batch_fetch_size: 100
 howmuch:
+  profile:
+    image:
+      storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}
   auth:
     identity:
       hmac-secret: ${AUTH_IDENTITY_HMAC_SECRET:local-development-identity-hmac-secret}

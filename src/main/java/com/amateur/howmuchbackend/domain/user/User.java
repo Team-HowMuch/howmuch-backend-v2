@@ -9,11 +9,13 @@ public record User(
         Long id,
         String identityKey,
         String name,
+        String nickname,
         LocalDate birthDate,
         Gender gender,
         String phoneNumber,
         String pinHash,
         String fcmToken,
+        String avatarFileName,
         boolean phoneVerified,
         UserRole role,
         boolean active,
@@ -21,15 +23,17 @@ public record User(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static User register(AuthIdentity identity, String pinHash, LocalDateTime now) {
+    public static User register(AuthIdentity identity, String nickname, String pinHash, LocalDateTime now) {
         return new User(
                 null,
                 identity.identityKey(),
                 identity.name(),
+                nickname,
                 identity.birthDate(),
                 identity.gender(),
                 identity.phoneNumber(),
                 pinHash,
+                null,
                 null,
                 true,
                 UserRole.USER,
@@ -45,15 +49,38 @@ public record User(
                 id,
                 identityKey,
                 name,
+                nickname,
                 birthDate,
                 gender,
                 phoneNumber,
                 pinHash,
                 fcmToken,
+                avatarFileName,
                 phoneVerified,
                 role,
                 active,
                 now,
+                createdAt,
+                now
+        );
+    }
+
+    public User changeProfile(String nickname, String avatarFileName, LocalDateTime now) {
+        return new User(
+                id,
+                identityKey,
+                name,
+                nickname,
+                birthDate,
+                gender,
+                phoneNumber,
+                pinHash,
+                fcmToken,
+                avatarFileName,
+                phoneVerified,
+                role,
+                active,
+                lastLoginAt,
                 createdAt,
                 now
         );
