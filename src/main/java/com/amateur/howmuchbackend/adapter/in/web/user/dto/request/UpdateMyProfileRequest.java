@@ -7,13 +7,13 @@ import java.io.IOException;
 public record UpdateMyProfileRequest(
         String nickname,
         MultipartFile avatar,
-        boolean resetAvatar
+        Boolean resetAvatar
 ) {
     public com.amateur.howmuchbackend.application.port.in.user.request.UpdateMyProfileRequest toRequest() {
         return new com.amateur.howmuchbackend.application.port.in.user.request.UpdateMyProfileRequest(
                 nickname,
                 avatarContent(),
-                resetAvatar
+                Boolean.TRUE.equals(resetAvatar)
         );
     }
 
