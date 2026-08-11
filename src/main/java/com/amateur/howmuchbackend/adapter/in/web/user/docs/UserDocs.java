@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.web.user.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
+import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.UpdateMyProfileRequest;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.response.MyProfileWebResponse;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -28,4 +29,11 @@ public interface UserDocs {
             content = @Content(schema = @Schema(type = "string", format = "binary"))
     )
     ResponseEntity<byte[]> getMyProfileImage();
+
+    @Operation(
+            summary = "내 프로필 수정",
+            description = "닉네임, 아바타 업로드 또는 기본 이미지 복원을 적용합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    ApiResponse<MyProfileWebResponse> updateMyProfile(UpdateMyProfileRequest request);
 }
