@@ -37,14 +37,14 @@ public class UserJpaEntity extends BaseTimeJpaEntity {
     @Column(nullable = false, length = 20)
     private String nickname;
 
-    @Column(nullable = false)
+    @Column
     private LocalDate birthDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private Gender gender;
 
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, unique = true)
     private String phoneNumber;
 
     @Column(nullable = false, length = 100)
@@ -68,6 +68,12 @@ public class UserJpaEntity extends BaseTimeJpaEntity {
 
     private LocalDateTime lastLoginAt;
 
+    @Column(name = "required_terms_agreed_at")
+    private LocalDateTime requiredTermsAgreedAt;
+
+    @Column(name = "marketing_agreed_at")
+    private LocalDateTime marketingAgreedAt;
+
     public UserJpaEntity(User user) {
         updateFrom(user);
     }
@@ -86,5 +92,7 @@ public class UserJpaEntity extends BaseTimeJpaEntity {
         this.role = user.role();
         this.active = user.active();
         this.lastLoginAt = user.lastLoginAt();
+        this.requiredTermsAgreedAt = user.requiredTermsAgreedAt();
+        this.marketingAgreedAt = user.marketingAgreedAt();
     }
 }

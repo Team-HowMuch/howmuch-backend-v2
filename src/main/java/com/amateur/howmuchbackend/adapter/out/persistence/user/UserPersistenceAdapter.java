@@ -1,8 +1,11 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.user;
 
 import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -18,13 +21,17 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
     }
 
     @Override
-    public Optional<User> findByIdentityKey(String identityKey) {
-        return userJpaRepository.findByIdentityKey(identityKey).map(UserMapper::toDomain);
+    public Optional<User> findByPhoneNumber(String phoneNumber) {
+        return userJpaRepository.findByPhoneNumber(phoneNumber).map(UserMapper::toDomain);
     }
 
     @Override
     public User save(User user) {
-        return UserMapper.toDomain(userJpaRepository.save(UserMapper.toEntity(user)));
+        try {
+            return UserMapper.toDomain(userJpaRepository.saveAndFlush(UserMapper.toEntity(user)));
+        } catch (DataIntegrityViolationException exception) {
+            throw ApplicationException.of(AuthStatusCode.PHONE_NUMBER_ALREADY_REGISTERED, exception);
+        }
     }
 
     @Override

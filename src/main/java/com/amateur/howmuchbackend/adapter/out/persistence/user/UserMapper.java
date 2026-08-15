@@ -26,6 +26,8 @@ public final class UserMapper {
                 entity.getRole(),
                 entity.isActive(),
                 entity.getLastLoginAt(),
+                entity.getRequiredTermsAgreedAt(),
+                entity.getMarketingAgreedAt(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );

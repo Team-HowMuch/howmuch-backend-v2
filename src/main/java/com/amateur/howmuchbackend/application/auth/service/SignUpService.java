@@ -1,11 +1,13 @@
 package com.amateur.howmuchbackend.application.auth.service;
 
 import com.amateur.howmuchbackend.application.auth.policy.PinPolicy;
+import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
 import com.amateur.howmuchbackend.application.user.policy.NicknamePolicy;
-import com.amateur.howmuchbackend.application.port.in.auth.response.TokenResponse;
+import com.amateur.howmuchbackend.application.port.in.auth.SignUpUseCase;
+import com.amateur.howmuchbackend.application.port.in.auth.request.SignUpRequest;
+import com.amateur.howmuchbackend.application.port.out.auth.AuthChallengeStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
-import com.amateur.howmuchbackend.domain.auth.challenge.AuthChallenge;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
@@ -18,28 +20,54 @@ import java.time.ZoneOffset;
 
 @Service
 @RequiredArgsConstructor
-public class SignUpService {
+public class SignUpService implements SignUpUseCase {
     private final PinPolicy pinPolicy;
+    private final IdentityPolicy identityPolicy;
     private final NicknamePolicy nicknamePolicy;
+    private final AuthChallengeStorePort authChallengeStorePort;
     private final UserRepositoryPort userRepositoryPort;
     private final PasswordEncoder passwordEncoder;
-    private final AuthTokenService authTokenService;
 
+    @Override
     @Transactional
-    public TokenResponse signUp(AuthChallenge challenge, String pin) {
-        if (!pinPolicy.isValid(pin)) {
+    public void signUp(SignUpRequest request) {
+        var challenge = authChallengeStorePort.findById(request.challengeId())
+                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.AUTH_CHALLENGE_EXPIRED));
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        if (challenge.isExpired(now)) {
+            authChallengeStorePort.deleteById(challenge.challengeId());
+            throw ApplicationException.of(AuthStatusCode.AUTH_CHALLENGE_EXPIRED);
+        }
+        if (!pinPolicy.isValid(request.pin())) {
             throw ApplicationException.of(AuthStatusCode.INVALID_PIN_FORMAT);
         }
-        if (userRepositoryPort.findByIdentityKey(challenge.identity().identityKey()).isPresent()) {
-            throw ApplicationException.of(AuthStatusCode.INVALID_AUTH_REQUEST);
+        if (!request.pin().equals(request.pinConfirmation())) {
+            throw ApplicationException.of(AuthStatusCode.PIN_CONFIRMATION_MISMATCH);
+        }
+        if (!request.requiredTermsAgreed()) {
+            throw ApplicationException.of(AuthStatusCode.REQUIRED_TERMS_NOT_AGREED);
+        }
+        if (userRepositoryPort.findByPhoneNumber(challenge.phoneNumber()).isPresent()) {
+            throw ApplicationException.of(AuthStatusCode.PHONE_NUMBER_ALREADY_REGISTERED);
         }
 
         User user = User.register(
-                challenge.identity(),
-                nicknamePolicy.normalize(challenge.identity().name()),
-                passwordEncoder.encode(pin),
-                LocalDateTime.now(ZoneOffset.UTC)
+                identityPolicy.phoneHash(challenge.phoneNumber()),
+                normalizeName(request.name()),
+                nicknamePolicy.normalize(request.name()),
+                challenge.phoneNumber(),
+                passwordEncoder.encode(request.pin()),
+                now,
+                request.marketingAgreed()
         );
-        return authTokenService.issueNewSession(userRepositoryPort.save(user));
+        userRepositoryPort.save(user);
+        authChallengeStorePort.deleteById(challenge.challengeId());
+    }
+
+    private String normalizeName(String name) {
+        if (name == null || name.isBlank() || name.trim().length() > 100) {
+            throw ApplicationException.of(AuthStatusCode.INVALID_AUTH_REQUEST);
+        }
+        return name.trim();
     }
 }

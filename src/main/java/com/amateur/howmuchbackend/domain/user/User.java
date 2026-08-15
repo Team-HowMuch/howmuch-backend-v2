@@ -1,7 +1,5 @@
 package com.amateur.howmuchbackend.domain.user;
 
-import com.amateur.howmuchbackend.domain.auth.identity.AuthIdentity;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -20,18 +18,28 @@ public record User(
         UserRole role,
         boolean active,
         LocalDateTime lastLoginAt,
+        LocalDateTime requiredTermsAgreedAt,
+        LocalDateTime marketingAgreedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static User register(AuthIdentity identity, String nickname, String pinHash, LocalDateTime now) {
+    public static User register(
+            String identityKey,
+            String name,
+            String nickname,
+            String phoneNumber,
+            String pinHash,
+            LocalDateTime now,
+            boolean marketingAgreed
+    ) {
         return new User(
                 null,
-                identity.identityKey(),
-                identity.name(),
+                identityKey,
+                name,
                 nickname,
-                identity.birthDate(),
-                identity.gender(),
-                identity.phoneNumber(),
+                null,
+                null,
+                phoneNumber,
                 pinHash,
                 null,
                 null,
@@ -39,6 +47,8 @@ public record User(
                 UserRole.USER,
                 true,
                 null,
+                now,
+                marketingAgreed ? now : null,
                 now,
                 now
         );
@@ -60,6 +70,8 @@ public record User(
                 role,
                 active,
                 now,
+                requiredTermsAgreedAt,
+                marketingAgreedAt,
                 createdAt,
                 now
         );
@@ -81,6 +93,8 @@ public record User(
                 role,
                 active,
                 lastLoginAt,
+                requiredTermsAgreedAt,
+                marketingAgreedAt,
                 createdAt,
                 now
         );

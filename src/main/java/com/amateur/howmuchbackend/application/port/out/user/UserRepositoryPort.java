@@ -7,7 +7,7 @@ import java.util.Optional;
 public interface UserRepositoryPort {
     Optional<User> findById(Long id);
 
-    Optional<User> findByIdentityKey(String identityKey);
+    Optional<User> findByPhoneNumber(String phoneNumber);
 
     User save(User user);
 
