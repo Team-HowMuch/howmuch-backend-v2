@@ -62,8 +62,8 @@ Application Request and Response types are plain Java records. Do not add Jakart
 Split UseCases by feature.
 
 ```java
-public interface CompleteAuthUseCase {
-    TokenResponse complete(CompleteAuthRequest request);
+public interface LoginUseCase {
+    TokenResponse login(LoginRequest request);
 }
 ```
 
@@ -151,17 +151,18 @@ public record TokenResponse(
 
 ## Data and sensitive information
 
-- Never store the raw first seven digits of a resident registration number.
-- Generate identity keys and phone identifiers with the configured HMAC secret.
+- SMS OTP는 휴대폰 소유만 확인하며 실명 또는 CI 본인확인으로 취급하지 않는다.
+- 신규 인증 요청에서 주민등록번호를 수집하거나 저장하지 않는다.
+- Redis 제한 Key에 사용하는 휴대폰 식별자는 설정된 HMAC Secret으로 생성한다.
 - Hash PINs with Spring `PasswordEncoder`. Never store or log the raw value.
 - Never include `.env`, database passwords, JWT secrets, Discord webhooks, or tokens in documentation, logs, or commits.
 - Keep `ddl-auto=update` for local development, `validate` as the default, and Flyway disabled for now.
 
 ## Canonical implementations
 
-- Web DTO conversion: `adapter/in/web/auth/dto/request/CompleteAuthRequest.java`
-- Input Port: `application/port/in/auth/CompleteAuthUseCase.java`
-- Application orchestration: `application/auth/service/CompleteAuthService.java`
+- Web DTO conversion: `adapter/in/web/auth/dto/request/LoginRequest.java`
+- Input Port: `application/port/in/auth/LoginUseCase.java`
+- Application orchestration: `application/auth/service/LoginService.java`
 - Current user access: `application/user/service/GetMyProfileService.java`
 - Persistence Adapter: `adapter/out/persistence/user/UserPersistenceAdapter.java`
 - JWT Adapter: `adapter/out/security/jwt/JwtTokenProvider.java`

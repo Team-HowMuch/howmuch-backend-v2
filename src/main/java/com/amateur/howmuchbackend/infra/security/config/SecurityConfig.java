@@ -49,9 +49,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/api/v2/auth/sms/**",
-                                "/api/v2/auth/complete",
-                                "/api/v2/auth/token/refresh",
-                                "/api/v2/auth/dev/login"
+                                "/api/v2/auth/signup",
+                                "/api/v2/auth/login",
+                                "/api/v2/auth/token/refresh"
                         ).permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()

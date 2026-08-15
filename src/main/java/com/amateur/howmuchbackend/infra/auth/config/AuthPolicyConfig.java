@@ -34,7 +34,7 @@ public class AuthPolicyConfig {
 
     @Bean
     PinPolicy pinPolicy(PinProperties properties) {
-        return new PinPolicy(properties.maxAttempts());
+        return new PinPolicy(properties.maxAttempts(), properties.lockDuration());
     }
 
     @Bean

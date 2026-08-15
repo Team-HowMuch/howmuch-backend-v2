@@ -9,7 +9,6 @@ import com.amateur.howmuchbackend.application.port.in.auth.request.SendSmsVerifi
 import com.amateur.howmuchbackend.application.port.in.auth.response.SmsVerificationSentResponse;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
-import com.amateur.howmuchbackend.domain.auth.identity.AuthIdentity;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.auth.verification.SmsOtpState;
 import lombok.RequiredArgsConstructor;
@@ -39,12 +38,8 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
     @Override
     @Transactional
     public SmsVerificationSentResponse send(SendSmsVerificationRequest request) {
-        AuthIdentity identity = identityPolicy.normalize(
-                request.name(),
-                request.residentNumber(),
-                request.phoneNumber()
-        );
-        String phoneHash = identityPolicy.phoneHash(identity.phoneNumber());
+        String phoneNumber = identityPolicy.normalizePhoneNumber(request.phoneNumber());
+        String phoneHash = identityPolicy.phoneHash(phoneNumber);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
         smsVerificationStorePort.findByPhoneHash(phoneHash).ifPresent(existing -> {
@@ -60,7 +55,7 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
         LocalDateTime resendAvailableAt = now.plus(smsVerificationPolicy.resendCooldown());
         SmsOtpState state = new SmsOtpState(
                 UUID.randomUUID().toString(),
-                identity,
+                phoneNumber,
                 hashCode(phoneHash, verificationCode),
                 0,
                 resendAvailableAt,
@@ -73,7 +68,7 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
                 Duration.between(now, expiresAt)
         );
         try {
-            smsSenderPort.send(identity.phoneNumber(), verificationCode);
+            smsSenderPort.send(phoneNumber, verificationCode);
         } catch (RuntimeException exception) {
             try {
                 smsVerificationStorePort.deleteByPhoneHash(phoneHash);
@@ -85,7 +80,7 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
 
         return new SmsVerificationSentResponse(
                 state.verificationRequestId(),
-                identity.phoneNumber(),
+                phoneNumber,
                 expiresAt,
                 resendAvailableAt
         );

@@ -60,8 +60,7 @@ public class ConfirmSmsVerificationService implements ConfirmSmsVerificationUseC
         smsVerificationStorePort.deleteByPhoneHash(phoneHash);
         AuthChallenge challenge = new AuthChallenge(
                 UUID.randomUUID().toString(),
-                state.identity(),
-                0,
+                state.phoneNumber(),
                 now.plus(smsVerificationPolicy.challengeTtl())
         );
         authChallengeStorePort.save(

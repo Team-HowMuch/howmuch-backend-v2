@@ -46,6 +46,7 @@ howmuch:
         sender: ${SOLAPI_SENDER:}
     pin:
       max-attempts: 5
+      lock-duration: 30m
     session:
       single-session-per-user: true
       rotate-request-token: true

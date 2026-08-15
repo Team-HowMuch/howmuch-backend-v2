@@ -1,13 +1,11 @@
 package com.amateur.howmuchbackend.domain.auth.verification;
 
-import com.amateur.howmuchbackend.domain.auth.identity.AuthIdentity;
-
 import java.time.LocalDateTime;
 import java.util.Objects;
 
 public record SmsOtpState(
         String verificationRequestId,
-        AuthIdentity identity,
+        String phoneNumber,
         String codeHash,
         int attemptCount,
         LocalDateTime resendAvailableAt,
@@ -15,7 +13,7 @@ public record SmsOtpState(
 ) {
     public SmsOtpState {
         Objects.requireNonNull(verificationRequestId);
-        Objects.requireNonNull(identity);
+        Objects.requireNonNull(phoneNumber);
         Objects.requireNonNull(codeHash);
         Objects.requireNonNull(resendAvailableAt);
         Objects.requireNonNull(expiresAt);
@@ -32,7 +30,7 @@ public record SmsOtpState(
     public SmsOtpState increaseAttemptCount() {
         return new SmsOtpState(
                 verificationRequestId,
-                identity,
+                phoneNumber,
                 codeHash,
                 attemptCount + 1,
                 resendAvailableAt,
