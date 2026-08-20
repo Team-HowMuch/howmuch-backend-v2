@@ -1,8 +1,10 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.external.repository;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.external.entity.ExternalConnectionJpaEntity;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,6 +19,7 @@ public interface ExternalConnectionJpaRepository extends JpaRepository<ExternalC
             String configurationFingerprint
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ExternalConnectionJpaEntity> findByIdAndUser_IdAndActiveTrueAndConfigurationFingerprint(
             Long id,
             Long userId,

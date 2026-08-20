@@ -24,6 +24,7 @@ import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatu
 import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -48,9 +49,10 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
     private final BankConnectionPort bankConnectionPort;
 
     @Override
+    @Transactional
     public BankConnectionResult connect(ConnectBankCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
-        User user = loadUser(actor.userId());
+        User user = loadUserForUpdate(actor.userId());
         connectionStorePort.validateStorageConfiguration();
         String birthDate = birthDate(command.birthDate(), user);
         BankRegistration registration = new BankRegistration(
@@ -82,6 +84,7 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
     }
 
     @Override
+    @Transactional
     public LinkedAccountsResult link(LinkBankAccountsCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
         User user = loadUser(actor.userId());
@@ -136,6 +139,11 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
 
     private User loadUser(Long userId) {
         return loadUserPort.findById(userId)
+                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
+    }
+
+    private User loadUserForUpdate(Long userId) {
+        return loadUserPort.findByIdForUpdate(userId)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
     }
 

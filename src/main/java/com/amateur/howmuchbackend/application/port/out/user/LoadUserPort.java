@@ -7,5 +7,7 @@ import java.util.Optional;
 public interface LoadUserPort {
     Optional<User> findById(Long id);
 
+    Optional<User> findByIdForUpdate(Long id);
+
     Optional<User> findByPhoneNumber(String phoneNumber);
 }

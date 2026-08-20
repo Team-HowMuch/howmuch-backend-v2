@@ -138,7 +138,9 @@ Account: id, organization, type, name, maskedNumber, balance, currency
 - `provider` registry나 추상 factory는 실제 두 번째 제공자가 없으므로 만들지 않는다.
 - 연결과 계좌 연동은 하나의 `BankAccountService`가 두 UseCase를 구현한다. 두 흐름이 같은 연결·후보 검증 규칙을 공유하기 때문이다.
 - 후보 Key는 서버만 아는 `connectedId`와 기관코드·원본 계좌 Key를 SHA-256으로 묶어 생성한다. 클라이언트 입력을 신뢰하지 않고 연동 시 후보를 다시 조회한다.
-- CODEF 외부 호출 동안 DB transaction을 열지 않는다. 각 저장 Adapter가 짧은 transaction을 소유한다.
+- 동일 사용자의 최초 연결 생성은 사용자 행 `PESSIMISTIC_WRITE` 잠금으로 CODEF `create` 호출 전부터 직렬화한다.
+- 동일 외부 연결의 계좌 relink는 연결 행 `PESSIMISTIC_WRITE` 잠금으로 후보 조회부터 upsert까지 직렬화한다.
+- 위 두 흐름은 외부 호출과 저장을 하나의 transaction 경계에서 처리해 중복 연결·Unique Constraint 500을 방지한다.
 - 계좌 잔액은 연동 시점 snapshot이며 거래 동기화가 구현되기 전에는 자동 갱신하지 않는다.
 
 ## 7. 영향 범위와 구현 순서

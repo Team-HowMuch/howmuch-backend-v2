@@ -22,6 +22,11 @@ public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {
     }
 
     @Override
+    public Optional<User> findByIdForUpdate(Long id) {
+        return userJpaRepository.findByIdForUpdate(id).map(UserMapper::toDomain);
+    }
+
+    @Override
     public Optional<User> findByPhoneNumber(String phoneNumber) {
         return userJpaRepository.findByPhoneNumber(phoneNumber).map(UserMapper::toDomain);
     }
