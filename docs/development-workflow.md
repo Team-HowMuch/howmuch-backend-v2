@@ -4,6 +4,12 @@
 
 This workflow prevents implementation from starting with a guessed solution. It first establishes the problem and domain, then delivers the feature through verifiable contracts and small change units. AI agents must not attempt an entire feature in one speculative pass. They must leave the reasoning and results in the repository.
 
+## Documentation language
+
+- Keep this workflow, architecture documents, templates, ADRs, and other repository-wide system documents in English.
+- Write active Feature Plans, implementation review notes, QA notes, and team handoff documents in Korean so the team can review them directly.
+- Keep code identifiers, API paths, JSON fields, commands, and error codes verbatim.
+
 ## Changes that require documentation
 
 When a change meets any of the following conditions, copy the [Feature Plan template](templates/feature-plan.md) to `docs/features/active/<feature>.md`:
@@ -62,12 +68,15 @@ Define business capabilities and relationships before choosing technologies. Whe
 Define Port contracts before their implementations:
 
 1. A feature-specific Input Port, or UseCase
-2. Plain Application Request and Response records
-3. Output Ports required for real external conversations
-4. Domain models and business rules
-5. API, persistence, security, and configuration contracts
+2. Plain Application Command and Result records
+3. Purpose-oriented Output Ports required for real external conversations
+4. Domain models and Entity-local rules
+5. Application Policies required for decisions combining multiple facts
+6. API, persistence, security, and configuration contracts
 
-Name an Output Port after its purpose, not its technology. Do not create an interface without a real caller or external boundary.
+Name an Output Port after its cohesive Application capability, not its technology. Use `Load<Aggregate>Port` and `Save<Aggregate>Port` when general aggregate retrieval and persistence are the real capabilities; otherwise use a more accurate name such as `Store`, `Sender`, `Publisher`, `Authorizer`, `Token`, `CurrentActor`, or `Delete`. Split Ports when callers need materially different capabilities, keep cohesive operations together, and never create a broad technology-shaped `<Aggregate>RepositoryPort`. Do not create an interface without a real caller or external boundary.
+
+Policies belong to Application and are called only by Application Services. Do not wire or interpret them in Infra. The Service loads external facts through Output Ports and passes plain values to a concrete Policy.
 
 Record the following whenever the feature chooses a technology or pattern:
 
@@ -83,9 +92,12 @@ Walk through normal, failure, and boundary scenarios from beginning to end befor
 
 ### Impact checklist
 
-- API path, Request, Response, and status codes
+- API path, Web Request/Response DTOs, and status codes
+- Web Request DTO to Command and Result to Web Response DTO mappings
 - Calling UseCases and called Services
 - Domain state and invariants
+- Application Policies and their input facts
+- Purpose-oriented Output Ports and implementing Adapters
 - Database Entities, constraints, and queries
 - Redis keys, TTL, and serialization
 - Authentication, authorization, and Security Filters
@@ -99,14 +111,15 @@ Use search results to record affected files and behavior that must remain unchan
 
 Use this sequence by default:
 
-1. UseCase and Application Request/Response
+1. UseCase and Application Command/Result
 2. Required Output Ports
-3. Domain models and rules
-4. Application Service
-5. Persistence, Redis, JWT, and external integration Adapters
-6. Web Request DTOs, Controllers, and Swagger
-7. Properties, Config, Security Filters, and Bean wiring
-8. Documentation and Feature Plan updates
+3. Domain models and Entity-local rules
+4. Concrete Application Policies
+5. Application Services
+6. Persistence, Redis, JWT, and external integration Adapters
+7. Web Request/Response DTOs, Controllers, and Swagger
+8. Technical Properties, Config, Security Filters, and Bean wiring when required
+9. Documentation and Feature Plan updates
 
 Define Port contracts first, but do not stop with unused Ports and a disconnected feature. Reuse existing implementations at every step. Do not add abstractions or configuration that the feature does not need yet.
 

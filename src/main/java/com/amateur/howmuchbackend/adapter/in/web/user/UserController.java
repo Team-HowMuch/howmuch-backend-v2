@@ -44,6 +44,6 @@ public class UserController implements UserDocs {
     public ApiResponse<MyProfileWebResponse> updateMyProfile(
             @ModelAttribute UpdateMyProfileRequest request
     ) {
-        return ApiResponse.success(MyProfileWebResponse.from(updateMyProfileUseCase.update(request.toRequest())));
+        return ApiResponse.success(MyProfileWebResponse.from(updateMyProfileUseCase.update(request.toCommand())));
     }
 }

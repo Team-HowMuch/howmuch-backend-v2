@@ -7,8 +7,6 @@ spring:
       max-request-size: 6MB
   profiles:
     default: local
-  flyway:
-    enabled: false
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -28,6 +26,15 @@ howmuch:
   profile:
     image:
       storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}
+  codef:
+    base-url: ${CODEF_BASE_URL:https://development.codef.io}
+    oauth-url: ${CODEF_OAUTH_URL:https://oauth.codef.io/oauth/token}
+    client-id: ${CODEF_CLIENT_ID:}
+    client-secret: ${CODEF_CLIENT_SECRET:}
+    public-key: ${CODEF_PUBLIC_KEY:}
+    connected-id-encryption-key: ${CODEF_CONNECTED_ID_ENCRYPTION_KEY:}
+    connect-timeout: ${CODEF_CONNECT_TIMEOUT:5s}
+    read-timeout: ${CODEF_READ_TIMEOUT:305s}
   auth:
     identity:
       hmac-secret: ${AUTH_IDENTITY_HMAC_SECRET:local-development-identity-hmac-secret}

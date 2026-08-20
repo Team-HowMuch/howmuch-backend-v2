@@ -19,8 +19,8 @@ public record SignUpRequest(
         boolean requiredTermsAgreed,
         boolean marketingAgreed
 ) {
-    public com.amateur.howmuchbackend.application.port.in.auth.request.SignUpRequest toRequest() {
-        return new com.amateur.howmuchbackend.application.port.in.auth.request.SignUpRequest(
+    public com.amateur.howmuchbackend.application.port.in.auth.command.SignUpCommand toCommand() {
+        return new com.amateur.howmuchbackend.application.port.in.auth.command.SignUpCommand(
                 challengeId,
                 name,
                 pin,

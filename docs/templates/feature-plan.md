@@ -1,6 +1,8 @@
 # Feature Plan: <Feature name>
 
 > Copy this file to `docs/features/active/<feature>.md`. Update it whenever implementation reveals new information or decisions, then move it to `docs/features/completed/` when complete.
+>
+> Keep this system template in English. Write the copied active Feature Plan in Korean, preserving code identifiers and executable tokens.
 
 - Status: Draft
 - Last updated: YYYY-MM-DD
@@ -72,12 +74,14 @@ Record why the problem should be solved now and what happens if it remains unres
 
 ## 4. Contracts
 
-### Input Port
+### Input Port and boundary mapping
 
 ```text
 UseCase:
-Request:
-Response:
+Command:
+Result:
+Web Request DTO -> Command:
+Result -> Web Response DTO:
 ```
 
 ### Output Ports
@@ -86,7 +90,16 @@ Response:
 |---|---|---|---|
 |  |  |  |  |
 
-Do not create a Port when no real external conversation exists.
+Name each Output Port after the cohesive capability the Application requires. `Load<Aggregate>Port` and `Save<Aggregate>Port` are valid when general aggregate retrieval and persistence are the real capabilities, but they are not mandatory pairs. Use a more accurate capability name when appropriate, do not create a broad technology-shaped `<Aggregate>RepositoryPort`, and do not create a Port when no real external conversation exists.
+
+### Application Policy
+
+- Decision owned by the Policy:
+- Facts loaded by the Service and passed to the Policy:
+- Why the rule is not an Entity-local invariant:
+- Future inputs deliberately not implemented yet:
+
+Policies are Application-owned. Do not wire or interpret them in Infra.
 
 ### Web API
 
@@ -111,6 +124,7 @@ Authentication:
 
 - Rules and their locations:
 - Behavior owned by Domain:
+- Decisions owned by Application Policy:
 - Flow orchestrated by Application:
 
 ### Technology and patterns
@@ -142,12 +156,13 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] UseCase and Application Request/Response
+- [ ] UseCase and Application Command/Result
 - [ ] Required Output Ports
 - [ ] Domain models and rules
+- [ ] Application Policies
 - [ ] Application Service
 - [ ] Output Adapters
-- [ ] Web DTOs, Controllers, and Swagger
+- [ ] Web Request/Response DTOs, Controllers, and Swagger
 - [ ] Infra configuration and Bean wiring
 - [ ] Documentation and verification results
 

@@ -67,11 +67,11 @@ public class SecurityConfig {
     }
 
     private void writeError(HttpServletResponse response, CommonStatusCode statusCode) throws IOException {
-        response.setStatus(statusCode.getHttpStatus().value());
+        response.setStatus(statusCode.getStatus());
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getWriter(), new BaseResponse<>(ErrorResponse.of(
-                statusCode.getHttpStatus().value(),
+                statusCode.getStatus(),
                 statusCode.getCode(),
                 statusCode.getMessage()
         )));

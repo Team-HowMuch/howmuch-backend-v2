@@ -5,8 +5,8 @@ import com.amateur.howmuchbackend.application.auth.policy.SmsVerificationPolicy;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthChallengeStorePort;
 import com.amateur.howmuchbackend.application.port.out.auth.SmsVerificationStorePort;
 import com.amateur.howmuchbackend.application.port.in.auth.ConfirmSmsVerificationUseCase;
-import com.amateur.howmuchbackend.application.port.in.auth.request.ConfirmSmsVerificationRequest;
-import com.amateur.howmuchbackend.application.port.in.auth.response.SmsVerificationConfirmedResponse;
+import com.amateur.howmuchbackend.application.port.in.auth.command.ConfirmSmsVerificationCommand;
+import com.amateur.howmuchbackend.application.port.in.auth.result.SmsVerificationConfirmedResult;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.challenge.AuthChallenge;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
@@ -30,14 +30,14 @@ public class ConfirmSmsVerificationService implements ConfirmSmsVerificationUseC
 
     @Override
     @Transactional
-    public SmsVerificationConfirmedResponse confirm(ConfirmSmsVerificationRequest request) {
-        String phoneNumber = identityPolicy.normalizePhoneNumber(request.phoneNumber());
+    public SmsVerificationConfirmedResult confirm(ConfirmSmsVerificationCommand command) {
+        String phoneNumber = identityPolicy.normalizePhoneNumber(command.phoneNumber());
         String phoneHash = identityPolicy.phoneHash(phoneNumber);
         SmsOtpState state = smsVerificationStorePort.findByPhoneHash(phoneHash)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_EXPIRED));
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
-        if (!state.verificationRequestId().equals(request.verificationRequestId())) {
+        if (!state.verificationRequestId().equals(command.verificationRequestId())) {
             throw ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_CODE_MISMATCH);
         }
         if (state.isExpired(now)) {
@@ -45,7 +45,7 @@ public class ConfirmSmsVerificationService implements ConfirmSmsVerificationUseC
             throw ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_EXPIRED);
         }
 
-        if (!state.codeHash().equals(SendSmsVerificationService.hashCode(phoneHash, request.verificationCode()))) {
+        if (!state.codeHash().equals(SendSmsVerificationService.hashCode(phoneHash, command.verificationCode()))) {
             SmsOtpState increased = state.increaseAttemptCount();
             if (increased.attemptCount() >= smsVerificationPolicy.maxAttempts()) {
                 smsVerificationStorePort.deleteByPhoneHash(phoneHash);
@@ -68,6 +68,6 @@ public class ConfirmSmsVerificationService implements ConfirmSmsVerificationUseC
                 smsVerificationPolicy.challengeTtl()
         );
 
-        return new SmsVerificationConfirmedResponse(challenge.challengeId(), challenge.expiresAt());
+        return new SmsVerificationConfirmedResult(challenge.challengeId(), challenge.expiresAt());
     }
 }

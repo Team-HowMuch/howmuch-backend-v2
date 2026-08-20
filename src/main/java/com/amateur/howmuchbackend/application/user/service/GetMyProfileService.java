@@ -2,9 +2,9 @@ package com.amateur.howmuchbackend.application.user.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.user.GetMyProfileUseCase;
-import com.amateur.howmuchbackend.application.port.in.user.response.MyProfileResponse;
+import com.amateur.howmuchbackend.application.port.in.user.result.MyProfileResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
-import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -16,15 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class GetMyProfileService implements GetMyProfileUseCase {
     private final CurrentActorPort currentActorPort;
-    private final UserRepositoryPort userRepositoryPort;
+    private final LoadUserPort loadUserPort;
 
     @Override
     @Transactional(readOnly = true)
-    public MyProfileResponse getMyProfile() {
+    public MyProfileResult getMyProfile() {
         CurrentActor actor = currentActorPort.getCurrentActor();
-        User user = userRepositoryPort.findById(actor.userId())
+        User user = loadUserPort.findById(actor.userId())
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
 
-        return MyProfileResponse.from(user);
+        return MyProfileResult.from(user);
     }
 }

@@ -5,8 +5,8 @@ import com.amateur.howmuchbackend.application.auth.policy.SmsVerificationPolicy;
 import com.amateur.howmuchbackend.application.port.out.auth.SmsSenderPort;
 import com.amateur.howmuchbackend.application.port.out.auth.SmsVerificationStorePort;
 import com.amateur.howmuchbackend.application.port.in.auth.SendSmsVerificationUseCase;
-import com.amateur.howmuchbackend.application.port.in.auth.request.SendSmsVerificationRequest;
-import com.amateur.howmuchbackend.application.port.in.auth.response.SmsVerificationSentResponse;
+import com.amateur.howmuchbackend.application.port.in.auth.command.SendSmsVerificationCommand;
+import com.amateur.howmuchbackend.application.port.in.auth.result.SmsVerificationSentResult;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
@@ -37,8 +37,8 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
 
     @Override
     @Transactional
-    public SmsVerificationSentResponse send(SendSmsVerificationRequest request) {
-        String phoneNumber = identityPolicy.normalizePhoneNumber(request.phoneNumber());
+    public SmsVerificationSentResult send(SendSmsVerificationCommand command) {
+        String phoneNumber = identityPolicy.normalizePhoneNumber(command.phoneNumber());
         String phoneHash = identityPolicy.phoneHash(phoneNumber);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
@@ -78,7 +78,7 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
             throw exception;
         }
 
-        return new SmsVerificationSentResponse(
+        return new SmsVerificationSentResult(
                 state.verificationRequestId(),
                 phoneNumber,
                 expiresAt,

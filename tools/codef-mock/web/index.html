@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HowMuch CODEF Mock</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, Pretendard, system-ui, sans-serif; color: #17231d; background: #f2f6f3; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { padding: 30px max(24px, calc((100vw - 1180px) / 2)); background: #173f2e; color: white; }
+    header p { max-width: 760px; margin: 8px 0 0; color: #c8ddcf; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+    .warning { padding: 14px 16px; border: 1px solid #e3b05e; border-radius: 12px; background: #fff5df; color: #70480e; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 18px 0; }
+    section { min-width: 0; padding: 20px; border: 1px solid #dce5df; border-radius: 16px; background: white; box-shadow: 0 8px 24px #173f2e0c; }
+    h1, h2 { margin: 0; }
+    h2 { margin-bottom: 14px; font-size: 18px; }
+    form { display: grid; gap: 10px; }
+    .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    label { display: grid; gap: 5px; color: #536159; font-size: 13px; }
+    input, select, button { min-height: 42px; border: 1px solid #cad6ce; border-radius: 10px; padding: 9px 11px; font: inherit; }
+    button { border-color: #246c4b; background: #246c4b; color: white; cursor: pointer; font-weight: 650; }
+    button.secondary { background: white; color: #246c4b; }
+    button.danger { min-height: 32px; padding: 5px 9px; border-color: #c95050; background: white; color: #a52f2f; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #e7ece8; text-align: left; white-space: nowrap; }
+    th { color: #66756c; font-weight: 650; }
+    .full { grid-column: 1 / -1; }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    #message { min-height: 22px; margin: 12px 0; color: #246c4b; font-weight: 650; }
+    code { padding: 2px 6px; border-radius: 6px; background: #eaf0ec; }
+    @media (max-width: 760px) { .grid, .fields { grid-template-columns: 1fr; } main { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HowMuch CODEF Mock</h1>
+    <p>가상 사용자와 계좌를 SQLite에 저장하고 HowMuch의 CODEF 연결 흐름에서 불러오는 로컬 개발 도구입니다.</p>
+  </header>
+  <main>
+    <div class="warning"><strong>가상 데이터 전용:</strong> 실제 금융기관 ID, 비밀번호, 계좌번호 또는 개인정보를 입력하지 마세요. 기본 기관코드는 <code>0020</code>, 로그인 ID는 <code>demo-user</code>입니다.</div>
+    <div id="message" role="status" aria-live="polite"></div>
+    <div class="grid">
+      <section>
+        <h2>가상 사용자 저장</h2>
+        <form id="profile-form">
+          <div class="fields">
+            <label>로그인 ID<input name="loginId" required maxlength="100" value="demo-user"></label>
+            <label>표시 이름<input name="displayName" required maxlength="100" value="로컬 데모 사용자"></label>
+          </div>
+          <button type="submit">사용자 저장</button>
+        </form>
+      </section>
+      <section>
+        <h2>가상 계좌 추가</h2>
+        <form id="account-form">
+          <div class="fields">
+            <label>로그인 ID<input name="loginId" required maxlength="100" value="demo-user"></label>
+            <label>기관코드<input name="organization" required pattern="\d{4}" value="0020"></label>
+            <label>자산 유형<select name="assetType">
+              <option value="DEPOSIT_TRUST">예금/신탁</option><option value="FOREIGN_CURRENCY">외화</option>
+              <option value="FUND">펀드</option><option value="LOAN">대출</option><option value="INSURANCE">보험</option>
+            </select></label>
+            <label>계좌명<input name="name" required maxlength="100" value="우리 주거래 통장"></label>
+            <label>가상 계좌번호<input name="accountNumber" required maxlength="64" value="1002123456789"></label>
+            <label>잔액<input name="balance" inputmode="decimal" value="1250000"></label>
+            <label>통화<input name="currency" maxlength="10" value="KRW"></label>
+          </div>
+          <button type="submit">계좌 추가</button>
+        </form>
+      </section>
+      <section class="full">
+        <div class="toolbar"><h2>가상 사용자</h2><button class="secondary" type="button" id="refresh">새로고침</button></div>
+        <div class="table-wrap"><table><thead><tr><th>로그인 ID</th><th>표시 이름</th><th></th></tr></thead><tbody id="profiles"></tbody></table></div>
+      </section>
+      <section class="full">
+        <h2>저장된 계좌</h2>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>로그인 ID</th><th>기관</th><th>유형</th><th>계좌명</th><th>가상 계좌번호</th><th>잔액</th><th>통화</th><th></th></tr></thead><tbody id="accounts"></tbody></table></div>
+      </section>
+      <section class="full">
+        <h2>HowMuch가 생성한 연결</h2>
+        <div class="table-wrap"><table><thead><tr><th>로그인 ID</th><th>Connected ID</th><th>등록 기관</th></tr></thead><tbody id="connections"></tbody></table></div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const message = document.querySelector('#message');
+    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    async function request(path, options = {}) {
+      const response = await fetch(path, {headers: {'Content-Type': 'application/json'}, ...options});
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || '요청에 실패했습니다.');
+      return body;
+    }
+    function formBody(form) { return Object.fromEntries(new FormData(form).entries()); }
+    document.querySelector('#profile-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      try { await request('/admin/api/profiles', {method: 'POST', body: JSON.stringify(formBody(event.target))}); await done('사용자를 저장했습니다.'); }
+      catch (error) { message.textContent = error.message; }
+    });
+    document.querySelector('#account-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      try { await request('/admin/api/accounts', {method: 'POST', body: JSON.stringify(formBody(event.target))}); await done('계좌를 추가했습니다.'); }
+      catch (error) { message.textContent = error.message; }
+    });
+    document.querySelector('#refresh').addEventListener('click', loadState);
+    async function removeAccount(id) {
+      if (confirm('이 가상 계좌를 삭제할까요?')) { await request(`/admin/api/accounts/${id}`, {method: 'DELETE'}); await done('계좌를 삭제했습니다.'); }
+    }
+    async function removeProfile(loginId) {
+      if (confirm('사용자와 연결된 모든 가상 데이터가 삭제됩니다. 계속할까요?')) { await request(`/admin/api/profiles/${encodeURIComponent(loginId)}`, {method: 'DELETE'}); await done('사용자를 삭제했습니다.'); }
+    }
+    async function done(text) { message.textContent = text; await loadState(); }
+    async function loadState() {
+      try {
+        const state = await request('/admin/api/state');
+        document.querySelector('#profiles').innerHTML = state.profiles.map(item => `<tr><td>${escapeHtml(item.loginId)}</td><td>${escapeHtml(item.displayName)}</td><td><button class="danger profile-delete" data-login="${escapeHtml(item.loginId)}">삭제</button></td></tr>`).join('') || '<tr><td colspan="3">없음</td></tr>';
+        document.querySelectorAll('.profile-delete').forEach(button => button.addEventListener('click', () => removeProfile(button.dataset.login)));
+        document.querySelector('#accounts').innerHTML = state.accounts.map(item => `<tr><td>${item.id}</td><td>${escapeHtml(item.loginId)}</td><td>${escapeHtml(item.organization)}</td><td>${escapeHtml(item.assetType)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.accountNumber)}</td><td>${escapeHtml(item.balance)}</td><td>${escapeHtml(item.currency)}</td><td><button class="danger account-delete" data-id="${item.id}">삭제</button></td></tr>`).join('') || '<tr><td colspan="9">없음</td></tr>';
+        document.querySelectorAll('.account-delete').forEach(button => button.addEventListener('click', () => removeAccount(button.dataset.id)));
+        document.querySelector('#connections').innerHTML = state.connections.map(item => `<tr><td>${escapeHtml(item.loginId)}</td><td>${escapeHtml(item.connectedId)}</td><td>${escapeHtml(item.organizations || '')}</td></tr>`).join('') || '<tr><td colspan="3">HowMuch에서 아직 연결하지 않았습니다.</td></tr>';
+      } catch (error) { message.textContent = error.message; }
+    }
+    loadState();
+  </script>
+</body>
+</html>

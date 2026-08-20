@@ -1,8 +1,8 @@
 package com.amateur.howmuchbackend.application.port.in.auth;
 
-import com.amateur.howmuchbackend.application.port.in.auth.request.LoginRequest;
-import com.amateur.howmuchbackend.application.port.in.auth.response.TokenResponse;
+import com.amateur.howmuchbackend.application.port.in.auth.command.LoginCommand;
+import com.amateur.howmuchbackend.application.port.in.auth.result.TokenResult;
 
 public interface LoginUseCase {
-    TokenResponse login(LoginRequest request);
+    TokenResult login(LoginCommand command);
 }

@@ -1,0 +1,9 @@
+# Local mock-only values. Never enter real bank credentials while this profile is active.
+howmuch:
+  codef:
+    base-url: http://127.0.0.1:18080
+    oauth-url: http://127.0.0.1:18080/oauth/token
+    client-id: mock-client
+    client-secret: mock-secret
+    public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwRm4Tcy/Mg3mCbaUAPYTx9vNk0tFsbIdlr9fxeJfz8XyF2y6PbSYFvMIaJEIpezwFWGV9Z88yMx2MD83ctdze8H8vuHEQQGsxtRaGQCjnRplc1P/bu04qjZad7aQ9JlmzUIGI/EgezNNPsTAfp3vyBMs3FMx6v7Jdj1XwtVu75kwg4WZelivZ2eVJ906B4Wo2/sZuLC5lVnEsRKKUCztL86XHPyazgReEHSewQtd6+84hcGWo1W2hjLn//ByOksblFNZOxQPvcSQwcLvJeFyvcNunks6s/TTDOVP+jqSJl7sieUob4rwgn1852TzpiNAE7ZWkXiJjg/YEFgQwP+eAQIDAQAB
+    connected-id-encryption-key: aG93bXVjaC1jb2RlZi1tb2NrLWtleS0zMi1ieXRlcyE=

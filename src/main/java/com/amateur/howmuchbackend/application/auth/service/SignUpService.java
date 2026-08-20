@@ -4,9 +4,10 @@ import com.amateur.howmuchbackend.application.auth.policy.PinPolicy;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
 import com.amateur.howmuchbackend.application.user.policy.NicknamePolicy;
 import com.amateur.howmuchbackend.application.port.in.auth.SignUpUseCase;
-import com.amateur.howmuchbackend.application.port.in.auth.request.SignUpRequest;
+import com.amateur.howmuchbackend.application.port.in.auth.command.SignUpCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthChallengeStorePort;
-import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -25,42 +26,43 @@ public class SignUpService implements SignUpUseCase {
     private final IdentityPolicy identityPolicy;
     private final NicknamePolicy nicknamePolicy;
     private final AuthChallengeStorePort authChallengeStorePort;
-    private final UserRepositoryPort userRepositoryPort;
+    private final LoadUserPort loadUserPort;
+    private final SaveUserPort saveUserPort;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
-    public void signUp(SignUpRequest request) {
-        var challenge = authChallengeStorePort.findById(request.challengeId())
+    public void signUp(SignUpCommand command) {
+        var challenge = authChallengeStorePort.findById(command.challengeId())
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.AUTH_CHALLENGE_EXPIRED));
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         if (challenge.isExpired(now)) {
             authChallengeStorePort.deleteById(challenge.challengeId());
             throw ApplicationException.of(AuthStatusCode.AUTH_CHALLENGE_EXPIRED);
         }
-        if (!pinPolicy.isValid(request.pin())) {
+        if (!pinPolicy.isValid(command.pin())) {
             throw ApplicationException.of(AuthStatusCode.INVALID_PIN_FORMAT);
         }
-        if (!request.pin().equals(request.pinConfirmation())) {
+        if (!command.pin().equals(command.pinConfirmation())) {
             throw ApplicationException.of(AuthStatusCode.PIN_CONFIRMATION_MISMATCH);
         }
-        if (!request.requiredTermsAgreed()) {
+        if (!command.requiredTermsAgreed()) {
             throw ApplicationException.of(AuthStatusCode.REQUIRED_TERMS_NOT_AGREED);
         }
-        if (userRepositoryPort.findByPhoneNumber(challenge.phoneNumber()).isPresent()) {
+        if (loadUserPort.findByPhoneNumber(challenge.phoneNumber()).isPresent()) {
             throw ApplicationException.of(AuthStatusCode.PHONE_NUMBER_ALREADY_REGISTERED);
         }
 
         User user = User.register(
                 identityPolicy.phoneHash(challenge.phoneNumber()),
-                normalizeName(request.name()),
-                nicknamePolicy.normalize(request.name()),
+                normalizeName(command.name()),
+                nicknamePolicy.normalize(command.name()),
                 challenge.phoneNumber(),
-                passwordEncoder.encode(request.pin()),
+                passwordEncoder.encode(command.pin()),
                 now,
-                request.marketingAgreed()
+                command.marketingAgreed()
         );
-        userRepositoryPort.save(user);
+        saveUserPort.save(user);
         authChallengeStorePort.deleteById(challenge.challengeId());
     }
 

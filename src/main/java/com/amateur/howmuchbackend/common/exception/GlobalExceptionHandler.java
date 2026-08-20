@@ -18,11 +18,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<ErrorResponse>> handleApplicationException(ApplicationException exception) {
         var statusCode = exception.getStatusCode();
         ErrorResponse error = ErrorResponse.of(
-                statusCode.getHttpStatus().value(),
+                statusCode.getStatus(),
                 statusCode.getCode(),
                 exception.getMessage()
         );
-        return ResponseEntity.status(statusCode.getHttpStatus())
+        return ResponseEntity.status(statusCode.getStatus())
                 .body(new BaseResponse<>(false, null, error));
     }
 
@@ -55,7 +55,7 @@ public class GlobalExceptionHandler {
         ex.printStackTrace();
 
         ErrorResponse error = ErrorResponse.of(
-                CommonStatusCode.INTERNAL_SERVER_ERROR.getHttpStatus().value(),
+                CommonStatusCode.INTERNAL_SERVER_ERROR.getStatus(),
                 CommonStatusCode.INTERNAL_SERVER_ERROR.getCode(),
                 CommonStatusCode.INTERNAL_SERVER_ERROR.getMessage()
         );
