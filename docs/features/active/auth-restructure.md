@@ -229,14 +229,14 @@ Response: void
 | `SmsVerificationStorePort` | OTP 상태와 TTL 저장 | SMS 발송·확인 Service | 기존 `SmsVerificationRedisAdapter` |
 | `SmsSenderPort` | 생성한 OTP 전달 | SMS 발송 Service | 기존 Discord/SOLAPI Adapter |
 | `AuthChallengeStorePort` | SMS 인증 완료 Challenge 저장 | SMS 확인·회원가입 Service | 기존 `AuthChallengeRedisAdapter` |
-| `UserRepositoryPort` | 휴대폰 번호 조회, 사용자 생성·갱신 | 회원가입·로그인 Service | 기존 `UserPersistenceAdapter` 확장 |
+| `LoadUserPort` / `SaveUserPort` | 휴대폰 번호 조회, 사용자 생성·갱신 | 회원가입·로그인 Service | `UserPersistenceAdapter` |
 | `AuthTokenPort` | Access/Request JWT 생성·검증 | 기존 `AuthTokenService` | 기존 `JwtTokenProvider` |
 | `AuthSessionPort` | 사용자 단일 세션 저장·검증·삭제 | 로그인·재발급·로그아웃·Filter | 기존 `AuthSessionRedisAdapter` |
 | `LoginAttemptStorePort` | 휴대폰 식별자별 로그인 실패 횟수를 원자 증가·초기화 | `LoginService` | `LoginAttemptRedisAdapter` |
 | `CurrentActorPort` | 로그아웃 사용자의 ID 확인 | `LogoutService` | 기존 `SpringSecurityAdapter` |
 | `AuthAuditPort` | 로그아웃 감사 이벤트 저장 | `LogoutService` | JPA 감사 로그 Adapter |
 
-명세가 요구하는 감사 로그와 Redis 원자 증가가 각각 실제 외부 경계이므로 `AuthAuditPort`, `LoginAttemptStorePort`만 추가한다. 그 외에는 새 Port를 만들지 않고 `UserRepositoryPort`에 실제로 필요한 휴대폰 번호 조회만 추가한다.
+명세가 요구하는 감사 로그와 Redis 원자 증가가 각각 실제 외부 경계이므로 `AuthAuditPort`, `LoginAttemptStorePort`를 추가했다. 사용자 조회와 저장은 `LoadUserPort`, `SaveUserPort`로 분리하고 하나의 `UserPersistenceAdapter`가 구현한다.
 
 ### Web API
 
@@ -347,13 +347,13 @@ Authorization: Bearer <accessToken>
 - Database Entity, constraint, or query changes:
   - `users.phone_number`에 정규화 값 기준 Unique Constraint를 추가한다.
   - Unique Constraint 적용 전 기존 중복 번호를 조회하고 충돌을 해결한다.
-  - `UserRepositoryPort.findByPhoneNumber`와 동일 목적의 JPA 조회를 추가한다.
+  - `LoadUserPort.findByPhoneNumber`와 동일 목적의 JPA 조회를 추가한다.
   - `identity_key`는 기존 데이터 호환을 위해 유지하지만 새 로그인 식별에는 사용하지 않는다.
   - 신규 가입에서 입력하지 않는 `birth_date`, `gender`는 Nullable로 변경한다.
   - `MyProfileResponse`와 `MyProfileWebResponse`에서 생년월일과 성별을 Nullable로 취급한다.
   - 필수 약관 동의 시각과 마케팅 동의 시각을 저장한다. 마케팅 철회 시각과 약관 버전은 해당 변경 UseCase가 생길 때 추가한다.
   - 로그아웃 감사 로그에 사용자 ID, 이벤트 종류, UTC 시각, Client IP, User-Agent를 저장한다.
-  - Flyway가 비활성화되어 있으므로 운영 반영 전 검증된 DDL과 Rollback DDL을 별도로 준비한다.
+  - 현재 인증 스키마는 Flyway V1 기준선으로 관리하며 이후 변경은 새 버전 마이그레이션으로 추가한다.
 
 운영 DDL 초안은 아래와 같다. 적용 전 `phone_number` 정규화와 중복 조회 결과가 0건인지 확인해야 한다.
 
@@ -482,7 +482,7 @@ Existing behavior that must remain unchanged:
   - `CompleteAuthUseCase`, `DevLoginUseCase`와 사용하지 않는 Request를 제거한다.
 - [x] Required Output Ports
   - 로그아웃 감사 로그를 위한 `AuthAuditPort`와 원자적 로그인 실패 제한을 위한 `LoginAttemptStorePort`를 추가한다.
-  - `UserRepositoryPort`에 휴대폰 번호 조회 Capability를 추가한다.
+  - `LoadUserPort`에 휴대폰 번호 조회 Capability를 추가한다.
 - [x] Domain models and rules
   - `AuthIdentity` 의존을 제거하고 OTP·Challenge를 휴대폰 번호 기반으로 축소한다.
   - `PinPolicy`에 명세의 금지 패턴을 추가한다.

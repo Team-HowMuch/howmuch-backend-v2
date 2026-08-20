@@ -30,7 +30,7 @@ Both environments need automatic deployment before backend delivery can proceed 
 - Committing the server-owned integrated Compose file to this repository
 - Adding an external HTTP health endpoint
 - Adding new test cases
-- Database migrations while Flyway remains disabled
+- Authoring database migrations beyond the application-owned Flyway scripts
 
 ## 2. Domain analysis
 
@@ -143,7 +143,7 @@ Existing behavior that must remain unchanged:
 
 - Local development continues to use the `local` profile.
 - Development continues to use the `dev` profile and Discord SMS unless overridden.
-- The application continues to validate schemas outside local development, with Flyway disabled.
+- The application runs pending Flyway migrations before Hibernate validates the schema in every profile.
 
 ## 7. Implementation plan
 
