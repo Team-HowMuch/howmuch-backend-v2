@@ -1,8 +1,8 @@
 package com.amateur.howmuchbackend.application.port.in.auth;
 
-import com.amateur.howmuchbackend.application.port.in.auth.request.SendSmsVerificationRequest;
-import com.amateur.howmuchbackend.application.port.in.auth.response.SmsVerificationSentResponse;
+import com.amateur.howmuchbackend.application.port.in.auth.command.SendSmsVerificationCommand;
+import com.amateur.howmuchbackend.application.port.in.auth.result.SmsVerificationSentResult;
 
 public interface SendSmsVerificationUseCase {
-    SmsVerificationSentResponse send(SendSmsVerificationRequest request);
+    SmsVerificationSentResult send(SendSmsVerificationCommand command);
 }

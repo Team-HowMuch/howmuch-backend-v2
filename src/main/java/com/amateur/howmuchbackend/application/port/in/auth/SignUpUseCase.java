@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.application.port.in.auth;
 
-import com.amateur.howmuchbackend.application.port.in.auth.request.SignUpRequest;
+import com.amateur.howmuchbackend.application.port.in.auth.command.SignUpCommand;
 
 public interface SignUpUseCase {
-    void signUp(SignUpRequest request);
+    void signUp(SignUpCommand command);
 }

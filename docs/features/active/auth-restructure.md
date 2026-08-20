@@ -350,7 +350,7 @@ Authorization: Bearer <accessToken>
   - `LoadUserPort.findByPhoneNumber`와 동일 목적의 JPA 조회를 추가한다.
   - `identity_key`는 기존 데이터 호환을 위해 유지하지만 새 로그인 식별에는 사용하지 않는다.
   - 신규 가입에서 입력하지 않는 `birth_date`, `gender`는 Nullable로 변경한다.
-  - `MyProfileResponse`와 `MyProfileWebResponse`에서 생년월일과 성별을 Nullable로 취급한다.
+  - `MyProfileResult`와 `MyProfileWebResponse`에서 생년월일과 성별을 Nullable로 취급한다.
   - 필수 약관 동의 시각과 마케팅 동의 시각을 저장한다. 마케팅 철회 시각과 약관 버전은 해당 변경 UseCase가 생길 때 추가한다.
   - 로그아웃 감사 로그에 사용자 ID, 이벤트 종류, UTC 시각, Client IP, User-Agent를 저장한다.
   - 현재 인증 스키마는 Flyway V1 기준선으로 관리하며 이후 변경은 새 버전 마이그레이션으로 추가한다.
@@ -459,7 +459,7 @@ ALTER TABLE users ALTER COLUMN birth_date SET NOT NULL;
 | Redis | OTP/Challenge 직렬화 변경, 로그인 실패 제한 추가, 단일 세션 Key 유지 | `SmsVerificationRedisAdapter`, `AuthChallengeRedisAdapter`, `LoginAttemptRedisAdapter`, `AuthSessionRedisAdapter` |
 | Security | `/signup`, `/login` 공개 경로 추가, JWT+Redis 검증 유지 | `SecurityConfig`, `JwtAuthenticationFilter` |
 | Configuration | OTP 3분, 재전송 60초, 최대 시도 5회, 단일 세션과 Token 회전 유지 | `application.yaml`, Auth Properties와 Config |
-| Profile | 신규 사용자의 생년월일·성별 Nullable 응답 | `MyProfileResponse`, `MyProfileWebResponse` |
+| Profile | 신규 사용자의 생년월일·성별 Nullable 응답 | `MyProfileResult`, `MyProfileWebResponse` |
 | Documentation | 인증 경계와 기존 SOLAPI 문서의 Request 설명 갱신 필요 | `docs/architecture.md`, `docs/features/active/solapi-sms-adapter.md`, Swagger |
 
 Existing behavior that must remain unchanged:
@@ -476,8 +476,8 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [x] UseCase and Application Request/Response
-  - `SignUpUseCase`, `LoginUseCase`와 Request를 추가한다.
+- [x] UseCase and Application Command/Result
+  - `SignUpUseCase`, `LoginUseCase`와 Command를 추가한다.
   - 기존 `SendSmsVerificationRequest`에서 이름과 주민등록번호를 제거한다.
   - `CompleteAuthUseCase`, `DevLoginUseCase`와 사용하지 않는 Request를 제거한다.
 - [x] Required Output Ports

@@ -12,8 +12,8 @@ public record ConfirmSmsVerificationRequest(
         @Pattern(regexp = "^\\d{6}$", message = "인증번호는 6자리 숫자여야 합니다.")
         String verificationCode
 ) {
-    public com.amateur.howmuchbackend.application.port.in.auth.request.ConfirmSmsVerificationRequest toRequest() {
-        return new com.amateur.howmuchbackend.application.port.in.auth.request.ConfirmSmsVerificationRequest(
+    public com.amateur.howmuchbackend.application.port.in.auth.command.ConfirmSmsVerificationCommand toCommand() {
+        return new com.amateur.howmuchbackend.application.port.in.auth.command.ConfirmSmsVerificationCommand(
                 phoneNumber,
                 verificationRequestId,
                 verificationCode

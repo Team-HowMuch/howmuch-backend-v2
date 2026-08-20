@@ -2,8 +2,8 @@ package com.amateur.howmuchbackend.application.user.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.user.UpdateMyProfileUseCase;
-import com.amateur.howmuchbackend.application.port.in.user.request.UpdateMyProfileRequest;
-import com.amateur.howmuchbackend.application.port.in.user.response.MyProfileResponse;
+import com.amateur.howmuchbackend.application.port.in.user.command.UpdateMyProfileCommand;
+import com.amateur.howmuchbackend.application.port.in.user.result.MyProfileResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
@@ -35,8 +35,8 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
 
     @Override
     @Transactional
-    public MyProfileResponse update(UpdateMyProfileRequest request) {
-        if (request.resetAvatar() && request.avatarContent() != null) {
+    public MyProfileResult update(UpdateMyProfileCommand command) {
+        if (command.resetAvatar() && command.avatarContent() != null) {
             throw ApplicationException.of(
                     com.amateur.howmuchbackend.common.exception.status.CommonStatusCode.INVALID_ARGUMENT,
                     "아바타 업로드와 기본 이미지 복원을 동시에 요청할 수 없습니다."
@@ -47,23 +47,23 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
         User user = loadUserPort.findById(actor.userId())
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
 
-        String nickname = request.nickname() == null
+        String nickname = command.nickname() == null
                 ? user.nickname()
-                : nicknamePolicy.normalize(request.nickname());
+                : nicknamePolicy.normalize(command.nickname());
         String previousAvatarFileName = user.avatarFileName();
         String avatarFileName = previousAvatarFileName;
         String newlyStoredFileName = null;
 
-        if (request.avatarContent() != null) {
-            ProfileImageUpload image = profileImagePolicy.validate(request.avatarContent());
+        if (command.avatarContent() != null) {
+            ProfileImageUpload image = profileImagePolicy.validate(command.avatarContent());
             newlyStoredFileName = profileImageStoragePort.save(image);
             avatarFileName = newlyStoredFileName;
-        } else if (request.resetAvatar()) {
+        } else if (command.resetAvatar()) {
             avatarFileName = null;
         }
 
         if (nickname.equals(user.nickname()) && equalsNullable(avatarFileName, previousAvatarFileName)) {
-            return MyProfileResponse.from(user);
+            return MyProfileResult.from(user);
         }
 
         User updated;
@@ -81,7 +81,7 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
         }
 
         scheduleAvatarCleanup(previousAvatarFileName, avatarFileName, newlyStoredFileName);
-        return MyProfileResponse.from(updated);
+        return MyProfileResult.from(updated);
     }
 
     private void scheduleAvatarCleanup(

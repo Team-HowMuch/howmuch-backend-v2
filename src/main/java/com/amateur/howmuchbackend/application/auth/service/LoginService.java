@@ -3,8 +3,8 @@ package com.amateur.howmuchbackend.application.auth.service;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
 import com.amateur.howmuchbackend.application.auth.policy.PinPolicy;
 import com.amateur.howmuchbackend.application.port.in.auth.LoginUseCase;
-import com.amateur.howmuchbackend.application.port.in.auth.request.LoginRequest;
-import com.amateur.howmuchbackend.application.port.in.auth.response.TokenResponse;
+import com.amateur.howmuchbackend.application.port.in.auth.command.LoginCommand;
+import com.amateur.howmuchbackend.application.port.in.auth.result.TokenResult;
 import com.amateur.howmuchbackend.application.port.out.auth.LoginAttemptStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
@@ -32,9 +32,9 @@ public class LoginService implements LoginUseCase {
 
     @Override
     @Transactional
-    public TokenResponse login(LoginRequest request) {
-        String phoneNumber = identityPolicy.normalizePhoneNumber(request.phoneNumber());
-        validatePin(request.pin());
+    public TokenResult login(LoginCommand command) {
+        String phoneNumber = identityPolicy.normalizePhoneNumber(command.phoneNumber());
+        validatePin(command.pin());
 
         String phoneHash = identityPolicy.phoneHash(phoneNumber);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
@@ -43,7 +43,7 @@ public class LoginService implements LoginUseCase {
         }
 
         User user = loadUserPort.findByPhoneNumber(phoneNumber).orElse(null);
-        if (user == null || !passwordEncoder.matches(request.pin(), user.pinHash())) {
+        if (user == null || !passwordEncoder.matches(command.pin(), user.pinHash())) {
             handleFailure(phoneHash);
         }
         if (!user.active()) {

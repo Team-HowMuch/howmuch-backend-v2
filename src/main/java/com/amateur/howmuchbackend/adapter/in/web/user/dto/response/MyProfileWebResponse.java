@@ -1,6 +1,6 @@
 package com.amateur.howmuchbackend.adapter.in.web.user.dto.response;
 
-import com.amateur.howmuchbackend.application.port.in.user.response.MyProfileResponse;
+import com.amateur.howmuchbackend.application.port.in.user.result.MyProfileResult;
 import com.amateur.howmuchbackend.domain.user.Gender;
 import com.amateur.howmuchbackend.domain.user.UserRole;
 
@@ -22,7 +22,7 @@ public record MyProfileWebResponse(
 ) {
     private static final String AVATAR_URL = "/api/v2/user/me/avatar";
 
-    public static MyProfileWebResponse from(MyProfileResponse response) {
+    public static MyProfileWebResponse from(MyProfileResult response) {
         return new MyProfileWebResponse(
                 response.userId(),
                 response.name(),

@@ -1,8 +1,8 @@
 package com.amateur.howmuchbackend.application.port.in.auth;
 
-import com.amateur.howmuchbackend.application.port.in.auth.request.RefreshTokenRequest;
-import com.amateur.howmuchbackend.application.port.in.auth.response.TokenResponse;
+import com.amateur.howmuchbackend.application.port.in.auth.command.RefreshTokenCommand;
+import com.amateur.howmuchbackend.application.port.in.auth.result.TokenResult;
 
 public interface RefreshTokenUseCase {
-    TokenResponse refresh(RefreshTokenRequest request);
+    TokenResult refresh(RefreshTokenCommand command);
 }

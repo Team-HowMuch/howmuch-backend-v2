@@ -65,7 +65,7 @@ The `StatusCode` contract is framework-neutral and stores numeric HTTP status va
 - Place structured output contracts under `application.port.in.<domain>.result` as `<Subject>Result` records.
 - Keep Commands and Results free of Jakarta Validation, Servlet, HTTP status, Swagger, JPA, and Redis types.
 - Do not name new or modified Application contracts `Request`, `Response`, or `DTO`; those names belong to external Adapter contracts.
-- Existing `application.port.in.*.request` and `.response` records are transition points. Do not bulk-rename them outside a scoped contract refactor.
+- Application Input contracts use only `command` and `result` packages. `Request`, `Response`, and `DTO` names belong to external Adapter contracts.
 - A cohesive Application Service may implement several related UseCases; do not put every endpoint in one broad domain UseCase.
 - Place Services under `application.<domain>.service`.
 - Services own transaction boundaries, current-actor lookup, Output Port call order, Policy input loading, Domain invocation, and response assembly.
@@ -225,7 +225,7 @@ public record TokenResponse(
 ) {}
 ```
 
-The current auth Controller still exposes the Application `TokenResponse` directly. Preserve its public fields until a scoped Command/Result boundary refactor replaces the internal contract.
+The auth Controller maps `TokenResult` to the Web `TokenResponse` boundary, preserving the public fields while keeping the Application contract internal.
 
 ## Configuration and Policy ownership
 

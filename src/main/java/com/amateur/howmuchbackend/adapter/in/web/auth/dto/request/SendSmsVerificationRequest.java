@@ -6,7 +6,7 @@ public record SendSmsVerificationRequest(
         @NotBlank(message = "휴대폰 번호는 필수입니다.")
         String phoneNumber
 ) {
-    public com.amateur.howmuchbackend.application.port.in.auth.request.SendSmsVerificationRequest toRequest() {
-        return new com.amateur.howmuchbackend.application.port.in.auth.request.SendSmsVerificationRequest(phoneNumber);
+    public com.amateur.howmuchbackend.application.port.in.auth.command.SendSmsVerificationCommand toCommand() {
+        return new com.amateur.howmuchbackend.application.port.in.auth.command.SendSmsVerificationCommand(phoneNumber);
     }
 }

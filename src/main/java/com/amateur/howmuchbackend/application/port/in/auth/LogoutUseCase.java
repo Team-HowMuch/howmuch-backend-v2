@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.application.port.in.auth;
 
-import com.amateur.howmuchbackend.application.port.in.auth.request.LogoutRequest;
+import com.amateur.howmuchbackend.application.port.in.auth.command.LogoutCommand;
 
 public interface LogoutUseCase {
-    void logout(LogoutRequest request);
+    void logout(LogoutCommand command);
 }

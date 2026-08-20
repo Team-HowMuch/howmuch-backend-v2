@@ -4,7 +4,7 @@
 
 This is the practical starting point for adding or changing a component. [Architecture](architecture.md) owns dependency direction, [Development Workflow](development-workflow.md) owns delivery steps, and ADRs own durable decisions. This guide answers where a component belongs, what it may know, and what its smallest useful shape is.
 
-Apply these shapes to new or modified components. Existing Application `request`/`response` records, broad Repository Ports, Domain `HttpStatus` imports, and flat persistence technical packages are explicit transition points; move them only in an approved feature or refactor scope.
+Apply these shapes to new or modified components. Broad Repository Ports, Domain `HttpStatus` imports, and flat persistence technical packages remain explicit transition points; move them only in an approved feature or refactor scope.
 
 ## Default flow
 

@@ -1,13 +1,13 @@
-package com.amateur.howmuchbackend.application.port.in.user.request;
+package com.amateur.howmuchbackend.application.port.in.user.command;
 
 import java.util.Arrays;
 
-public record UpdateMyProfileRequest(
+public record UpdateMyProfileCommand(
         String nickname,
         byte[] avatarContent,
         boolean resetAvatar
 ) {
-    public UpdateMyProfileRequest {
+    public UpdateMyProfileCommand {
         if (avatarContent != null) {
             avatarContent = Arrays.copyOf(avatarContent, avatarContent.length);
         }

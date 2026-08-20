@@ -10,7 +10,7 @@ public record LoginRequest(
         @Pattern(regexp = "^\\d{6}$", message = "PIN은 6자리 숫자여야 합니다.")
         String pin
 ) {
-    public com.amateur.howmuchbackend.application.port.in.auth.request.LoginRequest toRequest() {
-        return new com.amateur.howmuchbackend.application.port.in.auth.request.LoginRequest(phoneNumber, pin);
+    public com.amateur.howmuchbackend.application.port.in.auth.command.LoginCommand toCommand() {
+        return new com.amateur.howmuchbackend.application.port.in.auth.command.LoginCommand(phoneNumber, pin);
     }
 }

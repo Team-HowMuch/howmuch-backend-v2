@@ -9,8 +9,8 @@ public record UpdateMyProfileRequest(
         MultipartFile avatar,
         Boolean resetAvatar
 ) {
-    public com.amateur.howmuchbackend.application.port.in.user.request.UpdateMyProfileRequest toRequest() {
-        return new com.amateur.howmuchbackend.application.port.in.user.request.UpdateMyProfileRequest(
+    public com.amateur.howmuchbackend.application.port.in.user.command.UpdateMyProfileCommand toCommand() {
+        return new com.amateur.howmuchbackend.application.port.in.user.command.UpdateMyProfileCommand(
                 nickname,
                 avatarContent(),
                 Boolean.TRUE.equals(resetAvatar)

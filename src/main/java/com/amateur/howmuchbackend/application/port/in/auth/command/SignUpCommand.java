@@ -1,6 +1,6 @@
-package com.amateur.howmuchbackend.application.port.in.auth.request;
+package com.amateur.howmuchbackend.application.port.in.auth.command;
 
-public record SignUpRequest(
+public record SignUpCommand(
         String challengeId,
         String name,
         String pin,
