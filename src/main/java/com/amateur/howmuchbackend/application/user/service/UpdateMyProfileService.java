@@ -6,7 +6,8 @@ import com.amateur.howmuchbackend.application.port.in.user.request.UpdateMyProfi
 import com.amateur.howmuchbackend.application.port.in.user.response.MyProfileResponse;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
-import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.application.user.model.ProfileImageUpload;
 import com.amateur.howmuchbackend.application.user.policy.NicknamePolicy;
 import com.amateur.howmuchbackend.application.user.policy.ProfileImagePolicy;
@@ -26,7 +27,8 @@ import java.time.ZoneOffset;
 @RequiredArgsConstructor
 public class UpdateMyProfileService implements UpdateMyProfileUseCase {
     private final CurrentActorPort currentActorPort;
-    private final UserRepositoryPort userRepositoryPort;
+    private final LoadUserPort loadUserPort;
+    private final SaveUserPort saveUserPort;
     private final ProfileImageStoragePort profileImageStoragePort;
     private final NicknamePolicy nicknamePolicy;
     private final ProfileImagePolicy profileImagePolicy;
@@ -42,7 +44,7 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
         }
 
         CurrentActor actor = currentActorPort.getCurrentActor();
-        User user = userRepositoryPort.findById(actor.userId())
+        User user = loadUserPort.findById(actor.userId())
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
 
         String nickname = request.nickname() == null
@@ -66,7 +68,7 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
 
         User updated;
         try {
-            updated = userRepositoryPort.update(user.changeProfile(
+            updated = saveUserPort.update(user.changeProfile(
                     nickname,
                     avatarFileName,
                     LocalDateTime.now(ZoneOffset.UTC)

@@ -6,7 +6,8 @@ import com.amateur.howmuchbackend.application.user.policy.NicknamePolicy;
 import com.amateur.howmuchbackend.application.port.in.auth.SignUpUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.request.SignUpRequest;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthChallengeStorePort;
-import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -25,7 +26,8 @@ public class SignUpService implements SignUpUseCase {
     private final IdentityPolicy identityPolicy;
     private final NicknamePolicy nicknamePolicy;
     private final AuthChallengeStorePort authChallengeStorePort;
-    private final UserRepositoryPort userRepositoryPort;
+    private final LoadUserPort loadUserPort;
+    private final SaveUserPort saveUserPort;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -47,7 +49,7 @@ public class SignUpService implements SignUpUseCase {
         if (!request.requiredTermsAgreed()) {
             throw ApplicationException.of(AuthStatusCode.REQUIRED_TERMS_NOT_AGREED);
         }
-        if (userRepositoryPort.findByPhoneNumber(challenge.phoneNumber()).isPresent()) {
+        if (loadUserPort.findByPhoneNumber(challenge.phoneNumber()).isPresent()) {
             throw ApplicationException.of(AuthStatusCode.PHONE_NUMBER_ALREADY_REGISTERED);
         }
 
@@ -60,7 +62,7 @@ public class SignUpService implements SignUpUseCase {
                 now,
                 request.marketingAgreed()
         );
-        userRepositoryPort.save(user);
+        saveUserPort.save(user);
         authChallengeStorePort.deleteById(challenge.challengeId());
     }
 

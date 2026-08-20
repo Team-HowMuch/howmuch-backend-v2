@@ -6,7 +6,8 @@ import com.amateur.howmuchbackend.application.port.in.auth.LoginUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.request.LoginRequest;
 import com.amateur.howmuchbackend.application.port.in.auth.response.TokenResponse;
 import com.amateur.howmuchbackend.application.port.out.auth.LoginAttemptStorePort;
-import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -24,7 +25,8 @@ public class LoginService implements LoginUseCase {
     private final PinPolicy pinPolicy;
     private final IdentityPolicy identityPolicy;
     private final LoginAttemptStorePort loginAttemptStorePort;
-    private final UserRepositoryPort userRepositoryPort;
+    private final LoadUserPort loadUserPort;
+    private final SaveUserPort saveUserPort;
     private final PasswordEncoder passwordEncoder;
     private final AuthTokenService authTokenService;
 
@@ -40,7 +42,7 @@ public class LoginService implements LoginUseCase {
             throw ApplicationException.of(AuthStatusCode.PIN_ATTEMPTS_EXCEEDED);
         }
 
-        User user = userRepositoryPort.findByPhoneNumber(phoneNumber).orElse(null);
+        User user = loadUserPort.findByPhoneNumber(phoneNumber).orElse(null);
         if (user == null || !passwordEncoder.matches(request.pin(), user.pinHash())) {
             handleFailure(phoneHash);
         }
@@ -50,7 +52,7 @@ public class LoginService implements LoginUseCase {
 
         loginAttemptStorePort.deleteByPhoneHash(phoneHash);
         User updated = user.markLoggedIn(now);
-        userRepositoryPort.update(updated);
+        saveUserPort.update(updated);
         return authTokenService.issueNewSession(updated);
     }
 

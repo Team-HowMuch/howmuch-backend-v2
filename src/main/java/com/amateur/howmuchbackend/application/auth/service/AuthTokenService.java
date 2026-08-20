@@ -8,7 +8,7 @@ import com.amateur.howmuchbackend.application.port.out.auth.AuthTokenPort;
 import com.amateur.howmuchbackend.application.port.out.auth.jwt.JwtPayload;
 import com.amateur.howmuchbackend.application.port.out.auth.jwt.enums.JwtTokenType;
 import com.amateur.howmuchbackend.application.port.in.auth.response.TokenResponse;
-import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.session.AuthSession;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
@@ -26,7 +26,7 @@ import java.util.UUID;
 public class AuthTokenService implements RefreshTokenUseCase {
     private final AuthTokenPort authTokenPort;
     private final AuthSessionPort authSessionPort;
-    private final UserRepositoryPort userRepositoryPort;
+    private final LoadUserPort loadUserPort;
     private final AuthSessionPolicy authSessionPolicy;
 
     public TokenResponse issueNewSession(User user) {
@@ -49,7 +49,7 @@ public class AuthTokenService implements RefreshTokenUseCase {
                 .filter(value -> !value.isExpired(LocalDateTime.now(ZoneOffset.UTC)))
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.INVALID_TOKEN));
 
-        User user = userRepositoryPort.findById(session.userId())
+        User user = loadUserPort.findById(session.userId())
                 .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.INVALID_TOKEN));
 

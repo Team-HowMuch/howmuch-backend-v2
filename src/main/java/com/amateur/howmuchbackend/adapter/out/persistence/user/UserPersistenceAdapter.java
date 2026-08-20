@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.user;
 
-import com.amateur.howmuchbackend.application.port.out.user.UserRepositoryPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -12,7 +13,7 @@ import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
-public class UserPersistenceAdapter implements UserRepositoryPort {
+public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {
     private final UserJpaRepository userJpaRepository;
 
     @Override
