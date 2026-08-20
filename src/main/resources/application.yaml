@@ -7,8 +7,6 @@ spring:
       max-request-size: 6MB
   profiles:
     default: local
-  flyway:
-    enabled: false
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
