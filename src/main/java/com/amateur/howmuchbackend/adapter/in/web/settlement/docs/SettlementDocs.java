@@ -14,21 +14,25 @@ import java.util.UUID;
 public interface SettlementDocs {
     @Operation(
             summary = "정산 초안 생성",
-            description = "현재 로그인한 사용자를 생성자로 하는 정산 초안을 생성합니다.",
+            description = "현재 로그인한 사용자를 생성자로 하는 정산 초안을 생성합니다. "
+                    + "제목 또는 총액이 유효하지 않으면 INVALID_ARGUMENT을 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     ApiResponse<SettlementWebResponse> createSettlement(CreateSettlementWebRequest request);
 
     @Operation(
             summary = "정산 초안 조회",
-            description = "현재 로그인한 사용자가 생성한 정산을 ID로 조회합니다. 다른 생성자의 정산은 조회할 수 없습니다.",
+            description = "현재 로그인한 사용자가 생성한 정산을 ID로 조회합니다. "
+                    + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED를 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     ApiResponse<SettlementWebResponse> getSettlement(UUID settlementId);
 
     @Operation(
             summary = "정산 초안 수정",
-            description = "현재 로그인한 생성자가 DRAFT 상태 정산의 제목 또는 총액을 수정합니다.",
+            description = "현재 로그인한 생성자가 DRAFT 상태 정산의 제목 또는 총액을 수정합니다. "
+                    + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
+                    + "DRAFT가 아니면 SETTLEMENT_NOT_EDITABLE, 입력이 유효하지 않으면 INVALID_ARGUMENT을 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     ApiResponse<SettlementWebResponse> updateSettlement(
