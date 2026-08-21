@@ -4,4 +4,6 @@ import com.amateur.howmuchbackend.domain.settlement.Settlement;
 
 public interface SaveSettlementPort {
     Settlement save(Settlement settlement);
+
+    Settlement update(Settlement settlement);
 }
