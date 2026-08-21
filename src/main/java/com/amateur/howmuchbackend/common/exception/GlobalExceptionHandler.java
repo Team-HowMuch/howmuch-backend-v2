@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.common.data.BaseResponse;
 import com.amateur.howmuchbackend.common.data.ErrorResponse;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -48,6 +49,16 @@ public class GlobalExceptionHandler {
     ) {
         ErrorResponse error = ErrorResponse.of(400, "INVALID_ARGUMENT", exception.getMessage());
         return ResponseEntity.badRequest().body(new BaseResponse<>(false, null, error));
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<BaseResponse<ErrorResponse>> handleOptimisticLockingFailure() {
+        ErrorResponse error = ErrorResponse.of(
+                CommonStatusCode.CONCURRENT_UPDATE.getStatus(),
+                CommonStatusCode.CONCURRENT_UPDATE.getCode(),
+                CommonStatusCode.CONCURRENT_UPDATE.getMessage()
+        );
+        return ResponseEntity.status(error.status()).body(new BaseResponse<>(false, null, error));
     }
 
     @ExceptionHandler(Exception.class)
