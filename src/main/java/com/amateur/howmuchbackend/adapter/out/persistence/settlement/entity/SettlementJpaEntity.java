@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,6 +31,10 @@ public class SettlementJpaEntity extends BaseTimeJpaEntity {
     @Id
     @Column(nullable = false, updatable = false)
     private UUID id;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     @Column(name = "creator_id", nullable = false, updatable = false)
     private Long creatorId;
