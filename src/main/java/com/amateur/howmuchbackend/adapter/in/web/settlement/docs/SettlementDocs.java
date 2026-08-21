@@ -67,7 +67,8 @@ public interface SettlementDocs {
             summary = "정산 초안 수정",
             description = "현재 로그인한 생성자가 DRAFT 상태 정산의 제목 또는 총액을 수정합니다. "
                     + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
-                    + "DRAFT가 아니면 SETTLEMENT_NOT_EDITABLE, 입력이 유효하지 않으면 INVALID_ARGUMENT을 반환합니다.",
+                    + "DRAFT가 아니면 SETTLEMENT_NOT_EDITABLE, 다른 요청이 먼저 수정했으면 CONCURRENT_UPDATE, "
+                    + "입력이 유효하지 않으면 INVALID_ARGUMENT을 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -94,7 +95,8 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님; "
+                            + "CONCURRENT_UPDATE - 다른 요청이 먼저 정산을 수정함"
             )
     })
     ApiResponse<SettlementWebResponse> updateSettlement(
