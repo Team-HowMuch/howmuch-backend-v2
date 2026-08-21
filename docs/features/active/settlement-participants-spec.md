@@ -5,7 +5,7 @@
 - Related issue: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
-- Prerequisite: [정산 초안 및 기본 정보 Spec](settlement-core-spec.md)
+- Prerequisite: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md)
 
 ## 1. Purpose
 

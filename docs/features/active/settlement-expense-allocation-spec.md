@@ -5,7 +5,7 @@
 - Related issue: [#29 정산 지출 입력 및 금액 배분](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/29)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
-- Prerequisites: [정산 초안 및 기본 정보 Spec](settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](settlement-participants-spec.md)
+- Prerequisites: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](settlement-participants-spec.md)
 
 ## 1. Purpose
 

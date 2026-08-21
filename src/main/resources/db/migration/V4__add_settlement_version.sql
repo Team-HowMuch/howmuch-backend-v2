@@ -1,0 +1,2 @@
+ALTER TABLE settlements
+    ADD COLUMN version BIGINT NOT NULL DEFAULT 0;
