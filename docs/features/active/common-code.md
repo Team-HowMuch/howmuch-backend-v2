@@ -175,7 +175,7 @@ public interface LoadCommonCodePort {
 - JPA columns: `group_code`, `code`, `name`, `description`, `sort_order`, `attr1`, `attr2`, `attr3`, `use_yn`, `created_at`, `updated_at`
 - JPA-to-Domain mapping: `use_yn` -> `active`; timestamps와 `attr*_name`은 JPA에만 유지
 - Query: `use_yn = TRUE`, `group_code`와 `code` 조건, 목록은 `sort_order ASC` 후 `code ASC`
-- Seed: `V4__create_bank_common_code.sql`에 `BANK` 그룹과 스크린샷 기준 20개 기관코드·공식 도메인 favicon URL을 저장한다.
+- Seed: `V6__create_bank_common_code.sql`에 `BANK` 그룹과 스크린샷 기준 20개 기관코드·공식 도메인 favicon URL을 저장한다.
 - Group JPA Entity: 초기에는 만들지 않는다. `common_code_group` 외래키와 Flyway 스키마만 사용한다.
 - Redis, external API, environment variable: 변경 없음
 
@@ -209,7 +209,7 @@ public interface LoadCommonCodePort {
 | API | 공통 코드 전용 API 없음 | `docs/architecture.md`의 Inbound Adapter 규칙 |
 | Application | `LoadCommonCodePort` 추가 예정 | `src/main/java/com/amateur/howmuchbackend/application/port/out` |
 | Domain | `CommonCode` 추가 예정 | `src/main/java/com/amateur/howmuchbackend/domain` |
-| Persistence | 공통 코드 JPA Entity·Repository·Mapper·Adapter와 은행 seed | `src/main/resources/db/migration/V3__create_common_code.sql`, `V4__create_bank_common_code.sql` |
+| Persistence | 공통 코드 JPA Entity·Repository·Mapper·Adapter와 은행 seed | `src/main/resources/db/migration/V5__create_common_code.sql`, `V6__create_bank_common_code.sql` |
 | Redis | 영향 없음 | 해당 없음 |
 | Security | 영향 없음 | 해당 없음 |
 | Configuration | 영향 없음 | 해당 없음 |
@@ -255,7 +255,7 @@ git diff --check
 git status --short --untracked-files=all
 ```
 
-구현 전 Flyway 마이그레이션을 먼저 확인한다. `V4__create_bank_common_code.sql`은 공식 은행 도메인을 기준으로 한 Google favicon proxy URL을 사용한다. 아이콘을 장기적으로 직접 관리해야 하면 별도 정적 스토리지로 이전한다.
+구현 전 Flyway 마이그레이션을 먼저 확인한다. `V6__create_bank_common_code.sql`은 공식 은행 도메인을 기준으로 한 Google favicon proxy URL을 사용한다. 아이콘을 장기적으로 직접 관리해야 하면 별도 정적 스토리지로 이전한다.
 
 ### Completion criteria
 
@@ -270,7 +270,7 @@ git status --short --untracked-files=all
 
 | Item | Result | Evidence |
 |---|---|---|
-| 현재 구조 확인 | Complete | `AGENTS.md`, `docs/architecture.md`, `V3__create_common_code.sql` |
+| 현재 구조 확인 | Complete | `AGENTS.md`, `docs/architecture.md`, `V5__create_common_code.sql` |
 | 계약·패키지 명세 | Complete | 본 문서 4장 |
 | Domain·Port·JPA 구현 | Complete | `src/main/java/com/amateur/howmuchbackend/{domain,application,adapter}` |
 | Java 컴파일 | Complete | `./gradlew compileJava --no-daemon` |
