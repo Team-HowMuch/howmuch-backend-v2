@@ -107,7 +107,22 @@ Walk through normal, failure, and boundary scenarios from beginning to end befor
 
 Use search results to record affected files and behavior that must remain unchanged in the Feature Plan.
 
-## 5. Implement in order
+## 5. Stop at a required Flyway migration pull request
+
+Before implementing a feature, record in the Feature Plan whether its persistence design requires a Flyway migration. If it does not, continue to the implementation sequence below.
+
+If a Flyway migration is required, the current task changes to a migration-only publication task:
+
+1. Fetch the latest `origin/develop`.
+2. Inspect migration versions on `origin/develop` and in open migration pull requests, then select the next available version.
+3. Create an isolated branch from the latest `origin/develop`.
+4. Add only the required versioned SQL file under `src/main/resources/db/migration`.
+5. Verify the migration, commit and push the change, and create a pull request targeting `develop`.
+6. Report the pull request URL and stop the current task immediately.
+
+The pull request must not contain the Feature Plan, Java code, tests, configuration, or unrelated documentation. Do not wait for the migration pull request to merge and do not start another implementation item from the Feature Plan. Continue the remaining feature work only in a separate follow-up task. This gate applies to a request that includes feature implementation; a planning-only request stops with the plan.
+
+## 6. Implement in order
 
 Use this sequence by default:
 
@@ -123,7 +138,7 @@ Use this sequence by default:
 
 Define Port contracts first, but do not stop with unused Ports and a disconnected feature. Reuse existing implementations at every step. Do not add abstractions or configuration that the feature does not need yet.
 
-## 6. Verify and complete
+## 7. Verify and complete
 
 Select verification based on the change type.
 

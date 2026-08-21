@@ -1,0 +1,143 @@
+package com.amateur.howmuchbackend.application.settlement.service;
+
+import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("정산 Application 흐름")
+class SettlementServiceTest {
+    private static final Long CREATOR_ID = 1L;
+    private static final Long OTHER_USER_ID = 2L;
+    private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
+    private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 21, 9, 0);
+
+    @Mock
+    private CurrentActorPort currentActorPort;
+
+    @Mock
+    private LoadSettlementPort loadSettlementPort;
+
+    @Mock
+    private SaveSettlementPort saveSettlementPort;
+
+    private SettlementService settlementService;
+
+    @BeforeEach
+    void setUp() {
+        settlementService = new SettlementService(currentActorPort, loadSettlementPort, saveSettlementPort);
+    }
+
+    @Test
+    @DisplayName("요청 본문으로 생성자를 위조할 수 없도록 현재 로그인 사용자를 생성자로 사용한다")
+    void createsSettlementForCurrentActor() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(saveSettlementPort.save(any(Settlement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = settlementService.create(new CreateSettlementCommand("회식 정산", 10_000));
+
+        ArgumentCaptor<Settlement> captor = ArgumentCaptor.forClass(Settlement.class);
+        verify(saveSettlementPort).save(captor.capture());
+        assertThat(captor.getValue().creatorId()).isEqualTo(CREATOR_ID);
+        assertThat(result.creatorId()).isEqualTo(CREATOR_ID);
+        assertThat(result.status()).isEqualTo(SettlementStatus.DRAFT);
+    }
+
+    @Test
+    @DisplayName("없는 정산을 임의로 생성하지 않도록 SETTLEMENT_NOT_FOUND를 반환한다")
+    void rejectsMissingSettlement() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> settlementService.get(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("생성자만 정산을 확인할 수 있도록 다른 사용자의 조회를 거부한다")
+    void rejectsReadByAnotherUser() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
+
+        assertThatThrownBy(() -> settlementService.get(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+    }
+
+    @Test
+    @DisplayName("생성자만 정산 기준을 바꿀 수 있도록 다른 사용자의 수정을 저장하지 않는다")
+    void rejectsUpdateByAnotherUser() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
+
+        assertThatThrownBy(() -> settlementService.update(
+                SETTLEMENT_ID,
+                new UpdateSettlementDraftCommand("변경된 제목", null)
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+        verify(saveSettlementPort, never()).update(any(Settlement.class));
+    }
+
+    @Test
+    @DisplayName("부분 수정 결과가 실제 영속 상태가 되도록 Domain 변경값을 저장 Port에 전달한다")
+    void persistsDomainUpdate() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
+        when(saveSettlementPort.update(any(Settlement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = settlementService.update(
+                SETTLEMENT_ID,
+                new UpdateSettlementDraftCommand(null, 20_000L)
+        );
+
+        ArgumentCaptor<Settlement> captor = ArgumentCaptor.forClass(Settlement.class);
+        verify(saveSettlementPort).update(captor.capture());
+        assertThat(captor.getValue().title()).isEqualTo("회식 정산");
+        assertThat(captor.getValue().totalAmount()).isEqualTo(20_000);
+        assertThat(result.title()).isEqualTo("회식 정산");
+        assertThat(result.totalAmount()).isEqualTo(20_000);
+    }
+
+    private Settlement draft() {
+        return new Settlement(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                "회식 정산",
+                10_000,
+                SettlementStatus.DRAFT,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+}

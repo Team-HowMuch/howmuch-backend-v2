@@ -63,8 +63,21 @@ Check the database, Redis, and environment prerequisites before running `test` o
 4. Trace the relevant flow from the inbound request to every external interaction.
 5. For non-trivial work, create or update `docs/features/active/<feature>.md`.
 6. Define the impact surface and verification method before implementation.
+7. Before implementation, decide whether the planned feature requires a Flyway migration.
 
 Treat existing changes as user-owned work. Do not modify or clean unrelated files.
+
+### Flyway migration gate
+
+For a task that includes feature implementation, inspect the completed design before editing implementation code. If the feature requires a Flyway migration:
+
+1. Fetch the latest `origin/develop` and inspect both its migration versions and open migration pull requests before selecting the next version.
+2. Create an isolated branch from the latest `origin/develop`.
+3. Add only the required versioned SQL file under `src/main/resources/db/migration`.
+4. Verify the migration, commit and push the migration-only change, and create a pull request targeting `develop`.
+5. Report the pull request and stop the current task immediately after it is created.
+
+Do not include the Feature Plan, Java code, tests, configuration, or other documentation in the migration pull request. Do not wait for the pull request to merge or continue with any other item in the feature plan. All remaining feature work belongs to a separate follow-up task. A request that asks only for analysis or a plan does not trigger this publishing workflow.
 
 ## Core architecture
 
@@ -199,13 +212,14 @@ public interface SaveUserPort {
 2. Decide whether to reuse an existing domain or introduce a new one.
 3. Define user-goal UseCases and Application Command/Result contracts first.
 4. Define only the purpose-oriented Output Ports required for real external interactions.
-5. Implement Domain state and Entity-local invariants.
-6. Implement Application Policies for decisions combining multiple facts.
-7. Orchestrate Domain, Policies, and Ports in Application Services.
-8. Implement Output Adapters.
-9. Implement Web Request/Response DTOs, Controllers, and Swagger documentation.
-10. Add Infra configuration only for framework or technical setup.
-11. Revalidate the impact surface and completion criteria.
+5. If the plan requires a Flyway migration, follow the migration gate above and stop the current task after creating its pull request.
+6. Implement Domain state and Entity-local invariants.
+7. Implement Application Policies for decisions combining multiple facts.
+8. Orchestrate Domain, Policies, and Ports in Application Services.
+9. Implement Output Adapters.
+10. Implement Web Request/Response DTOs, Controllers, and Swagger documentation.
+11. Add Infra configuration only for framework or technical setup.
+12. Revalidate the impact surface and completion criteria.
 
 Do not finish with an unused Port. Keep unrelated refactoring separate from feature behavior.
 
@@ -224,11 +238,13 @@ Do not finish with an unused Port. Keep unrelated refactoring separate from feat
 - Documentation change: validate every relative link and referenced local path.
 - Every change: run `git diff --check` and `git status --short --untracked-files=all`.
 
-Do not create new test cases under the current project instruction. Run existing tests only when they are relevant and their prerequisites are available. Report why a test was not run.
+Add or update tests for changed behavior at the appropriate layer, following the patterns under `src/test`. Run relevant tests when their prerequisites are available. Report any test that was not run and why.
 
 ## Commits
 
 Do not commit, push, or open a pull request unless the user explicitly requests it.
+
+The Flyway migration gate is the only standing exception for a request that explicitly includes feature implementation. That request authorizes only the migration-only commit, push, and pull request required by the gate; it does not authorize publishing the remaining feature work.
 
 Use this commit title format:
 

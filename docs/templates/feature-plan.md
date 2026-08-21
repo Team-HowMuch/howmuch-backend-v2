@@ -114,6 +114,9 @@ Authentication:
 ### Persistence and external integrations
 
 - Database Entity, constraint, or query changes:
+- Flyway migration required (`Yes` / `No`):
+- Planned migration:
+- Migration pull request (`Pending` / URL):
 - Redis key, TTL, or serialization changes:
 - External API or message changes:
 - Environment variable or profile changes:
@@ -156,6 +159,7 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
+- [ ] Migration-only pull request to `develop` (`Required` / `N/A`)
 - [ ] UseCase and Application Command/Result
 - [ ] Required Output Ports
 - [ ] Domain models and rules
@@ -168,12 +172,15 @@ Existing behavior that must remain unchanged:
 
 Do not delete an unnecessary step. Mark it `N/A` and record the reason.
 
+When a Flyway migration is required, create its migration-only pull request before every other implementation item and stop the current task as soon as the pull request is created. Leave all remaining items for a separate follow-up task.
+
 ### Expected commit boundaries
 
 Create actual commits only when the user explicitly requests them. Commit descriptions are written in Korean.
 
 ```text
 docs(<domain>): <Korean description of the design documentation>
+build(database): <Korean description of the Flyway migration>
 feat(<domain>): <Korean description of an independently understandable change>
 ```
 
