@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -24,4 +25,14 @@ public interface SettlementDocs {
             security = @SecurityRequirement(name = "bearerAuth")
     )
     ApiResponse<SettlementWebResponse> getSettlement(UUID settlementId);
+
+    @Operation(
+            summary = "정산 초안 수정",
+            description = "현재 로그인한 생성자가 DRAFT 상태 정산의 제목 또는 총액을 수정합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    ApiResponse<SettlementWebResponse> updateSettlement(
+            UUID settlementId,
+            UpdateSettlementDraftWebRequest request
+    );
 }
