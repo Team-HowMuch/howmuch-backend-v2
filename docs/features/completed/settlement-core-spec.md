@@ -20,6 +20,7 @@
 
 - [x] 로그인한 사용자가 자신의 정산 초안을 생성·조회·수정할 수 있다.
 - [x] 초안 외 상태에서는 기본 정보 변경을 거부한다.
+- [x] 같은 정산을 동시에 수정한 오래된 요청이 앞선 변경을 덮어쓰지 않는다.
 - [x] 이후 기능이 정산 ID, 생성자 ID, 총액, 상태를 단일 계약으로 참조한다.
 
 ### Out of scope
@@ -78,12 +79,14 @@
 
 - 다른 사용자가 정산을 조회하거나 수정한다: 정산 접근 권한 오류를 반환한다.
 - DRAFT가 아닌 정산을 수정한다: 수정 불가 상태 오류를 반환한다.
+- 같은 version을 읽은 정산 수정이 먼저 완료됐다: 동시 수정 충돌 오류를 반환한다.
 - 총액이 0원 이하이거나 제목이 비어 있다: Web Adapter에서 검증 오류를 반환한다.
 
 ### Boundary conditions
 
 - 선언 총액은 정수 원으로 저장한다. 소수·음수 금액은 허용하지 않는다.
 - 지출·품목별 Spec은 최종 지출 합계와 선언 총액이 다를 때의 처리 규칙을 소유한다. 이 Spec은 초안의 입력값을 임의로 재계산하지 않는다.
+- JPA version은 API에 노출하지 않으며 같은 DB version을 기반으로 겹쳐 실행된 변경을 감지하는 데 사용한다.
 - 모든 시간은 UTC LocalDateTime으로 저장한다.
 
 ## 4. Contracts
@@ -126,16 +129,16 @@ Authentication: required
 PATCH /api/v2/settlements/{settlementId}
 Request: { title?, totalAmount? }, at least one field required
 Response: SettlementWebResponse
-Errors: 정산 없음, 접근 권한 없음, 수정 불가 상태, 입력 검증 실패
+Errors: 정산 없음, 접근 권한 없음, 수정 불가 상태, 동시 수정 충돌, 입력 검증 실패
 Authentication: required
 ~~~
 
 ### Persistence and external integrations
 
-- Database Entity, constraint, or query changes: settlements 테이블과 SettlementJpaEntity를 추가한다. UUID PK, 생성자 ID, 제목, 선언 총액, 상태, 생성·수정 시각을 저장하고 생성자 ID·생성 시각 인덱스를 둔다.
+- Database Entity, constraint, or query changes: settlements 테이블과 SettlementJpaEntity를 추가한다. UUID PK, 생성자 ID, 제목, 선언 총액, 상태, 생성·수정 시각, 낙관적 락 version을 저장하고 생성자 ID·생성 시각 인덱스를 둔다.
 - Redis key, TTL, or serialization changes: 없음.
 - External API or message changes: 없음.
-- Environment variable or profile changes: 없음. 활성화된 Flyway에 V3 정산 스키마를 추가하고 모든 프로필의 Hibernate `ddl-auto=validate` 정책을 유지한다.
+- Environment variable or profile changes: 없음. 활성화된 Flyway에 V3 정산 스키마와 V4 version 컬럼을 추가하고 모든 프로필의 Hibernate `ddl-auto=validate` 정책을 유지한다.
 
 ## 5. Design decisions
 
@@ -148,10 +151,10 @@ Authentication: required
 ### Technology and patterns
 
 - Constraint to solve: JPA 모델을 Domain 모델로 노출하지 않으면서 이후 하위 기능이 일관된 정산 상태를 참조해야 한다.
-- Selected approach: Settlement Domain과 SettlementJpaEntity를 분리하고 Persistence Adapter가 Mapper를 통해 Output Port를 구현한다.
-- Reason for selection: 현재 저장소의 user Persistence 구조와 Hexagonal 의존성 방향을 그대로 따른다.
-- Alternatives considered: 참여자·지출 각 기능이 자체 정산 상태를 보관하는 방식은 상태 불일치 위험이 있어 제외한다.
-- Trade-offs and limits: 첫 Spec에서 전체 정산 모델을 추가하지만 실제 참여자·지출 조회는 이후 Spec이 완성되기 전까지 제공하지 않는다.
+- Selected approach: Settlement Domain과 SettlementJpaEntity를 분리하고 Persistence Adapter가 Mapper를 통해 Output Port를 구현한다. JPA `@Version`으로 오래된 정산 저장을 감지한다.
+- Reason for selection: 현재 저장소의 Hexagonal 의존성 방향을 유지하면서 동시 수정이 앞선 변경을 조용히 덮어쓰는 것을 막는다.
+- Alternatives considered: 참여자·지출 각 기능이 자체 정산 상태를 보관하는 방식은 상태 불일치 위험이 있어 제외한다. 비관적 락은 모든 변경 흐름을 대기시키고 `@DynamicUpdate`만으로는 상태 전이 경쟁 조건을 막지 못해 제외한다.
+- Trade-offs and limits: 첫 Spec에서 전체 정산 모델을 추가하지만 실제 참여자·지출 조회는 이후 Spec이 완성되기 전까지 제공하지 않는다. 충돌한 PATCH는 자동 병합하지 않고 HTTP 409를 반환한다.
 
 ## 6. Impact surface
 
@@ -160,7 +163,7 @@ Authentication: required
 | API | 정산 초안 생성·조회·수정 API 추가 | SettlementController, SettlementDocs |
 | Application | 새 Input Port, Command/Result, Service, Persistence Port | application.port.in/out.settlement |
 | Domain | Settlement, SettlementStatus, 정산 상태 코드 추가 | domain.settlement |
-| Persistence | settlements Entity·Repository·Mapper·Adapter·Flyway V3 추가 | adapter.out.persistence.settlement |
+| Persistence | settlements Entity·Repository·Mapper·Adapter·Flyway V3·V4와 낙관적 락 추가 | adapter.out.persistence.settlement |
 | Redis | 없음 | N/A |
 | Security | 생성자만 자신의 정산을 읽고 수정 | CurrentActorPort |
 | Configuration | 없음 | N/A |
@@ -178,6 +181,7 @@ Existing behavior that must remain unchanged:
 - [x] Domain 모델, 상태, 금액·상태 전이 규칙, 상태 코드를 구현한다.
 - [x] 생성자 권한을 확인하는 Application Service를 구현한다.
 - [x] JPA Entity·Repository·Mapper·Persistence Adapter와 Flyway V3를 구현한다.
+- [x] Flyway V4와 JPA 낙관적 락으로 동시 수정 충돌을 감지한다.
 - [x] Web Request/Response DTO, Controller, Swagger 문서를 구현한다.
 - [x] 문서의 실제 API·상태·검증 결과를 갱신한다.
 
@@ -194,6 +198,11 @@ feat: 정산 초안 조회 API 추가
 feat: 정산 초안 수정 API 추가
 docs: 정산 초안 API 오류 응답 설명 추가
 docs: 정산 초안 명세 구현 결과 반영
+docs: 정산 동시 수정 제어 계획 추가
+fix: 정산에 낙관적 락 적용
+fix: 동시 수정 충돌을 HTTP 409로 변환
+docs: 정산 동시 수정 오류 응답 문서화
+docs: 정산 동시 수정 검증 결과 반영
 ~~~
 
 ## 8. Verification
@@ -220,6 +229,7 @@ git status --short --untracked-files=all
 - [x] 생성자가 초안을 생성·조회·수정한다.
 - [x] 다른 사용자의 조회·수정은 거부된다.
 - [x] 요청됨·중단·완료 정산의 수정은 거부된다.
+- [x] 같은 version의 동시 PATCH 중 오래된 요청은 409로 거부되고 앞선 변경을 유지한다.
 - [x] 문서와 Swagger가 실제 계약과 일치한다.
 
 ### Results
@@ -229,13 +239,16 @@ git status --short --untracked-files=all
 | 문서 작성 | Complete | 이 Spec |
 | 구현 | Complete | Domain, Application, Persistence, Web Adapter |
 | 컴파일 | Complete | `./gradlew compileJava` 성공 |
-| DB 마이그레이션·검증 | Complete | PostgreSQL 18.3에 Flyway V1~V3 적용, Hibernate `ddl-auto=validate` 통과 |
+| DB 마이그레이션·검증 | Complete | PostgreSQL 18.3에 Flyway V1~V4 적용, Hibernate `ddl-auto=validate` 통과 |
 | 기존 테스트 | Complete | 격리 PostgreSQL·Redis 연결 후 `./gradlew test` 성공 |
 | 인증·정상 HTTP 흐름 | Complete | 사용자 2명 로그인/JWT 발급, 생성·조회·제목 수정·총액 수정 모두 HTTP 200 |
 | HTTP 입력 검증 | Complete | 빈 제목·100자 초과 제목·0원·음수·빈 PATCH 모두 HTTP 400 `INVALID_ARGUMENT` |
 | HTTP 인증·권한 검증 | Complete | 미인증 HTTP 401, 다른 사용자 조회·수정 HTTP 403 `SETTLEMENT_ACCESS_DENIED` |
 | HTTP 조회·상태 검증 | Complete | 없는 UUID HTTP 404 `SETTLEMENT_NOT_FOUND`, REQUESTED 수정 HTTP 409 `SETTLEMENT_NOT_EDITABLE` |
-| PostgreSQL 영속 검증 | Complete | 수정 후 제목·12,000원·REQUESTED 상태를 `settlements` 행에서 직접 확인 |
+| 동시 HTTP 수정 | Complete | 같은 version 기반 제목·금액 PATCH에서 HTTP 200 하나와 409 `CONCURRENT_UPDATE` 하나 확인, 실패 요청의 stale 값이 저장되지 않음 |
+| 충돌 후 재시도 | Complete | 최신 정산 조회 후 재시도 HTTP 200, 제목·20,000원과 version 2를 PostgreSQL에서 확인 |
+| Swagger | Complete | Swagger UI의 PATCH 409 응답에 `SETTLEMENT_NOT_EDITABLE`, `CONCURRENT_UPDATE`가 함께 표시됨 |
+| PostgreSQL 영속 검증 | Complete | 회귀 검증 후 제목·20,000원·REQUESTED·version 3을 `settlements` 행에서 직접 확인 |
 
 ## 9. Progress log
 
@@ -244,6 +257,7 @@ git status --short --untracked-files=all
 | 2026-08-21 | 정산 초안 Domain·API·상태 설계 기록 | Entity와 UseCase 구현 | 지출 합계 검증은 지출·배분 Spec과의 계약 일치가 필요 |
 | 2026-08-21 | Domain, Flyway V3, JPA, 생성·조회·부분 수정 API 구현 | 참여자 선택 구현 | `./gradlew test`가 로컬 PostgreSQL 연결 거부로 실패, Docker 데몬도 중지 상태 |
 | 2026-08-21 | Homebrew PostgreSQL·Redis 격리 환경에서 기존 테스트, 실제 HTTP 시나리오 16개, PostgreSQL 영속 검증 통과 | 테스트 환경 정리와 Draft PR 갱신 | 애플리케이션 기동에는 사용하지 않는 경우에도 Discord SMS URL 설정이 필요 |
+| 2026-08-21 | Codex 동시 수정 리뷰 반영, 실제 병렬 PATCH·409·재시도·Swagger 검증 통과 | 하위 정산 기능 구현 | 장시간 열린 클라이언트 편집 충돌까지 검출하려면 별도 API version 계약이 필요 |
 
 ## 10. Decision log
 
@@ -253,11 +267,12 @@ git status --short --untracked-files=all
 | 2026-08-21 | 선언 총액은 초안에서 저장하고 최종 지출 검증은 지출 Spec이 소유한다. | 초안 입력과 상세 지출 등록의 책임을 분리한다. | 지출 합계가 확정될 때까지 임의 재계산하지 않는다. |
 | 2026-08-21 | UUID를 Application 외부에도 정산 ID로 사용한다. | 링크와 하위 정산 데이터가 예측하기 어려운 식별자를 공유할 수 있다. | Web API path와 DB PK가 UUID를 사용한다. |
 | 2026-08-21 | PATCH는 제목·총액의 부분 수정을 허용한다. | 생성 화면에서 각 기본 정보를 독립적으로 고칠 수 있다. | 두 필드가 모두 없으면 입력 검증 오류를 반환한다. |
+| 2026-08-21 | 정산 Entity에 JPA 낙관적 락을 적용한다. | 같은 스냅샷을 저장하는 동시 요청이 앞선 변경을 덮어쓰지 않게 한다. | 충돌한 요청은 409 `CONCURRENT_UPDATE`를 받고 최신 상태 조회 후 재시도한다. |
 
 ## 11. Completion record
 
 - Completed on: 2026-08-21
-- Final behavior: 로그인 사용자가 UUID 정산 초안을 생성하고, 생성자 본인만 조회하며, DRAFT 상태에서 제목·총액을 부분 수정한다.
-- Unverified items: 정산 초안 범위 없음. 기존 테스트, Flyway V3, 실제 로그인/JWT 기반 HTTP 요청과 PostgreSQL 영속 결과를 확인했다.
-- Remaining risks: 지출·품목별 요청 시점과 상태 전이 계약은 하위 Spec 구현 시 재검증한다.
+- Final behavior: 로그인 사용자가 UUID 정산 초안을 생성하고, 생성자 본인만 조회하며, DRAFT 상태에서 제목·총액을 부분 수정한다. 같은 version의 동시 변경은 하나만 반영하고 후속 요청에 409를 반환한다.
+- Unverified items: 정산 초안 범위 없음. 기존 테스트, Flyway V1~V4, 실제 로그인/JWT 기반 병렬 HTTP 요청, Swagger UI와 PostgreSQL 영속 결과를 확인했다.
+- Remaining risks: 지출·품목별 요청 시점과 상태 전이 계약은 하위 Spec 구현 시 재검증한다. API version을 전달하지 않으므로 서버 트랜잭션이 겹치지 않은 장시간 클라이언트 편집 충돌은 감지하지 않는다.
 - Follow-up work: 참여자, 지출·배분, 요청·링크 Spec 순서로 구현한다.
