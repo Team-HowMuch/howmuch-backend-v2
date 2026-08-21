@@ -202,11 +202,18 @@ docs: 정산 초안 명세 구현 결과 반영
 
 ~~~
 ./gradlew compileJava
+DB_URL=jdbc:postgresql://127.0.0.1:55432/howmuch \
+  DB_USERNAME=howmuch \
+  DB_PASSWORD=<test-password> \
+  REDIS_HOST=127.0.0.1 \
+  REDIS_PORT=56379 \
+  DISCORD_SMS_WEBHOOK_URL=http://127.0.0.1:9/unused \
+  ./gradlew test
 git diff --check
 git status --short --untracked-files=all
 ~~~
 
-수동 검증 전제조건: PostgreSQL과 Redis, 유효한 JWT로 로그인한 생성자가 필요하다.
+수동 HTTP 검증은 격리된 PostgreSQL 18.3과 Redis를 실행하고, 테스트 사용자 두 명을 PostgreSQL에 준비한 뒤 실제 로그인 API에서 발급한 JWT로 수행했다. SMS 발송 API는 호출하지 않았으며, 애플리케이션 기동에 필요한 Discord SMS URL에는 호출되지 않는 로컬 주소를 사용했다.
 
 ### Completion criteria
 
@@ -222,8 +229,13 @@ git status --short --untracked-files=all
 | 문서 작성 | Complete | 이 Spec |
 | 구현 | Complete | Domain, Application, Persistence, Web Adapter |
 | 컴파일 | Complete | `./gradlew compileJava` 성공 |
-| 기존 테스트 | Environment failed | `./gradlew test` 실행, Flyway PostgreSQL 연결 거부로 contextLoads 1건 실패 |
-| 수동 API 검증 | Not run | PostgreSQL·Redis와 유효한 JWT 미준비 |
+| DB 마이그레이션·검증 | Complete | PostgreSQL 18.3에 Flyway V1~V3 적용, Hibernate `ddl-auto=validate` 통과 |
+| 기존 테스트 | Complete | 격리 PostgreSQL·Redis 연결 후 `./gradlew test` 성공 |
+| 인증·정상 HTTP 흐름 | Complete | 사용자 2명 로그인/JWT 발급, 생성·조회·제목 수정·총액 수정 모두 HTTP 200 |
+| HTTP 입력 검증 | Complete | 빈 제목·100자 초과 제목·0원·음수·빈 PATCH 모두 HTTP 400 `INVALID_ARGUMENT` |
+| HTTP 인증·권한 검증 | Complete | 미인증 HTTP 401, 다른 사용자 조회·수정 HTTP 403 `SETTLEMENT_ACCESS_DENIED` |
+| HTTP 조회·상태 검증 | Complete | 없는 UUID HTTP 404 `SETTLEMENT_NOT_FOUND`, REQUESTED 수정 HTTP 409 `SETTLEMENT_NOT_EDITABLE` |
+| PostgreSQL 영속 검증 | Complete | 수정 후 제목·12,000원·REQUESTED 상태를 `settlements` 행에서 직접 확인 |
 
 ## 9. Progress log
 
@@ -231,6 +243,7 @@ git status --short --untracked-files=all
 | --- | --- | --- | --- |
 | 2026-08-21 | 정산 초안 Domain·API·상태 설계 기록 | Entity와 UseCase 구현 | 지출 합계 검증은 지출·배분 Spec과의 계약 일치가 필요 |
 | 2026-08-21 | Domain, Flyway V3, JPA, 생성·조회·부분 수정 API 구현 | 참여자 선택 구현 | `./gradlew test`가 로컬 PostgreSQL 연결 거부로 실패, Docker 데몬도 중지 상태 |
+| 2026-08-21 | Homebrew PostgreSQL·Redis 격리 환경에서 기존 테스트, 실제 HTTP 시나리오 16개, PostgreSQL 영속 검증 통과 | 테스트 환경 정리와 Draft PR 갱신 | 애플리케이션 기동에는 사용하지 않는 경우에도 Discord SMS URL 설정이 필요 |
 
 ## 10. Decision log
 
@@ -245,6 +258,6 @@ git status --short --untracked-files=all
 
 - Completed on: 2026-08-21
 - Final behavior: 로그인 사용자가 UUID 정산 초안을 생성하고, 생성자 본인만 조회하며, DRAFT 상태에서 제목·총액을 부분 수정한다.
-- Unverified items: `./gradlew test`를 실행했으나 로컬 PostgreSQL 연결 거부로 Spring context test가 실패했다. Redis, migration 완료 상태와 실제 HTTP 요청도 검증하지 못했다.
+- Unverified items: 정산 초안 범위 없음. 기존 테스트, Flyway V3, 실제 로그인/JWT 기반 HTTP 요청과 PostgreSQL 영속 결과를 확인했다.
 - Remaining risks: 지출·품목별 요청 시점과 상태 전이 계약은 하위 Spec 구현 시 재검증한다.
 - Follow-up work: 참여자, 지출·배분, 요청·링크 Spec 순서로 구현한다.
