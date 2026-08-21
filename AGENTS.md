@@ -224,7 +224,7 @@ Do not finish with an unused Port. Keep unrelated refactoring separate from feat
 - Documentation change: validate every relative link and referenced local path.
 - Every change: run `git diff --check` and `git status --short --untracked-files=all`.
 
-Do not create new test cases under the current project instruction. Run existing tests only when they are relevant and their prerequisites are available. Report why a test was not run.
+Add or update tests for changed behavior at the appropriate layer, following the patterns under `src/test`. Run relevant tests when their prerequisites are available. Report any test that was not run and why.
 
 ## Commits
 
