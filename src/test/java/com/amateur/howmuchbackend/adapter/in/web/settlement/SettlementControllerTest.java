@@ -113,6 +113,28 @@ class SettlementControllerTest {
     }
 
     @Test
+    @DisplayName("잘못된 정산 식별자를 서버 오류로 오해하지 않도록 INVALID_ARGUMENT로 거부한다")
+    void rejectsInvalidSettlementId() throws Exception {
+        mockMvc.perform(get("/api/v2/settlements/not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.status").value(400))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+    }
+
+    @Test
+    @DisplayName("읽을 수 없는 JSON을 서버 오류로 오해하지 않도록 INVALID_ARGUMENT로 거부한다")
+    void rejectsUnreadableJson() throws Exception {
+        mockMvc.perform(post("/api/v2/settlements")
+                        .contentType("application/json")
+                        .content("{\"title\":\"회식 정산\",\"totalAmount\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.status").value(400))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+    }
+
+    @Test
     @DisplayName("의미 없는 변경 요청을 막기 위해 수정 필드가 없는 PATCH를 INVALID_ARGUMENT로 거부한다")
     void rejectsPatchWithoutFields() throws Exception {
         mockMvc.perform(patch("/api/v2/settlements/{settlementId}", SETTLEMENT_ID)
