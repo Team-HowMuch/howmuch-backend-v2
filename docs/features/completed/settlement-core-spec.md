@@ -222,7 +222,7 @@ git status --short --untracked-files=all
 | 문서 작성 | Complete | 이 Spec |
 | 구현 | Complete | Domain, Application, Persistence, Web Adapter |
 | 컴파일 | Complete | `./gradlew compileJava` 성공 |
-| 기존 테스트 | Not run | 로컬 PostgreSQL·Redis 미실행 |
+| 기존 테스트 | Environment failed | `./gradlew test` 실행, Flyway PostgreSQL 연결 거부로 contextLoads 1건 실패 |
 | 수동 API 검증 | Not run | PostgreSQL·Redis와 유효한 JWT 미준비 |
 
 ## 9. Progress log
@@ -230,7 +230,7 @@ git status --short --untracked-files=all
 | Date | Completed work | Next work | Discovered risk |
 | --- | --- | --- | --- |
 | 2026-08-21 | 정산 초안 Domain·API·상태 설계 기록 | Entity와 UseCase 구현 | 지출 합계 검증은 지출·배분 Spec과의 계약 일치가 필요 |
-| 2026-08-21 | Domain, Flyway V3, JPA, 생성·조회·부분 수정 API 구현 | 참여자 선택 구현 | 실행 환경이 없어 DB migration과 API 수동 검증 미실행 |
+| 2026-08-21 | Domain, Flyway V3, JPA, 생성·조회·부분 수정 API 구현 | 참여자 선택 구현 | `./gradlew test`가 로컬 PostgreSQL 연결 거부로 실패, Docker 데몬도 중지 상태 |
 
 ## 10. Decision log
 
@@ -245,6 +245,6 @@ git status --short --untracked-files=all
 
 - Completed on: 2026-08-21
 - Final behavior: 로그인 사용자가 UUID 정산 초안을 생성하고, 생성자 본인만 조회하며, DRAFT 상태에서 제목·총액을 부분 수정한다.
-- Unverified items: 로컬 PostgreSQL·Redis와 JWT가 없어 migration, 기존 Spring context test, 실제 HTTP 요청은 검증하지 못했다.
+- Unverified items: `./gradlew test`를 실행했으나 로컬 PostgreSQL 연결 거부로 Spring context test가 실패했다. Redis, migration 완료 상태와 실제 HTTP 요청도 검증하지 못했다.
 - Remaining risks: 지출·품목별 요청 시점과 상태 전이 계약은 하위 Spec 구현 시 재검증한다.
 - Follow-up work: 참여자, 지출·배분, 요청·링크 Spec 순서로 구현한다.
