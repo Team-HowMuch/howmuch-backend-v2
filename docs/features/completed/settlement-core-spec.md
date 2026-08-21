@@ -1,6 +1,6 @@
 # Feature Plan: 정산 초안 및 기본 정보
 
-- Status: Draft
+- Status: Completed
 - Last updated: 2026-08-21
 - Related issue: [#28 정산 초안 및 기본 정보 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/28)
 - Related ADR: N/A
@@ -18,9 +18,9 @@
 
 ### Success criteria
 
-- [ ] 로그인한 사용자가 자신의 정산 초안을 생성·조회·수정할 수 있다.
-- [ ] 초안 외 상태에서는 기본 정보 변경을 거부한다.
-- [ ] 이후 기능이 정산 ID, 생성자 ID, 총액, 상태를 단일 계약으로 참조한다.
+- [x] 로그인한 사용자가 자신의 정산 초안을 생성·조회·수정할 수 있다.
+- [x] 초안 외 상태에서는 기본 정보 변경을 거부한다.
+- [x] 이후 기능이 정산 ID, 생성자 ID, 총액, 상태를 단일 계약으로 참조한다.
 
 ### Out of scope
 
@@ -91,14 +91,14 @@
 ### Input Port
 
 ~~~
-CreateSettlementUseCase.create(CreateSettlementRequest(title, totalAmount))
-  -> SettlementResponse(settlementId, title, totalAmount, status, creatorId, createdAt)
+CreateSettlementUseCase.create(CreateSettlementCommand(title, totalAmount))
+  -> SettlementResult(settlementId, creatorId, title, totalAmount, status, createdAt)
 
 GetSettlementUseCase.get(settlementId)
-  -> SettlementResponse(...)
+  -> SettlementResult(...)
 
-UpdateSettlementDraftUseCase.update(settlementId, UpdateSettlementDraftRequest(title, totalAmount))
-  -> SettlementResponse(...)
+UpdateSettlementDraftUseCase.update(settlementId, UpdateSettlementDraftCommand(title?, totalAmount?))
+  -> SettlementResult(...)
 ~~~
 
 ### Output Ports
@@ -114,18 +114,18 @@ UpdateSettlementDraftUseCase.update(settlementId, UpdateSettlementDraftRequest(t
 ~~~
 POST /api/v2/settlements
 Request: { title, totalAmount }
-Response: SettlementResponse
+Response: SettlementWebResponse
 Errors: 인증 필요, 입력 검증 실패
 Authentication: required
 
 GET /api/v2/settlements/{settlementId}
-Response: SettlementResponse
+Response: SettlementWebResponse
 Errors: 정산 없음, 접근 권한 없음
 Authentication: required
 
 PATCH /api/v2/settlements/{settlementId}
-Request: { title, totalAmount }
-Response: SettlementResponse
+Request: { title?, totalAmount? }, at least one field required
+Response: SettlementWebResponse
 Errors: 정산 없음, 접근 권한 없음, 수정 불가 상태, 입력 검증 실패
 Authentication: required
 ~~~
@@ -135,7 +135,7 @@ Authentication: required
 - Database Entity, constraint, or query changes: settlements 테이블과 SettlementJpaEntity를 추가한다. UUID PK, 생성자 ID, 제목, 선언 총액, 상태, 생성·수정 시각을 저장하고 생성자 ID·생성 시각 인덱스를 둔다.
 - Redis key, TTL, or serialization changes: 없음.
 - External API or message changes: 없음.
-- Environment variable or profile changes: 없음. Flyway는 비활성 상태를 유지하고 운영 DDL은 JPA 모델과 별도로 검토·전달한다.
+- Environment variable or profile changes: 없음. 활성화된 Flyway에 V3 정산 스키마를 추가하고 모든 프로필의 Hibernate `ddl-auto=validate` 정책을 유지한다.
 
 ## 5. Design decisions
 
@@ -158,9 +158,9 @@ Authentication: required
 | Area | Impact | Verified file or contract |
 | --- | --- | --- |
 | API | 정산 초안 생성·조회·수정 API 추가 | SettlementController, SettlementDocs |
-| Application | 새 Input Port, Request/Response, Service, Persistence Port | application.port.in/out.settlement |
+| Application | 새 Input Port, Command/Result, Service, Persistence Port | application.port.in/out.settlement |
 | Domain | Settlement, SettlementStatus, 정산 상태 코드 추가 | domain.settlement |
-| Persistence | settlements Entity·Repository·Mapper·Adapter·운영 DDL 추가 | adapter.out.persistence.settlement |
+| Persistence | settlements Entity·Repository·Mapper·Adapter·Flyway V3 추가 | adapter.out.persistence.settlement |
 | Redis | 없음 | N/A |
 | Security | 생성자만 자신의 정산을 읽고 수정 | CurrentActorPort |
 | Configuration | 없음 | N/A |
@@ -169,24 +169,31 @@ Authentication: required
 Existing behavior that must remain unchanged:
 
 - 기존 auth와 user API·보안 흐름은 변경하지 않는다.
-- Flyway 비활성 정책과 UTC 저장 규칙을 유지한다.
+- Flyway 스키마 관리와 UTC 저장 규칙을 유지한다.
 
 ## 7. Implementation plan
 
-- [ ] Application Request/Response와 생성·조회·수정 Input Port를 정의한다.
-- [ ] 정산 로드·저장 Output Port를 정의한다.
-- [ ] Domain 모델, 상태, 금액·상태 전이 규칙, 상태 코드를 구현한다.
-- [ ] 생성자 권한을 확인하는 Application Service를 구현한다.
-- [ ] JPA Entity·Repository·Mapper·Persistence Adapter와 운영 DDL을 구현한다.
-- [ ] Web Request DTO, Controller, Swagger 문서를 구현한다.
-- [ ] 문서의 실제 API·상태·검증 결과를 갱신한다.
+- [x] Application Command/Result와 생성·조회·수정 Input Port를 정의한다.
+- [x] 정산 로드·저장 Output Port를 정의한다.
+- [x] Domain 모델, 상태, 금액·상태 전이 규칙, 상태 코드를 구현한다.
+- [x] 생성자 권한을 확인하는 Application Service를 구현한다.
+- [x] JPA Entity·Repository·Mapper·Persistence Adapter와 Flyway V3를 구현한다.
+- [x] Web Request/Response DTO, Controller, Swagger 문서를 구현한다.
+- [x] 문서의 실제 API·상태·검증 결과를 갱신한다.
 
 ### Expected commit boundaries
 
 ~~~
-docs: 정산 초안 구현 명세 작성
-feat: 정산 초안 도메인과 저장 구조 추가
-feat: 정산 초안 API 추가
+feat: 정산 초안 도메인과 상태 규칙 추가
+feat: 정산 테이블과 영속 모델 추가
+feat: 정산 초안 생성 기능 추가
+feat: 정산 초안 조회 기능 추가
+feat: 정산 초안 수정 기능 추가
+feat: 정산 초안 생성 API 추가
+feat: 정산 초안 조회 API 추가
+feat: 정산 초안 수정 API 추가
+docs: 정산 초안 API 오류 응답 설명 추가
+docs: 정산 초안 명세 구현 결과 반영
 ~~~
 
 ## 8. Verification
@@ -203,23 +210,27 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] 생성자가 초안을 생성·조회·수정한다.
-- [ ] 다른 사용자의 조회·수정은 거부된다.
-- [ ] 요청됨·중단·완료 정산의 수정은 거부된다.
-- [ ] 문서와 Swagger가 실제 계약과 일치한다.
+- [x] 생성자가 초안을 생성·조회·수정한다.
+- [x] 다른 사용자의 조회·수정은 거부된다.
+- [x] 요청됨·중단·완료 정산의 수정은 거부된다.
+- [x] 문서와 Swagger가 실제 계약과 일치한다.
 
 ### Results
 
 | Item | Result | Evidence |
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
-| 구현·컴파일 | Pending | 구현 전 |
+| 구현 | Complete | Domain, Application, Persistence, Web Adapter |
+| 컴파일 | Complete | `./gradlew compileJava` 성공 |
+| 기존 테스트 | Not run | 로컬 PostgreSQL·Redis 미실행 |
+| 수동 API 검증 | Not run | PostgreSQL·Redis와 유효한 JWT 미준비 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 | --- | --- | --- | --- |
 | 2026-08-21 | 정산 초안 Domain·API·상태 설계 기록 | Entity와 UseCase 구현 | 지출 합계 검증은 지출·배분 Spec과의 계약 일치가 필요 |
+| 2026-08-21 | Domain, Flyway V3, JPA, 생성·조회·부분 수정 API 구현 | 참여자 선택 구현 | 실행 환경이 없어 DB migration과 API 수동 검증 미실행 |
 
 ## 10. Decision log
 
@@ -227,11 +238,13 @@ git status --short --untracked-files=all
 | --- | --- | --- | --- |
 | 2026-08-21 | 정산을 독립 Domain으로 분리한다. | 참여자·지출·Share의 단일 부모와 상태 소유자가 필요하다. | user Domain에 종속시키지 않는다. |
 | 2026-08-21 | 선언 총액은 초안에서 저장하고 최종 지출 검증은 지출 Spec이 소유한다. | 초안 입력과 상세 지출 등록의 책임을 분리한다. | 지출 합계가 확정될 때까지 임의 재계산하지 않는다. |
+| 2026-08-21 | UUID를 Application 외부에도 정산 ID로 사용한다. | 링크와 하위 정산 데이터가 예측하기 어려운 식별자를 공유할 수 있다. | Web API path와 DB PK가 UUID를 사용한다. |
+| 2026-08-21 | PATCH는 제목·총액의 부분 수정을 허용한다. | 생성 화면에서 각 기본 정보를 독립적으로 고칠 수 있다. | 두 필드가 모두 없으면 입력 검증 오류를 반환한다. |
 
 ## 11. Completion record
 
-- Completed on: Pending
-- Final behavior: Pending
-- Unverified items: 전체 구현 전
+- Completed on: 2026-08-21
+- Final behavior: 로그인 사용자가 UUID 정산 초안을 생성하고, 생성자 본인만 조회하며, DRAFT 상태에서 제목·총액을 부분 수정한다.
+- Unverified items: 로컬 PostgreSQL·Redis와 JWT가 없어 migration, 기존 Spring context test, 실제 HTTP 요청은 검증하지 못했다.
 - Remaining risks: 지출·품목별 요청 시점과 상태 전이 계약은 하위 Spec 구현 시 재검증한다.
 - Follow-up work: 참여자, 지출·배분, 요청·링크 Spec 순서로 구현한다.
