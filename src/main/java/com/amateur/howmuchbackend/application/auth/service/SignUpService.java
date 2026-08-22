@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.auth.service;
 import com.amateur.howmuchbackend.application.auth.policy.PinPolicy;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
 import com.amateur.howmuchbackend.application.user.policy.NicknamePolicy;
+import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
 import com.amateur.howmuchbackend.application.port.in.auth.SignUpUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.command.SignUpCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthChallengeStorePort;
@@ -11,6 +12,7 @@ import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,9 +24,12 @@ import java.time.ZoneOffset;
 @Service
 @RequiredArgsConstructor
 public class SignUpService implements SignUpUseCase {
+    private static final int MAX_PUBLIC_ID_GENERATION_ATTEMPTS = 5;
+
     private final PinPolicy pinPolicy;
     private final IdentityPolicy identityPolicy;
     private final NicknamePolicy nicknamePolicy;
+    private final PublicIdPolicy publicIdPolicy;
     private final AuthChallengeStorePort authChallengeStorePort;
     private final LoadUserPort loadUserPort;
     private final SaveUserPort saveUserPort;
@@ -57,6 +62,7 @@ public class SignUpService implements SignUpUseCase {
                 identityPolicy.phoneHash(challenge.phoneNumber()),
                 normalizeName(command.name()),
                 nicknamePolicy.normalize(command.name()),
+                generateAvailablePublicId(),
                 challenge.phoneNumber(),
                 passwordEncoder.encode(command.pin()),
                 now,
@@ -64,6 +70,16 @@ public class SignUpService implements SignUpUseCase {
         );
         saveUserPort.save(user);
         authChallengeStorePort.deleteById(challenge.challengeId());
+    }
+
+    private String generateAvailablePublicId() {
+        for (int attempt = 0; attempt < MAX_PUBLIC_ID_GENERATION_ATTEMPTS; attempt++) {
+            String candidate = publicIdPolicy.generate();
+            if (!loadUserPort.existsByPublicId(candidate)) {
+                return candidate;
+            }
+        }
+        throw ApplicationException.of(UserStatusCode.PUBLIC_ID_GENERATION_FAILED);
     }
 
     private String normalizeName(String name) {

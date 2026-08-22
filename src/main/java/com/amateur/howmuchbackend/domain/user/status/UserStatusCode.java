@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum UserStatusCode implements StatusCode {
+    INVALID_PUBLIC_ID("공개 ID는 영문 소문자, 숫자, 점, 밑줄로 구성된 4~20자로 입력해주세요.", 400),
+    PUBLIC_ID_ALREADY_EXISTS("이미 사용 중인 공개 ID입니다.", 409),
+    PUBLIC_ID_GENERATION_FAILED("공개 ID 생성에 실패했습니다. 다시 시도해주세요.", 500),
     PROFILE_IMAGE_NOT_FOUND("등록된 아바타를 찾을 수 없습니다.", 404);
 
     private final String message;
