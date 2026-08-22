@@ -3,13 +3,16 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -70,6 +73,12 @@ class SettlementControllerTest {
     @Mock
     private GetSettlementParticipantAvatarUseCase getSettlementParticipantAvatarUseCase;
 
+    @Mock
+    private SearchSettlementParticipantUseCase searchSettlementParticipantUseCase;
+
+    @Mock
+    private GetSettlementParticipantCandidateAvatarUseCase getSettlementParticipantCandidateAvatarUseCase;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -83,7 +92,9 @@ class SettlementControllerTest {
                 addSettlementParticipantUseCase,
                 removeSettlementParticipantUseCase,
                 getSettlementParticipantsUseCase,
-                getSettlementParticipantAvatarUseCase
+                getSettlementParticipantAvatarUseCase,
+                searchSettlementParticipantUseCase,
+                getSettlementParticipantCandidateAvatarUseCase
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -292,6 +303,61 @@ class SettlementControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("PROFILE_IMAGE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("공개 ID 후보 검색 결과에 공개 정보와 보호된 아바타 URL만 반환한다")
+    void searchesSettlementParticipantCandidates() throws Exception {
+        when(searchSettlementParticipantUseCase.searchByPublicId(eq(SETTLEMENT_ID), any()))
+                .thenReturn(List.of(
+                        new SettlementParticipantCandidateResult("sua.alpha", "최수아", true),
+                        new SettlementParticipantCandidateResult("sua.beta", "후보", false)
+                ));
+
+        mockMvc.perform(get(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/users",
+                        SETTLEMENT_ID
+                ).param("publicIdPrefix", "sua"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].publicId").value("sua.alpha"))
+                .andExpect(jsonPath("$.data[0].displayName").value("최수아"))
+                .andExpect(jsonPath("$.data[0].avatarUrl").value(
+                        "/api/v2/settlements/%s/participant-candidates/users/sua.alpha/avatar"
+                                .formatted(SETTLEMENT_ID)
+                ))
+                .andExpect(jsonPath("$.data[0].userId").doesNotExist())
+                .andExpect(jsonPath("$.data[0].avatarFileName").doesNotExist())
+                .andExpect(jsonPath("$.data[1].avatarUrl").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("빈 공개 ID 검색어는 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
+    void rejectsBlankParticipantCandidateSearch() throws Exception {
+        mockMvc.perform(get(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/users",
+                        SETTLEMENT_ID
+                ).param("publicIdPrefix", "   "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+    }
+
+    @Test
+    @DisplayName("후보 아바타 URL에서 원본 Content-Type과 바이트를 반환한다")
+    void getsSettlementParticipantCandidateAvatar() throws Exception {
+        byte[] imageContent = {(byte) 0x89, 0x50, 0x4E, 0x47};
+        when(getSettlementParticipantCandidateAvatarUseCase.get(SETTLEMENT_ID, "sua.alpha"))
+                .thenReturn(new ProfileImage("image/png", imageContent));
+
+        mockMvc.perform(get(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/users/{publicId}/avatar",
+                        SETTLEMENT_ID,
+                        "sua.alpha"
+                ))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes(imageContent));
     }
 
     private SettlementResult result() {

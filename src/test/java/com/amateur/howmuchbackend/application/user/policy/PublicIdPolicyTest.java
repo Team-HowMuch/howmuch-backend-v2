@@ -36,6 +36,29 @@ class PublicIdPolicyTest {
     }
 
     @Test
+    @DisplayName("공개 ID 검색어의 공백과 대소문자를 정규화하고 한 글자 prefix를 허용한다")
+    void normalizesPublicIdSearchPrefix() {
+        assertThat(publicIdPolicy.normalizePrefix("  S_  ")).isEqualTo("s_");
+    }
+
+    @Test
+    @DisplayName("빈 값이나 허용되지 않은 문자를 포함한 공개 ID 검색어를 거부한다")
+    void rejectsInvalidPublicIdSearchPrefix() {
+        List<String> invalidValues = List.of("", "   ", "a".repeat(21), "수아", "sua-01", "sua 01");
+
+        for (String invalidValue : invalidValues) {
+            assertThatThrownBy(() -> publicIdPolicy.normalizePrefix(invalidValue))
+                    .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                            assertThat(exception.getStatusCode())
+                                    .isEqualTo(UserStatusCode.INVALID_PUBLIC_ID_SEARCH_PREFIX));
+        }
+        assertThatThrownBy(() -> publicIdPolicy.normalizePrefix(null))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(UserStatusCode.INVALID_PUBLIC_ID_SEARCH_PREFIX));
+    }
+
+    @Test
     @DisplayName("회원가입용 공개 ID를 user_ 접두사와 영문 소문자·숫자 12자리로 생성한다")
     void generatesPublicId() {
         for (int attempt = 0; attempt < 100; attempt++) {

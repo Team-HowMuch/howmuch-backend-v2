@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SearchSettlementParticipantCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
@@ -9,6 +10,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
+import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementParticipantModificationPolicy;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
@@ -75,6 +77,9 @@ class SettlementParticipantServiceTest {
     private LoadUserPort loadUserPort;
 
     @Mock
+    private SearchUserPort searchUserPort;
+
+    @Mock
     private ProfileImageStoragePort profileImageStoragePort;
 
     private SettlementParticipantService settlementParticipantService;
@@ -88,6 +93,7 @@ class SettlementParticipantServiceTest {
                 saveSettlementParticipantPort,
                 deleteSettlementParticipantPort,
                 loadUserPort,
+                searchUserPort,
                 profileImageStoragePort,
                 new PublicIdPolicy(),
                 new IdentityPolicy("test-identity-secret"),
@@ -246,6 +252,119 @@ class SettlementParticipantServiceTest {
         verifyNoInteractions(loadUserPort);
     }
 
+    @Test
+    @DisplayName("공개 ID prefix를 정규화하고 이미 추가된 회원을 제외해 후보 공개 정보만 반환한다")
+    void searchesPublicIdCandidates() {
+        User firstCandidate = user(OTHER_USER_ID, "sua.alpha", "candidate.png");
+        User secondCandidate = user(4L, "sua.beta", null);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(registeredCreator(), linkedContact()));
+        when(searchUserPort.searchActiveByPublicIdPrefix(
+                "sua.",
+                Set.of(CREATOR_ID, LINKED_USER_ID),
+                20
+        )).thenReturn(List.of(firstCandidate, secondCandidate));
+
+        var result = settlementParticipantService.searchByPublicId(
+                SETTLEMENT_ID,
+                new SearchSettlementParticipantCommand("  SUA.  ")
+        );
+
+        assertThat(result).extracting(item -> item.publicId())
+                .containsExactly("sua.alpha", "sua.beta");
+        assertThat(result).extracting(item -> item.displayName())
+                .containsExactly("회원 3", "회원 4");
+        assertThat(result).extracting(item -> item.hasAvatar())
+                .containsExactly(true, false);
+    }
+
+    @Test
+    @DisplayName("생성자가 아닌 사용자는 회원 후보를 검색할 수 없다")
+    void rejectsCandidateSearchForAnotherUser() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.searchByPublicId(
+                SETTLEMENT_ID,
+                new SearchSettlementParticipantCommand("sua")
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+        verifyNoInteractions(searchUserPort);
+    }
+
+    @Test
+    @DisplayName("참여자를 변경할 수 없는 정산에서는 회원 후보 검색도 거부한다")
+    void rejectsCandidateSearchForRequestedSettlement() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.searchByPublicId(
+                SETTLEMENT_ID,
+                new SearchSettlementParticipantCommand("sua")
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_EDITABLE));
+        verifyNoInteractions(searchUserPort);
+    }
+
+    @Test
+    @DisplayName("유효하지 않은 공개 ID prefix는 사용자 저장소를 조회하기 전에 거부한다")
+    void rejectsInvalidCandidateSearchPrefix() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.searchByPublicId(
+                SETTLEMENT_ID,
+                new SearchSettlementParticipantCommand("sua-")
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(UserStatusCode.INVALID_PUBLIC_ID_SEARCH_PREFIX));
+        verifyNoInteractions(searchUserPort);
+    }
+
+    @Test
+    @DisplayName("미추가 활성 회원 후보의 저장된 아바타를 반환한다")
+    void getsParticipantCandidateAvatar() {
+        ProfileImage image = new ProfileImage("image/png", new byte[]{1, 2, 3});
+        User candidate = user(OTHER_USER_ID, "sua.alpha", "candidate.png");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(loadUserPort.findByPublicId("sua.alpha")).thenReturn(Optional.of(candidate));
+        when(loadSettlementParticipantPort.existsBySettlementIdAndLinkedUserId(
+                SETTLEMENT_ID,
+                OTHER_USER_ID
+        )).thenReturn(false);
+        when(profileImageStoragePort.load("candidate.png")).thenReturn(Optional.of(image));
+
+        ProfileImage result = settlementParticipantService.get(SETTLEMENT_ID, "SUA.ALPHA");
+
+        assertThat(result.contentType()).isEqualTo("image/png");
+        assertThat(result.content()).containsExactly(1, 2, 3);
+    }
+
+    @Test
+    @DisplayName("이미 추가된 회원의 공개 ID는 후보 아바타 경로에서도 숨긴다")
+    void rejectsAvatarForExistingParticipantCandidate() {
+        User candidate = user(LINKED_USER_ID, "linked.id", "linked-avatar.png");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(loadUserPort.findByPublicId("linked.id")).thenReturn(Optional.of(candidate));
+        when(loadSettlementParticipantPort.existsBySettlementIdAndLinkedUserId(
+                SETTLEMENT_ID,
+                LINKED_USER_ID
+        )).thenReturn(true);
+
+        assertThatThrownBy(() -> settlementParticipantService.get(SETTLEMENT_ID, "linked.id"))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(
+                                SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
+                        ));
+        verifyNoInteractions(profileImageStoragePort);
+    }
+
     private Settlement settlement() {
         return new Settlement(
                 SETTLEMENT_ID,
@@ -253,6 +372,18 @@ class SettlementParticipantServiceTest {
                 "참여자 조회 테스트",
                 30_000,
                 SettlementStatus.REQUESTED,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private Settlement draftSettlement() {
+        return new Settlement(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                "참여자 검색 테스트",
+                30_000,
+                SettlementStatus.DRAFT,
                 CREATED_AT,
                 CREATED_AT
         );

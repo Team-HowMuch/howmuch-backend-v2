@@ -3,9 +3,11 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthTokenPort;
@@ -53,6 +55,12 @@ class SettlementAmountDeserializationTest {
 
     @MockitoBean
     private GetSettlementParticipantAvatarUseCase getSettlementParticipantAvatarUseCase;
+
+    @MockitoBean
+    private SearchSettlementParticipantUseCase searchSettlementParticipantUseCase;
+
+    @MockitoBean
+    private GetSettlementParticipantCandidateAvatarUseCase getSettlementParticipantCandidateAvatarUseCase;
 
     @MockitoBean
     private AuthTokenPort authTokenPort;
