@@ -11,9 +11,8 @@ import java.util.List;
 public record MatchSettlementContactsWebRequest(
         @NotEmpty
         @Size(max = 500)
-        @Valid
         @Schema(description = "매칭할 주소록 연락처 목록")
-        List<SettlementContactWebRequest> contacts
+        List<@Valid SettlementContactWebRequest> contacts
 ) {
     public MatchSettlementContactsCommand toCommand() {
         return new MatchSettlementContactsCommand(
