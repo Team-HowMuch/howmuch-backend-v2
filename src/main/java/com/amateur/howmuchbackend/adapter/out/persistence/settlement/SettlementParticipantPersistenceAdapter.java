@@ -14,6 +14,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,6 +37,15 @@ public class SettlementParticipantPersistenceAdapter implements
         } catch (DataIntegrityViolationException exception) {
             throw translateConstraintViolation(exception);
         }
+    }
+
+    @Override
+    public List<SettlementParticipant> findAllBySettlementId(UUID settlementId) {
+        return settlementParticipantJpaRepository
+                .findAllBySettlementIdOrderByDisplayOrderAsc(settlementId)
+                .stream()
+                .map(SettlementParticipantMapper::toDomain)
+                .toList();
     }
 
     @Override

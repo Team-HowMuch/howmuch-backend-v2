@@ -3,8 +3,10 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
@@ -26,13 +28,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class SettlementParticipantService implements
         AddSettlementParticipantUseCase,
-        RemoveSettlementParticipantUseCase {
+        RemoveSettlementParticipantUseCase,
+        GetSettlementParticipantsUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
@@ -75,15 +84,55 @@ public class SettlementParticipantService implements
         deleteSettlementParticipantPort.delete(participant);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<SettlementParticipantListItemResult> get(UUID settlementId) {
+        Settlement settlement = loadOwnedSettlement(settlementId);
+        List<SettlementParticipant> participants = loadSettlementParticipantPort
+                .findAllBySettlementId(settlement.id());
+        Map<Long, User> linkedUsers = loadLinkedUsers(participants);
+        return participants.stream()
+                .map(participant -> SettlementParticipantListItemResult.of(
+                        participant,
+                        linkedUsers.get(participant.linkedUserId())
+                ))
+                .toList();
+    }
+
+    private Map<Long, User> loadLinkedUsers(List<SettlementParticipant> participants) {
+        Set<Long> linkedUserIds = participants.stream()
+                .map(SettlementParticipant::linkedUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (linkedUserIds.isEmpty()) {
+            return Map.of();
+        }
+        return loadUserPort.findAllByIds(linkedUserIds)
+                .stream()
+                .collect(Collectors.toMap(User::id, Function.identity()));
+    }
+
+    private Settlement loadOwnedSettlement(UUID settlementId) {
+        CurrentActor actor = currentActorPort.getCurrentActor();
+        Settlement settlement = loadSettlementPort.findById(settlementId)
+                .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
+        ensureOwnedBy(settlement, actor.userId());
+        return settlement;
+    }
+
     private Settlement loadOwnedEditableSettlement(UUID settlementId) {
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadSettlementPort.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
-        if (!settlement.isCreatedBy(actor.userId())) {
-            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
-        }
+        ensureOwnedBy(settlement, actor.userId());
         settlement.ensureParticipantsEditable();
         return settlement;
+    }
+
+    private void ensureOwnedBy(Settlement settlement, Long userId) {
+        if (!settlement.isCreatedBy(userId)) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
+        }
     }
 
     private ResolvedParticipant resolveParticipant(AddSettlementParticipantCommand command) {
