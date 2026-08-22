@@ -15,6 +15,9 @@ public record CommonCode(
         requireText(groupCode, "groupCode");
         requireText(code, "code");
         requireText(name, "name");
+        if (sortOrder < 0) {
+            throw new IllegalArgumentException("sortOrder must not be negative");
+        }
     }
 
     private static void requireText(String value, String fieldName) {
