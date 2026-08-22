@@ -1,7 +1,7 @@
 # Feature Plan: 정산 참여자 선택 및 관리
 
-- Status: Draft
-- Last updated: 2026-08-21
+- Status: In Progress
+- Last updated: 2026-08-22
 - Related issue: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
@@ -147,6 +147,9 @@ Authentication: required, creator only
 ### Persistence and external integrations
 
 - Database Entity, constraint, or query changes: settlement_participants 테이블에 settlement_id, source, linked_user_id nullable, phone_hash nullable, display_name, 생성·수정 시각을 저장한다. 등록 사용자 중복과 연락처 식별자 중복을 방지하는 정산 범위 Unique 제약을 둔다.
+- Flyway migration required: Yes
+- Planned migration: `V9__create_settlement_participant_schema.sql`
+- Migration pull request: [#80 정산 참여자 영속 스키마 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/80) (Merged)
 - Redis key, TTL, or serialization changes: 없음.
 - External API or message changes: group 구성원 조회는 Output Port와 dev Stub으로만 연결한다.
 - Environment variable or profile changes: 없음.
@@ -188,19 +191,25 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
+- [x] V9 migration-only PR로 참여자 테이블과 DB 제약을 추가한다.
 - [ ] 참여자 source와 중복·생성자 규칙을 Domain에 정의한다.
-- [ ] 참여자 저장·조회, 등록 사용자 검색, 그룹 구성원 조회 Output Port를 정의한다.
+- [ ] 생성자 자동 참여에 필요한 저장 Output Port와 JPA Adapter를 구현한다.
+- [ ] 정산 생성 트랜잭션에서 현재 사용자를 첫 등록 참여자로 저장한다.
+- [ ] 참여자 저장·조회, 등록 사용자 검색, 그룹 구성원 조회 Output Port를 실제 호출 시점에 정의한다.
 - [ ] 추가·제거·후보 검색·로그인 사용자 자동 매칭 UseCase를 구현한다.
-- [ ] JPA Entity·Repository·Mapper·Persistence Adapter와 개발 group Stub을 구현한다.
+- [ ] 추가·제거 구현 시 JPA 조회·삭제 기능과 개발 group Stub을 확장한다.
 - [ ] Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
 ### Expected commit boundaries
 
 ~~~
-docs: 정산 참여자 구현 명세 작성
-feat: 정산 참여자 도메인과 저장 구조 추가
-feat: 정산 참여자 검색과 관리 API 추가
+docs: 정산 참여자 구현 계획 갱신
+feat: 정산 참여자 도메인 모델 추가
+feat: 정산 참여자 영속 어댑터 추가
+feat: 정산 생성자 자동 참여 추가
+test: 정산 참여자 생성과 영속 흐름 검증
+docs: 정산 참여자 구현 현황 반영
 ~~~
 
 ## 8. Verification
@@ -227,6 +236,7 @@ git status --short --untracked-files=all
 | Item | Result | Evidence |
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
+| V9 참여자 스키마 | Complete | PR #80, 실제 PostgreSQL 제약 검증 |
 | 구현·컴파일 | Pending | 구현 전 |
 
 ## 9. Progress log
@@ -234,6 +244,7 @@ git status --short --untracked-files=all
 | Date | Completed work | Next work | Discovered risk |
 | --- | --- | --- | --- |
 | 2026-08-21 | 참여자 source·권한·앱 자동 매칭 설계 기록 | Persistence와 후보 검색 구현 | 비회원 이름 선택 MVP의 가장 위험 |
+| 2026-08-22 | V9 참여자 스키마와 식별자·중복·순서 제약 머지 | Domain·JPA와 생성자 자동 참여 구현 | SQL `CHECK`의 NULL 삼값 논리를 명시 조건으로 보완함 |
 
 ## 10. Decision log
 
