@@ -41,7 +41,7 @@ public class ExternalConnectionPersistenceAdapter implements ExternalConnectionS
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public Optional<ExternalConnection> findActiveByIdAndUserId(Long connectionId, Long userId) {
         return connectionRepository.findByIdAndUser_IdAndActiveTrueAndConfigurationFingerprint(
                 connectionId, userId, configurationFingerprint.current()
