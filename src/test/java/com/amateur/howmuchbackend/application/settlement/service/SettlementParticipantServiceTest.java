@@ -1,0 +1,333 @@
+package com.amateur.howmuchbackend.application.settlement.service;
+
+import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementParticipantModificationPolicy;
+import com.amateur.howmuchbackend.application.user.model.ProfileImage;
+import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.UserRole;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("정산 참여자 조회 Application 흐름")
+class SettlementParticipantServiceTest {
+    private static final Long CREATOR_ID = 1L;
+    private static final Long LINKED_USER_ID = 2L;
+    private static final Long OTHER_USER_ID = 3L;
+    private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
+    private static final UUID CREATOR_PARTICIPANT_ID =
+            UUID.fromString("09ac164a-35d6-4549-bff4-b7b4c375d2aa");
+    private static final UUID LINKED_PARTICIPANT_ID =
+            UUID.fromString("bbcc9e4e-70df-4a6c-a0e6-4f319de1f89a");
+    private static final UUID CONTACT_PARTICIPANT_ID =
+            UUID.fromString("f2878f10-77cc-4e85-94a5-343b414f69d7");
+    private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 22, 12, 0);
+
+    @Mock
+    private CurrentActorPort currentActorPort;
+
+    @Mock
+    private LoadSettlementPort loadSettlementPort;
+
+    @Mock
+    private LoadSettlementParticipantPort loadSettlementParticipantPort;
+
+    @Mock
+    private SaveSettlementParticipantPort saveSettlementParticipantPort;
+
+    @Mock
+    private DeleteSettlementParticipantPort deleteSettlementParticipantPort;
+
+    @Mock
+    private LoadUserPort loadUserPort;
+
+    @Mock
+    private ProfileImageStoragePort profileImageStoragePort;
+
+    private SettlementParticipantService settlementParticipantService;
+
+    @BeforeEach
+    void setUp() {
+        settlementParticipantService = new SettlementParticipantService(
+                currentActorPort,
+                loadSettlementPort,
+                loadSettlementParticipantPort,
+                saveSettlementParticipantPort,
+                deleteSettlementParticipantPort,
+                loadUserPort,
+                profileImageStoragePort,
+                new PublicIdPolicy(),
+                new IdentityPolicy("test-identity-secret"),
+                new SettlementParticipantModificationPolicy()
+        );
+    }
+
+    @Test
+    @DisplayName("화면 복원에 필요한 공개 정보만 표시 순서대로 조립한다")
+    void getsParticipantListWithPublicUserInformation() {
+        List<SettlementParticipant> participants = List.of(
+                registeredCreator(),
+                linkedContact(),
+                unlinkedContact()
+        );
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants);
+        when(loadUserPort.findAllByIds(Set.of(CREATOR_ID, LINKED_USER_ID)))
+                .thenReturn(List.of(creator(), linkedUser("linked-avatar.png")));
+
+        var result = settlementParticipantService.get(SETTLEMENT_ID);
+
+        assertThat(result).extracting(item -> item.displayOrder()).containsExactly(0, 1, 2);
+        assertThat(result.get(0).participantId()).isEqualTo(CREATOR_PARTICIPANT_ID);
+        assertThat(result.get(0).publicId()).isEqualTo("creator.id");
+        assertThat(result.get(0).hasAvatar()).isFalse();
+        assertThat(result.get(1).source()).isEqualTo(SettlementParticipantSource.CONTACT);
+        assertThat(result.get(1).publicId()).isEqualTo("linked.id");
+        assertThat(result.get(1).hasAvatar()).isTrue();
+        assertThat(result.get(2).publicId()).isNull();
+        assertThat(result.get(2).hasAvatar()).isFalse();
+        verify(loadUserPort).findAllByIds(Set.of(CREATOR_ID, LINKED_USER_ID));
+    }
+
+    @Test
+    @DisplayName("생성자만 참여자 목록을 볼 수 있도록 다른 사용자의 조회를 거부한다")
+    void rejectsParticipantListForAnotherUser() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.get(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+        verify(loadSettlementParticipantPort, never()).findAllBySettlementId(SETTLEMENT_ID);
+    }
+
+    @Test
+    @DisplayName("생성자만 참여자 아바타를 볼 수 있도록 다른 사용자의 조회를 거부한다")
+    void rejectsParticipantAvatarForAnotherUser() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.get(
+                SETTLEMENT_ID,
+                LINKED_PARTICIPANT_ID
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+        verify(loadSettlementParticipantPort, never()).findBySettlementIdAndId(
+                SETTLEMENT_ID,
+                LINKED_PARTICIPANT_ID
+        );
+    }
+
+    @Test
+    @DisplayName("없는 정산의 참여자 목록은 SETTLEMENT_NOT_FOUND로 거부한다")
+    void rejectsParticipantListForMissingSettlement() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> settlementParticipantService.get(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
+        verify(loadSettlementParticipantPort, never()).findAllBySettlementId(SETTLEMENT_ID);
+    }
+
+    @Test
+    @DisplayName("회원 참여자의 저장된 아바타 바이트와 Content-Type을 반환한다")
+    void getsLinkedParticipantAvatar() {
+        byte[] content = {(byte) 0x89, 0x50, 0x4E, 0x47};
+        ProfileImage image = new ProfileImage("image/png", content);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(
+                SETTLEMENT_ID,
+                LINKED_PARTICIPANT_ID
+        )).thenReturn(Optional.of(linkedContact()));
+        when(loadUserPort.findById(LINKED_USER_ID)).thenReturn(Optional.of(linkedUser("linked-avatar.png")));
+        when(profileImageStoragePort.load("linked-avatar.png")).thenReturn(Optional.of(image));
+
+        ProfileImage result = settlementParticipantService.get(SETTLEMENT_ID, LINKED_PARTICIPANT_ID);
+
+        assertThat(result.contentType()).isEqualTo("image/png");
+        assertThat(result.content()).containsExactly(content);
+    }
+
+    @Test
+    @DisplayName("정산에 속하지 않은 참여자의 아바타 요청은 PARTICIPANT_NOT_FOUND로 거부한다")
+    void rejectsAvatarForMissingParticipant() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(
+                SETTLEMENT_ID,
+                LINKED_PARTICIPANT_ID
+        )).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> settlementParticipantService.get(
+                SETTLEMENT_ID,
+                LINKED_PARTICIPANT_ID
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND));
+        verifyNoInteractions(loadUserPort);
+    }
+
+    @Test
+    @DisplayName("아바타 파일이 유실된 경우 PROFILE_IMAGE_NOT_FOUND를 반환한다")
+    void rejectsMissingStoredAvatar() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(
+                SETTLEMENT_ID,
+                LINKED_PARTICIPANT_ID
+        )).thenReturn(Optional.of(linkedContact()));
+        when(loadUserPort.findById(LINKED_USER_ID)).thenReturn(Optional.of(linkedUser("missing.png")));
+        when(profileImageStoragePort.load("missing.png")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> settlementParticipantService.get(
+                SETTLEMENT_ID,
+                LINKED_PARTICIPANT_ID
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("비회원 연락처는 연결된 회원 정보 없이 PROFILE_IMAGE_NOT_FOUND를 반환한다")
+    void rejectsAvatarForUnlinkedContact() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(
+                SETTLEMENT_ID,
+                CONTACT_PARTICIPANT_ID
+        )).thenReturn(Optional.of(unlinkedContact()));
+
+        assertThatThrownBy(() -> settlementParticipantService.get(
+                SETTLEMENT_ID,
+                CONTACT_PARTICIPANT_ID
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+        verifyNoInteractions(loadUserPort);
+    }
+
+    private Settlement settlement() {
+        return new Settlement(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                "참여자 조회 테스트",
+                30_000,
+                SettlementStatus.REQUESTED,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private SettlementParticipant registeredCreator() {
+        return new SettlementParticipant(
+                CREATOR_PARTICIPANT_ID,
+                SETTLEMENT_ID,
+                SettlementParticipantSource.REGISTERED_USER,
+                CREATOR_ID,
+                null,
+                "최수아",
+                0,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private SettlementParticipant linkedContact() {
+        return new SettlementParticipant(
+                LINKED_PARTICIPANT_ID,
+                SETTLEMENT_ID,
+                SettlementParticipantSource.CONTACT,
+                LINKED_USER_ID,
+                null,
+                "연락처 회원",
+                1,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private SettlementParticipant unlinkedContact() {
+        return new SettlementParticipant(
+                CONTACT_PARTICIPANT_ID,
+                SETTLEMENT_ID,
+                SettlementParticipantSource.CONTACT,
+                null,
+                "a".repeat(64),
+                "비회원 연락처",
+                2,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private User creator() {
+        return user(CREATOR_ID, "creator.id", null);
+    }
+
+    private User linkedUser(String avatarFileName) {
+        return user(LINKED_USER_ID, "linked.id", avatarFileName);
+    }
+
+    private User user(Long id, String publicId, String avatarFileName) {
+        return new User(
+                id,
+                "identity-key-" + id,
+                "회원 " + id,
+                publicId,
+                null,
+                null,
+                "0101234567" + id,
+                "encoded-pin",
+                null,
+                avatarFileName,
+                true,
+                UserRole.USER,
+                true,
+                null,
+                CREATED_AT,
+                null,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+}

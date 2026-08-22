@@ -9,9 +9,14 @@ import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlemen
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
+import com.amateur.howmuchbackend.application.user.model.ProfileImage;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +29,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -32,6 +38,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -39,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("정산 Web API 계약")
 class SettlementControllerTest {
     private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
+    private static final UUID PARTICIPANT_ID = UUID.fromString("09ac164a-35d6-4549-bff4-b7b4c375d2aa");
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 21, 9, 0);
 
     @Mock
@@ -211,6 +219,79 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.status").value(409))
                 .andExpect(jsonPath("$.error.code").value("CONCURRENT_UPDATE"));
+    }
+
+    @Test
+    @DisplayName("화면 재진입 시 공개 참여자 정보와 보호된 아바타 URL을 반환한다")
+    void getsSettlementParticipants() throws Exception {
+        when(getSettlementParticipantsUseCase.get(SETTLEMENT_ID)).thenReturn(List.of(
+                new SettlementParticipantListItemResult(
+                        PARTICIPANT_ID,
+                        SettlementParticipantSource.REGISTERED_USER,
+                        "sua.choi",
+                        "최수아",
+                        0,
+                        true
+                ),
+                new SettlementParticipantListItemResult(
+                        UUID.fromString("f2878f10-77cc-4e85-94a5-343b414f69d7"),
+                        SettlementParticipantSource.CONTACT,
+                        null,
+                        "비회원 연락처",
+                        1,
+                        false
+                )
+        ));
+
+        mockMvc.perform(get("/api/v2/settlements/{settlementId}/participants", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].participantId").value(PARTICIPANT_ID.toString()))
+                .andExpect(jsonPath("$.data[0].publicId").value("sua.choi"))
+                .andExpect(jsonPath("$.data[0].displayOrder").value(0))
+                .andExpect(jsonPath("$.data[0].avatarUrl").value(
+                        "/api/v2/settlements/%s/participants/%s/avatar".formatted(
+                                SETTLEMENT_ID,
+                                PARTICIPANT_ID
+                        )
+                ))
+                .andExpect(jsonPath("$.data[0].linkedUserId").doesNotExist())
+                .andExpect(jsonPath("$.data[0].phoneHash").doesNotExist())
+                .andExpect(jsonPath("$.data[1].publicId").doesNotExist())
+                .andExpect(jsonPath("$.data[1].avatarUrl").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("아바타 URL에서 원본 Content-Type과 바이트를 반환한다")
+    void getsSettlementParticipantAvatar() throws Exception {
+        byte[] imageContent = {(byte) 0x89, 0x50, 0x4E, 0x47};
+        when(getSettlementParticipantAvatarUseCase.get(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(new ProfileImage("image/png", imageContent));
+
+        mockMvc.perform(get(
+                        "/api/v2/settlements/{settlementId}/participants/{participantId}/avatar",
+                        SETTLEMENT_ID,
+                        PARTICIPANT_ID
+                ))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes(imageContent));
+    }
+
+    @Test
+    @DisplayName("아바타가 없는 참여자는 PROFILE_IMAGE_NOT_FOUND로 반환한다")
+    void returnsNotFoundForMissingParticipantAvatar() throws Exception {
+        when(getSettlementParticipantAvatarUseCase.get(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenThrow(ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+
+        mockMvc.perform(get(
+                        "/api/v2/settlements/{settlementId}/participants/{participantId}/avatar",
+                        SETTLEMENT_ID,
+                        PARTICIPANT_ID
+                ))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("PROFILE_IMAGE_NOT_FOUND"));
     }
 
     private SettlementResult result() {
