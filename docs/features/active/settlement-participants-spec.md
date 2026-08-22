@@ -19,8 +19,8 @@
 
 ### Success criteria
 
-- [ ] 생성자는 DRAFT 정산에서 자신을 포함한 참여자를 추가·제거할 수 있다.
-- [ ] 생성자는 화면 재진입 시 저장된 참여자를 표시 순서대로 다시 조회할 수 있다.
+- [x] 생성자는 DRAFT 정산에서 자신을 포함한 참여자를 추가·제거할 수 있다.
+- [x] 생성자는 화면 재진입 시 저장된 참여자를 표시 순서대로 다시 조회할 수 있다.
 - [ ] 사용자 ID, 연락처, 그룹 구성원이라는 세 경로가 같은 참여자 모델로 저장된다.
 - [ ] 로그인 회원이 공통 링크를 앱에서 열면 사용자 ID로 참여자를 자동 식별할 수 있다.
 - [ ] 비회원 브라우저 흐름에는 표시 이름을 가진 참여자 목록을 제공할 수 있다.
@@ -203,7 +203,7 @@ Authentication: required, creator only
 | Domain | SettlementParticipant와 source 규칙 추가 | domain.settlement |
 | Persistence | 참여자 단건·목록·중복·표시 순서·삭제 쿼리와 정산 잠금 조회 추가 | adapter.out.persistence.settlement |
 | Redis | 없음 | N/A |
-| Security | 생성자만 DRAFT 참여자 변경, 로그인 회원 자동 매칭 | CurrentActorPort |
+| Security | 생성자만 DRAFT 참여자 변경, 생성자만 목록·아바타 조회, 로그인 회원 자동 매칭 | CurrentActorPort |
 | Configuration | 개발용 group Stub 활성화 | dev profile |
 | Documentation | PRD와 요청·링크 Spec의 자동 매칭 계약 연결 | 이 문서 |
 
@@ -223,7 +223,7 @@ Existing behavior that must remain unchanged:
 - [x] #36에서 등록 사용자·연락처 참여자 추가와 참여자 제거 UseCase를 구현한다.
 - [x] #36에서 JPA 조회·중복·다음 표시 순서·삭제와 정산 잠금 조회를 구현한다.
 - [x] #36에서 Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
-- [ ] #71에서 표시 순서 기반 목록 조회와 회원 아바타 조회를 구현한다.
+- [x] #71에서 표시 순서 기반 목록 조회와 회원 아바타 조회를 구현한다.
 - [ ] #38·#39·#40에서 후보 검색·연락처 일괄 매칭·그룹 검증을 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
@@ -238,8 +238,9 @@ feat: 정산 참여자 추가 제거 API 구현
 test: 정산 API 테스트 의존성 갱신
 docs: 정산 참여자 추가 제거 구현 결과 반영
 docs: 정산 참여자 목록 조회 구현 계획 반영
-feat: 정산 참여자 목록 조회 기능 구현
-feat: 정산 참여자 목록과 아바타 API 구현
+feat: 정산 참여자 목록 조회 API 구현
+feat: 정산 참여자 아바타 조회 API 구현
+test: 정산 컨트롤러 테스트 의존성 갱신
 docs: 정산 참여자 목록 조회 구현 결과 반영
 ~~~
 
@@ -278,8 +279,10 @@ git status --short --untracked-files=all
 | #36 참여자 제거 | Complete | 일반 참여자 제거 성공, 생성자 제거 409 확인 |
 | #36 권한·상태·중복 | Complete | 다른 생성자 403, 비 DRAFT 409, 중복 409, 후보 없음 404 확인 |
 | #36 Swagger | Complete | OpenAPI POST·DELETE 응답 계약과 Swagger UI 최종 200 확인 |
-| #71 목록·아바타 조회 | Pending | 구현 및 검증 예정 |
-| 목록·후보 검색·그룹 | Pending | #71, #38, #39, #40 후속 구현 |
+| #71 목록·아바타 조회 | Complete | 실제 JWT HTTP로 3명 표시 순서, 공개 필드, 이미지 bytes와 Content-Type 검증 |
+| #71 권한·상태·오류 | Complete | 다른 사용자 403, 없는 정산 404, 비회원 아바타 404, REQUESTED 목록 200 확인 |
+| #71 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 54개 테스트, OpenAPI 목록·binary 이미지 계약, Swagger UI 200 |
+| 후보 검색·그룹 | Pending | #38, #39, #40 후속 구현 |
 
 ## 9. Progress log
 
@@ -291,6 +294,7 @@ git status --short --untracked-files=all
 | 2026-08-22 | #35 완료, #36 추가·제거 계약과 구현 경계 확정 | Application·Persistence·Web 구현 | 내부 userId 비노출과 연락처 원문 비영속을 API 경계에서 보장해야 함 |
 | 2026-08-22 | #36 추가·제거 API 구현 및 PostgreSQL·Redis HTTP 검증 완료 | #71 목록 조회 또는 #38 후보 검색 | 그룹 source는 소속 검증이 추가되는 #40 전까지 400으로 거부함 |
 | 2026-08-22 | #71 목록 조회 계약과 생성자 전용 아바타 URL 설계 | Application·Persistence·Web 구현 | 회원 정보는 일괄 조회하고 내부 userId와 저장 파일명은 응답에서 숨겨야 함 |
+| 2026-08-22 | #71 목록·아바타 API 구현과 PostgreSQL·Redis·Swagger 검증 완료 | #38 공개 ID 후보 검색 | 저장된 아바타 파일이 유실되면 URL 조회는 PROFILE_IMAGE_NOT_FOUND를 반환함 |
 
 ## 10. Decision log
 
