@@ -11,7 +11,8 @@ public record SettlementParticipantListItemResult(
         SettlementParticipantSource source,
         String publicId,
         String displayName,
-        int displayOrder
+        int displayOrder,
+        boolean hasAvatar
 ) {
     public static SettlementParticipantListItemResult of(
             SettlementParticipant participant,
@@ -22,7 +23,8 @@ public record SettlementParticipantListItemResult(
                 participant.source(),
                 linkedUser == null ? null : linkedUser.publicId(),
                 participant.displayName(),
-                participant.displayOrder()
+                participant.displayOrder(),
+                linkedUser != null && linkedUser.avatarFileName() != null
         );
     }
 }

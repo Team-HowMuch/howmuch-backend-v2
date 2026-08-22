@@ -10,9 +10,11 @@ public record SettlementParticipantListItemWebResponse(
         SettlementParticipantSource source,
         String publicId,
         String displayName,
-        int displayOrder
+        int displayOrder,
+        String avatarUrl
 ) {
     public static SettlementParticipantListItemWebResponse from(
+            UUID settlementId,
             SettlementParticipantListItemResult result
     ) {
         return new SettlementParticipantListItemWebResponse(
@@ -20,7 +22,13 @@ public record SettlementParticipantListItemWebResponse(
                 result.source(),
                 result.publicId(),
                 result.displayName(),
-                result.displayOrder()
+                result.displayOrder(),
+                result.hasAvatar()
+                        ? "/api/v2/settlements/%s/participants/%s/avatar".formatted(
+                                settlementId,
+                                result.participantId()
+                        )
+                        : null
         );
     }
 }
