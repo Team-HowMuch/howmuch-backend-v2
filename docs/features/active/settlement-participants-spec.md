@@ -252,7 +252,7 @@ Existing behavior that must remain unchanged:
 - [x] #36에서 Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
 - [x] #71에서 표시 순서 기반 목록 조회와 회원 아바타 조회를 구현한다.
 - [x] #38에서 공개 ID prefix 후보 검색과 후보 아바타 조회를 구현한다.
-- [ ] #39에서 연락처 정규화·HMAC 일괄 매칭과 기존 참여 여부 응답을 구현한다.
+- [x] #39에서 연락처 정규화·HMAC 일괄 매칭과 기존 참여 여부 응답을 구현한다.
 - [ ] #40에서 그룹 조회·소속 검증과 선택 구성원 추가를 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
@@ -282,7 +282,9 @@ docs: 정산 참여자 공개 ID 검색 구현 결과 반영
 docs: 정산 참여자 연락처 일괄 매칭 구현 계획 반영
 feat: 정산 참여자 연락처 일괄 매칭 기능 구현
 feat: 정산 참여자 연락처 일괄 매칭 API 구현
+fix: 연락처 텍스트 정규화 순서 보정
 test: 정산 참여자 연락처 일괄 매칭 동작 검증
+fix: 연락처 목록 요소 검증 선언 보정
 docs: 정산 참여자 연락처 일괄 매칭 구현 결과 반영
 ~~~
 
@@ -328,7 +330,11 @@ git status --short --untracked-files=all
 | #38 권한·상태·오류 | Complete | 미인증 401, 다른 생성자 403, 비 DRAFT 409, 잘못된 검색어 400 검증 |
 | #38 연락처 회원 전환 | Complete | 기존 phoneHash와 신규 회원 identityKey가 일치하면 목록·아바타 후보에서 제외하는 자동 테스트 성공 |
 | #38 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 80개 테스트, OpenAPI 후보 목록·binary 이미지 경로, Swagger UI 200 |
-| 연락처·그룹 후보 | Pending | #39, #40 후속 구현 |
+| #39 연락처 일괄 매칭 | Complete | 실제 JWT HTTP로 회원·비회원 매칭, 입력 순서 유지, 같은 정규화 번호의 첫 항목 유지 검증 |
+| #39 개인정보·기존 참여 판정 | Complete | 응답의 원본 번호·HMAC·내부 userId·저장 파일명 비노출, 선택 연락처만 64자 HMAC으로 저장, 재매칭 `alreadyParticipant=true` 확인 |
+| #39 권한·오류 | Complete | 미인증 401, 다른 생성자 403, 잘못된 번호 400 `INVALID_PHONE_NUMBER` 검증 |
+| #39 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 90개 테스트, OpenAPI 연락처 매칭 경로, Swagger UI 200 |
+| 그룹 후보 | Pending | #40 후속 구현 |
 
 ## 9. Progress log
 
@@ -344,6 +350,7 @@ git status --short --untracked-files=all
 | 2026-08-23 | #38 공개 ID prefix 검색의 입력·제외·응답·아바타 계약 확정 | Application·Persistence·Web 구현 | `_`를 SQL wildcard가 아닌 공개 ID 문자로 검색하고 결과 수를 20명으로 제한해야 함 |
 | 2026-08-23 | #38 공개 ID 후보 검색·아바타 API와 PostgreSQL·Redis·Swagger 검증 완료 | #39 연락처 일괄 매칭 | 연락처 추가 뒤 가입한 회원은 linkedUserId가 없어도 phoneHash와 identityKey로 중복 제외해야 함 |
 | 2026-08-23 | #39 연락처 일괄 매칭의 요청 제한·중복·개인정보·응답 계약 확정 | Application·Persistence·Web 구현 | 원본 전화번호를 저장·응답·로그하지 않고 요청 범위에서만 HMAC으로 다뤄야 함 |
+| 2026-08-23 | #39 연락처 일괄 매칭 API와 PostgreSQL·Redis·Swagger 검증 완료 | #40 그룹 구성원 선택·추가 | 같은 번호의 중복 입력은 첫 항목만 반환하고 실제 선택 시 기존 추가 API가 다시 검증함 |
 
 ## 10. Decision log
 
@@ -369,5 +376,5 @@ git status --short --untracked-files=all
 - Completed on: Pending
 - Final behavior: Pending
 - Unverified items: #36 동시 요청의 대기 순서는 별도 부하 테스트하지 않았으며 PostgreSQL 행 잠금과 Unique 제약으로 보호한다.
-- Remaining risks: group 실제 구현과 연락처 후보 공급 계약이 확정돼야 운영 Adapter를 연결할 수 있다.
-- Follow-up work: #39 연락처 일괄 매칭, #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.
+- Remaining risks: group 실제 구현과 구성원 조회 계약이 확정돼야 그룹 선택 경로를 연결할 수 있다.
+- Follow-up work: #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.
