@@ -200,10 +200,10 @@ Existing behavior that must remain unchanged:
 - [x] 참여자 source와 식별자·표시 이름·순서 규칙을 Domain에 정의한다.
 - [x] 생성자 자동 참여에 필요한 저장 Output Port와 JPA Adapter를 구현한다.
 - [x] 정산 생성 트랜잭션에서 현재 사용자를 첫 등록 참여자로 저장한다.
-- [ ] #36에서 참여자 조회·삭제와 회원 식별 조회 Output Port를 실제 호출에 맞게 확장한다.
-- [ ] #36에서 등록 사용자·연락처 참여자 추가와 참여자 제거 UseCase를 구현한다.
-- [ ] #36에서 JPA 조회·중복·다음 표시 순서·삭제와 정산 잠금 조회를 구현한다.
-- [ ] #36에서 Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
+- [x] #36에서 참여자 조회·삭제와 회원 식별 조회 Output Port를 실제 호출에 맞게 확장한다.
+- [x] #36에서 등록 사용자·연락처 참여자 추가와 참여자 제거 UseCase를 구현한다.
+- [x] #36에서 JPA 조회·중복·다음 표시 순서·삭제와 정산 잠금 조회를 구현한다.
+- [x] #36에서 Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
 - [ ] #38·#39·#40·#71에서 후보 검색·연락처 일괄 매칭·그룹 검증·목록 조회를 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
@@ -215,6 +215,7 @@ feat: 정산 참여자 변경 규칙과 애플리케이션 계약 추가
 feat: 정산 참여자 조회와 삭제 영속 기능 추가
 feat: 정산 참여자 추가 제거 서비스 구현
 feat: 정산 참여자 추가 제거 API 구현
+test: 정산 API 테스트 의존성 갱신
 docs: 정산 참여자 추가 제거 구현 결과 반영
 ~~~
 
@@ -224,6 +225,8 @@ docs: 정산 참여자 추가 제거 구현 결과 반영
 
 ~~~
 ./gradlew compileJava
+env DISCORD_SMS_WEBHOOK_URL=http://localhost ./gradlew test
+env DISCORD_SMS_WEBHOOK_URL=http://localhost ./gradlew bootRun
 git diff --check
 git status --short --untracked-files=all
 ~~~
@@ -232,9 +235,9 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] 생성자는 자신을 포함한 참여자를 추가·제거한다.
-- [ ] 다른 사용자는 참여자 변경을 할 수 없다.
-- [ ] 중복 참여자·생성자 제거·요청됨 이후 수정이 거부된다.
+- [x] 생성자는 본인을 유지한 채 등록 사용자·연락처 참여자를 추가·제거한다.
+- [x] 다른 사용자는 참여자 변경을 할 수 없다.
+- [x] 중복 참여자·생성자 제거·요청됨 이후 수정이 거부된다.
 - [ ] 로그인 회원 링크 진입은 이름 선택 없이 매칭되고, 비회원은 브라우저 이름 선택으로 진행한다.
 
 ### Results
@@ -247,7 +250,11 @@ git status --short --untracked-files=all
 | 생성자 자동 참여 | Complete | 실제 로그인 JWT로 정산 생성 후 `REGISTERED_USER`, 순서 0 DB 저장 확인 |
 | 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 54개 테스트 성공 |
 | Swagger 계약 | Complete | 정산 생성 API의 기존 200·400·401 계약 유지 확인 |
-| 추가·제거·목록·검색 | Pending | #36, #71, #38, #39, #40 후속 구현 |
+| #36 등록 사용자·연락처 추가 | Complete | 실제 JWT HTTP 요청으로 회원·비회원 연락처 매칭과 DB 식별 형태 확인 |
+| #36 참여자 제거 | Complete | 일반 참여자 제거 성공, 생성자 제거 409 확인 |
+| #36 권한·상태·중복 | Complete | 다른 생성자 403, 비 DRAFT 409, 중복 409, 후보 없음 404 확인 |
+| #36 Swagger | Complete | OpenAPI POST·DELETE 응답 계약과 Swagger UI 최종 200 확인 |
+| 목록·후보 검색·그룹 | Pending | #71, #38, #39, #40 후속 구현 |
 
 ## 9. Progress log
 
@@ -257,6 +264,7 @@ git status --short --untracked-files=all
 | 2026-08-22 | V9 참여자 스키마와 식별자·중복·순서 제약 머지 | Domain·JPA와 생성자 자동 참여 구현 | SQL `CHECK`의 NULL 삼값 논리를 명시 조건으로 보완함 |
 | 2026-08-22 | 참여자 Domain·JPA와 생성자 자동 참여 구현, 실제 HTTP 검증 | 추가·제거 UseCase와 API 구현 | 조회·삭제 Port는 실제 호출자가 생기는 #36에서 추가해야 함 |
 | 2026-08-22 | #35 완료, #36 추가·제거 계약과 구현 경계 확정 | Application·Persistence·Web 구현 | 내부 userId 비노출과 연락처 원문 비영속을 API 경계에서 보장해야 함 |
+| 2026-08-22 | #36 추가·제거 API 구현 및 PostgreSQL·Redis HTTP 검증 완료 | #71 목록 조회 또는 #38 후보 검색 | 그룹 source는 소속 검증이 추가되는 #40 전까지 400으로 거부함 |
 
 ## 10. Decision log
 
@@ -274,6 +282,6 @@ git status --short --untracked-files=all
 
 - Completed on: Pending
 - Final behavior: Pending
-- Unverified items: 전체 구현 전
+- Unverified items: #36 동시 요청의 대기 순서는 별도 부하 테스트하지 않았으며 PostgreSQL 행 잠금과 Unique 제약으로 보호한다.
 - Remaining risks: group 실제 구현과 연락처 후보 공급 계약이 확정돼야 운영 Adapter를 연결할 수 있다.
-- Follow-up work: 지출·배분 Spec과 요청·링크 Spec을 구현한다.
+- Follow-up work: #71 목록 조회, #38 공개 ID 검색, #39 연락처 일괄 매칭, #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.
