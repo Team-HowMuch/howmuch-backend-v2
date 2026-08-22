@@ -9,11 +9,12 @@ import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStorageP
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.application.user.model.ProfileImageUpload;
-import com.amateur.howmuchbackend.application.user.policy.NicknamePolicy;
 import com.amateur.howmuchbackend.application.user.policy.ProfileImagePolicy;
+import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +31,7 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
     private final LoadUserPort loadUserPort;
     private final SaveUserPort saveUserPort;
     private final ProfileImageStoragePort profileImageStoragePort;
-    private final NicknamePolicy nicknamePolicy;
+    private final PublicIdPolicy publicIdPolicy;
     private final ProfileImagePolicy profileImagePolicy;
 
     @Override
@@ -44,12 +45,15 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
         }
 
         CurrentActor actor = currentActorPort.getCurrentActor();
-        User user = loadUserPort.findById(actor.userId())
+        User user = loadUserPort.findByIdForUpdate(actor.userId())
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
 
-        String nickname = command.nickname() == null
-                ? user.nickname()
-                : nicknamePolicy.normalize(command.nickname());
+        String publicId = command.publicId() == null
+                ? user.publicId()
+                : publicIdPolicy.normalize(command.publicId());
+        if (!publicId.equals(user.publicId()) && loadUserPort.existsByPublicId(publicId)) {
+            throw ApplicationException.of(UserStatusCode.PUBLIC_ID_ALREADY_EXISTS);
+        }
         String previousAvatarFileName = user.avatarFileName();
         String avatarFileName = previousAvatarFileName;
         String newlyStoredFileName = null;
@@ -62,14 +66,14 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
             avatarFileName = null;
         }
 
-        if (nickname.equals(user.nickname()) && equalsNullable(avatarFileName, previousAvatarFileName)) {
+        if (publicId.equals(user.publicId()) && equalsNullable(avatarFileName, previousAvatarFileName)) {
             return MyProfileResult.from(user);
         }
 
         User updated;
         try {
             updated = saveUserPort.update(user.changeProfile(
-                    nickname,
+                    publicId,
                     avatarFileName,
                     LocalDateTime.now(ZoneOffset.UTC)
             ));

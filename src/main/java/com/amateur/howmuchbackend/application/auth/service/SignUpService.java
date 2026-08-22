@@ -2,7 +2,6 @@ package com.amateur.howmuchbackend.application.auth.service;
 
 import com.amateur.howmuchbackend.application.auth.policy.PinPolicy;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
-import com.amateur.howmuchbackend.application.user.policy.NicknamePolicy;
 import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
 import com.amateur.howmuchbackend.application.port.in.auth.SignUpUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.command.SignUpCommand;
@@ -28,7 +27,6 @@ public class SignUpService implements SignUpUseCase {
 
     private final PinPolicy pinPolicy;
     private final IdentityPolicy identityPolicy;
-    private final NicknamePolicy nicknamePolicy;
     private final PublicIdPolicy publicIdPolicy;
     private final AuthChallengeStorePort authChallengeStorePort;
     private final LoadUserPort loadUserPort;
@@ -61,7 +59,6 @@ public class SignUpService implements SignUpUseCase {
         User user = User.register(
                 identityPolicy.phoneHash(challenge.phoneNumber()),
                 normalizeName(command.name()),
-                nicknamePolicy.normalize(command.name()),
                 generateAvailablePublicId(),
                 challenge.phoneNumber(),
                 passwordEncoder.encode(command.pin()),

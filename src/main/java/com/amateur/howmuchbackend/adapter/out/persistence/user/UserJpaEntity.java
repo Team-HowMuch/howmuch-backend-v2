@@ -34,9 +34,6 @@ public class UserJpaEntity extends BaseTimeJpaEntity {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(nullable = false, length = 20)
-    private String nickname;
-
     @Column(name = "public_id", nullable = false, length = 20, unique = true)
     private String publicId;
 
@@ -84,7 +81,6 @@ public class UserJpaEntity extends BaseTimeJpaEntity {
     public void updateFrom(User user) {
         this.identityKey = user.identityKey();
         this.name = user.name();
-        this.nickname = user.nickname();
         this.publicId = user.publicId();
         this.birthDate = user.birthDate();
         this.gender = user.gender();

@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.adapter.in.web.user.dto.response.MyProfileWebR
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -32,8 +33,28 @@ public interface UserDocs {
 
     @Operation(
             summary = "내 프로필 수정",
-            description = "닉네임, 아바타 업로드 또는 기본 이미지 복원을 적용합니다.",
+            description = "공개 ID, 아바타 업로드 또는 기본 이미지 복원을 적용합니다. "
+                    + "공개 ID는 소문자로 정규화하며 영문, 숫자, 점, 밑줄 4~20자만 허용합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "내 프로필 수정 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_PUBLIC_ID - 공개 ID 형식 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "PUBLIC_ID_ALREADY_EXISTS - 공개 ID 중복"
+            )
+    })
     ApiResponse<MyProfileWebResponse> updateMyProfile(UpdateMyProfileRequest request);
 }

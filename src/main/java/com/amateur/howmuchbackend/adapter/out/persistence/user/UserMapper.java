@@ -15,7 +15,6 @@ public final class UserMapper {
                 entity.getId(),
                 entity.getIdentityKey(),
                 entity.getName(),
-                entity.getNickname(),
                 entity.getPublicId(),
                 entity.getBirthDate(),
                 entity.getGender(),
