@@ -4,9 +4,13 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SearchSettlementParticipantCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -16,6 +20,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
+import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementParticipantModificationPolicy;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
@@ -46,13 +51,18 @@ public class SettlementParticipantService implements
         AddSettlementParticipantUseCase,
         RemoveSettlementParticipantUseCase,
         GetSettlementParticipantsUseCase,
-        GetSettlementParticipantAvatarUseCase {
+        GetSettlementParticipantAvatarUseCase,
+        SearchSettlementParticipantUseCase,
+        GetSettlementParticipantCandidateAvatarUseCase {
+    private static final int MAX_PUBLIC_ID_CANDIDATES = 20;
+
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final SaveSettlementParticipantPort saveSettlementParticipantPort;
     private final DeleteSettlementParticipantPort deleteSettlementParticipantPort;
     private final LoadUserPort loadUserPort;
+    private final SearchUserPort searchUserPort;
     private final ProfileImageStoragePort profileImageStoragePort;
     private final PublicIdPolicy publicIdPolicy;
     private final IdentityPolicy identityPolicy;
@@ -124,6 +134,69 @@ public class SettlementParticipantService implements
         }
         return profileImageStoragePort.load(linkedUser.avatarFileName())
                 .orElseThrow(() -> ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SettlementParticipantCandidateResult> searchByPublicId(
+            UUID settlementId,
+            SearchSettlementParticipantCommand command
+    ) {
+        Settlement settlement = loadOwnedSettlement(settlementId);
+        settlement.ensureParticipantsEditable();
+        String publicIdPrefix = publicIdPolicy.normalizePrefix(
+                command == null ? null : command.publicIdPrefix()
+        );
+        List<SettlementParticipant> participants = loadSettlementParticipantPort
+                .findAllBySettlementId(settlement.id());
+        Set<Long> excludedUserIds = participants
+                .stream()
+                .map(SettlementParticipant::linkedUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<String> excludedPhoneHashes = participants
+                .stream()
+                .map(SettlementParticipant::phoneHash)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        return searchUserPort.searchActiveByPublicIdPrefix(
+                        publicIdPrefix,
+                        excludedUserIds,
+                        MAX_PUBLIC_ID_CANDIDATES + excludedPhoneHashes.size()
+                ).stream()
+                .filter(user -> !excludedPhoneHashes.contains(user.identityKey()))
+                .limit(MAX_PUBLIC_ID_CANDIDATES)
+                .map(SettlementParticipantCandidateResult::from)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileImage get(UUID settlementId, String publicId) {
+        Settlement settlement = loadOwnedSettlement(settlementId);
+        settlement.ensureParticipantsEditable();
+        String normalizedPublicId = publicIdPolicy.normalize(publicId);
+        User candidate = loadUserPort.findByPublicId(normalizedPublicId)
+                .filter(User::active)
+                .filter(user -> !candidateAlreadyParticipates(settlement.id(), user))
+                .orElseThrow(() -> ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
+                ));
+        if (candidate.avatarFileName() == null) {
+            throw ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND);
+        }
+        return profileImageStoragePort.load(candidate.avatarFileName())
+                .orElseThrow(() -> ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+    }
+
+    private boolean candidateAlreadyParticipates(UUID settlementId, User candidate) {
+        return loadSettlementParticipantPort.existsBySettlementIdAndLinkedUserId(
+                settlementId,
+                candidate.id()
+        ) || loadSettlementParticipantPort.existsBySettlementIdAndPhoneHash(
+                settlementId,
+                candidate.identityKey()
+        );
     }
 
     private Map<Long, User> loadLinkedUsers(List<SettlementParticipant> participants) {

@@ -5,7 +5,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
@@ -16,6 +19,17 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
     Optional<UserJpaEntity> findByPublicId(String publicId);
 
     boolean existsByPublicId(String publicId);
+
+    List<UserJpaEntity> findByActiveTrueAndPublicIdStartingWithOrderByPublicIdAsc(
+            String publicIdPrefix,
+            Pageable pageable
+    );
+
+    List<UserJpaEntity> findByActiveTrueAndPublicIdStartingWithAndIdNotInOrderByPublicIdAsc(
+            String publicIdPrefix,
+            Collection<Long> excludedUserIds,
+            Pageable pageable
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select user from UserJpaEntity user where user.id = :id")

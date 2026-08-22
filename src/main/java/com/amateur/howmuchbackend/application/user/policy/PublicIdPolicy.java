@@ -14,6 +14,7 @@ public class PublicIdPolicy {
     private static final int GENERATED_SUFFIX_LENGTH = 12;
     private static final char[] GENERATED_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
     private static final Pattern PUBLIC_ID_PATTERN = Pattern.compile("^[a-z0-9._]{4,20}$");
+    private static final Pattern PUBLIC_ID_PREFIX_PATTERN = Pattern.compile("^[a-z0-9._]{1,20}$");
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -37,7 +38,23 @@ public class PublicIdPolicy {
         return normalized;
     }
 
+    public String normalizePrefix(String publicIdPrefix) {
+        if (publicIdPrefix == null) {
+            throw invalidPublicIdSearchPrefix();
+        }
+
+        String normalized = publicIdPrefix.strip().toLowerCase(Locale.ROOT);
+        if (!PUBLIC_ID_PREFIX_PATTERN.matcher(normalized).matches()) {
+            throw invalidPublicIdSearchPrefix();
+        }
+        return normalized;
+    }
+
     private ApplicationException invalidPublicId() {
         return ApplicationException.of(UserStatusCode.INVALID_PUBLIC_ID);
+    }
+
+    private ApplicationException invalidPublicIdSearchPrefix() {
+        return ApplicationException.of(UserStatusCode.INVALID_PUBLIC_ID_SEARCH_PREFIX);
     }
 }

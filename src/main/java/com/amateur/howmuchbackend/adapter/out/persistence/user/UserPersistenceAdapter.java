@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.out.persistence.user;
 
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -9,6 +10,7 @@ import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -17,7 +19,7 @@ import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
-public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {
+public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort, SearchUserPort {
     private final UserJpaRepository userJpaRepository;
 
     @Override
@@ -56,6 +58,28 @@ public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {
     @Override
     public boolean existsByPublicId(String publicId) {
         return userJpaRepository.existsByPublicId(publicId);
+    }
+
+    @Override
+    public List<User> searchActiveByPublicIdPrefix(
+            String publicIdPrefix,
+            Collection<Long> excludedUserIds,
+            int limit
+    ) {
+        PageRequest pageRequest = PageRequest.of(0, limit);
+        List<UserJpaEntity> users = excludedUserIds.isEmpty()
+                ? userJpaRepository.findByActiveTrueAndPublicIdStartingWithOrderByPublicIdAsc(
+                        publicIdPrefix,
+                        pageRequest
+                )
+                : userJpaRepository.findByActiveTrueAndPublicIdStartingWithAndIdNotInOrderByPublicIdAsc(
+                        publicIdPrefix,
+                        excludedUserIds,
+                        pageRequest
+                );
+        return users.stream()
+                .map(UserMapper::toDomain)
+                .toList();
     }
 
     @Override

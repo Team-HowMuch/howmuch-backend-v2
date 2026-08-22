@@ -1,8 +1,8 @@
 # Feature Plan: 정산 참여자 선택 및 관리
 
 - Status: In Progress
-- Last updated: 2026-08-22
-- Related issues: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#36 정산 참여자 추가·제거 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/36), [#71 정산 참여자 목록 조회 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/71)
+- Last updated: 2026-08-23
+- Related issues: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#36 정산 참여자 추가·제거 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/36), [#71 정산 참여자 목록 조회 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/71), [#38 정산 참여자 사용자 ID 검색 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/38)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
 - Prerequisite: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md)
@@ -111,10 +111,15 @@ GetSettlementParticipantsUseCase.get(settlementId)
 GetSettlementParticipantAvatarUseCase.get(settlementId, participantId)
   -> ProfileImage
 
-SearchSettlementParticipantUseCase.search(
+SearchSettlementParticipantUseCase.searchByPublicId(
   settlementId,
-  ParticipantSearchRequest(type, keyword, groupId)
-) -> List<ParticipantCandidateResponse>
+  SearchSettlementParticipantCommand(publicIdPrefix)
+) -> List<SettlementParticipantCandidateResult>
+
+GetSettlementParticipantCandidateAvatarUseCase.get(
+  settlementId,
+  publicId
+) -> ProfileImage
 
 LoadSettlementParticipantByUserUseCase.find(settlementId, userId)
   -> Optional<SettlementParticipantResponse>
@@ -123,6 +128,8 @@ LoadSettlementParticipantByUserUseCase.find(settlementId, userId)
 `AddSettlementParticipantWebRequest -> AddSettlementParticipantCommand -> SettlementParticipantResult -> SettlementParticipantWebResponse` 경계를 사용한다. #36의 `source`는 `REGISTERED_USER`, `CONTACT`만 허용한다. `REGISTERED_USER`는 `publicId`로 활성 회원을 정확히 조회하고 서버의 회원 이름을 표시 이름 스냅샷으로 사용한다. `CONTACT`는 `displayName`, `phoneNumber`만 받고, 저장 전에 전화번호를 HMAC으로 변환해 활성 회원이면 `linkedUserId`, 아니면 `phoneHash`로 저장한다. `GROUP_MEMBER`는 그룹 소속 검증이 필요한 #40에서 확장한다.
 
 #71은 요청 DTO 없이 정산 ID를 받아 `SettlementParticipantListItemResult` 목록을 반환한다. Web Response는 회원 정보가 있는 항목에만 참여자 전용 `avatarUrl`을 조립한다. 이미지 조회는 같은 정산의 생성자 권한과 참여자 소속을 다시 확인한 후 기존 `ProfileImageStoragePort`를 사용한다.
+
+#38은 `SearchSettlementParticipantWebRequest -> SearchSettlementParticipantCommand -> SettlementParticipantCandidateResult -> SettlementParticipantCandidateWebResponse` 경계를 사용한다. 검색어는 공백 제거와 소문자 변환 후 영문·숫자·점·밑줄 1~20자로 제한한다. 활성 회원을 `publicId` prefix로 최대 20명까지 오름차순 조회하고, 현재 정산에 이미 연결된 회원은 후보에서 제외한다. 후보 응답은 `publicId`, 표시 이름, 보호된 `avatarUrl`만 제공하며 내부 userId와 저장 파일명은 노출하지 않는다.
 
 ### Output Ports
 
@@ -133,6 +140,7 @@ LoadSettlementParticipantByUserUseCase.find(settlementId, userId)
 | DeleteSettlementParticipantPort | 확인된 참여자를 제거한다. | 제거 UseCase | JPA Persistence Adapter |
 | LoadSettlementPort | 정산을 잠금 조회해 참여자 변경과 요청 확정을 직렬화한다. | 추가·제거 UseCase | JPA Persistence Adapter |
 | LoadUserPort | `publicId`, `identityKey`, ID 또는 ID 목록으로 등록 회원을 조회한다. | 추가·목록·아바타 UseCase | user Persistence Adapter |
+| SearchUserPort | 활성 회원을 `publicId` prefix로 제한 조회하고 제외 대상 userId를 반영한다. | 공개 ID 후보 검색 UseCase | user Persistence Adapter |
 | ProfileImageStoragePort | 회원 참여자의 아바타 파일을 읽는다. | 참여자 아바타 UseCase | 기존 파일 저장 Adapter |
 | LoadGroupMembersPort | 특정 그룹의 구성원을 조회한다. | 그룹 기반 후보·추가 UseCase | group Adapter 또는 개발 Stub |
 | CurrentActorPort | 생성자 권한과 앱 로그인 사용자를 제공한다. | 모든 UseCase | 기존 Spring Security Adapter |
@@ -140,10 +148,14 @@ LoadSettlementParticipantByUserUseCase.find(settlementId, userId)
 ### Web API
 
 ~~~
-GET /api/v2/settlements/{settlementId}/participant-candidates
-Query: type=userId|contact|group, keyword, groupId
-Response: List<ParticipantCandidateResponse>
-Authentication: required
+GET /api/v2/settlements/{settlementId}/participant-candidates/users
+Query: publicIdPrefix
+Response: [{ publicId, displayName, avatarUrl? }]
+Authentication: required, creator only, DRAFT only
+
+GET /api/v2/settlements/{settlementId}/participant-candidates/users/{publicId}/avatar
+Response: image bytes
+Authentication: required, creator only, DRAFT only
 
 POST /api/v2/settlements/{settlementId}/participants
 Request: { source, publicId?, displayName?, phoneNumber? }
@@ -175,7 +187,7 @@ Authentication: required, creator only
 - External API or message changes: group 구성원 조회는 Output Port와 dev Stub으로만 연결한다.
 - Environment variable or profile changes: 없음.
 
-#36과 #71은 기존 V9 스키마 안에서 조회·삭제·목록 쿼리만 확장하므로 추가 Flyway migration이 필요하지 않다.
+#36, #71, #38은 기존 V9 스키마와 `users.public_id`를 조회하는 기능이므로 추가 Flyway migration이 필요하지 않다.
 
 ## 5. Design decisions
 
@@ -198,10 +210,10 @@ Authentication: required, creator only
 
 | Area | Impact | Verified file or contract |
 | --- | --- | --- |
-| API | 참여자 추가·제거·목록·아바타 API 추가 | SettlementController, SettlementDocs |
-| Application | 추가·제거·목록·아바타 UseCase, Command/Result, 변경 Policy 추가 | application.settlement |
+| API | 참여자 추가·제거·목록·아바타와 공개 ID 후보 검색 API 추가 | SettlementController, SettlementDocs |
+| Application | 추가·제거·목록·아바타·후보 검색 UseCase, Command/Result, 변경 Policy 추가 | application.settlement |
 | Domain | SettlementParticipant와 source 규칙 추가 | domain.settlement |
-| Persistence | 참여자 단건·목록·중복·표시 순서·삭제 쿼리와 정산 잠금 조회 추가 | adapter.out.persistence.settlement |
+| Persistence | 참여자 단건·목록·중복·표시 순서·삭제 쿼리, 정산 잠금 조회, 활성 회원 prefix 검색 추가 | adapter.out.persistence.settlement, adapter.out.persistence.user |
 | Redis | 없음 | N/A |
 | Security | 생성자만 DRAFT 참여자 변경, 생성자만 목록·아바타 조회, 로그인 회원 자동 매칭 | CurrentActorPort |
 | Configuration | 개발용 group Stub 활성화 | dev profile |
@@ -224,7 +236,8 @@ Existing behavior that must remain unchanged:
 - [x] #36에서 JPA 조회·중복·다음 표시 순서·삭제와 정산 잠금 조회를 구현한다.
 - [x] #36에서 Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
 - [x] #71에서 표시 순서 기반 목록 조회와 회원 아바타 조회를 구현한다.
-- [ ] #38·#39·#40에서 후보 검색·연락처 일괄 매칭·그룹 검증을 구현한다.
+- [x] #38에서 공개 ID prefix 후보 검색과 후보 아바타 조회를 구현한다.
+- [ ] #39·#40에서 연락처 일괄 매칭·그룹 검증을 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
 ### Expected commit boundaries
@@ -243,6 +256,13 @@ feat: 정산 참여자 아바타 조회 API 구현
 test: 정산 컨트롤러 테스트 의존성 갱신
 test: 정산 참여자 목록과 아바타 동작 검증
 docs: 정산 참여자 목록 조회 구현 결과 반영
+docs: 정산 참여자 공개 ID 검색 구현 계획 반영
+feat: 정산 참여자 공개 ID 검색 기능 구현
+feat: 정산 참여자 공개 ID 검색 API 구현
+test: 정산 참여자 공개 ID 검색 동작 검증
+fix: 연락처 회원 전환 후보 중복 노출 방지
+fix: 공개 ID 검색어 정규화 순서 보정
+docs: 정산 참여자 공개 ID 검색 구현 결과 반영
 ~~~
 
 ## 8. Verification
@@ -274,7 +294,7 @@ git status --short --untracked-files=all
 | V9 참여자 스키마 | Complete | PR #80, 실제 PostgreSQL 제약 검증 |
 | Domain·JPA 구현 | Complete | `SettlementParticipant`, 저장 Port와 Persistence Adapter |
 | 생성자 자동 참여 | Complete | 실제 로그인 JWT로 정산 생성 후 `REGISTERED_USER`, 순서 0 DB 저장 확인 |
-| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 66개 테스트 성공 |
+| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 80개 테스트 성공 |
 | Swagger 계약 | Complete | 정산 생성 API의 기존 200·400·401 계약 유지 확인 |
 | #36 등록 사용자·연락처 추가 | Complete | 실제 JWT HTTP 요청으로 회원·비회원 연락처 매칭과 DB 식별 형태 확인 |
 | #36 참여자 제거 | Complete | 일반 참여자 제거 성공, 생성자 제거 409 확인 |
@@ -283,7 +303,11 @@ git status --short --untracked-files=all
 | #71 목록·아바타 조회 | Complete | 실제 JWT HTTP로 3명 표시 순서, 공개 필드, 이미지 bytes와 Content-Type 검증 |
 | #71 권한·상태·오류 | Complete | 다른 사용자 403, 없는 정산 404, 비회원 아바타 404, REQUESTED 목록 200 확인 |
 | #71 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 66개 테스트, OpenAPI 목록·binary 이미지 계약, Swagger UI 200 |
-| 후보 검색·그룹 | Pending | #38, #39, #40 후속 구현 |
+| #38 공개 ID 후보 검색 | Complete | 실제 JWT HTTP로 prefix 정렬 조회, 기존 참여자 제외, 공개 필드만 응답, 최대 20명 제한 검증 |
+| #38 권한·상태·오류 | Complete | 미인증 401, 다른 생성자 403, 비 DRAFT 409, 잘못된 검색어 400 검증 |
+| #38 연락처 회원 전환 | Complete | 기존 phoneHash와 신규 회원 identityKey가 일치하면 목록·아바타 후보에서 제외하는 자동 테스트 성공 |
+| #38 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 80개 테스트, OpenAPI 후보 목록·binary 이미지 경로, Swagger UI 200 |
+| 연락처·그룹 후보 | Pending | #39, #40 후속 구현 |
 
 ## 9. Progress log
 
@@ -296,6 +320,8 @@ git status --short --untracked-files=all
 | 2026-08-22 | #36 추가·제거 API 구현 및 PostgreSQL·Redis HTTP 검증 완료 | #71 목록 조회 또는 #38 후보 검색 | 그룹 source는 소속 검증이 추가되는 #40 전까지 400으로 거부함 |
 | 2026-08-22 | #71 목록 조회 계약과 생성자 전용 아바타 URL 설계 | Application·Persistence·Web 구현 | 회원 정보는 일괄 조회하고 내부 userId와 저장 파일명은 응답에서 숨겨야 함 |
 | 2026-08-22 | #71 목록·아바타 API 구현과 PostgreSQL·Redis·Swagger 검증 완료 | #38 공개 ID 후보 검색 | 저장된 아바타 파일이 유실되면 URL 조회는 PROFILE_IMAGE_NOT_FOUND를 반환함 |
+| 2026-08-23 | #38 공개 ID prefix 검색의 입력·제외·응답·아바타 계약 확정 | Application·Persistence·Web 구현 | `_`를 SQL wildcard가 아닌 공개 ID 문자로 검색하고 결과 수를 20명으로 제한해야 함 |
+| 2026-08-23 | #38 공개 ID 후보 검색·아바타 API와 PostgreSQL·Redis·Swagger 검증 완료 | #39 연락처 일괄 매칭 | 연락처 추가 뒤 가입한 회원은 linkedUserId가 없어도 phoneHash와 identityKey로 중복 제외해야 함 |
 
 ## 10. Decision log
 
@@ -310,6 +336,9 @@ git status --short --untracked-files=all
 | 2026-08-22 | 참여자 추가·제거 시 정산 행을 잠금 조회한다. | 동시 추가의 표시 순서 충돌과 요청 확정 중 참여자 변경을 직렬화해야 한다. | 정산 초안 PATCH의 낙관적 락 정책은 그대로 유지한다. |
 | 2026-08-22 | 목록 조회는 모든 정산 상태에서 허용하고 생성자 권한만 검사한다. | 요청 확정 뒤에도 참여자 현황 화면을 복원해야 한다. | 참여자 변경의 DRAFT 제한은 그대로 유지한다. |
 | 2026-08-22 | 회원 아바타는 참여자 ID 기반 보호된 URL로 제공한다. | 내부 userId와 저장 파일명을 노출하지 않으면서 생성자만 이미지를 읽게 한다. | 비회원 연락처와 아바타가 없는 회원은 `avatarUrl`을 null로 반환한다. |
+| 2026-08-23 | 공개 ID 후보 검색은 전용 user 경로와 최대 20개의 prefix 결과를 사용한다. | 연락처 일괄 매칭과 요청 형태가 달라 하나의 `type` query 계약으로 묶지 않고, 사용자 열거와 무제한 조회를 방지한다. | 검색어는 1~20자로 제한하고 이미 추가된 회원은 제외한다. |
+| 2026-08-23 | 후보 아바타는 정산 ID와 publicId 기반 보호된 URL로 제공한다. | 후보는 아직 participantId가 없으므로 저장 파일명을 노출하지 않는 별도 조회 계약이 필요하다. | 생성자·DRAFT·활성 회원·미추가 후보를 다시 검증한다. |
+| 2026-08-23 | 공개 ID 후보에서 linkedUserId와 phoneHash 두 식별 경로를 모두 제외한다. | 연락처로 먼저 추가된 비회원이 가입해도 기존 정산 참여자와 동일인이다. | phoneHash 제외 수만큼 추가 조회한 뒤 최대 20명으로 다시 제한한다. |
 
 ## 11. Completion record
 
@@ -317,4 +346,4 @@ git status --short --untracked-files=all
 - Final behavior: Pending
 - Unverified items: #36 동시 요청의 대기 순서는 별도 부하 테스트하지 않았으며 PostgreSQL 행 잠금과 Unique 제약으로 보호한다.
 - Remaining risks: group 실제 구현과 연락처 후보 공급 계약이 확정돼야 운영 Adapter를 연결할 수 있다.
-- Follow-up work: #71 목록 조회, #38 공개 ID 검색, #39 연락처 일괄 매칭, #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.
+- Follow-up work: #39 연락처 일괄 매칭, #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.
