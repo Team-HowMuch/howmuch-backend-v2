@@ -333,7 +333,7 @@ git status --short --untracked-files=all
 | #39 연락처 일괄 매칭 | Complete | 실제 JWT HTTP로 회원·비회원 매칭, 입력 순서 유지, 같은 정규화 번호의 첫 항목 유지 검증 |
 | #39 개인정보·기존 참여 판정 | Complete | 응답의 원본 번호·HMAC·내부 userId·저장 파일명 비노출, 선택 연락처만 64자 HMAC으로 저장, 재매칭 `alreadyParticipant=true` 확인 |
 | #39 권한·오류 | Complete | 미인증 401, 다른 생성자 403, 잘못된 번호 400 `INVALID_PHONE_NUMBER` 검증 |
-| #39 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 90개 테스트, OpenAPI 연락처 매칭 경로, Swagger UI 200 |
+| #39 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 91개 테스트, OpenAPI 연락처 매칭 경로, Swagger UI 200 |
 | 그룹 후보 | Pending | #40 후속 구현 |
 
 ## 9. Progress log
