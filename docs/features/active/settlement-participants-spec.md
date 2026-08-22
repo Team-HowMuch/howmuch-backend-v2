@@ -2,7 +2,7 @@
 
 - Status: In Progress
 - Last updated: 2026-08-22
-- Related issue: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27)
+- Related issues: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#36 정산 참여자 추가·제거 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/36)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
 - Prerequisite: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md)
@@ -93,13 +93,13 @@
 
 ## 4. Contracts
 
-### Input Port
+### Input Port and boundary mapping
 
 ~~~
 AddSettlementParticipantUseCase.add(
   settlementId,
-  AddSettlementParticipantRequest(source, userId, displayName, phoneNumber)
-) -> SettlementParticipantResponse
+  AddSettlementParticipantCommand(source, publicId, displayName, phoneNumber)
+) -> SettlementParticipantResult
 
 RemoveSettlementParticipantUseCase.remove(settlementId, participantId) -> void
 
@@ -112,15 +112,17 @@ LoadSettlementParticipantByUserUseCase.find(settlementId, userId)
   -> Optional<SettlementParticipantResponse>
 ~~~
 
-source는 REGISTERED_USER, CONTACT, GROUP_MEMBER 중 하나다. CONTACT만 displayName과 phoneNumber를 받을 수 있고, 저장 전 phoneNumber는 hash로 변환한다.
+`AddSettlementParticipantWebRequest -> AddSettlementParticipantCommand -> SettlementParticipantResult -> SettlementParticipantWebResponse` 경계를 사용한다. #36의 `source`는 `REGISTERED_USER`, `CONTACT`만 허용한다. `REGISTERED_USER`는 `publicId`로 활성 회원을 정확히 조회하고 서버의 회원 이름을 표시 이름 스냅샷으로 사용한다. `CONTACT`는 `displayName`, `phoneNumber`만 받고, 저장 전에 전화번호를 HMAC으로 변환해 활성 회원이면 `linkedUserId`, 아니면 `phoneHash`로 저장한다. `GROUP_MEMBER`는 그룹 소속 검증이 필요한 #40에서 확장한다.
 
 ### Output Ports
 
 | Port | Purpose | Caller | Expected Adapter |
 | --- | --- | --- | --- |
-| LoadSettlementParticipantPort | 정산 참여자와 userId 연결을 조회한다. | 추가·제거·링크 해석 UseCase | JPA Persistence Adapter |
-| SaveSettlementParticipantPort | 참여자를 저장·삭제한다. | 추가·제거 UseCase | JPA Persistence Adapter |
-| SearchRegisteredUserPort | 사용자 ID 또는 전화번호 식별자로 등록 사용자를 찾는다. | 참여자 검색 UseCase | user Persistence Adapter |
+| LoadSettlementParticipantPort | 정산 참여자 단건·중복·다음 표시 순서를 조회한다. | 추가·제거 UseCase | JPA Persistence Adapter |
+| SaveSettlementParticipantPort | 참여자를 저장한다. | 추가 UseCase | JPA Persistence Adapter |
+| DeleteSettlementParticipantPort | 확인된 참여자를 제거한다. | 제거 UseCase | JPA Persistence Adapter |
+| LoadSettlementPort | 정산을 잠금 조회해 참여자 변경과 요청 확정을 직렬화한다. | 추가·제거 UseCase | JPA Persistence Adapter |
+| LoadUserPort | `publicId` 또는 `identityKey`로 등록 회원을 정확히 조회한다. | 추가 UseCase | user Persistence Adapter |
 | LoadGroupMembersPort | 특정 그룹의 구성원을 조회한다. | 그룹 기반 후보·추가 UseCase | group Adapter 또는 개발 Stub |
 | CurrentActorPort | 생성자 권한과 앱 로그인 사용자를 제공한다. | 모든 UseCase | 기존 Spring Security Adapter |
 
@@ -133,8 +135,8 @@ Response: List<ParticipantCandidateResponse>
 Authentication: required
 
 POST /api/v2/settlements/{settlementId}/participants
-Request: { source, userId?, displayName?, phoneNumber?, groupId? }
-Response: SettlementParticipantResponse
+Request: { source, publicId?, displayName?, phoneNumber? }
+Response: { participantId, source, publicId?, displayName, displayOrder }
 Authentication: required, creator only
 
 DELETE /api/v2/settlements/{settlementId}/participants/{participantId}
@@ -154,13 +156,16 @@ Authentication: required, creator only
 - External API or message changes: group 구성원 조회는 Output Port와 dev Stub으로만 연결한다.
 - Environment variable or profile changes: 없음.
 
+#36은 기존 V9 스키마 안에서 조회·삭제 쿼리만 확장하므로 추가 Flyway migration이 필요하지 않다.
+
 ## 5. Design decisions
 
 ### Business logic
 
-- Rules and their locations: 참가자 중복·생성자 제거 금지·초안 수정 가능 여부는 SettlementParticipant와 Settlement Domain 규칙으로 둔다.
-- Behavior owned by Domain: 참여자 식별자 유효성, source별 필수값, 중복 방지 기준, 생성자 참여자 불변성.
-- Flow orchestrated by Application: 현재 생성자 확인, 사용자·그룹 후보 조회, 연락처 hash 처리, 저장과 삭제 순서.
+- Rules and their locations: 초안 수정 가능 여부는 Settlement에, source별 식별자와 표시 이름은 SettlementParticipant에 둔다. 중복과 생성자 제거 금지는 여러 저장 상태를 결합하므로 Application Policy에서 판단한다.
+- Behavior owned by Domain: 참여자 식별자 유효성, source별 필수값, 표시 이름·순서 유효성, DRAFT 참여자 변경 가능 여부.
+- Decisions owned by Application Policy: 같은 정산의 동일 회원·연락처 중복 추가 거부, 생성자 참여자 제거 거부.
+- Flow orchestrated by Application: 현재 생성자와 DRAFT 상태를 잠금 조회하고, `publicId` 또는 연락처 HMAC으로 후보를 해석한 뒤 중복 확인·표시 순서 결정·저장 또는 삭제를 수행한다.
 
 ### Technology and patterns
 
@@ -174,10 +179,10 @@ Authentication: required, creator only
 
 | Area | Impact | Verified file or contract |
 | --- | --- | --- |
-| API | 후보 검색, 참여자 추가·제거 API 추가 | SettlementParticipantController, Docs |
-| Application | 참여자 UseCase, 검색·그룹·저장 Port 추가 | application.settlement |
+| API | 참여자 추가·제거 API 추가 | SettlementController, SettlementDocs |
+| Application | 추가·제거 UseCase, Command/Result, 변경 Policy 추가 | application.settlement |
 | Domain | SettlementParticipant와 source 규칙 추가 | domain.settlement |
-| Persistence | settlement_participants Entity·Repository·Adapter 추가 | adapter.out.persistence.settlement |
+| Persistence | 참여자 조회·중복·표시 순서·삭제 쿼리와 정산 잠금 조회 추가 | adapter.out.persistence.settlement |
 | Redis | 없음 | N/A |
 | Security | 생성자만 DRAFT 참여자 변경, 로그인 회원 자동 매칭 | CurrentActorPort |
 | Configuration | 개발용 group Stub 활성화 | dev profile |
@@ -195,21 +200,22 @@ Existing behavior that must remain unchanged:
 - [x] 참여자 source와 식별자·표시 이름·순서 규칙을 Domain에 정의한다.
 - [x] 생성자 자동 참여에 필요한 저장 Output Port와 JPA Adapter를 구현한다.
 - [x] 정산 생성 트랜잭션에서 현재 사용자를 첫 등록 참여자로 저장한다.
-- [ ] 참여자 저장·조회, 등록 사용자 검색, 그룹 구성원 조회 Output Port를 실제 호출 시점에 정의한다.
-- [ ] 추가·제거·후보 검색·로그인 사용자 자동 매칭 UseCase를 구현한다.
-- [ ] 추가·제거 구현 시 JPA 조회·삭제 기능과 개발 group Stub을 확장한다.
-- [ ] Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
+- [ ] #36에서 참여자 조회·삭제와 회원 식별 조회 Output Port를 실제 호출에 맞게 확장한다.
+- [ ] #36에서 등록 사용자·연락처 참여자 추가와 참여자 제거 UseCase를 구현한다.
+- [ ] #36에서 JPA 조회·중복·다음 표시 순서·삭제와 정산 잠금 조회를 구현한다.
+- [ ] #36에서 Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
+- [ ] #38·#39·#40·#71에서 후보 검색·연락처 일괄 매칭·그룹 검증·목록 조회를 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
 ### Expected commit boundaries
 
 ~~~
-docs: 정산 참여자 구현 계획 갱신
-feat: 정산 참여자 도메인 모델 추가
-feat: 정산 참여자 영속 어댑터 추가
-feat: 정산 생성자 자동 참여 추가
-test: 정산 참여자 생성과 영속 흐름 검증
-docs: 정산 참여자 구현 현황 반영
+docs: 정산 참여자 추가 제거 구현 계획 갱신
+feat: 정산 참여자 변경 규칙과 애플리케이션 계약 추가
+feat: 정산 참여자 조회와 삭제 영속 기능 추가
+feat: 정산 참여자 추가 제거 서비스 구현
+feat: 정산 참여자 추가 제거 API 구현
+docs: 정산 참여자 추가 제거 구현 결과 반영
 ~~~
 
 ## 8. Verification
@@ -239,7 +245,7 @@ git status --short --untracked-files=all
 | V9 참여자 스키마 | Complete | PR #80, 실제 PostgreSQL 제약 검증 |
 | Domain·JPA 구현 | Complete | `SettlementParticipant`, 저장 Port와 Persistence Adapter |
 | 생성자 자동 참여 | Complete | 실제 로그인 JWT로 정산 생성 후 `REGISTERED_USER`, 순서 0 DB 저장 확인 |
-| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 52개 테스트 성공 |
+| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 54개 테스트 성공 |
 | Swagger 계약 | Complete | 정산 생성 API의 기존 200·400·401 계약 유지 확인 |
 | 추가·제거·목록·검색 | Pending | #36, #71, #38, #39, #40 후속 구현 |
 
@@ -250,6 +256,7 @@ git status --short --untracked-files=all
 | 2026-08-21 | 참여자 source·권한·앱 자동 매칭 설계 기록 | Persistence와 후보 검색 구현 | 비회원 이름 선택 MVP의 가장 위험 |
 | 2026-08-22 | V9 참여자 스키마와 식별자·중복·순서 제약 머지 | Domain·JPA와 생성자 자동 참여 구현 | SQL `CHECK`의 NULL 삼값 논리를 명시 조건으로 보완함 |
 | 2026-08-22 | 참여자 Domain·JPA와 생성자 자동 참여 구현, 실제 HTTP 검증 | 추가·제거 UseCase와 API 구현 | 조회·삭제 Port는 실제 호출자가 생기는 #36에서 추가해야 함 |
+| 2026-08-22 | #35 완료, #36 추가·제거 계약과 구현 경계 확정 | Application·Persistence·Web 구현 | 내부 userId 비노출과 연락처 원문 비영속을 API 경계에서 보장해야 함 |
 
 ## 10. Decision log
 
@@ -260,6 +267,8 @@ git status --short --untracked-files=all
 | 2026-08-21 | 연락처 원본은 hash 식별자로만 저장한다. | 개인정보 최소화와 기존 IdentityPolicy 규칙을 따른다. | 원본 번호를 조회·로그에 노출하지 않는다. |
 | 2026-08-22 | 참여자 `source`는 선택 경로를, linkedUserId 또는 phoneHash는 실제 식별자를 나타낸다. | 연락처로 찾은 회원과 비회원을 같은 CONTACT 경로로 표현하면서 식별 방식은 구분해야 한다. | CONTACT는 두 식별자 중 정확히 하나만 가진다. |
 | 2026-08-22 | 생성자 참여자는 사용자 이름을 표시 이름 스냅샷으로 저장하고 순서 0을 사용한다. | 정산 생성 직후 브라우저 목록과 계산 순서에서 안정적인 첫 참여자가 필요하다. | 이후 프로필 이름 변경이 기존 정산 표시 이름을 바꾸지 않는다. |
+| 2026-08-22 | #36의 등록 사용자는 내부 userId 대신 `publicId`로 받고, 연락처는 선택된 한 건의 전화번호만 HMAC 처리한다. | 내부 식별자 노출과 주소록 전체 영속화를 피하면서 실제 참여자 확정을 제공하기 위해서다. | 후보 자동완성과 주소록 일괄 매칭은 #38·#39에서 추가한다. |
+| 2026-08-22 | 참여자 추가·제거 시 정산 행을 잠금 조회한다. | 동시 추가의 표시 순서 충돌과 요청 확정 중 참여자 변경을 직렬화해야 한다. | 정산 초안 PATCH의 낙관적 락 정책은 그대로 유지한다. |
 
 ## 11. Completion record
 
