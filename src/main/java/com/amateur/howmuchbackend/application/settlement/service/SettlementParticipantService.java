@@ -112,7 +112,7 @@ public class SettlementParticipantService implements
         return new ResolvedParticipant(
                 SettlementParticipantSource.REGISTERED_USER,
                 user.id(),
-                null,
+                user.identityKey(),
                 user.name(),
                 user.publicId()
         );
@@ -131,7 +131,7 @@ public class SettlementParticipantService implements
         return new ResolvedParticipant(
                 SettlementParticipantSource.CONTACT,
                 linkedUser == null ? null : linkedUser.id(),
-                linkedUser == null ? phoneHash : null,
+                phoneHash,
                 command.displayName(),
                 linkedUser == null ? null : linkedUser.publicId()
         );
@@ -142,15 +142,17 @@ public class SettlementParticipantService implements
     }
 
     private boolean participantAlreadyExists(UUID settlementId, ResolvedParticipant participant) {
-        return participant.linkedUserId() == null
-                ? loadSettlementParticipantPort.existsBySettlementIdAndPhoneHash(
-                        settlementId,
-                        participant.phoneHash()
-                )
-                : loadSettlementParticipantPort.existsBySettlementIdAndLinkedUserId(
+        boolean linkedUserExists = participant.linkedUserId() != null
+                && loadSettlementParticipantPort.existsBySettlementIdAndLinkedUserId(
                         settlementId,
                         participant.linkedUserId()
                 );
+        boolean phoneHashExists = participant.phoneHash() != null
+                && loadSettlementParticipantPort.existsBySettlementIdAndPhoneHash(
+                        settlementId,
+                        participant.phoneHash()
+                );
+        return linkedUserExists || phoneHashExists;
     }
 
     private record ResolvedParticipant(
