@@ -1,8 +1,10 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -103,4 +105,75 @@ public interface SettlementDocs {
             UUID settlementId,
             UpdateSettlementDraftWebRequest request
     );
+
+    @Operation(
+            summary = "정산 참여자 추가",
+            description = "현재 로그인한 생성자가 DRAFT 정산에 등록 사용자 또는 연락처 참여자를 추가합니다. "
+                    + "등록 사용자는 publicId만, 연락처는 displayName과 phoneNumber만 전달해야 합니다. "
+                    + "연락처 원본 전화번호는 회원 매칭과 HMAC 변환 후 저장하거나 응답하지 않습니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 참여자 추가 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_ARGUMENT, INVALID_PUBLIC_ID, INVALID_PHONE_NUMBER 또는 "
+                            + "INVALID_SETTLEMENT_PARTICIPANT_ADD_REQUEST - 입력 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND 또는 SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_PARTICIPANT_ALREADY_EXISTS"
+            )
+    })
+    ApiResponse<SettlementParticipantWebResponse> addSettlementParticipant(
+            UUID settlementId,
+            AddSettlementParticipantWebRequest request
+    );
+
+    @Operation(
+            summary = "정산 참여자 제거",
+            description = "현재 로그인한 생성자가 DRAFT 정산의 참여자를 제거합니다. "
+                    + "정산 생성자 자신은 참여자에서 제거할 수 없습니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 참여자 제거 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND 또는 SETTLEMENT_PARTICIPANT_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED"
+            )
+    })
+    ApiResponse<Void> removeSettlementParticipant(UUID settlementId, UUID participantId);
 }
