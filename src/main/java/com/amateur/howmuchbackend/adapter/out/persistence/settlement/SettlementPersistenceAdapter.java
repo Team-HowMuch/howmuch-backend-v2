@@ -31,6 +31,11 @@ public class SettlementPersistenceAdapter implements LoadSettlementPort, SaveSet
     }
 
     @Override
+    public Optional<Settlement> findByIdForUpdate(UUID settlementId) {
+        return settlementJpaRepository.findByIdForUpdate(settlementId).map(SettlementMapper::toDomain);
+    }
+
+    @Override
     public Settlement update(Settlement settlement) {
         var entity = settlementJpaRepository.findById(settlement.id())
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));

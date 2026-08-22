@@ -34,6 +34,16 @@ public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {
     }
 
     @Override
+    public Optional<User> findByIdentityKey(String identityKey) {
+        return userJpaRepository.findByIdentityKey(identityKey).map(UserMapper::toDomain);
+    }
+
+    @Override
+    public Optional<User> findByPublicId(String publicId) {
+        return userJpaRepository.findByPublicId(publicId).map(UserMapper::toDomain);
+    }
+
+    @Override
     public boolean existsByPublicId(String publicId) {
         return userJpaRepository.existsByPublicId(publicId);
     }

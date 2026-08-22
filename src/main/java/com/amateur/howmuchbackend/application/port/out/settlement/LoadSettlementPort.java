@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface LoadSettlementPort {
     Optional<Settlement> findById(UUID settlementId);
+
+    Optional<Settlement> findByIdForUpdate(UUID settlementId);
 }

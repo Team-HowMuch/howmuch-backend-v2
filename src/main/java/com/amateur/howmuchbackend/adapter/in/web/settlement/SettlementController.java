@@ -2,14 +2,19 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.docs.SettlementDocs;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
+import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,6 +32,8 @@ public class SettlementController implements SettlementDocs {
     private final CreateSettlementUseCase createSettlementUseCase;
     private final GetSettlementUseCase getSettlementUseCase;
     private final UpdateSettlementDraftUseCase updateSettlementDraftUseCase;
+    private final AddSettlementParticipantUseCase addSettlementParticipantUseCase;
+    private final RemoveSettlementParticipantUseCase removeSettlementParticipantUseCase;
 
     @Override
     @PostMapping
@@ -57,5 +64,26 @@ public class SettlementController implements SettlementDocs {
         return ApiResponse.success(SettlementWebResponse.from(
                 updateSettlementDraftUseCase.update(settlementId, request.toCommand())
         ));
+    }
+
+    @Override
+    @PostMapping("/{settlementId}/participants")
+    public ApiResponse<SettlementParticipantWebResponse> addSettlementParticipant(
+            @PathVariable UUID settlementId,
+            @Valid @RequestBody AddSettlementParticipantWebRequest request
+    ) {
+        return ApiResponse.success(SettlementParticipantWebResponse.from(
+                addSettlementParticipantUseCase.add(settlementId, request.toCommand())
+        ));
+    }
+
+    @Override
+    @DeleteMapping("/{settlementId}/participants/{participantId}")
+    public ApiResponse<Void> removeSettlementParticipant(
+            @PathVariable UUID settlementId,
+            @PathVariable UUID participantId
+    ) {
+        removeSettlementParticipantUseCase.remove(settlementId, participantId);
+        return ApiResponse.success();
     }
 }

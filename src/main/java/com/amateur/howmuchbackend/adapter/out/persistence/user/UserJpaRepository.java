@@ -11,6 +11,10 @@ import java.util.Optional;
 public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
     Optional<UserJpaEntity> findByPhoneNumber(String phoneNumber);
 
+    Optional<UserJpaEntity> findByIdentityKey(String identityKey);
+
+    Optional<UserJpaEntity> findByPublicId(String publicId);
+
     boolean existsByPublicId(String publicId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
