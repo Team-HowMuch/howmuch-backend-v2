@@ -1,7 +1,7 @@
 # Feature Plan: Common Code 조회 도메인 및 JPA 구조
 
 - Status: In progress
-- Last updated: 2026-08-21
+- Last updated: 2026-08-22
 - Related issue:
 - Related ADR:
 
@@ -19,10 +19,10 @@
 
 ### Success criteria
 
-- [ ] Application Service가 JPA Entity와 Spring Data Repository를 직접 참조하지 않고 공통 코드 조회 계약을 사용한다.
+- [x] Application Service가 JPA Entity와 Spring Data Repository를 직접 참조하지 않고 공통 코드 조회 계약을 사용한다.
 - [ ] 활성 공통 코드만 조회되며, 존재하지 않거나 비활성인 코드는 `Optional.empty()` 또는 빈 목록으로 구분된다.
 - [x] `common_code_detail`의 복합키 `(group_code, code)`가 Domain과 JPA 사이에서 손실 없이 매핑된다.
-- [ ] Domain 코드가 JPA, Spring, HTTP 타입에 의존하지 않는다.
+- [x] Domain 코드가 JPA, Spring, HTTP 타입에 의존하지 않는다.
 
 ### Out of scope
 
@@ -69,10 +69,10 @@
 
 | Actor | Goal | UseCase |
 |---|---|---|
-| Application Service | 특정 그룹의 활성 코드 하나 조회 | 기존 호출 UseCase 내부에서 `LoadCommonCodePort.findActiveByGroupCodeAndCode` 호출 |
-| Application Service | 특정 그룹의 활성 코드 목록 조회 | 기존 호출 UseCase 내부에서 `LoadCommonCodePort.findActiveByGroupCode` 호출 |
+| 인증 사용자 | 연동 가능한 은행 목록 조회 | `GetBankCatalogUseCase` |
+| `BankAccountService` | 요청 기관이 지원 은행인지 검증 | `BankCatalog.validate` |
 
-별도 `CommonCodeUseCase`나 HTTP API는 실제 사용자 요구와 호출자가 확정될 때 추가한다.
+공통 코드 전체를 노출하는 범용 API는 만들지 않고, `account` 도메인의 `BankCatalog`만 `BANK` 그룹을 해석한다.
 
 ### State and invariants
 
@@ -112,11 +112,11 @@
 ### Input Port and boundary mapping
 
 ```text
-UseCase: 기존 호출 도메인의 UseCase
+UseCase: GetBankCatalogUseCase
 Command: 없음
-Result: 기존 호출 도메인의 Result
-Web Request DTO -> Command: 공통 코드 전용 Web API가 없으므로 없음
-Result -> Web Response DTO: 기존 호출 도메인의 매핑을 따른다
+Result: BankCatalogResult
+Web Request DTO -> Command: 요청 본문 없음
+Result -> Web Response DTO: BankCatalogResult -> BankCatalogWebResponse
 ```
 
 ### Output Ports
@@ -135,7 +135,7 @@ public interface LoadCommonCodePort {
 
 | Port | Purpose | Caller | Expected Adapter |
 |---|---|---|---|
-| `LoadCommonCodePort` | 활성 공통 코드 단건·목록·존재 여부 조회 | `CommonCodeService`와 실제 호출 Application Service | `CommonCodePersistenceAdapter` |
+| `LoadCommonCodePort` | 활성 공통 코드 단건·목록·존재 여부 조회 | `CommonCodeService`, `BankCatalog` | `CommonCodePersistenceAdapter` |
 
 원래 제안된 메서드의 처리 방향:
 
@@ -158,6 +158,12 @@ public interface LoadCommonCodePort {
 - `getMap`: 활성 목록을 한 번 조회해 `code`를 Key로 하는 불변 Map으로 변환한다.
 - Persistence Adapter는 트랜잭션과 Application 예외 결정을 소유하지 않는다.
 
+`application.account.service.BankCatalog`는 `BANK` 그룹만 해석한다.
+
+- `getBanks`: 활성 은행 코드를 정렬된 `BankCatalogResult(organization, name, iconUrl)` 목록으로 변환한다.
+- `validate`: 활성 은행 코드가 아니면 `BANK_NOT_SUPPORTED`를 반환한다.
+- `BankAccountService`는 CODEF 호출 전에 `validate`를 수행한다.
+
 ### Application Policy
 
 - Decision owned by the Policy: 특정 도메인에서 코드가 허용되는지 여부, 코드 미존재 시 사용자 오류로 변환하는 규칙
@@ -170,10 +176,14 @@ public interface LoadCommonCodePort {
 ### Web API
 
 ```text
-공통 코드 전용 API 없음
+GET /api/v2/accounts/banks
+Request: 없음
+Response: [{ organization, name, iconUrl }]
+Errors: 없음(활성 은행이 없으면 빈 목록)
+Authentication: bearerAuth
 ```
 
-공통 코드는 다른 UseCase의 내부 조회 기능으로 먼저 제공한다. 전용 API가 요구될 때 Request/Response 계약을 별도 Feature Plan으로 정의한다.
+공통 코드 전용 Controller는 만들지 않는다. 계좌 연동 화면에 필요한 은행 정보만 `account` API로 제공한다.
 
 ### Persistence and external integrations
 
@@ -216,9 +226,9 @@ public interface LoadCommonCodePort {
 
 | Area | Impact | Verified file or contract |
 |---|---|---|
-| API | 공통 코드 전용 API 없음 | `docs/architecture.md`의 Inbound Adapter 규칙 |
-| Application | `LoadCommonCodePort`, `CommonCodeService` | `src/main/java/com/amateur/howmuchbackend/application` |
-| Domain | `CommonCode` 추가 예정 | `src/main/java/com/amateur/howmuchbackend/domain` |
+| API | `GET /api/v2/accounts/banks` 은행 목록 조회 | `AccountController`, `AccountDocs` |
+| Application | `LoadCommonCodePort`, `CommonCodeService`, `BankCatalog` | `src/main/java/com/amateur/howmuchbackend/application` |
+| Domain | `CommonCode` 조회 값 | `src/main/java/com/amateur/howmuchbackend/domain/commoncode/CommonCode.java` |
 | Persistence | 공통 코드 JPA Entity·Repository·Mapper·Adapter와 은행 seed | `src/main/resources/db/migration/V5__create_common_code.sql`, `V6__create_bank_common_code.sql` |
 | Redis | 영향 없음 | 해당 없음 |
 | Security | 영향 없음 | 해당 없음 |
@@ -240,18 +250,18 @@ Existing behavior that must remain unchanged:
 - [x] `CommonCodeMapper`와 `CommonCodePersistenceAdapter` 구현
 - [x] 검증·Map 변환과 읽기 전용 트랜잭션을 `CommonCodeService`로 분리
 - [x] `BANK` 그룹과 20개 은행 기관코드 seed 추가
-- [ ] 실제 호출 도메인 Application Service에 연결
-- [ ] Application Service별 코드 미존재 오류 정책 결정
-- [ ] Web Request/Response DTO, Controller, Swagger: N/A — 전용 API가 없음
-- [ ] Infra configuration and Bean wiring: N/A — Spring Data JPA가 기존 스캔 범위를 사용함
-- [ ] 문서와 검증 결과 갱신
+- [x] `BankCatalog`와 `GetBankCatalogUseCase` 구현
+- [x] CODEF 연결·계좌 연동 전에 지원 은행 코드 검증
+- [x] `BankCatalogWebResponse`, `AccountController`, Swagger 연결
+- [x] Infra configuration and Bean wiring: N/A — 기존 Spring component scan을 사용함
+- [x] 문서와 검증 결과 갱신
 
 ### Expected commit boundaries
 
 ```text
 docs(commoncode): 공통 코드 조회 구조 명세
 feat(commoncode): 공통 코드 도메인과 JPA 조회 구현
-feat(<caller>): 공통 코드 조회를 실제 기능에 연결
+feat(account): 은행 카탈로그를 계좌 연동에 연결
 ```
 
 ## 8. Verification
@@ -284,6 +294,7 @@ git status --short --untracked-files=all
 | 현재 구조 확인 | Complete | `AGENTS.md`, `docs/architecture.md`, `V5__create_common_code.sql` |
 | 계약·패키지 명세 | Complete | 본 문서 4장 |
 | Domain·Port·JPA 구현 | Complete | `src/main/java/com/amateur/howmuchbackend/{domain,application,adapter}` |
+| 은행 Catalog·계좌 연동 연결 | Complete | `BankCatalog`, `BankAccountService`, `AccountController` |
 | Java 컴파일 | Complete | `./gradlew compileJava --no-daemon` |
 | Flyway·런타임 검증 | Not run | PostgreSQL 실행 환경 확인 후 진행 필요 |
 
@@ -295,6 +306,7 @@ git status --short --untracked-files=all
 | 2026-08-21 | `CommonCode`·`LoadCommonCodePort`·JPA 조회 Adapter 구현 및 컴파일 확인 | 실제 호출 UseCase 연결 | PostgreSQL에서 Flyway와 Hibernate 검증 필요 |
 | 2026-08-21 | `BANK` 그룹과 20개 기관코드·favicon URL seed 추가 | PostgreSQL migration 실행 확인 | 외부 favicon proxy 의존 |
 | 2026-08-22 | 검증·Map 변환과 트랜잭션 경계를 `CommonCodeService`로 이동 | 실제 호출 UseCase 연결 | `getMap` 캐시는 측정 후 결정 |
+| 2026-08-22 | `BankCatalog` 조회 API와 CODEF 호출 전 지원 은행 검증 연결 | PostgreSQL에서 목록·오류 응답 확인 | 외부 favicon proxy 의존 |
 
 ## 10. Decision log
 
@@ -304,11 +316,12 @@ git status --short --untracked-files=all
 | 2026-08-21 | `CommonCodeJpaEntity`만 먼저 만들고 그룹 JPA Entity는 보류 | 상세 코드 조회에 그룹 객체가 필요하지 않음 | 그룹 메타데이터 API가 생기면 추가 |
 | 2026-08-21 | 원래 제안의 `getMap`, `getSnapshot`, `validate`는 초기 계약에서 제외 | 호출자·캐시·업무 검증 규칙이 아직 없음 | 실제 요구 발생 시 목적별 계약으로 추가 |
 | 2026-08-22 | 트랜잭션과 검증·Map 변환은 Application Service가 소유 | UseCase 단위 트랜잭션과 Adapter의 기술 책임을 분리 | 독립 커밋이 필요한 작업만 `REQUIRES_NEW` 검토 |
+| 2026-08-22 | 범용 공통 코드 API 대신 `account`의 `BankCatalog`를 제공 | 저장 구조의 `groupCode`, `attr1`을 Web 계약에 노출하지 않음 | 다른 도메인은 필요할 때 자체 Catalog 추가 |
 
 ## 11. Completion record
 
 - Completed on:
-- Final behavior: 활성 `common_code_detail` 단건·목록 조회를 Domain 값으로 변환하는 Port와 JPA Adapter가 구현됨
-- Unverified items: 실제 UseCase 연결, Flyway 실행, PostgreSQL 매핑 검증
-- Remaining risks: 첫 호출 도메인이 확정되지 않아 최종 Port 메서드가 조정될 수 있음
-- Follow-up work: PostgreSQL migration 실행 확인, 실제 호출 UseCase 연결, 필요 시 favicon URL을 정적 스토리지로 이전
+- Final behavior: 활성 `BANK` 공통 코드를 은행 Catalog로 조회하고 CODEF 연결·계좌 연동 전에 지원 기관 여부를 검증함
+- Unverified items: Flyway 실행, PostgreSQL 매핑과 실제 HTTP 응답 검증
+- Remaining risks: Google favicon proxy 가용성에 따라 아이콘 표시가 영향을 받을 수 있음
+- Follow-up work: PostgreSQL migration 실행 확인, 필요 시 favicon URL을 정적 스토리지로 이전
