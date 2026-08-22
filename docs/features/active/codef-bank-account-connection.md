@@ -1,7 +1,7 @@
 # 기능 계획: CODEF 은행 연결과 결제계좌 연동
 
 - 상태: 구현 완료, PostgreSQL 실행 검증 대기
-- 최종 수정일: 2026-08-20
+- 최종 수정일: 2026-08-22
 - 관련 이슈: [#20 외부 결제수단 API 연동](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/20)
 - 관련 명세: [Notion `SYNC-001`](https://app.notion.com/p/35a6e559a65082788f0d81a89b1c221f)
 - 관련 ADR: [목적 중심 Port](../../adr/0001-purpose-oriented-ports.md), [Framework-neutral StatusCode](../../adr/0002-framework-neutral-status-code.md), [Capability 중심 Output Port](../../adr/0003-capability-oriented-output-ports.md)
@@ -85,6 +85,10 @@ BankConnectionResult -> BankConnectionWebResponse
 LinkBankAccountsUseCase
 LinkBankAccountsWebRequest -> LinkBankAccountsCommand
 LinkedAccountsResult -> LinkedAccountsWebResponse
+
+GetBankCatalogUseCase
+요청 본문 없음
+List<BankCatalogResult> -> List<BankCatalogWebResponse>
 ```
 
 ### Output Port
@@ -99,6 +103,10 @@ LinkedAccountsResult -> LinkedAccountsWebResponse
 ### Web API
 
 ```text
+GET /api/v2/accounts/banks
+Request: 없음
+Response: [{ organization, name, iconUrl }]
+
 POST /api/v2/accounts/connections/banks
 Request: organization, loginId, password, birthDate?
 Response: connectionId, organization, status, candidates[]
@@ -110,7 +118,7 @@ Response: accounts[]
 Account: id, organization, type, name, maskedNumber, balance, currency
 ```
 
-두 API 모두 인증이 필요하다. `connectedId`, 원본 계좌번호, 외부 계좌 Key와 CODEF 원본 응답은 반환하지 않는다.
+세 API 모두 인증이 필요하다. 연결·계좌 연동 요청의 `organization`은 활성 `BANK` 카탈로그에 존재해야 한다. `connectedId`, 원본 계좌번호, 외부 계좌 Key와 CODEF 원본 응답은 반환하지 않는다.
 
 ## 5. 영속화
 
@@ -136,6 +144,8 @@ Account: id, organization, type, name, maskedNumber, balance, currency
 ## 6. 설계 결정
 
 - `provider` registry나 추상 factory는 실제 두 번째 제공자가 없으므로 만들지 않는다.
+- `BankCatalog`가 `BANK` 공통 코드를 계좌 도메인 값으로 해석하며, 범용 공통 코드 Controller는 만들지 않는다.
+- 연결·계좌 연동은 CODEF 호출 전에 `BankCatalog`로 지원 기관 여부를 검증한다.
 - 연결과 계좌 연동은 하나의 `BankAccountService`가 두 UseCase를 구현한다. 두 흐름이 같은 연결·후보 검증 규칙을 공유하기 때문이다.
 - 후보 Key는 서버만 아는 `connectedId`와 기관코드·원본 계좌 Key를 SHA-256으로 묶어 생성한다. 클라이언트 입력을 신뢰하지 않고 연동 시 후보를 다시 조회한다.
 - 동일 사용자의 최초 연결 생성은 사용자 행 `PESSIMISTIC_WRITE` 잠금으로 CODEF `create` 호출 전부터 직렬화한다.
@@ -155,6 +165,7 @@ Account: id, organization, type, name, maskedNumber, balance, currency
 - [x] CODEF 설정 변경 startup invalidation에 account 비활성화 포함
 - [x] StatusCode를 framework-neutral 숫자 계약으로 전환
 - [x] 문서·Mock 실행 계약 동기화
+- [x] 은행 카탈로그 조회 API와 지원 기관 검증 연결
 
 ### 예상 commit 경계
 
@@ -163,6 +174,7 @@ Account: id, organization, type, name, maskedNumber, balance, currency
 ```text
 refactor(common): 상태 코드의 Spring 의존 제거
 feat(account): CODEF 은행 연결과 결제계좌 연동 구현
+feat(account): 은행 카탈로그를 계좌 연동에 연결
 build(database): 외부 연결과 계좌 Flyway 스키마 추가
 docs(account): CODEF 계좌 연동 계약 갱신
 ```
@@ -195,12 +207,14 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-08-20 | 기존 V2 payment 구현, 최신 아키텍처 규칙, 기존 backend 연결·후보·저장 흐름 재분석 | external/account 수직 기능 구현 | 로컬 PostgreSQL·Docker 중지, 실제 CODEF 자격증명 없음 |
 | 2026-08-20 | external/account 경계, 2단계 후보 검증·연동, 암호화 영속성, 설정 변경 비활성화, Mock 프로필 구현 | PostgreSQL 가동 환경에서 Flyway·Context 테스트 | 실제 CODEF 자격증명 없음 |
+| 2026-08-22 | `BankCatalog` 조회 API와 연결·계좌 연동 전 지원 은행 검증 추가 | PostgreSQL에서 카탈로그 조회와 미지원 코드 오류 확인 | 실제 CODEF 자격증명 없음 |
 
 ## 11. 검증 결과
 
 - `./gradlew clean compileJava --console=plain`: 성공
 - `./gradlew bootJar --console=plain`: 성공, JAR에 Flyway V1/V2 포함 확인
 - 격리 SQLite Mock OAuth → account/create → account-list: 성공
+- `./gradlew compileJava --no-daemon --console=plain`: 성공 (`BankCatalog` 연결 포함)
 - `./gradlew test --console=plain`: 로컬 PostgreSQL 5432 중지로 Flyway 연결 단계에서 실패
 - 실제 CODEF 호출: 자격증명이 없어 미수행
 

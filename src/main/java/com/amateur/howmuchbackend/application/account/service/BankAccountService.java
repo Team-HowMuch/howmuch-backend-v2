@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.account.service;
 
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.ConnectBankUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
@@ -47,10 +48,12 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
     private final ExternalConnectionStorePort connectionStorePort;
     private final AccountStorePort accountStorePort;
     private final BankConnectionPort bankConnectionPort;
+    private final BankCatalog bankCatalog;
 
     @Override
     @Transactional
     public BankConnectionResult connect(ConnectBankCommand command) {
+        bankCatalog.validate(command.organization());
         CurrentActor actor = currentActorPort.getCurrentActor();
         User user = loadUserForUpdate(actor.userId());
         connectionStorePort.validateStorageConfiguration();
@@ -86,6 +89,7 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
     @Override
     @Transactional
     public LinkedAccountsResult link(LinkBankAccountsCommand command) {
+        bankCatalog.validate(command.organization());
         CurrentActor actor = currentActorPort.getCurrentActor();
         User user = loadUser(actor.userId());
         connectionStorePort.validateStorageConfiguration();
