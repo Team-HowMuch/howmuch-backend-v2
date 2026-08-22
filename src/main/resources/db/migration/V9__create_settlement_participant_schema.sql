@@ -28,7 +28,11 @@ CREATE TABLE settlement_participants (
             AND (
                 (linked_user_id IS NOT NULL AND phone_hash IS NULL)
                 OR
-                (linked_user_id IS NULL AND phone_hash ~ '^[0-9a-f]{64}$')
+                (
+                    linked_user_id IS NULL
+                    AND phone_hash IS NOT NULL
+                    AND phone_hash ~ '^[0-9a-f]{64}$'
+                )
             )
         )
     ),
