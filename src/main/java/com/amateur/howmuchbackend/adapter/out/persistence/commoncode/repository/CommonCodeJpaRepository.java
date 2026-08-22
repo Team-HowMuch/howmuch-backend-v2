@@ -30,4 +30,16 @@ public interface CommonCodeJpaRepository extends JpaRepository<CommonCodeJpaEnti
              order by commonCode.sortOrder asc, commonCode.id.code asc
             """)
     List<CommonCodeJpaEntity> findActiveByGroupCode(@Param("groupCode") String groupCode);
+
+    @Query("""
+           select case when count(1) > 0 then true else false end
+             from CommonCodeJpaEntity commonCode
+            where commonCode.id.groupCode = :groupCode
+              and commonCode.id.code = :code
+              and commonCode.active = true
+    """)
+    boolean existsActiveByGroupCodeAndCode(
+            @Param("groupCode") String groupCode,
+            @Param("code") String code
+    );
 }

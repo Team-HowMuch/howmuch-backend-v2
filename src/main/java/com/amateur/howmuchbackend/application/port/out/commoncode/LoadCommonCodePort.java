@@ -10,7 +10,5 @@ public interface LoadCommonCodePort {
 
     List<CommonCode> findActiveByGroupCode(String groupCode);
 
-    void validate(String groupCode, String code);
-
-    Map<String, CommonCodeItem> getMap(String groupCode);
+    boolean existsActiveByGroupCodeAndCode(String groupCode, String code);
 }
