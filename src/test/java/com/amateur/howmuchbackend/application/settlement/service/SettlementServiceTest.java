@@ -5,11 +5,17 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateS
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,25 +52,48 @@ class SettlementServiceTest {
     @Mock
     private SaveSettlementPort saveSettlementPort;
 
+    @Mock
+    private SaveSettlementParticipantPort saveSettlementParticipantPort;
+
+    @Mock
+    private LoadUserPort loadUserPort;
+
     private SettlementService settlementService;
 
     @BeforeEach
     void setUp() {
-        settlementService = new SettlementService(currentActorPort, loadSettlementPort, saveSettlementPort);
+        settlementService = new SettlementService(
+                currentActorPort,
+                loadSettlementPort,
+                saveSettlementPort,
+                saveSettlementParticipantPort,
+                loadUserPort
+        );
     }
 
     @Test
     @DisplayName("요청 본문으로 생성자를 위조할 수 없도록 현재 로그인 사용자를 생성자로 사용한다")
     void createsSettlementForCurrentActor() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator()));
         when(saveSettlementPort.save(any(Settlement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(saveSettlementParticipantPort.save(any(SettlementParticipant.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = settlementService.create(new CreateSettlementCommand("회식 정산", 10_000));
 
-        ArgumentCaptor<Settlement> captor = ArgumentCaptor.forClass(Settlement.class);
-        verify(saveSettlementPort).save(captor.capture());
-        assertThat(captor.getValue().creatorId()).isEqualTo(CREATOR_ID);
+        ArgumentCaptor<Settlement> settlementCaptor = ArgumentCaptor.forClass(Settlement.class);
+        ArgumentCaptor<SettlementParticipant> participantCaptor =
+                ArgumentCaptor.forClass(SettlementParticipant.class);
+        verify(saveSettlementPort).save(settlementCaptor.capture());
+        verify(saveSettlementParticipantPort).save(participantCaptor.capture());
+        assertThat(settlementCaptor.getValue().creatorId()).isEqualTo(CREATOR_ID);
+        assertThat(participantCaptor.getValue().settlementId()).isEqualTo(settlementCaptor.getValue().id());
+        assertThat(participantCaptor.getValue().source()).isEqualTo(SettlementParticipantSource.REGISTERED_USER);
+        assertThat(participantCaptor.getValue().linkedUserId()).isEqualTo(CREATOR_ID);
+        assertThat(participantCaptor.getValue().displayName()).isEqualTo("최수아");
+        assertThat(participantCaptor.getValue().displayOrder()).isZero();
         assertThat(result.creatorId()).isEqualTo(CREATOR_ID);
         assertThat(result.status()).isEqualTo(SettlementStatus.DRAFT);
     }
@@ -136,6 +165,29 @@ class SettlementServiceTest {
                 "회식 정산",
                 10_000,
                 SettlementStatus.DRAFT,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private User creator() {
+        return new User(
+                CREATOR_ID,
+                "creator-identity-key",
+                "최수아",
+                "creator_public_id",
+                null,
+                null,
+                "01012345678",
+                "not-used",
+                null,
+                null,
+                true,
+                UserRole.USER,
+                true,
+                null,
+                CREATED_AT,
+                null,
                 CREATED_AT,
                 CREATED_AT
         );

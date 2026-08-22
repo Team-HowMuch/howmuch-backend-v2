@@ -9,10 +9,15 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateS
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,11 +35,15 @@ public class SettlementService implements
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
     private final SaveSettlementPort saveSettlementPort;
+    private final SaveSettlementParticipantPort saveSettlementParticipantPort;
+    private final LoadUserPort loadUserPort;
 
     @Override
     @Transactional
     public SettlementResult create(CreateSettlementCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
+        User creator = loadUserPort.findById(actor.userId())
+                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         Settlement settlement = Settlement.draft(
                 actor.userId(),
@@ -42,7 +51,15 @@ public class SettlementService implements
                 command.totalAmount(),
                 now
         );
-        return SettlementResult.from(saveSettlementPort.save(settlement));
+        Settlement saved = saveSettlementPort.save(settlement);
+        saveSettlementParticipantPort.save(SettlementParticipant.registeredUser(
+                saved.id(),
+                creator.id(),
+                creator.name(),
+                0,
+                now
+        ));
+        return SettlementResult.from(saved);
     }
 
     @Override
