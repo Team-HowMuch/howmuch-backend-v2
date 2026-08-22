@@ -236,7 +236,7 @@ Existing behavior that must remain unchanged:
 - [x] #36에서 JPA 조회·중복·다음 표시 순서·삭제와 정산 잠금 조회를 구현한다.
 - [x] #36에서 Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
 - [x] #71에서 표시 순서 기반 목록 조회와 회원 아바타 조회를 구현한다.
-- [ ] #38에서 공개 ID prefix 후보 검색과 후보 아바타 조회를 구현한다.
+- [x] #38에서 공개 ID prefix 후보 검색과 후보 아바타 조회를 구현한다.
 - [ ] #39·#40에서 연락처 일괄 매칭·그룹 검증을 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
@@ -260,6 +260,8 @@ docs: 정산 참여자 공개 ID 검색 구현 계획 반영
 feat: 정산 참여자 공개 ID 검색 기능 구현
 feat: 정산 참여자 공개 ID 검색 API 구현
 test: 정산 참여자 공개 ID 검색 동작 검증
+fix: 연락처 회원 전환 후보 중복 노출 방지
+fix: 공개 ID 검색어 정규화 순서 보정
 docs: 정산 참여자 공개 ID 검색 구현 결과 반영
 ~~~
 
@@ -292,7 +294,7 @@ git status --short --untracked-files=all
 | V9 참여자 스키마 | Complete | PR #80, 실제 PostgreSQL 제약 검증 |
 | Domain·JPA 구현 | Complete | `SettlementParticipant`, 저장 Port와 Persistence Adapter |
 | 생성자 자동 참여 | Complete | 실제 로그인 JWT로 정산 생성 후 `REGISTERED_USER`, 순서 0 DB 저장 확인 |
-| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 66개 테스트 성공 |
+| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 80개 테스트 성공 |
 | Swagger 계약 | Complete | 정산 생성 API의 기존 200·400·401 계약 유지 확인 |
 | #36 등록 사용자·연락처 추가 | Complete | 실제 JWT HTTP 요청으로 회원·비회원 연락처 매칭과 DB 식별 형태 확인 |
 | #36 참여자 제거 | Complete | 일반 참여자 제거 성공, 생성자 제거 409 확인 |
@@ -301,7 +303,11 @@ git status --short --untracked-files=all
 | #71 목록·아바타 조회 | Complete | 실제 JWT HTTP로 3명 표시 순서, 공개 필드, 이미지 bytes와 Content-Type 검증 |
 | #71 권한·상태·오류 | Complete | 다른 사용자 403, 없는 정산 404, 비회원 아바타 404, REQUESTED 목록 200 확인 |
 | #71 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 66개 테스트, OpenAPI 목록·binary 이미지 계약, Swagger UI 200 |
-| 후보 검색·그룹 | Pending | #38, #39, #40 후속 구현 |
+| #38 공개 ID 후보 검색 | Complete | 실제 JWT HTTP로 prefix 정렬 조회, 기존 참여자 제외, 공개 필드만 응답, 최대 20명 제한 검증 |
+| #38 권한·상태·오류 | Complete | 미인증 401, 다른 생성자 403, 비 DRAFT 409, 잘못된 검색어 400 검증 |
+| #38 연락처 회원 전환 | Complete | 기존 phoneHash와 신규 회원 identityKey가 일치하면 목록·아바타 후보에서 제외하는 자동 테스트 성공 |
+| #38 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 80개 테스트, OpenAPI 후보 목록·binary 이미지 경로, Swagger UI 200 |
+| 연락처·그룹 후보 | Pending | #39, #40 후속 구현 |
 
 ## 9. Progress log
 
@@ -315,6 +321,7 @@ git status --short --untracked-files=all
 | 2026-08-22 | #71 목록 조회 계약과 생성자 전용 아바타 URL 설계 | Application·Persistence·Web 구현 | 회원 정보는 일괄 조회하고 내부 userId와 저장 파일명은 응답에서 숨겨야 함 |
 | 2026-08-22 | #71 목록·아바타 API 구현과 PostgreSQL·Redis·Swagger 검증 완료 | #38 공개 ID 후보 검색 | 저장된 아바타 파일이 유실되면 URL 조회는 PROFILE_IMAGE_NOT_FOUND를 반환함 |
 | 2026-08-23 | #38 공개 ID prefix 검색의 입력·제외·응답·아바타 계약 확정 | Application·Persistence·Web 구현 | `_`를 SQL wildcard가 아닌 공개 ID 문자로 검색하고 결과 수를 20명으로 제한해야 함 |
+| 2026-08-23 | #38 공개 ID 후보 검색·아바타 API와 PostgreSQL·Redis·Swagger 검증 완료 | #39 연락처 일괄 매칭 | 연락처 추가 뒤 가입한 회원은 linkedUserId가 없어도 phoneHash와 identityKey로 중복 제외해야 함 |
 
 ## 10. Decision log
 
@@ -331,6 +338,7 @@ git status --short --untracked-files=all
 | 2026-08-22 | 회원 아바타는 참여자 ID 기반 보호된 URL로 제공한다. | 내부 userId와 저장 파일명을 노출하지 않으면서 생성자만 이미지를 읽게 한다. | 비회원 연락처와 아바타가 없는 회원은 `avatarUrl`을 null로 반환한다. |
 | 2026-08-23 | 공개 ID 후보 검색은 전용 user 경로와 최대 20개의 prefix 결과를 사용한다. | 연락처 일괄 매칭과 요청 형태가 달라 하나의 `type` query 계약으로 묶지 않고, 사용자 열거와 무제한 조회를 방지한다. | 검색어는 1~20자로 제한하고 이미 추가된 회원은 제외한다. |
 | 2026-08-23 | 후보 아바타는 정산 ID와 publicId 기반 보호된 URL로 제공한다. | 후보는 아직 participantId가 없으므로 저장 파일명을 노출하지 않는 별도 조회 계약이 필요하다. | 생성자·DRAFT·활성 회원·미추가 후보를 다시 검증한다. |
+| 2026-08-23 | 공개 ID 후보에서 linkedUserId와 phoneHash 두 식별 경로를 모두 제외한다. | 연락처로 먼저 추가된 비회원이 가입해도 기존 정산 참여자와 동일인이다. | phoneHash 제외 수만큼 추가 조회한 뒤 최대 20명으로 다시 제한한다. |
 
 ## 11. Completion record
 
@@ -338,4 +346,4 @@ git status --short --untracked-files=all
 - Final behavior: Pending
 - Unverified items: #36 동시 요청의 대기 순서는 별도 부하 테스트하지 않았으며 PostgreSQL 행 잠금과 Unique 제약으로 보호한다.
 - Remaining risks: group 실제 구현과 연락처 후보 공급 계약이 확정돼야 운영 Adapter를 연결할 수 있다.
-- Follow-up work: #38 공개 ID 검색, #39 연락처 일괄 매칭, #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.
+- Follow-up work: #39 연락처 일괄 매칭, #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.
