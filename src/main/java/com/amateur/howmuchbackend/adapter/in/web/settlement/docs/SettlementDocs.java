@@ -3,7 +3,9 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.docs;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SearchSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springdoc.core.annotations.ParameterObject;
 
 import java.util.List;
 import java.util.UUID;
@@ -178,6 +181,87 @@ public interface SettlementDocs {
     })
     ApiResponse<List<SettlementParticipantListItemWebResponse>> getSettlementParticipants(
             UUID settlementId
+    );
+
+    @Operation(
+            summary = "정산 참여자 공개 ID 후보 검색",
+            description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 활성 회원을 publicId prefix로 검색합니다. "
+                    + "이미 정산에 포함된 회원은 제외하고 publicId 오름차순으로 최대 20명을 반환합니다. "
+                    + "내부 사용자 ID와 저장 파일명은 반환하지 않습니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 참여자 후보 검색 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_ARGUMENT 또는 INVALID_PUBLIC_ID_SEARCH_PREFIX - 검색어 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND - 정산 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+            )
+    })
+    ApiResponse<List<SettlementParticipantCandidateWebResponse>> searchSettlementParticipantCandidates(
+            UUID settlementId,
+            @ParameterObject SearchSettlementParticipantWebRequest request
+    );
+
+    @Operation(
+            summary = "정산 참여자 공개 ID 후보 아바타 조회",
+            description = "현재 로그인한 생성자가 DRAFT 정산의 미추가 활성 회원 후보 아바타를 조회합니다. "
+                    + "후보가 아니거나 아바타가 없으면 404를 반환합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 참여자 후보 아바타 조회 성공",
+                    content = @Content(
+                            mediaType = "image/*",
+                            schema = @Schema(type = "string", format = "binary")
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_PUBLIC_ID - 공개 ID 형식 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND, SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND 또는 "
+                            + "PROFILE_IMAGE_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+            )
+    })
+    ResponseEntity<byte[]> getSettlementParticipantCandidateAvatar(
+            UUID settlementId,
+            String publicId
     );
 
     @Operation(
