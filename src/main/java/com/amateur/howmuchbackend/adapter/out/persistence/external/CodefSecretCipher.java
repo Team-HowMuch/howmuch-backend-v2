@@ -41,6 +41,10 @@ public class CodefSecretCipher {
         return encrypt("account:" + userId + ":" + connectionId, accountKey);
     }
 
+    public String decryptAccountKey(Long userId, Long connectionId, String ciphertext) {
+        return decrypt("account:" + userId + ":" + connectionId, ciphertext);
+    }
+
     private String encrypt(String aad, String plaintext) {
         byte[] nonce = new byte[NONCE_BYTES];
         SECURE_RANDOM.nextBytes(nonce);

@@ -6,7 +6,8 @@ import com.amateur.howmuchbackend.adapter.out.persistence.account.repository.Acc
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.repository.ExternalConnectionJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.user.UserJpaRepository;
-import com.amateur.howmuchbackend.application.port.out.account.AccountStorePort;
+import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
+import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
 import com.amateur.howmuchbackend.domain.account.Account;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -17,11 +18,12 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
-public class AccountPersistenceAdapter implements AccountStorePort {
+public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPort {
     private final AccountJpaRepository accountRepository;
     private final UserJpaRepository userRepository;
     private final ExternalConnectionJpaRepository connectionRepository;
@@ -31,6 +33,25 @@ public class AccountPersistenceAdapter implements AccountStorePort {
     @Transactional(readOnly = true)
     public Set<String> findCandidateKeys(Long connectionId) {
         return new LinkedHashSet<>(accountRepository.findActiveCandidateKeys(connectionId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Account> findActiveByUserId(Long userId) {
+        return accountRepository.findByUser_IdAndActiveTrue(userId).stream()
+                .map(AccountMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Account> findActiveByIdAndUserId(Long accountId, Long userId) {
+        return accountRepository.findByIdAndUser_IdAndActiveTrue(accountId, userId)
+                .map(entity -> AccountMapper.toDomain(entity, cipher.decryptAccountKey(
+                        entity.getUser().getId(),
+                        entity.getExternalConnection().getId(),
+                        entity.getExternalAccountKeyCiphertext()
+                )));
     }
 
     @Override
@@ -57,7 +78,10 @@ public class AccountPersistenceAdapter implements AccountStorePort {
                     account.name(),
                     account.maskedNumber(),
                     account.balance(),
-                    account.currency()
+                    account.currency(),
+                    account.productCode(),
+                    account.isDefault(),
+                    account.displayOrder()
             );
             entities.add(entity);
         }

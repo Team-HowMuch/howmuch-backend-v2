@@ -147,7 +147,8 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
                     firstText(text(item, "resAccountNickName"), text(item, "resAccountName"), "은행 계좌"),
                     mask(display),
                     amount(text(item, "resAccountBalance")),
-                    text(item, "resAccountCurrency")
+                    text(item, "resAccountCurrency"),
+                    text(item, "resAccountDeposit")
             ));
         }
     }

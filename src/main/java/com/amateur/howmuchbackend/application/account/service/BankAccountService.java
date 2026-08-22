@@ -8,7 +8,8 @@ import com.amateur.howmuchbackend.application.port.in.account.command.ConnectBan
 import com.amateur.howmuchbackend.application.port.in.account.command.LinkBankAccountsCommand;
 import com.amateur.howmuchbackend.application.port.in.account.result.BankConnectionResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.LinkedAccountsResult;
-import com.amateur.howmuchbackend.application.port.out.account.AccountStorePort;
+import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
+import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort.BankRegistration;
@@ -46,7 +47,8 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
     private final CurrentActorPort currentActorPort;
     private final LoadUserPort loadUserPort;
     private final ExternalConnectionStorePort connectionStorePort;
-    private final AccountStorePort accountStorePort;
+    private final LoadAccountPort loadAccountPort;
+    private final SaveAccountPort saveAccountPort;
     private final BankConnectionPort bankConnectionPort;
     private final BankCatalog bankCatalog;
 
@@ -74,7 +76,7 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
             connectionStorePort.saveInstitution(institution(connection.id(), command.organization(), result.resultCode()));
         }
 
-        Set<String> linkedKeys = accountStorePort.findCandidateKeys(connection.id());
+        Set<String> linkedKeys = loadAccountPort.findCandidateKeys(connection.id());
         String connectedId = connection.connectedId();
         List<BankConnectionResult.Candidate> candidates = bankConnectionPort
                 .findAccounts(connectedId, command.organization(), birthDate)
@@ -111,13 +113,18 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
         }
 
         List<Account> selected = new ArrayList<>();
+        List<Account> existingAccounts = loadAccountPort.findActiveByUserId(actor.userId());
+        Map<String, Account> existingByCandidateKey = existingAccounts.stream()
+                .collect(java.util.stream.Collectors.toMap(Account::candidateKey, account -> account));
+        int nextDisplayOrder = existingAccounts.stream().mapToInt(Account::displayOrder).max().orElse(-1) + 1;
         for (String selectedKey : command.candidateKeys().stream().distinct().toList()) {
             ExternalAccountCandidate candidate = candidates.get(selectedKey);
             if (candidate == null) {
                 throw ApplicationException.of(ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID);
             }
+            Account existing = existingByCandidateKey.get(selectedKey);
             selected.add(new Account(
-                    null,
+                    existing == null ? null : existing.id(),
                     actor.userId(),
                     connection.id(),
                     command.organization(),
@@ -128,11 +135,14 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
                     candidate.maskedNumber(),
                     candidate.balance(),
                     candidate.currency(),
-                    true
+                    true,
+                    candidate.productCode(),
+                    existing == null ? existingAccounts.isEmpty() && selected.isEmpty() : existing.isDefault(),
+                    existing == null ? nextDisplayOrder++ : existing.displayOrder()
             ));
         }
 
-        List<LinkedAccountsResult.LinkedAccount> linked = accountStorePort.saveAll(selected).stream()
+        List<LinkedAccountsResult.LinkedAccount> linked = saveAccountPort.saveAll(selected).stream()
                 .map(account -> new LinkedAccountsResult.LinkedAccount(
                         account.id(), account.organization(), account.type(), account.name(), account.maskedNumber(),
                         account.balance(), account.currency()
