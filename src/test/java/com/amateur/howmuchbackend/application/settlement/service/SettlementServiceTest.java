@@ -9,6 +9,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
@@ -96,6 +97,20 @@ class SettlementServiceTest {
         assertThat(participantCaptor.getValue().displayOrder()).isZero();
         assertThat(result.creatorId()).isEqualTo(CREATOR_ID);
         assertThat(result.status()).isEqualTo(SettlementStatus.DRAFT);
+    }
+
+    @Test
+    @DisplayName("현재 사용자를 찾을 수 없으면 참여자 없는 정산을 만들지 않는다")
+    void rejectsCreationForMissingCurrentUser() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> settlementService.create(
+                new CreateSettlementCommand("회식 정산", 10_000)
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(AuthStatusCode.USER_NOT_FOUND));
+        verify(saveSettlementPort, never()).save(any(Settlement.class));
+        verify(saveSettlementParticipantPort, never()).save(any(SettlementParticipant.class));
     }
 
     @Test
