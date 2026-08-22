@@ -5,15 +5,22 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.docs.SettlementDocs;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
+import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -23,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,6 +42,8 @@ public class SettlementController implements SettlementDocs {
     private final UpdateSettlementDraftUseCase updateSettlementDraftUseCase;
     private final AddSettlementParticipantUseCase addSettlementParticipantUseCase;
     private final RemoveSettlementParticipantUseCase removeSettlementParticipantUseCase;
+    private final GetSettlementParticipantsUseCase getSettlementParticipantsUseCase;
+    private final GetSettlementParticipantAvatarUseCase getSettlementParticipantAvatarUseCase;
 
     @Override
     @PostMapping
@@ -75,6 +85,30 @@ public class SettlementController implements SettlementDocs {
         return ApiResponse.success(SettlementParticipantWebResponse.from(
                 addSettlementParticipantUseCase.add(settlementId, request.toCommand())
         ));
+    }
+
+    @Override
+    @GetMapping("/{settlementId}/participants")
+    public ApiResponse<List<SettlementParticipantListItemWebResponse>> getSettlementParticipants(
+            @PathVariable UUID settlementId
+    ) {
+        return ApiResponse.success(getSettlementParticipantsUseCase.get(settlementId)
+                .stream()
+                .map(result -> SettlementParticipantListItemWebResponse.from(settlementId, result))
+                .toList());
+    }
+
+    @Override
+    @GetMapping("/{settlementId}/participants/{participantId}/avatar")
+    public ResponseEntity<byte[]> getSettlementParticipantAvatar(
+            @PathVariable UUID settlementId,
+            @PathVariable UUID participantId
+    ) {
+        ProfileImage image = getSettlementParticipantAvatarUseCase.get(settlementId, participantId);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .contentType(MediaType.parseMediaType(image.contentType()))
+                .body(image.content());
     }
 
     @Override

@@ -4,16 +4,21 @@ import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.ResponseEntity;
 
+import java.util.List;
 import java.util.UUID;
 
-@Tag(name = "정산 API", description = "정산 초안 생성·조회·수정 API")
+@Tag(name = "정산 API", description = "정산 초안과 참여자 관리 API")
 public interface SettlementDocs {
     @Operation(
             summary = "정산 초안 생성",
@@ -144,6 +149,69 @@ public interface SettlementDocs {
     ApiResponse<SettlementParticipantWebResponse> addSettlementParticipant(
             UUID settlementId,
             AddSettlementParticipantWebRequest request
+    );
+
+    @Operation(
+            summary = "정산 참여자 목록 조회",
+            description = "현재 로그인한 생성자가 정산에 저장된 참여자를 표시 순서대로 조회합니다. "
+                    + "회원 참여자는 publicId를 포함하며 내부 사용자 ID와 연락처 식별자는 반환하지 않습니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 참여자 목록 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND - 정산 없음"
+            )
+    })
+    ApiResponse<List<SettlementParticipantListItemWebResponse>> getSettlementParticipants(
+            UUID settlementId
+    );
+
+    @Operation(
+            summary = "정산 참여자 아바타 조회",
+            description = "현재 로그인한 생성자가 회원 참여자의 아바타 이미지를 조회합니다. "
+                    + "비회원 연락처이거나 등록된 아바타가 없으면 PROFILE_IMAGE_NOT_FOUND를 반환합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 참여자 아바타 조회 성공",
+                    content = @Content(
+                            mediaType = "image/*",
+                            schema = @Schema(type = "string", format = "binary")
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND, SETTLEMENT_PARTICIPANT_NOT_FOUND 또는 "
+                            + "PROFILE_IMAGE_NOT_FOUND"
+            )
+    })
+    ResponseEntity<byte[]> getSettlementParticipantAvatar(
+            UUID settlementId,
+            UUID participantId
     );
 
     @Operation(

@@ -11,6 +11,8 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -21,6 +23,14 @@ public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {
     @Override
     public Optional<User> findById(Long id) {
         return userJpaRepository.findById(id).map(UserMapper::toDomain);
+    }
+
+    @Override
+    public List<User> findAllByIds(Collection<Long> ids) {
+        return userJpaRepository.findAllById(ids)
+                .stream()
+                .map(UserMapper::toDomain)
+                .toList();
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -132,5 +133,31 @@ class SettlementParticipantPersistenceIntegrationTest {
         jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", settlementId);
 
         assertThat(settlementParticipantJpaRepository.existsById(participant.id())).isFalse();
+    }
+
+    @Test
+    @DisplayName("화면이 저장 순서대로 복원되도록 참여자를 displayOrder 오름차순으로 조회한다")
+    void loadsParticipantsInDisplayOrder() {
+        settlementParticipantPersistenceAdapter.save(unlinkedContact("c".repeat(64), "세 번째", 2));
+        settlementParticipantPersistenceAdapter.save(unlinkedContact("a".repeat(64), "첫 번째", 0));
+        settlementParticipantPersistenceAdapter.save(unlinkedContact("b".repeat(64), "두 번째", 1));
+
+        List<SettlementParticipant> participants = settlementParticipantPersistenceAdapter
+                .findAllBySettlementId(settlementId);
+
+        assertThat(participants).extracting(SettlementParticipant::displayOrder)
+                .containsExactly(0, 1, 2);
+        assertThat(participants).extracting(SettlementParticipant::displayName)
+                .containsExactly("첫 번째", "두 번째", "세 번째");
+    }
+
+    private SettlementParticipant unlinkedContact(String phoneHash, String displayName, int displayOrder) {
+        return SettlementParticipant.unlinkedContact(
+                settlementId,
+                phoneHash,
+                displayName,
+                displayOrder,
+                CREATED_AT
+        );
     }
 }
