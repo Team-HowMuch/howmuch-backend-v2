@@ -6,10 +6,14 @@ import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.MatchSettlementContactsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SearchSettlementParticipantCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementContactCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementContactCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
@@ -19,6 +23,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.MatchContactUsersPort;
 import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
 import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementParticipantModificationPolicy;
@@ -38,6 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -53,8 +60,12 @@ public class SettlementParticipantService implements
         GetSettlementParticipantsUseCase,
         GetSettlementParticipantAvatarUseCase,
         SearchSettlementParticipantUseCase,
-        GetSettlementParticipantCandidateAvatarUseCase {
+        GetSettlementParticipantCandidateAvatarUseCase,
+        MatchSettlementContactsUseCase {
     private static final int MAX_PUBLIC_ID_CANDIDATES = 20;
+    private static final int MAX_CONTACTS_PER_REQUEST = 500;
+    private static final int MAX_CONTACT_ID_LENGTH = 100;
+    private static final int MAX_CONTACT_DISPLAY_NAME_LENGTH = 100;
 
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
@@ -63,6 +74,7 @@ public class SettlementParticipantService implements
     private final DeleteSettlementParticipantPort deleteSettlementParticipantPort;
     private final LoadUserPort loadUserPort;
     private final SearchUserPort searchUserPort;
+    private final MatchContactUsersPort matchContactUsersPort;
     private final ProfileImageStoragePort profileImageStoragePort;
     private final PublicIdPolicy publicIdPolicy;
     private final IdentityPolicy identityPolicy;
@@ -187,6 +199,100 @@ public class SettlementParticipantService implements
         }
         return profileImageStoragePort.load(candidate.avatarFileName())
                 .orElseThrow(() -> ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SettlementContactCandidateResult> match(
+            UUID settlementId,
+            MatchSettlementContactsCommand command
+    ) {
+        Settlement settlement = loadOwnedSettlement(settlementId);
+        settlement.ensureParticipantsEditable();
+        List<NormalizedContact> contacts = normalizeContacts(command);
+        Map<String, User> matchedUsers = matchContactUsersPort.findActiveByIdentityKeys(
+                        contacts.stream().map(NormalizedContact::phoneHash).collect(Collectors.toSet())
+                ).stream()
+                .collect(Collectors.toMap(User::identityKey, Function.identity()));
+        List<SettlementParticipant> participants = loadSettlementParticipantPort
+                .findAllBySettlementId(settlement.id());
+        Set<Long> participantUserIds = participants.stream()
+                .map(SettlementParticipant::linkedUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<String> participantPhoneHashes = participants.stream()
+                .map(SettlementParticipant::phoneHash)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        return contacts.stream()
+                .map(contact -> toContactCandidate(
+                        contact,
+                        matchedUsers.get(contact.phoneHash()),
+                        participantUserIds,
+                        participantPhoneHashes
+                ))
+                .toList();
+    }
+
+    private List<NormalizedContact> normalizeContacts(MatchSettlementContactsCommand command) {
+        if (command == null
+                || command.contacts() == null
+                || command.contacts().isEmpty()
+                || command.contacts().size() > MAX_CONTACTS_PER_REQUEST) {
+            throw invalidContactMatchRequest();
+        }
+        Set<String> contactIds = new HashSet<>();
+        Map<String, NormalizedContact> contactsByPhoneHash = new LinkedHashMap<>();
+        for (SettlementContactCommand contact : command.contacts()) {
+            if (contact == null) {
+                throw invalidContactMatchRequest();
+            }
+            String contactId = normalizeContactText(contact.contactId(), MAX_CONTACT_ID_LENGTH);
+            if (!contactIds.add(contactId)) {
+                throw invalidContactMatchRequest();
+            }
+            String displayName = normalizeContactText(
+                    contact.displayName(),
+                    MAX_CONTACT_DISPLAY_NAME_LENGTH
+            );
+            String phoneHash = identityPolicy.phoneHash(contact.phoneNumber());
+            contactsByPhoneHash.putIfAbsent(
+                    phoneHash,
+                    new NormalizedContact(contactId, displayName, phoneHash)
+            );
+        }
+        return List.copyOf(contactsByPhoneHash.values());
+    }
+
+    private String normalizeContactText(String value, int maxLength) {
+        if (value == null) {
+            throw invalidContactMatchRequest();
+        }
+        String normalized = value.strip();
+        if (normalized.isEmpty() || normalized.length() > maxLength) {
+            throw invalidContactMatchRequest();
+        }
+        return normalized;
+    }
+
+    private SettlementContactCandidateResult toContactCandidate(
+            NormalizedContact contact,
+            User matchedUser,
+            Set<Long> participantUserIds,
+            Set<String> participantPhoneHashes
+    ) {
+        boolean alreadyParticipant = participantPhoneHashes.contains(contact.phoneHash())
+                || matchedUser != null && participantUserIds.contains(matchedUser.id());
+        return SettlementContactCandidateResult.of(
+                contact.contactId(),
+                contact.displayName(),
+                matchedUser,
+                alreadyParticipant
+        );
+    }
+
+    private ApplicationException invalidContactMatchRequest() {
+        return ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_CONTACT_MATCH_REQUEST);
     }
 
     private boolean candidateAlreadyParticipates(UUID settlementId, User candidate) {
@@ -343,5 +449,12 @@ public class SettlementParticipantService implements
             };
         }
 
+    }
+
+    private record NormalizedContact(
+            String contactId,
+            String displayName,
+            String phoneHash
+    ) {
     }
 }
