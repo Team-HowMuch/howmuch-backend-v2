@@ -2,6 +2,8 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
@@ -54,6 +56,12 @@ class SettlementControllerTest {
     @Mock
     private RemoveSettlementParticipantUseCase removeSettlementParticipantUseCase;
 
+    @Mock
+    private GetSettlementParticipantsUseCase getSettlementParticipantsUseCase;
+
+    @Mock
+    private GetSettlementParticipantAvatarUseCase getSettlementParticipantAvatarUseCase;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -65,7 +73,9 @@ class SettlementControllerTest {
                 getSettlementUseCase,
                 updateSettlementDraftUseCase,
                 addSettlementParticipantUseCase,
-                removeSettlementParticipantUseCase
+                removeSettlementParticipantUseCase,
+                getSettlementParticipantsUseCase,
+                getSettlementParticipantAvatarUseCase
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
