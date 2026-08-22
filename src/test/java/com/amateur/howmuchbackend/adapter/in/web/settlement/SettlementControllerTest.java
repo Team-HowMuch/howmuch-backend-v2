@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
@@ -13,6 +14,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateS
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementContactCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -79,6 +81,9 @@ class SettlementControllerTest {
     @Mock
     private GetSettlementParticipantCandidateAvatarUseCase getSettlementParticipantCandidateAvatarUseCase;
 
+    @Mock
+    private MatchSettlementContactsUseCase matchSettlementContactsUseCase;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -94,7 +99,8 @@ class SettlementControllerTest {
                 getSettlementParticipantsUseCase,
                 getSettlementParticipantAvatarUseCase,
                 searchSettlementParticipantUseCase,
-                getSettlementParticipantCandidateAvatarUseCase
+                getSettlementParticipantCandidateAvatarUseCase,
+                matchSettlementContactsUseCase
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -358,6 +364,110 @@ class SettlementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("image/png"))
                 .andExpect(content().bytes(imageContent));
+    }
+
+    @Test
+    @DisplayName("연락처 매칭 결과에 공개 정보와 기존 참여 여부만 반환한다")
+    void matchesSettlementContacts() throws Exception {
+        when(matchSettlementContactsUseCase.match(eq(SETTLEMENT_ID), any())).thenReturn(List.of(
+                new SettlementContactCandidateResult(
+                        "contact-1",
+                        "주소록 회원",
+                        true,
+                        "contact.member",
+                        "서비스 회원",
+                        true,
+                        false
+                ),
+                new SettlementContactCandidateResult(
+                        "contact-2",
+                        "비회원",
+                        false,
+                        null,
+                        null,
+                        false,
+                        true
+                )
+        ));
+
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "contacts": [
+                            {
+                              "contactId": "contact-1",
+                              "displayName": "주소록 회원",
+                              "phoneNumber": "010-1111-2222"
+                            },
+                            {
+                              "contactId": "contact-2",
+                              "displayName": "비회원",
+                              "phoneNumber": "010-2222-3333"
+                            }
+                          ]
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].contactId").value("contact-1"))
+                .andExpect(jsonPath("$.data[0].contactDisplayName").value("주소록 회원"))
+                .andExpect(jsonPath("$.data[0].member").value(true))
+                .andExpect(jsonPath("$.data[0].publicId").value("contact.member"))
+                .andExpect(jsonPath("$.data[0].memberDisplayName").value("서비스 회원"))
+                .andExpect(jsonPath("$.data[0].avatarUrl").value(
+                        "/api/v2/settlements/%s/participant-candidates/users/contact.member/avatar"
+                                .formatted(SETTLEMENT_ID)
+                ))
+                .andExpect(jsonPath("$.data[0].phoneNumber").doesNotExist())
+                .andExpect(jsonPath("$.data[0].phoneHash").doesNotExist())
+                .andExpect(jsonPath("$.data[0].userId").doesNotExist())
+                .andExpect(jsonPath("$.data[0].avatarFileName").doesNotExist())
+                .andExpect(jsonPath("$.data[1].member").value(false))
+                .andExpect(jsonPath("$.data[1].alreadyParticipant").value(true))
+                .andExpect(jsonPath("$.data[1].publicId").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("빈 연락처 목록은 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
+    void rejectsEmptyContactMatchingRequest() throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "contacts": []
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+    }
+
+    @Test
+    @DisplayName("휴대폰 번호가 비어 있는 연락처 항목을 INVALID_ARGUMENT로 거부한다")
+    void rejectsContactWithoutPhoneNumber() throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "contacts": [
+                            {
+                              "contactId": "contact-1",
+                              "displayName": "연락처",
+                              "phoneNumber": " "
+                            }
+                          ]
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
     }
 
     private SettlementResult result() {
