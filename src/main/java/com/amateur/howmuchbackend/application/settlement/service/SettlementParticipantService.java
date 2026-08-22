@@ -147,16 +147,25 @@ public class SettlementParticipantService implements
         String publicIdPrefix = publicIdPolicy.normalizePrefix(
                 command == null ? null : command.publicIdPrefix()
         );
-        Set<Long> excludedUserIds = loadSettlementParticipantPort.findAllBySettlementId(settlement.id())
+        List<SettlementParticipant> participants = loadSettlementParticipantPort
+                .findAllBySettlementId(settlement.id());
+        Set<Long> excludedUserIds = participants
                 .stream()
                 .map(SettlementParticipant::linkedUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<String> excludedPhoneHashes = participants
+                .stream()
+                .map(SettlementParticipant::phoneHash)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         return searchUserPort.searchActiveByPublicIdPrefix(
                         publicIdPrefix,
                         excludedUserIds,
-                        MAX_PUBLIC_ID_CANDIDATES
+                        MAX_PUBLIC_ID_CANDIDATES + excludedPhoneHashes.size()
                 ).stream()
+                .filter(user -> !excludedPhoneHashes.contains(user.identityKey()))
+                .limit(MAX_PUBLIC_ID_CANDIDATES)
                 .map(SettlementParticipantCandidateResult::from)
                 .toList();
     }
@@ -169,10 +178,7 @@ public class SettlementParticipantService implements
         String normalizedPublicId = publicIdPolicy.normalize(publicId);
         User candidate = loadUserPort.findByPublicId(normalizedPublicId)
                 .filter(User::active)
-                .filter(user -> !loadSettlementParticipantPort.existsBySettlementIdAndLinkedUserId(
-                        settlement.id(),
-                        user.id()
-                ))
+                .filter(user -> !candidateAlreadyParticipates(settlement.id(), user))
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
                 ));
@@ -181,6 +187,16 @@ public class SettlementParticipantService implements
         }
         return profileImageStoragePort.load(candidate.avatarFileName())
                 .orElseThrow(() -> ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+    }
+
+    private boolean candidateAlreadyParticipates(UUID settlementId, User candidate) {
+        return loadSettlementParticipantPort.existsBySettlementIdAndLinkedUserId(
+                settlementId,
+                candidate.id()
+        ) || loadSettlementParticipantPort.existsBySettlementIdAndPhoneHash(
+                settlementId,
+                candidate.identityKey()
+        );
     }
 
     private Map<Long, User> loadLinkedUsers(List<SettlementParticipant> participants) {

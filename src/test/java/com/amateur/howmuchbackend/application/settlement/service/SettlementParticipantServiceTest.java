@@ -281,6 +281,31 @@ class SettlementParticipantServiceTest {
     }
 
     @Test
+    @DisplayName("연락처 추가 후 가입한 회원은 phoneHash가 일치하면 공개 ID 후보에서 제외한다")
+    void excludesCandidateMatchedByExistingContactHash() {
+        String phoneHash = "a".repeat(64);
+        User convertedContact = user(OTHER_USER_ID, phoneHash, "sua.contact", null);
+        User availableCandidate = user(4L, "sua.available", null);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(registeredCreator(), unlinkedContact()));
+        when(searchUserPort.searchActiveByPublicIdPrefix(
+                "sua.",
+                Set.of(CREATOR_ID),
+                21
+        )).thenReturn(List.of(convertedContact, availableCandidate));
+
+        var result = settlementParticipantService.searchByPublicId(
+                SETTLEMENT_ID,
+                new SearchSettlementParticipantCommand("sua.")
+        );
+
+        assertThat(result).extracting(item -> item.publicId())
+                .containsExactly("sua.available");
+    }
+
+    @Test
     @DisplayName("생성자가 아닌 사용자는 회원 후보를 검색할 수 없다")
     void rejectsCandidateSearchForAnotherUser() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
@@ -365,6 +390,31 @@ class SettlementParticipantServiceTest {
         verifyNoInteractions(profileImageStoragePort);
     }
 
+    @Test
+    @DisplayName("연락처 추가 후 가입한 회원의 아바타도 후보 경로에서 숨긴다")
+    void rejectsCandidateAvatarMatchedByExistingContactHash() {
+        String phoneHash = "a".repeat(64);
+        User candidate = user(OTHER_USER_ID, phoneHash, "sua.contact", "candidate.png");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(loadUserPort.findByPublicId("sua.contact")).thenReturn(Optional.of(candidate));
+        when(loadSettlementParticipantPort.existsBySettlementIdAndLinkedUserId(
+                SETTLEMENT_ID,
+                OTHER_USER_ID
+        )).thenReturn(false);
+        when(loadSettlementParticipantPort.existsBySettlementIdAndPhoneHash(
+                SETTLEMENT_ID,
+                phoneHash
+        )).thenReturn(true);
+
+        assertThatThrownBy(() -> settlementParticipantService.get(SETTLEMENT_ID, "sua.contact"))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(
+                                SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
+                        ));
+        verifyNoInteractions(profileImageStoragePort);
+    }
+
     private Settlement settlement() {
         return new Settlement(
                 SETTLEMENT_ID,
@@ -440,9 +490,13 @@ class SettlementParticipantServiceTest {
     }
 
     private User user(Long id, String publicId, String avatarFileName) {
+        return user(id, "identity-key-" + id, publicId, avatarFileName);
+    }
+
+    private User user(Long id, String identityKey, String publicId, String avatarFileName) {
         return new User(
                 id,
-                "identity-key-" + id,
+                identityKey,
                 "회원 " + id,
                 publicId,
                 null,
