@@ -1,7 +1,7 @@
 # Feature Plan: 정산 참여자 선택 및 관리
 
-- Status: Draft
-- Last updated: 2026-08-21
+- Status: In Progress
+- Last updated: 2026-08-22
 - Related issue: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
@@ -146,7 +146,10 @@ Authentication: required, creator only
 
 ### Persistence and external integrations
 
-- Database Entity, constraint, or query changes: settlement_participants 테이블에 settlement_id, source, linked_user_id nullable, phone_hash nullable, display_name, 생성·수정 시각을 저장한다. 등록 사용자 중복과 연락처 식별자 중복을 방지하는 정산 범위 Unique 제약을 둔다.
+- Database Entity, constraint, or query changes: settlement_participants 테이블에 settlement_id, source, linked_user_id nullable, phone_hash nullable, display_name, display_order, 생성·수정 시각을 저장한다. 등록 사용자·연락처 식별자·표시 순서 중복을 방지하는 정산 범위 Unique 제약을 둔다.
+- Flyway migration required: Yes
+- Planned migration: `V9__create_settlement_participant_schema.sql`
+- Migration pull request: [#80 정산 참여자 영속 스키마 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/80) (Merged)
 - Redis key, TTL, or serialization changes: 없음.
 - External API or message changes: group 구성원 조회는 Output Port와 dev Stub으로만 연결한다.
 - Environment variable or profile changes: 없음.
@@ -188,19 +191,25 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] 참여자 source와 중복·생성자 규칙을 Domain에 정의한다.
-- [ ] 참여자 저장·조회, 등록 사용자 검색, 그룹 구성원 조회 Output Port를 정의한다.
+- [x] V9 migration-only PR로 참여자 테이블과 DB 제약을 추가한다.
+- [x] 참여자 source와 식별자·표시 이름·순서 규칙을 Domain에 정의한다.
+- [x] 생성자 자동 참여에 필요한 저장 Output Port와 JPA Adapter를 구현한다.
+- [x] 정산 생성 트랜잭션에서 현재 사용자를 첫 등록 참여자로 저장한다.
+- [ ] 참여자 저장·조회, 등록 사용자 검색, 그룹 구성원 조회 Output Port를 실제 호출 시점에 정의한다.
 - [ ] 추가·제거·후보 검색·로그인 사용자 자동 매칭 UseCase를 구현한다.
-- [ ] JPA Entity·Repository·Mapper·Persistence Adapter와 개발 group Stub을 구현한다.
+- [ ] 추가·제거 구현 시 JPA 조회·삭제 기능과 개발 group Stub을 확장한다.
 - [ ] Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
 ### Expected commit boundaries
 
 ~~~
-docs: 정산 참여자 구현 명세 작성
-feat: 정산 참여자 도메인과 저장 구조 추가
-feat: 정산 참여자 검색과 관리 API 추가
+docs: 정산 참여자 구현 계획 갱신
+feat: 정산 참여자 도메인 모델 추가
+feat: 정산 참여자 영속 어댑터 추가
+feat: 정산 생성자 자동 참여 추가
+test: 정산 참여자 생성과 영속 흐름 검증
+docs: 정산 참여자 구현 현황 반영
 ~~~
 
 ## 8. Verification
@@ -227,13 +236,20 @@ git status --short --untracked-files=all
 | Item | Result | Evidence |
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
-| 구현·컴파일 | Pending | 구현 전 |
+| V9 참여자 스키마 | Complete | PR #80, 실제 PostgreSQL 제약 검증 |
+| Domain·JPA 구현 | Complete | `SettlementParticipant`, 저장 Port와 Persistence Adapter |
+| 생성자 자동 참여 | Complete | 실제 로그인 JWT로 정산 생성 후 `REGISTERED_USER`, 순서 0 DB 저장 확인 |
+| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 52개 테스트 성공 |
+| Swagger 계약 | Complete | 정산 생성 API의 기존 200·400·401 계약 유지 확인 |
+| 추가·제거·목록·검색 | Pending | #36, #71, #38, #39, #40 후속 구현 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 | --- | --- | --- | --- |
 | 2026-08-21 | 참여자 source·권한·앱 자동 매칭 설계 기록 | Persistence와 후보 검색 구현 | 비회원 이름 선택 MVP의 가장 위험 |
+| 2026-08-22 | V9 참여자 스키마와 식별자·중복·순서 제약 머지 | Domain·JPA와 생성자 자동 참여 구현 | SQL `CHECK`의 NULL 삼값 논리를 명시 조건으로 보완함 |
+| 2026-08-22 | 참여자 Domain·JPA와 생성자 자동 참여 구현, 실제 HTTP 검증 | 추가·제거 UseCase와 API 구현 | 조회·삭제 Port는 실제 호출자가 생기는 #36에서 추가해야 함 |
 
 ## 10. Decision log
 
@@ -242,6 +258,8 @@ git status --short --untracked-files=all
 | 2026-08-21 | 생성자를 첫 참여자로 자동 등록한다. | UI와 더치페이 분모에서 생성자도 참여자로 취급한다. | 생성자 제외 정산은 제공하지 않는다. |
 | 2026-08-21 | 앱 회원은 userId로 자동 매칭한다. | 공통 링크에서 이름 선택을 건너뛰고 바로 개인 단계로 이동해야 한다. | 세션이 없으면 브라우저 MVP로 내린다. |
 | 2026-08-21 | 연락처 원본은 hash 식별자로만 저장한다. | 개인정보 최소화와 기존 IdentityPolicy 규칙을 따른다. | 원본 번호를 조회·로그에 노출하지 않는다. |
+| 2026-08-22 | 참여자 `source`는 선택 경로를, linkedUserId 또는 phoneHash는 실제 식별자를 나타낸다. | 연락처로 찾은 회원과 비회원을 같은 CONTACT 경로로 표현하면서 식별 방식은 구분해야 한다. | CONTACT는 두 식별자 중 정확히 하나만 가진다. |
+| 2026-08-22 | 생성자 참여자는 사용자 이름을 표시 이름 스냅샷으로 저장하고 순서 0을 사용한다. | 정산 생성 직후 브라우저 목록과 계산 순서에서 안정적인 첫 참여자가 필요하다. | 이후 프로필 이름 변경이 기존 정산 표시 이름을 바꾸지 않는다. |
 
 ## 11. Completion record
 
