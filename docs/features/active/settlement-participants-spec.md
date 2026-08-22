@@ -241,6 +241,7 @@ docs: 정산 참여자 목록 조회 구현 계획 반영
 feat: 정산 참여자 목록 조회 API 구현
 feat: 정산 참여자 아바타 조회 API 구현
 test: 정산 컨트롤러 테스트 의존성 갱신
+test: 정산 참여자 목록과 아바타 동작 검증
 docs: 정산 참여자 목록 조회 구현 결과 반영
 ~~~
 
@@ -273,7 +274,7 @@ git status --short --untracked-files=all
 | V9 참여자 스키마 | Complete | PR #80, 실제 PostgreSQL 제약 검증 |
 | Domain·JPA 구현 | Complete | `SettlementParticipant`, 저장 Port와 Persistence Adapter |
 | 생성자 자동 참여 | Complete | 실제 로그인 JWT로 정산 생성 후 `REGISTERED_USER`, 순서 0 DB 저장 확인 |
-| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 54개 테스트 성공 |
+| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 66개 테스트 성공 |
 | Swagger 계약 | Complete | 정산 생성 API의 기존 200·400·401 계약 유지 확인 |
 | #36 등록 사용자·연락처 추가 | Complete | 실제 JWT HTTP 요청으로 회원·비회원 연락처 매칭과 DB 식별 형태 확인 |
 | #36 참여자 제거 | Complete | 일반 참여자 제거 성공, 생성자 제거 409 확인 |
@@ -281,7 +282,7 @@ git status --short --untracked-files=all
 | #36 Swagger | Complete | OpenAPI POST·DELETE 응답 계약과 Swagger UI 최종 200 확인 |
 | #71 목록·아바타 조회 | Complete | 실제 JWT HTTP로 3명 표시 순서, 공개 필드, 이미지 bytes와 Content-Type 검증 |
 | #71 권한·상태·오류 | Complete | 다른 사용자 403, 없는 정산 404, 비회원 아바타 404, REQUESTED 목록 200 확인 |
-| #71 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 54개 테스트, OpenAPI 목록·binary 이미지 계약, Swagger UI 200 |
+| #71 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 66개 테스트, OpenAPI 목록·binary 이미지 계약, Swagger UI 200 |
 | 후보 검색·그룹 | Pending | #38, #39, #40 후속 구현 |
 
 ## 9. Progress log
