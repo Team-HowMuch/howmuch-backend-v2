@@ -27,7 +27,7 @@ class SettlementParticipantTest {
         SettlementParticipant registered = SettlementParticipant.registeredUser(
                 SETTLEMENT_ID,
                 1L,
-                "  최수아  ",
+                " \u3000최수아\u3000 ",
                 0,
                 CREATED_AT
         );
@@ -76,7 +76,7 @@ class SettlementParticipantTest {
 
     @ParameterizedTest
     @NullSource
-    @ValueSource(strings = {"", "   "})
+    @ValueSource(strings = {"", "   ", "\u2003", "\u3000"})
     @DisplayName("브라우저에서 참여자를 구분할 수 있도록 빈 표시 이름을 거부한다")
     void rejectsBlankDisplayName(String displayName) {
         assertThatThrownBy(() -> SettlementParticipant.registeredUser(

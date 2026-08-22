@@ -137,8 +137,8 @@ public record SettlementParticipant(
         if (displayName == null) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_PARTICIPANT_DISPLAY_NAME);
         }
-        String normalized = displayName.trim();
-        if (normalized.isEmpty() || normalized.length() > MAX_DISPLAY_NAME_LENGTH) {
+        String normalized = displayName.strip();
+        if (normalized.isBlank() || normalized.length() > MAX_DISPLAY_NAME_LENGTH) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_PARTICIPANT_DISPLAY_NAME);
         }
         return normalized;
