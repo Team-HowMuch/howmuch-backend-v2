@@ -1,6 +1,6 @@
 # Feature Plan: 사용자 공개 ID 생성 및 프로필 관리
 
-- Status: Draft
+- Status: Complete
 - Last updated: 2026-08-22
 - Related issue: [#68 사용자 공개 ID 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/68), [#69 자동 생성 및 중복 검증](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/69), [#73 프로필 계약 전환](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/73)
 - Related ADR: N/A
@@ -17,11 +17,11 @@
 
 ### Success criteria
 
-- [ ] 회원가입 요청을 바꾸지 않고 서버가 `user_` 접두사의 고유한 `publicId`를 생성한다.
-- [ ] 내 프로필 조회 응답이 `nickname` 대신 `publicId`를 반환한다.
-- [ ] 사용자는 프로필 수정 API에서 `publicId`를 변경할 수 있다.
-- [ ] `publicId`는 소문자로 정규화되고 영문 소문자, 숫자, 점, 밑줄 4~20자만 허용한다.
-- [ ] 중복 `publicId` 변경은 `409 PUBLIC_ID_ALREADY_EXISTS`로 거부한다.
+- [x] 회원가입 요청을 바꾸지 않고 서버가 `user_` 접두사의 고유한 `publicId`를 생성한다.
+- [x] 내 프로필 조회 응답이 `nickname` 대신 `publicId`를 반환한다.
+- [x] 사용자는 프로필 수정 API에서 `publicId`를 변경할 수 있다.
+- [x] `publicId`는 소문자로 정규화되고 영문 소문자, 숫자, 점, 밑줄 4~20자만 허용한다.
+- [x] 중복 `publicId` 변경은 `409 PUBLIC_ID_ALREADY_EXISTS`로 거부한다.
 
 ### Out of scope
 
@@ -171,12 +171,12 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] 공개 ID 정책과 오류 코드를 추가한다.
-- [ ] User Domain·JPA·Mapper를 `publicId`로 전환한다.
-- [ ] 회원가입 공개 ID 자동 생성과 중복 후보 재시도를 구현한다.
-- [ ] 프로필 조회·수정 계약과 중복 검증을 구현한다.
-- [ ] 공개 ID 정책, 가입, 프로필 변경 테스트를 추가한다.
-- [ ] Swagger와 Feature Plan을 실제 결과로 갱신한다.
+- [x] 공개 ID 정책과 오류 코드를 추가한다.
+- [x] User Domain·JPA·Mapper를 `publicId`로 전환한다.
+- [x] 회원가입 공개 ID 자동 생성과 중복 후보 재시도를 구현한다.
+- [x] 프로필 조회·수정 계약과 중복 검증을 구현한다.
+- [x] 공개 ID 정책, 가입, 프로필 변경 테스트를 추가한다.
+- [x] Swagger와 Feature Plan을 실제 결과로 갱신한다.
 
 ### Expected commit boundaries
 
@@ -204,24 +204,27 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] Verified the user outcome defined under Purpose.
-- [ ] Verified normal, failure, and boundary flows.
-- [ ] Confirmed documentation and Swagger match the actual contract.
-- [ ] Recorded verification that could not be performed and why.
+- [x] Verified the user outcome defined under Purpose.
+- [x] Verified normal, failure, and boundary flows.
+- [x] Confirmed documentation and Swagger match the actual contract.
+- [x] Recorded verification that could not be performed and why.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
-| Compile | Pending | `./gradlew compileJava` |
-| Automated tests | Pending | `./gradlew test` |
-| PostgreSQL and HTTP | Pending | Local isolated runtime |
+| Compile | Pass | `./gradlew compileJava` |
+| Automated tests | Pass | 실제 PostgreSQL·Redis 연결 후 38개 테스트 성공 |
+| Signup HTTP | Pass | Redis challenge로 가입 후 `user_[a-z0-9]{12}` DB 저장과 challenge 삭제 확인 |
+| Profile HTTP | Pass | JWT 조회·정규화 수정·400 형식 오류·409 중복 오류·DB 유지 확인 |
+| Swagger | Pass | multipart `publicId`, 응답 `publicId`, 400·409 계약 확인 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-08-22 | V7 병합 확인 및 구현 계획 작성 | 공개 ID 생성과 사용자 모델 전환 | 프로필 응답 필드 교체는 클라이언트 계약 변경임 |
+| 2026-08-22 | 공개 ID 생성·프로필 전환·자동화 및 HTTP 검증 완료 | PR 리뷰 | nickname 컬럼과 DB 호환 기본값은 후속 migration-only PR에서 제거해야 함 |
 
 ## 10. Decision log
 
@@ -233,5 +236,5 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
+- Completed on: 2026-08-22
+- Final behavior: 회원가입이 공개 ID를 자동 생성하고 프로필 API가 `nickname` 없이 `publicId`를 조회·정규화·중복 검증하여 수정한다.
