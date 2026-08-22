@@ -52,11 +52,12 @@ class SettlementOptimisticLockIntegrationTest {
     @BeforeEach
     void setUp() {
         String uniqueKey = UUID.randomUUID().toString();
+        String publicId = "lock_" + uniqueKey.replace("-", "").substring(0, 12);
         creatorId = jdbcTemplate.queryForObject("""
                         INSERT INTO users (
                             identity_key,
                             name,
-                            nickname,
+                            public_id,
                             phone_number,
                             pin_hash,
                             phone_verified,
@@ -72,7 +73,7 @@ class SettlementOptimisticLockIntegrationTest {
                 Long.class,
                 "settlement-lock-" + uniqueKey,
                 "동시성 테스트",
-                "동시성테스트",
+                publicId,
                 "test-" + uniqueKey.substring(0, 12),
                 "not-used",
                 CREATED_AT,
