@@ -39,6 +39,8 @@ class PublicIdPolicyTest {
     @DisplayName("공개 ID 검색어의 공백과 대소문자를 정규화하고 한 글자 prefix를 허용한다")
     void normalizesPublicIdSearchPrefix() {
         assertThat(publicIdPolicy.normalizePrefix("  S_  ")).isEqualTo("s_");
+        assertThat(publicIdPolicy.normalizePrefix("  " + "a".repeat(20) + "  "))
+                .isEqualTo("a".repeat(20));
     }
 
     @Test
