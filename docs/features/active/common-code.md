@@ -28,7 +28,7 @@
 
 - 공통 코드 등록·수정·삭제 API와 관리자 기능
 - `CommonCodeSnapshot` 캐시 및 Redis 저장
-- `getMap` 성능 최적화
+- `getMap` 결과 캐시와 스냅샷 최적화
 - 공통 코드 그룹별 `BankCodeProvider` 등 별도 Provider의 선제적 생성
 - 코드값을 Enum으로 변환하는 도메인별 정책
 
@@ -128,12 +128,14 @@ public interface LoadCommonCodePort {
     Optional<CommonCode> findActiveByGroupCodeAndCode(String groupCode, String code);
 
     List<CommonCode> findActiveByGroupCode(String groupCode);
+
+    boolean existsActiveByGroupCodeAndCode(String groupCode, String code);
 }
 ```
 
 | Port | Purpose | Caller | Expected Adapter |
 |---|---|---|---|
-| `LoadCommonCodePort` | 활성 공통 코드 단건·목록 조회 | 실제 호출하는 Application Service | `CommonCodePersistenceAdapter` |
+| `LoadCommonCodePort` | 활성 공통 코드 단건·목록·존재 여부 조회 | `CommonCodeService`와 실제 호출 Application Service | `CommonCodePersistenceAdapter` |
 
 원래 제안된 메서드의 처리 방향:
 
@@ -142,11 +144,19 @@ public interface LoadCommonCodePort {
 | `get` | 제외 | `find...().orElseThrow(...)`가 호출 UseCase의 오류 의미를 보존한다. |
 | `find` | `findActiveByGroupCodeAndCode`로 변경 | 활성 조건과 의도를 이름에 포함한다. |
 | `getAll` | `findActiveByGroupCode`로 변경 | 목록 조회와 활성 조건을 명확히 한다. |
-| `exists` | 초기 제외 | 단건 조회 결과로 대체 가능하며 실제 호출자가 생길 때 추가한다. |
+| `exists` | `existsActiveByGroupCodeAndCode`로 제공 | 검증 시 Domain 변환 없이 존재 여부만 조회한다. |
 | `isValid` | 초기 제외 | 저장소 조회와 비즈니스 검증을 한 인터페이스에 섞지 않는다. |
-| `validate` | 초기 제외 | 오류 코드와 검증 목적은 호출 Application Service 또는 Policy가 소유한다. |
-| `getMap` | 초기 제외 | 현재 호출자와 성능 요구가 없다. 필요 시 Application 변환으로 시작한다. |
+| `validate` | `CommonCodeService`가 제공 | 오류 코드와 검증 목적은 Application이 소유한다. |
+| `getMap` | `CommonCodeService`가 제공 | Port의 목록 조회 한 번을 Application에서 불변 Map으로 변환한다. |
 | `getSnapshot` | 제외 | 캐시 일관성·갱신 정책이 결정되기 전에는 만들지 않는다. |
+
+### Application Service
+
+- Location: `application.commoncode.service.CommonCodeService`
+- Transaction: 클래스 단위 `@Transactional(readOnly = true)`
+- `validate`: 활성 코드 존재 여부를 조회하고 없으면 `INVALID_COMMON_CODE`를 반환한다.
+- `getMap`: 활성 목록을 한 번 조회해 `code`를 Key로 하는 불변 Map으로 변환한다.
+- Persistence Adapter는 트랜잭션과 Application 예외 결정을 소유하지 않는다.
 
 ### Application Policy
 
@@ -207,7 +217,7 @@ public interface LoadCommonCodePort {
 | Area | Impact | Verified file or contract |
 |---|---|---|
 | API | 공통 코드 전용 API 없음 | `docs/architecture.md`의 Inbound Adapter 규칙 |
-| Application | `LoadCommonCodePort` 추가 예정 | `src/main/java/com/amateur/howmuchbackend/application/port/out` |
+| Application | `LoadCommonCodePort`, `CommonCodeService` | `src/main/java/com/amateur/howmuchbackend/application` |
 | Domain | `CommonCode` 추가 예정 | `src/main/java/com/amateur/howmuchbackend/domain` |
 | Persistence | 공통 코드 JPA Entity·Repository·Mapper·Adapter와 은행 seed | `src/main/resources/db/migration/V5__create_common_code.sql`, `V6__create_bank_common_code.sql` |
 | Redis | 영향 없음 | 해당 없음 |
@@ -228,6 +238,7 @@ Existing behavior that must remain unchanged:
 - [x] `CommonCodeJpaId`, `CommonCodeJpaEntity` 정의
 - [x] `CommonCodeJpaRepository`의 활성 단건·목록 조회 추가
 - [x] `CommonCodeMapper`와 `CommonCodePersistenceAdapter` 구현
+- [x] 검증·Map 변환과 읽기 전용 트랜잭션을 `CommonCodeService`로 분리
 - [x] `BANK` 그룹과 20개 은행 기관코드 seed 추가
 - [ ] 실제 호출 도메인 Application Service에 연결
 - [ ] Application Service별 코드 미존재 오류 정책 결정
@@ -264,7 +275,7 @@ git status --short --untracked-files=all
 - [ ] 복합키 매핑과 `group_code` 외래키가 실제 PostgreSQL 스키마와 일치한다.
 - [x] `BANK` 그룹과 20개 기관코드가 중복 없이 정의된다.
 - [ ] Application과 Domain이 JPA 타입을 직접 참조하지 않는다.
-- [ ] `getMap`, `getSnapshot`, 별도 `BankCodeProvider`가 필요한 실제 호출자 없이 추가되지 않는다.
+- [ ] `getSnapshot`, 별도 `BankCodeProvider`가 필요한 실제 호출자 없이 추가되지 않는다.
 
 ### Results
 
@@ -283,6 +294,7 @@ git status --short --untracked-files=all
 | 2026-08-21 | SQL·현재 패키지 규약 확인 및 조회 계약 작성 | 실제 첫 호출 도메인 확정 후 구현 | PostgreSQL에서 Flyway와 Hibernate 검증 필요 |
 | 2026-08-21 | `CommonCode`·`LoadCommonCodePort`·JPA 조회 Adapter 구현 및 컴파일 확인 | 실제 호출 UseCase 연결 | PostgreSQL에서 Flyway와 Hibernate 검증 필요 |
 | 2026-08-21 | `BANK` 그룹과 20개 기관코드·favicon URL seed 추가 | PostgreSQL migration 실행 확인 | 외부 favicon proxy 의존 |
+| 2026-08-22 | 검증·Map 변환과 트랜잭션 경계를 `CommonCodeService`로 이동 | 실제 호출 UseCase 연결 | `getMap` 캐시는 측정 후 결정 |
 
 ## 10. Decision log
 
@@ -291,6 +303,7 @@ git status --short --untracked-files=all
 | 2026-08-21 | `CommonCodeProvider` 대신 `LoadCommonCodePort`를 우선 사용 | 현재 프로젝트의 Output Port 명명 규칙과 조회 책임에 맞음 | 실제 외부 제공자 경계가 생기면 Provider 명칭을 별도 검토 |
 | 2026-08-21 | `CommonCodeJpaEntity`만 먼저 만들고 그룹 JPA Entity는 보류 | 상세 코드 조회에 그룹 객체가 필요하지 않음 | 그룹 메타데이터 API가 생기면 추가 |
 | 2026-08-21 | 원래 제안의 `getMap`, `getSnapshot`, `validate`는 초기 계약에서 제외 | 호출자·캐시·업무 검증 규칙이 아직 없음 | 실제 요구 발생 시 목적별 계약으로 추가 |
+| 2026-08-22 | 트랜잭션과 검증·Map 변환은 Application Service가 소유 | UseCase 단위 트랜잭션과 Adapter의 기술 책임을 분리 | 독립 커밋이 필요한 작업만 `REQUIRES_NEW` 검토 |
 
 ## 11. Completion record
 
