@@ -3,16 +3,13 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementContactCommand;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 public record SettlementContactWebRequest(
         @NotBlank
-        @Size(max = 100)
         @Schema(description = "클라이언트 주소록 항목 식별자", example = "contact-42")
         String contactId,
 
         @NotBlank
-        @Size(max = 100)
         @Schema(description = "주소록에 저장된 표시 이름", example = "민선영")
         String displayName,
 
