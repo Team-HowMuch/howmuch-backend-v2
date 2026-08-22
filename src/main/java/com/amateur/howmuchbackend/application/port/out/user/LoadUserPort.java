@@ -11,5 +11,9 @@ public interface LoadUserPort {
 
     Optional<User> findByPhoneNumber(String phoneNumber);
 
+    Optional<User> findByIdentityKey(String identityKey);
+
+    Optional<User> findByPublicId(String publicId);
+
     boolean existsByPublicId(String publicId);
 }
