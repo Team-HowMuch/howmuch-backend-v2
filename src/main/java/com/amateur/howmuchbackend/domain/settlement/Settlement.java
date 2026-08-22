@@ -59,6 +59,10 @@ public record Settlement(
         );
     }
 
+    public void ensureParticipantsEditable() {
+        requireDraft();
+    }
+
     public Settlement request(LocalDateTime now) {
         return transition(SettlementStatus.DRAFT, SettlementStatus.REQUESTED, now);
     }
