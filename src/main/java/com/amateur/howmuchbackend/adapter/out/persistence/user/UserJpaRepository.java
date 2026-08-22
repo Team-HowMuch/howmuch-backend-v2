@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
     Optional<UserJpaEntity> findByPhoneNumber(String phoneNumber);
 
+    boolean existsByPublicId(String publicId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select user from UserJpaEntity user where user.id = :id")
     Optional<UserJpaEntity> findByIdForUpdate(@Param("id") Long id);

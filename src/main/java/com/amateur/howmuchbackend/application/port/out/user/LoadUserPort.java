@@ -10,4 +10,6 @@ public interface LoadUserPort {
     Optional<User> findByIdForUpdate(Long id);
 
     Optional<User> findByPhoneNumber(String phoneNumber);
+
+    boolean existsByPublicId(String publicId);
 }

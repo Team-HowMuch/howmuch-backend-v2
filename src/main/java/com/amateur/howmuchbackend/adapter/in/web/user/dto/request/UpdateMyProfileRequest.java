@@ -5,13 +5,13 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 
 public record UpdateMyProfileRequest(
-        String nickname,
+        String publicId,
         MultipartFile avatar,
         Boolean resetAvatar
 ) {
     public com.amateur.howmuchbackend.application.port.in.user.command.UpdateMyProfileCommand toCommand() {
         return new com.amateur.howmuchbackend.application.port.in.user.command.UpdateMyProfileCommand(
-                nickname,
+                publicId,
                 avatarContent(),
                 Boolean.TRUE.equals(resetAvatar)
         );

@@ -7,7 +7,7 @@ public record User(
         Long id,
         String identityKey,
         String name,
-        String nickname,
+        String publicId,
         LocalDate birthDate,
         Gender gender,
         String phoneNumber,
@@ -26,7 +26,7 @@ public record User(
     public static User register(
             String identityKey,
             String name,
-            String nickname,
+            String publicId,
             String phoneNumber,
             String pinHash,
             LocalDateTime now,
@@ -36,7 +36,7 @@ public record User(
                 null,
                 identityKey,
                 name,
-                nickname,
+                publicId,
                 null,
                 null,
                 phoneNumber,
@@ -59,7 +59,7 @@ public record User(
                 id,
                 identityKey,
                 name,
-                nickname,
+                publicId,
                 birthDate,
                 gender,
                 phoneNumber,
@@ -77,12 +77,12 @@ public record User(
         );
     }
 
-    public User changeProfile(String nickname, String avatarFileName, LocalDateTime now) {
+    public User changeProfile(String publicId, String avatarFileName, LocalDateTime now) {
         return new User(
                 id,
                 identityKey,
                 name,
-                nickname,
+                publicId,
                 birthDate,
                 gender,
                 phoneNumber,

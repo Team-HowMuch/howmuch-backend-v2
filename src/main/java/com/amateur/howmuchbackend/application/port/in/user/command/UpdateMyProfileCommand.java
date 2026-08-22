@@ -3,7 +3,7 @@ package com.amateur.howmuchbackend.application.port.in.user.command;
 import java.util.Arrays;
 
 public record UpdateMyProfileCommand(
-        String nickname,
+        String publicId,
         byte[] avatarContent,
         boolean resetAvatar
 ) {

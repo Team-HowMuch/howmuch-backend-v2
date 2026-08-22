@@ -4,7 +4,6 @@ import com.amateur.howmuchbackend.application.auth.policy.AuthSessionPolicy;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
 import com.amateur.howmuchbackend.application.auth.policy.PinPolicy;
 import com.amateur.howmuchbackend.application.auth.policy.SmsVerificationPolicy;
-import com.amateur.howmuchbackend.application.user.policy.NicknamePolicy;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,10 +42,5 @@ public class AuthPolicyConfig {
                 properties.singleSessionPerUser(),
                 properties.rotateRequestToken()
         );
-    }
-
-    @Bean
-    NicknamePolicy nicknamePolicy() {
-        return new NicknamePolicy();
     }
 }

@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 public record MyProfileResult(
         Long userId,
         String name,
-        String nickname,
+        String publicId,
         LocalDate birthDate,
         Gender gender,
         String phoneNumber,
@@ -24,7 +24,7 @@ public record MyProfileResult(
         return new MyProfileResult(
                 user.id(),
                 user.name(),
-                user.nickname(),
+                user.publicId(),
                 user.birthDate(),
                 user.gender(),
                 user.phoneNumber(),

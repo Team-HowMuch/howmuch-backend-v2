@@ -24,7 +24,10 @@ public interface AuthDocs {
     @Operation(summary = "sms 인증번호 확인", description = "사용자가 입력한 SMS 인증번호를 확인합니다.")
     ApiResponse<SmsVerificationConfirmedWebResponse> confirmSms(ConfirmSmsVerificationRequest request);
 
-    @Operation(summary = "회원가입", description = "SMS 인증 challenge로 회원가입을 완료합니다. 가입 후 토큰은 발급하지 않습니다.")
+    @Operation(
+            summary = "회원가입",
+            description = "SMS 인증 challenge로 회원가입을 완료하고 공개 ID를 자동 생성합니다. 가입 후 토큰은 발급하지 않습니다."
+    )
     ApiResponse<Void> signUp(SignUpRequest request);
 
     @Operation(summary = "로그인", description = "휴대폰 번호와 PIN으로 로그인합니다. 새 로그인은 기존 기기 세션을 만료시킵니다.")

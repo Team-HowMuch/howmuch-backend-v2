@@ -5,7 +5,9 @@ import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
@@ -32,11 +34,16 @@ public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {
     }
 
     @Override
+    public boolean existsByPublicId(String publicId) {
+        return userJpaRepository.existsByPublicId(publicId);
+    }
+
+    @Override
     public User save(User user) {
         try {
             return UserMapper.toDomain(userJpaRepository.saveAndFlush(UserMapper.toEntity(user)));
         } catch (DataIntegrityViolationException exception) {
-            throw ApplicationException.of(AuthStatusCode.PHONE_NUMBER_ALREADY_REGISTERED, exception);
+            throw translateConstraintViolation(exception);
         }
     }
 
@@ -44,7 +51,37 @@ public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {
     public User update(User user) {
         UserJpaEntity entity = userJpaRepository.findById(user.id())
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + user.id()));
-        entity.updateFrom(user);
-        return UserMapper.toDomain(userJpaRepository.save(entity));
+        try {
+            entity.updateFrom(user);
+            return UserMapper.toDomain(userJpaRepository.saveAndFlush(entity));
+        } catch (DataIntegrityViolationException exception) {
+            throw translateConstraintViolation(exception);
+        }
+    }
+
+    private RuntimeException translateConstraintViolation(DataIntegrityViolationException exception) {
+        if (hasConstraint(exception, "uk_users_public_id")) {
+            return ApplicationException.of(UserStatusCode.PUBLIC_ID_ALREADY_EXISTS, exception);
+        }
+        if (hasConstraint(exception, "uk_users_phone_number")
+                || hasConstraint(exception, "uk_users_identity_key")) {
+            return ApplicationException.of(AuthStatusCode.PHONE_NUMBER_ALREADY_REGISTERED, exception);
+        }
+        return exception;
+    }
+
+    private boolean hasConstraint(Throwable throwable, String constraintName) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraintViolation
+                    && constraintName.equals(constraintViolation.getConstraintName())) {
+                return true;
+            }
+            if (current.getMessage() != null && current.getMessage().contains(constraintName)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }
