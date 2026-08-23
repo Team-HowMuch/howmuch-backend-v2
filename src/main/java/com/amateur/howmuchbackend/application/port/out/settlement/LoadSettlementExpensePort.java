@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.port.out.settlement;
 
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,4 +15,10 @@ public interface LoadSettlementExpensePort {
     int nextDisplayOrder(UUID settlementId);
 
     long totalAmount(UUID settlementId);
+
+    boolean existsBySettlementIdAndSourceAndSourceReference(
+            UUID settlementId,
+            SettlementExpenseSource source,
+            String sourceReference
+    );
 }
