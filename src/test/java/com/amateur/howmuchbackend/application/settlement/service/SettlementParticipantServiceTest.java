@@ -10,14 +10,18 @@ import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettleme
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.TrackSettlementContactMatchUsagePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.MatchContactUsersPort;
 import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
 import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementParticipantModificationPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementContactMatchQuotaPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementContactMatchUsage;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
@@ -35,6 +39,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Optional;
@@ -43,6 +48,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -88,6 +96,9 @@ class SettlementParticipantServiceTest {
     private MatchContactUsersPort matchContactUsersPort;
 
     @Mock
+    private TrackSettlementContactMatchUsagePort trackSettlementContactMatchUsagePort;
+
+    @Mock
     private ProfileImageStoragePort profileImageStoragePort;
 
     private SettlementParticipantService settlementParticipantService;
@@ -96,6 +107,15 @@ class SettlementParticipantServiceTest {
     @BeforeEach
     void setUp() {
         identityPolicy = new IdentityPolicy("test-identity-secret");
+        lenient().when(trackSettlementContactMatchUsagePort.recordUsage(
+                any(),
+                anyInt(),
+                any(),
+                any()
+        )).thenAnswer(invocation -> new SettlementContactMatchUsage(
+                1,
+                invocation.getArgument(1, Integer.class)
+        ));
         settlementParticipantService = new SettlementParticipantService(
                 currentActorPort,
                 loadSettlementPort,
@@ -105,10 +125,12 @@ class SettlementParticipantServiceTest {
                 loadUserPort,
                 searchUserPort,
                 matchContactUsersPort,
+                trackSettlementContactMatchUsagePort,
                 profileImageStoragePort,
                 new PublicIdPolicy(),
                 identityPolicy,
-                new SettlementParticipantModificationPolicy()
+                new SettlementParticipantModificationPolicy(),
+                new SettlementContactMatchQuotaPolicy()
         );
     }
 
@@ -478,6 +500,56 @@ class SettlementParticipantServiceTest {
         assertThat(result.get(0).publicId()).isEqualTo("contact.member");
         assertThat(result.get(0).memberDisplayName()).isEqualTo("회원 3");
         assertThat(result.get(1).publicId()).isNull();
+        verify(trackSettlementContactMatchUsagePort).recordUsage(
+                CREATOR_ID,
+                4,
+                Duration.ofMinutes(1),
+                Duration.ofHours(24)
+        );
+    }
+
+    @Test
+    @DisplayName("분당 연락처 매칭 요청 한도를 초과하면 회원 조회를 거부한다")
+    void rejectsContactMatchingOverRequestQuota() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(trackSettlementContactMatchUsagePort.recordUsage(
+                CREATOR_ID,
+                1,
+                Duration.ofMinutes(1),
+                Duration.ofHours(24)
+        )).thenReturn(new SettlementContactMatchUsage(11, 1));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact("contact", "연락처", "01011112222")
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(CommonStatusCode.TOO_MANY_REQUEST));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
+    @DisplayName("일일 연락처 조회 한도를 초과하면 회원 조회를 거부한다")
+    void rejectsContactMatchingOverContactQuota() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(trackSettlementContactMatchUsagePort.recordUsage(
+                CREATOR_ID,
+                1,
+                Duration.ofMinutes(1),
+                Duration.ofHours(24)
+        )).thenReturn(new SettlementContactMatchUsage(1, 2_001));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact("contact", "연락처", "01011112222")
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(CommonStatusCode.TOO_MANY_REQUEST));
+        verifyNoInteractions(matchContactUsersPort);
     }
 
     @Test

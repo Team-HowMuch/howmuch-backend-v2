@@ -22,11 +22,14 @@ import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettleme
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.TrackSettlementContactMatchUsagePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.MatchContactUsersPort;
 import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
 import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementParticipantModificationPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementContactMatchQuotaPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementContactMatchUsage;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -76,10 +79,12 @@ public class SettlementParticipantService implements
     private final LoadUserPort loadUserPort;
     private final SearchUserPort searchUserPort;
     private final MatchContactUsersPort matchContactUsersPort;
+    private final TrackSettlementContactMatchUsagePort trackSettlementContactMatchUsagePort;
     private final ProfileImageStoragePort profileImageStoragePort;
     private final PublicIdPolicy publicIdPolicy;
     private final IdentityPolicy identityPolicy;
     private final SettlementParticipantModificationPolicy modificationPolicy;
+    private final SettlementContactMatchQuotaPolicy contactMatchQuotaPolicy;
 
     @Override
     @Transactional
@@ -211,6 +216,13 @@ public class SettlementParticipantService implements
         Settlement settlement = loadOwnedSettlement(settlementId);
         settlement.ensureParticipantsEditable();
         List<NormalizedContact> contacts = normalizeContacts(command);
+        SettlementContactMatchUsage usage = trackSettlementContactMatchUsagePort.recordUsage(
+                settlement.creatorId(),
+                contacts.size(),
+                contactMatchQuotaPolicy.requestWindow(),
+                contactMatchQuotaPolicy.contactWindow()
+        );
+        contactMatchQuotaPolicy.validate(usage);
         Map<String, User> matchedUsers = matchContactUsersPort.findActiveByIdentityKeys(
                         contacts.stream().map(NormalizedContact::phoneHash).collect(Collectors.toSet())
                 ).stream()

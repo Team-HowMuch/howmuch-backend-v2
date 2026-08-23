@@ -270,6 +270,7 @@ public interface SettlementDocs {
             summary = "정산 참여자 연락처 일괄 매칭",
             description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 주소록 연락처를 활성 회원과 일괄 매칭합니다. "
                     + "같은 정규화 전화번호는 첫 항목만 반환하고 기존 참여 여부를 함께 제공합니다. "
+                    + "사용자별 분당 10회, 24시간당 연락처 2,000개까지 조회할 수 있습니다. "
                     + "원본 전화번호와 HMAC, 내부 사용자 ID, 아바타 저장 파일명은 저장하거나 응답하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
@@ -299,6 +300,10 @@ public interface SettlementDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
                     description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "429",
+                    description = "TOO_MANY_REQUEST - 사용자별 연락처 매칭 한도 초과"
             )
     })
     ApiResponse<List<SettlementContactCandidateWebResponse>> matchSettlementContacts(
