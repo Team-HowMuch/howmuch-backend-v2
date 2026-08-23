@@ -13,6 +13,7 @@ public record Settlement(
         String title,
         long totalAmount,
         SettlementAllocationType allocationType,
+        Long receivingAccountId,
         SettlementStatus status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -28,7 +29,20 @@ public record Settlement(
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {
-        this(id, creatorId, title, totalAmount, null, status, createdAt, updatedAt);
+        this(id, creatorId, title, totalAmount, null, null, status, createdAt, updatedAt);
+    }
+
+    public Settlement(
+            UUID id,
+            Long creatorId,
+            String title,
+            long totalAmount,
+            SettlementAllocationType allocationType,
+            SettlementStatus status,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {
+        this(id, creatorId, title, totalAmount, allocationType, null, status, createdAt, updatedAt);
     }
 
     public Settlement {
@@ -46,6 +60,7 @@ public record Settlement(
                 creatorId,
                 title,
                 totalAmount,
+                null,
                 null,
                 SettlementStatus.DRAFT,
                 now,
@@ -69,6 +84,7 @@ public record Settlement(
                 newTitle == null ? title : newTitle,
                 newTotalAmount == null ? totalAmount : newTotalAmount,
                 amountChanged ? null : allocationType,
+                receivingAccountId,
                 status,
                 createdAt,
                 Objects.requireNonNull(now, "정산 수정 시각은 필수입니다.")
@@ -101,6 +117,7 @@ public record Settlement(
                 title,
                 totalAmount,
                 selectedType,
+                receivingAccountId,
                 status,
                 createdAt,
                 Objects.requireNonNull(now, "정산 배분 유형 변경 시각은 필수입니다.")
@@ -118,6 +135,7 @@ public record Settlement(
                 title,
                 totalAmount,
                 null,
+                receivingAccountId,
                 status,
                 createdAt,
                 Objects.requireNonNull(now, "정산 배분 초기화 시각은 필수입니다.")
@@ -126,6 +144,24 @@ public record Settlement(
 
     public Settlement request(LocalDateTime now) {
         return transition(SettlementStatus.DRAFT, SettlementStatus.REQUESTED, now);
+    }
+
+    public Settlement selectReceivingAccount(Long accountId, LocalDateTime now) {
+        requireDraft();
+        if (accountId == null || accountId <= 0) {
+            throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_RECEIVING_ACCOUNT_ID);
+        }
+        return new Settlement(
+                id,
+                creatorId,
+                title,
+                totalAmount,
+                allocationType,
+                accountId,
+                status,
+                createdAt,
+                Objects.requireNonNull(now, "정산 수령 계좌 변경 시각은 필수입니다.")
+        );
     }
 
     public Settlement awaitDeposit(LocalDateTime now) {
@@ -150,6 +186,7 @@ public record Settlement(
                 title,
                 totalAmount,
                 allocationType,
+                receivingAccountId,
                 next,
                 createdAt,
                 Objects.requireNonNull(now, "정산 상태 변경 시각은 필수입니다.")
