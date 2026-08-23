@@ -12,7 +12,6 @@ import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
-import com.amateur.howmuchbackend.application.settlement.policy.SettlementReceivingAccountPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
@@ -41,7 +40,6 @@ public class SettlementReceivingAccountService implements
     private final SaveSettlementPort saveSettlementPort;
     private final LoadAccountPort loadAccountPort;
     private final BankCatalog bankCatalog;
-    private final SettlementReceivingAccountPolicy receivingAccountPolicy;
 
     @Override
     @Transactional(readOnly = true)
@@ -52,7 +50,7 @@ public class SettlementReceivingAccountService implements
         Map<String, BankCatalogResult> institutions = bankCatalog.getBanks().stream()
                 .collect(Collectors.toMap(BankCatalogResult::organization, Function.identity()));
         return loadAccountPort.findActiveByUserId(actor.userId()).stream()
-                .filter(receivingAccountPolicy::supports)
+                .filter(Account::isActiveWonDemandDeposit)
                 .sorted(accountComparator())
                 .map(account -> toResult(account, institutions.get(account.organization()), settlement))
                 .toList();
@@ -72,7 +70,7 @@ public class SettlementReceivingAccountService implements
                         command.receivingAccountId(), actor.userId()
                 )
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
-        receivingAccountPolicy.validate(account);
+        validateReceivingAccount(account);
         Settlement updated = settlement.selectReceivingAccount(
                 account.id(), LocalDateTime.now(ZoneOffset.UTC)
         );
@@ -108,6 +106,14 @@ public class SettlementReceivingAccountService implements
                 || command.receivingAccountId() <= 0) {
             throw ApplicationException.of(
                     SettlementStatusCode.INVALID_SETTLEMENT_RECEIVING_ACCOUNT_ID
+            );
+        }
+    }
+
+    private void validateReceivingAccount(Account account) {
+        if (!account.isActiveWonDemandDeposit()) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_RECEIVING_ACCOUNT_NOT_SUPPORTED
             );
         }
     }
