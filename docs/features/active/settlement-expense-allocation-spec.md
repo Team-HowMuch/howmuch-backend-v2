@@ -187,7 +187,7 @@ AllocationFraction은 ONE, HALF, THIRD, QUARTER만 허용한다. 품목 선택 U
 | GetAccountTransactionsUseCase | 소유권 검증과 필요 시 기존 CODEF 동기화를 거친 월별 계좌 거래를 제공한다. | GetSettlementPaymentExpenseCandidatesUseCase | 기존 AccountQueryService |
 | LoadAccountPort | 선택 거래를 가져올 때 계좌가 현재 사용자 소유인지 확인한다. | ImportSettlementPaymentExpenseUseCase | 기존 AccountPersistenceAdapter |
 | LoadAccountTransactionPort | 선택한 계좌의 거래 한 건을 조회한다. | ImportSettlementPaymentExpenseUseCase | 기존 AccountTransactionPersistenceAdapter |
-| ExtractReceiptItemsPort | 외부 OCR 결과 참조로 영수증 총액과 품목을 제공한다. | ImportSettlementReceiptExpenseUseCase | 운영 receipt OCR Adapter 또는 로컬·개발 Stub |
+| ExtractReceiptItemsPort | 요청자 ID와 외부 OCR 결과 참조로 소유권이 확인된 영수증 총액·품목을 제공한다. | ImportSettlementReceiptExpenseUseCase | 운영 receipt OCR Adapter 또는 로컬·개발 Stub |
 | LoadSettlementItemPort | 정산에 저장된 OCR 품목 목록과 합계를 조회한다. | GetSettlementItemsUseCase, SelectAllocationTypeUseCase | JPA Persistence Adapter |
 | SaveSettlementItemPort | OCR 품목을 지출과 같은 트랜잭션에 저장한다. | ImportSettlementReceiptExpenseUseCase | JPA Persistence Adapter |
 | DeliverAllocationResultPort | 검증된 배분 결과를 Share 고정 흐름에 전달한다. | FinalizeAllocationUseCase | request-link Application Adapter |
@@ -279,7 +279,8 @@ Authentication: public link and resolved participant context required
 
 ### OCR 가져오기 트랜잭션 경계
 
-- OCR 호출 전에 현재 사용자가 생성자인지와 정산이 DRAFT인지 읽기 검증한다.
+- OCR 호출 전에 현재 사용자가 생성자인지, 정산이 DRAFT인지, 같은 참조를 이미 가져왔는지 읽기 검증한다.
+- 요청자 ID를 OCR Adapter에 전달해 실제 연동이 결과 소유권을 검증할 수 있게 한다.
 - `ExtractReceiptItemsPort` 호출은 DB 쓰기 트랜잭션 밖에서 수행한다.
 - 결과를 받은 뒤 별도 쓰기 컴포넌트가 정산 행을 잠그고 권한·상태·중복을 다시 검증한다.
 - 영수증 지출과 모든 품목은 하나의 트랜잭션으로 저장하며 하나라도 유효하지 않으면 전부 롤백한다.

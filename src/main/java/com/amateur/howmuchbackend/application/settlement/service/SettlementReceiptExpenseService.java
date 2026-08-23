@@ -8,10 +8,12 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementReceiptExpenseMutationResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.ExtractReceiptItemsPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ public class SettlementReceiptExpenseService implements
         GetSettlementItemsUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
+    private final LoadSettlementExpensePort loadSettlementExpensePort;
     private final LoadSettlementItemPort loadSettlementItemPort;
     private final ExtractReceiptItemsPort extractReceiptItemsPort;
     private final SettlementReceiptExpenseWriter receiptExpenseWriter;
@@ -39,9 +42,10 @@ public class SettlementReceiptExpenseService implements
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
         settlement.ensureExpensesEditable();
+        ensureNotImported(settlement.id(), receiptReference);
 
         ExtractReceiptItemsPort.ReceiptExtraction extraction = extractReceiptItemsPort
-                .extract(receiptReference)
+                .extract(actor.userId(), receiptReference)
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_RECEIPT_EXTRACTION_NOT_FOUND
                 ));
@@ -95,5 +99,17 @@ public class SettlementReceiptExpenseService implements
             );
         }
         return normalized;
+    }
+
+    private void ensureNotImported(UUID settlementId, String receiptReference) {
+        if (loadSettlementExpensePort.existsBySettlementIdAndSourceAndSourceReference(
+                settlementId,
+                SettlementExpenseSource.RECEIPT_OCR,
+                receiptReference
+        )) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_RECEIPT_ALREADY_IMPORTED
+            );
+        }
     }
 }

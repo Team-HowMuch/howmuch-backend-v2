@@ -12,7 +12,7 @@ import java.util.Optional;
 @Profile("prod")
 public class UnavailableReceiptExtractionAdapter implements ExtractReceiptItemsPort {
     @Override
-    public Optional<ReceiptExtraction> extract(String receiptReference) {
+    public Optional<ReceiptExtraction> extract(Long requesterId, String receiptReference) {
         throw ApplicationException.of(
                 SettlementStatusCode.SETTLEMENT_RECEIPT_EXTRACTION_UNAVAILABLE
         );

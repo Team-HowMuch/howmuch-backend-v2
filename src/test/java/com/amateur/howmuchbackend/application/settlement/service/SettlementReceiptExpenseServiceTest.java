@@ -6,10 +6,12 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.ExtractReceiptItemsPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,6 +43,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadSettlementPort loadSettlementPort;
+    @Mock private LoadSettlementExpensePort loadSettlementExpensePort;
     @Mock private LoadSettlementItemPort loadSettlementItemPort;
     @Mock private ExtractReceiptItemsPort extractReceiptItemsPort;
     @Mock private SettlementReceiptExpenseWriter receiptExpenseWriter;
@@ -52,6 +55,7 @@ class SettlementReceiptExpenseServiceTest {
         service = new SettlementReceiptExpenseService(
                 currentActorPort,
                 loadSettlementPort,
+                loadSettlementExpensePort,
                 loadSettlementItemPort,
                 extractReceiptItemsPort,
                 receiptExpenseWriter
@@ -94,7 +98,7 @@ class SettlementReceiptExpenseServiceTest {
                 new SettlementReceiptExpenseMutationResult(null, List.of(), 30_000);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
-        when(extractReceiptItemsPort.extract("receipt-demo"))
+        when(extractReceiptItemsPort.extract(CREATOR_ID, "receipt-demo"))
                 .thenReturn(Optional.of(extraction));
         when(receiptExpenseWriter.write(
                 SETTLEMENT_ID,
@@ -109,7 +113,7 @@ class SettlementReceiptExpenseServiceTest {
         );
 
         assertThat(result).isSameAs(expected);
-        verify(extractReceiptItemsPort).extract("receipt-demo");
+        verify(extractReceiptItemsPort).extract(CREATOR_ID, "receipt-demo");
     }
 
     @Test
@@ -126,7 +130,7 @@ class SettlementReceiptExpenseServiceTest {
                 assertThat(exception.getStatusCode()).isEqualTo(
                         SettlementStatusCode.SETTLEMENT_ACCESS_DENIED
                 ));
-        verify(extractReceiptItemsPort, never()).extract("receipt-demo");
+        verify(extractReceiptItemsPort, never()).extract(CREATOR_ID, "receipt-demo");
     }
 
     @Test
@@ -135,7 +139,8 @@ class SettlementReceiptExpenseServiceTest {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(CREATOR_ID, SettlementStatus.DRAFT)));
-        when(extractReceiptItemsPort.extract("missing")).thenReturn(Optional.empty());
+        when(extractReceiptItemsPort.extract(CREATOR_ID, "missing"))
+                .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.importExpense(
                 SETTLEMENT_ID,
@@ -150,6 +155,29 @@ class SettlementReceiptExpenseServiceTest {
                 "missing",
                 extraction(30_000)
         );
+    }
+
+    @Test
+    @DisplayName("이미 가져온 OCR 참조는 외부 OCR을 다시 호출하지 않는다")
+    void rejectsDuplicateBeforeExternalExtraction() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(CREATOR_ID, SettlementStatus.DRAFT)));
+        when(loadSettlementExpensePort.existsBySettlementIdAndSourceAndSourceReference(
+                SETTLEMENT_ID,
+                SettlementExpenseSource.RECEIPT_OCR,
+                "receipt-demo"
+        )).thenReturn(true);
+
+        assertThatThrownBy(() -> service.importExpense(
+                SETTLEMENT_ID,
+                new ImportSettlementReceiptExpenseCommand("receipt-demo")
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.SETTLEMENT_RECEIPT_ALREADY_IMPORTED
+                ));
+        verify(extractReceiptItemsPort, never())
+                .extract(CREATOR_ID, "receipt-demo");
     }
 
     private Settlement settlement(Long creatorId, SettlementStatus status) {
