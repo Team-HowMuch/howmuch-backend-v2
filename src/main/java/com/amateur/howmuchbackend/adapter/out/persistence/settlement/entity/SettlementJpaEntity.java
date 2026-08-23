@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.common.BaseTimeJpaEntity;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -46,6 +47,10 @@ public class SettlementJpaEntity extends BaseTimeJpaEntity {
     private long totalAmount;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "allocation_type", length = 30)
+    private SettlementAllocationType allocationType;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private SettlementStatus status;
 
@@ -58,6 +63,7 @@ public class SettlementJpaEntity extends BaseTimeJpaEntity {
     public void updateFrom(Settlement settlement) {
         this.title = settlement.title();
         this.totalAmount = settlement.totalAmount();
+        this.allocationType = settlement.allocationType();
         this.status = settlement.status();
     }
 }
