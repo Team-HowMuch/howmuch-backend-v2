@@ -63,6 +63,10 @@ public record Settlement(
         requireDraft();
     }
 
+    public void ensureExpensesEditable() {
+        requireDraft();
+    }
+
     public Settlement request(LocalDateTime now) {
         return transition(SettlementStatus.DRAFT, SettlementStatus.REQUESTED, now);
     }
