@@ -2,10 +2,13 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
+import com.amateur.howmuchbackend.application.group.model.GroupMemberRoster;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.MatchSettlementContactsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SearchSettlementParticipantCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementContactCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMembersPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
@@ -75,6 +78,9 @@ class SettlementParticipantServiceTest {
     private CurrentActorPort currentActorPort;
 
     @Mock
+    private LoadGroupMembersPort loadGroupMembersPort;
+
+    @Mock
     private LoadSettlementPort loadSettlementPort;
 
     @Mock
@@ -118,6 +124,7 @@ class SettlementParticipantServiceTest {
         ));
         settlementParticipantService = new SettlementParticipantService(
                 currentActorPort,
+                loadGroupMembersPort,
                 loadSettlementPort,
                 loadSettlementParticipantPort,
                 saveSettlementParticipantPort,
@@ -661,6 +668,140 @@ class SettlementParticipantServiceTest {
                 assertThat(exception.getStatusCode())
                         .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_EDITABLE));
         verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
+    @DisplayName("그룹 구성원 순서를 유지하고 이미 추가된 동일인을 제외해 후보를 반환한다")
+    void getsGroupParticipantCandidates() {
+        Long groupId = 10L;
+        String convertedContactHash = "a".repeat(64);
+        User available = user(OTHER_USER_ID, "group.available", "group.png");
+        User convertedContact = user(4L, convertedContactHash, "group.converted", null);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(loadGroupMembersPort.findActiveRoster(groupId)).thenReturn(Optional.of(
+                new GroupMemberRoster(groupId, List.of(CREATOR_ID, OTHER_USER_ID, 4L, LINKED_USER_ID))
+        ));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(
+                        registeredCreator(),
+                        linkedContact(),
+                        unlinkedContact(convertedContactHash)
+                ));
+        when(loadUserPort.findAllByIds(List.of(CREATOR_ID, OTHER_USER_ID, 4L, LINKED_USER_ID)))
+                .thenReturn(List.of(convertedContact, available, creator(), linkedUser(null)));
+
+        var result = settlementParticipantService.get(SETTLEMENT_ID, groupId);
+
+        assertThat(result).extracting(item -> item.publicId())
+                .containsExactly("group.available");
+        assertThat(result.getFirst().hasAvatar()).isTrue();
+    }
+
+    @Test
+    @DisplayName("정산 생성자가 그룹 구성원이 아니면 후보 조회를 거부한다")
+    void rejectsGroupCandidatesForNonMemberCreator() {
+        Long groupId = 10L;
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(loadGroupMembersPort.findActiveRoster(groupId)).thenReturn(Optional.of(
+                new GroupMemberRoster(groupId, List.of(OTHER_USER_ID))
+        ));
+
+        assertThatThrownBy(() -> settlementParticipantService.get(SETTLEMENT_ID, groupId))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(
+                                SettlementStatusCode.SETTLEMENT_GROUP_ACCESS_DENIED
+                        ));
+        verifyNoInteractions(loadUserPort);
+    }
+
+    @Test
+    @DisplayName("연결된 그룹 정보가 없으면 다른 참여자 경로를 위해 빈 후보를 반환한다")
+    void returnsEmptyGroupCandidatesWhenRosterIsUnavailable() {
+        Long groupId = 10L;
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(loadGroupMembersPort.findActiveRoster(groupId)).thenReturn(Optional.empty());
+
+        assertThat(settlementParticipantService.get(SETTLEMENT_ID, groupId)).isEmpty();
+        verifyNoInteractions(loadUserPort, loadSettlementParticipantPort);
+    }
+
+    @Test
+    @DisplayName("양수가 아닌 그룹 ID는 그룹 조회 전에 거부한다")
+    void rejectsInvalidGroupIdForCandidateLookup() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.get(SETTLEMENT_ID, 0L))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(
+                                SettlementStatusCode.INVALID_SETTLEMENT_GROUP_ID
+                        ));
+        verifyNoInteractions(loadGroupMembersPort);
+    }
+
+    @Test
+    @DisplayName("그룹 소속을 다시 확인한 활성 회원을 그룹 참여자로 저장한다")
+    void addsGroupMemberParticipant() {
+        Long groupId = 10L;
+        User groupMember = user(OTHER_USER_ID, "group.member", "group.png");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(draftSettlement()));
+        when(loadGroupMembersPort.findActiveRoster(groupId)).thenReturn(Optional.of(
+                new GroupMemberRoster(groupId, List.of(CREATOR_ID, OTHER_USER_ID))
+        ));
+        when(loadUserPort.findByPublicId("group.member")).thenReturn(Optional.of(groupMember));
+        when(loadSettlementParticipantPort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(3);
+        when(saveSettlementParticipantPort.save(any(SettlementParticipant.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = settlementParticipantService.add(
+                SETTLEMENT_ID,
+                new AddSettlementParticipantCommand(
+                        SettlementParticipantSource.GROUP_MEMBER,
+                        groupId,
+                        "GROUP.MEMBER",
+                        null,
+                        null
+                )
+        );
+
+        assertThat(result.source()).isEqualTo(SettlementParticipantSource.GROUP_MEMBER);
+        assertThat(result.publicId()).isEqualTo("group.member");
+        assertThat(result.displayName()).isEqualTo("회원 3");
+        assertThat(result.displayOrder()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("그룹에 속하지 않은 회원은 참여자로 추가하지 않는다")
+    void rejectsUserOutsideSelectedGroup() {
+        Long groupId = 10L;
+        User outsider = user(OTHER_USER_ID, "group.outsider", null);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(draftSettlement()));
+        when(loadGroupMembersPort.findActiveRoster(groupId)).thenReturn(Optional.of(
+                new GroupMemberRoster(groupId, List.of(CREATOR_ID))
+        ));
+        when(loadUserPort.findByPublicId("group.outsider")).thenReturn(Optional.of(outsider));
+
+        assertThatThrownBy(() -> settlementParticipantService.add(
+                SETTLEMENT_ID,
+                new AddSettlementParticipantCommand(
+                        SettlementParticipantSource.GROUP_MEMBER,
+                        groupId,
+                        "group.outsider",
+                        null,
+                        null
+                )
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
+                ));
+        verifyNoInteractions(saveSettlementParticipantPort);
     }
 
     private Settlement settlement() {
