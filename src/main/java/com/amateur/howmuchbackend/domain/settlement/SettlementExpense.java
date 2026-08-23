@@ -11,6 +11,7 @@ public record SettlementExpense(
         UUID id,
         UUID settlementId,
         SettlementExpenseSource source,
+        String sourceReference,
         String description,
         long amount,
         int displayOrder,
@@ -18,11 +19,36 @@ public record SettlementExpense(
         LocalDateTime updatedAt
 ) {
     public static final int MAX_DESCRIPTION_LENGTH = 500;
+    public static final int MAX_SOURCE_REFERENCE_LENGTH = 255;
+
+    public SettlementExpense(
+            UUID id,
+            UUID settlementId,
+            SettlementExpenseSource source,
+            String description,
+            long amount,
+            int displayOrder,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {
+        this(
+                id,
+                settlementId,
+                source,
+                null,
+                description,
+                amount,
+                displayOrder,
+                createdAt,
+                updatedAt
+        );
+    }
 
     public SettlementExpense {
         Objects.requireNonNull(id, "정산 지출 ID는 필수입니다.");
         Objects.requireNonNull(settlementId, "정산 ID는 필수입니다.");
         Objects.requireNonNull(source, "정산 지출 원본은 필수입니다.");
+        sourceReference = normalizeSourceReference(source, sourceReference);
         description = normalizeDescription(description);
         validateAmount(amount);
         validateDisplayOrder(displayOrder);
@@ -40,6 +66,29 @@ public record SettlementExpense(
                 UUID.randomUUID(),
                 settlementId,
                 SettlementExpenseSource.MANUAL,
+                null,
+                description,
+                amount,
+                displayOrder,
+                now,
+                now
+        );
+    }
+
+    public static SettlementExpense paymentHistory(
+            UUID settlementId,
+            String sourceReference,
+            String description,
+            long amount,
+            int displayOrder,
+            LocalDateTime now
+    ) {
+        Objects.requireNonNull(now, "결제내역 지출 생성 시각은 필수입니다.");
+        return new SettlementExpense(
+                UUID.randomUUID(),
+                settlementId,
+                SettlementExpenseSource.PAYMENT_HISTORY,
+                sourceReference,
                 description,
                 amount,
                 displayOrder,
@@ -63,6 +112,7 @@ public record SettlementExpense(
                 id,
                 settlementId,
                 source,
+                sourceReference,
                 newDescription == null ? description : newDescription,
                 newAmount == null ? amount : newAmount,
                 displayOrder,
@@ -71,10 +121,30 @@ public record SettlementExpense(
         );
     }
 
-    public void ensureRemovable() {
-        if (source != SettlementExpenseSource.MANUAL) {
-            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_EXPENSE_NOT_EDITABLE);
+    private static String normalizeSourceReference(
+            SettlementExpenseSource source,
+            String sourceReference
+    ) {
+        if (source == SettlementExpenseSource.MANUAL) {
+            if (sourceReference != null) {
+                throw ApplicationException.of(
+                        SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_SOURCE_REFERENCE
+                );
+            }
+            return null;
         }
+        if (sourceReference == null) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_SOURCE_REFERENCE
+            );
+        }
+        String normalized = sourceReference.strip();
+        if (normalized.isBlank() || normalized.length() > MAX_SOURCE_REFERENCE_LENGTH) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_SOURCE_REFERENCE
+            );
+        }
+        return normalized;
     }
 
     private static String normalizeDescription(String description) {
