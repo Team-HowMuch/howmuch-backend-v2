@@ -50,6 +50,9 @@ public class SettlementJpaEntity extends BaseTimeJpaEntity {
     @Column(name = "allocation_type", length = 30)
     private SettlementAllocationType allocationType;
 
+    @Column(name = "receiving_account_id")
+    private Long receivingAccountId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private SettlementStatus status;
@@ -64,6 +67,7 @@ public class SettlementJpaEntity extends BaseTimeJpaEntity {
         this.title = settlement.title();
         this.totalAmount = settlement.totalAmount();
         this.allocationType = settlement.allocationType();
+        this.receivingAccountId = settlement.receivingAccountId();
         this.status = settlement.status();
     }
 }
