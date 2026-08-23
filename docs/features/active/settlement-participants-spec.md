@@ -2,7 +2,7 @@
 
 - Status: In Progress
 - Last updated: 2026-08-23
-- Related issues: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#36 정산 참여자 추가·제거 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/36), [#71 정산 참여자 목록 조회 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/71), [#38 정산 참여자 사용자 ID 검색 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/38), [#39 정산 참여자 연락처 일괄 매칭 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/39)
+- Related issues: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#36 정산 참여자 추가·제거 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/36), [#71 정산 참여자 목록 조회 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/71), [#38 정산 참여자 사용자 ID 검색 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/38), [#39 정산 참여자 연락처 일괄 매칭 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/39), [#37 그룹 구성원 조회 Output Port 및 개발 Stub 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/37), [#40 그룹 구성원 기반 정산 참여자 추가 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/40)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
 - Prerequisite: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md)
@@ -21,7 +21,7 @@
 
 - [x] 생성자는 DRAFT 정산에서 자신을 포함한 참여자를 추가·제거할 수 있다.
 - [x] 생성자는 화면 재진입 시 저장된 참여자를 표시 순서대로 다시 조회할 수 있다.
-- [ ] 사용자 ID, 연락처, 그룹 구성원이라는 세 경로가 같은 참여자 모델로 저장된다.
+- [x] 사용자 ID, 연락처, 그룹 구성원이라는 세 경로가 같은 참여자 모델로 저장된다.
 - [ ] 로그인 회원이 공통 링크를 앱에서 열면 사용자 ID로 참여자를 자동 식별할 수 있다.
 - [ ] 비회원 브라우저 흐름에는 표시 이름을 가진 참여자 목록을 제공할 수 있다.
 
@@ -270,7 +270,8 @@ Existing behavior that must remain unchanged:
 - [x] #38에서 공개 ID prefix 후보 검색과 후보 아바타 조회를 구현한다.
 - [x] #39에서 연락처 정규화·HMAC 일괄 매칭과 기존 참여 여부 응답을 구현한다.
 - [x] #39 연락처 매칭 입력 길이와 사용자별 누적 조회 quota를 적용한다.
-- [ ] #40에서 그룹 조회·소속 검증과 선택 구성원 추가를 구현한다.
+- [x] #37에서 그룹 구성원 조회 Output Port와 개발 Stub을 구현한다.
+- [x] #40에서 그룹 조회·소속 검증과 선택 구성원 추가를 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
 ### Expected commit boundaries
@@ -360,7 +361,11 @@ git status --short --untracked-files=all
 | #39 권한·오류 | Complete | 미인증 401, 다른 생성자 403, 잘못된 번호 400 `INVALID_PHONE_NUMBER` 검증 |
 | #39 입력·조회 한도 | Complete | 개별 필드 길이 제한, 사용자별 분당 10회·24시간 2,000개 quota와 Redis 원자 누적·TTL 검증 |
 | #39 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 96개 테스트, 실제 HTTP 200·400·429, OpenAPI 연락처 매칭 429 계약, Swagger UI 200 |
-| 그룹 후보 | Pending | #40 후속 구현 |
+| #37 그룹 조회 경계·Stub | Complete | `Long groupId` 기반 활성 userId 순서 계약, local·dev 결정적 Stub과 prod 빈 결과 Adapter 구현 |
+| #40 그룹 후보·추가 | Complete | 생성자 그룹 소속 검증, 활성 회원 후보 조회, 기존 참여자 제외, 추가 시 소속 재검증 구현 |
+| #40 자동 테스트 | Complete | PostgreSQL·Redis 전체 114개 테스트 성공, 그룹 Application·Web·Stub 테스트 성공 |
+| #40 실제 HTTP·DB | Complete | JWT로 후보 2명 조회, GROUP_MEMBER 추가, 후보 제외와 `linked_user_id=2` 저장 확인 |
+| #40 Swagger | Complete | Swagger UI 200, OpenAPI 그룹 후보 경로와 GROUP_MEMBER enum 노출 확인 |
 
 ## 9. Progress log
 
@@ -379,6 +384,7 @@ git status --short --untracked-files=all
 | 2026-08-23 | #39 연락처 일괄 매칭 API와 PostgreSQL·Redis·Swagger 검증 완료 | #40 그룹 구성원 선택·추가 | 같은 번호의 중복 입력은 첫 항목만 반환하고 실제 선택 시 기존 추가 API가 다시 검증함 |
 | 2026-08-23 | #39 리뷰에서 입력 길이와 누적 회원 조회 제한 위험 확인 | 사용자별 Redis quota 구현 | 정산별 제한은 새 정산 생성으로 우회되므로 사용자 ID를 기준으로 해야 함 |
 | 2026-08-23 | #39 입력 길이와 사용자별 누적 조회 quota 구현·실제 HTTP 검증 완료 | #40 그룹 구성원 선택·추가 | Redis 장애 시 개인정보 열거 방지를 위해 연락처 회원 조회를 실패시킴 |
+| 2026-08-23 | #37·#40 그룹 구성원 후보 조회와 선택 참여자 추가를 한 PR로 구현·검증 | 요청·링크 Spec과 회원 자동 매칭 구현 | 실제 group Adapter 연결 전 local·dev만 결정적 Stub 명단을 제공함 |
 
 ## 10. Decision log
 
@@ -399,11 +405,13 @@ git status --short --untracked-files=all
 | 2026-08-23 | 연락처 매칭은 최대 500개를 POST body로 받고 같은 번호의 첫 항목만 반환한다. | 주소록을 URL에 노출하지 않고 요청·DB 부하를 제한하며 동일 번호의 중복 후보를 막는다. | 500개를 넘으면 클라이언트가 요청을 나눠야 한다. |
 | 2026-08-23 | 연락처 매칭은 후보만 반환하고 실제 저장은 기존 CONTACT 참여자 추가 API가 재검증한다. | 매칭과 사용자 선택 사이에 가입·중복 상태가 바뀔 수 있다. | 후보 응답만으로 참여자가 확정됐다고 간주하지 않는다. |
 | 2026-08-23 | 연락처 매칭은 사용자별 분당 10회와 24시간당 2,000개 조회 quota를 함께 적용한다. | 요청당 500개 제한만으로는 반복 호출에 의한 전화번호 기반 회원 정보 열거를 막을 수 없다. | Redis에는 사용자 ID별 숫자만 저장하고, 초과 또는 Redis 장애 시 회원 조회를 진행하지 않는다. |
+| 2026-08-23 | 그룹 후보 조회와 추가는 같은 활성 명단을 각각 검증하고 그룹 순서를 유지한다. | 화면 조회 뒤 탈퇴·비활성화된 사용자가 stale 요청으로 추가되는 것을 막아야 한다. | 실제 group 구현은 `LoadGroupMembersPort` Adapter만 교체하며 정산 API 계약은 유지한다. |
+| 2026-08-23 | 그룹 정보가 없으면 후보 조회는 빈 목록, 추가는 후보 없음으로 처리한다. | 아직 group 영속 구현이 없는 환경에서 다른 참여자 선택 경로와 서버 기동을 유지한다. | 그룹은 있으나 생성자가 구성원이 아니면 `SETTLEMENT_GROUP_ACCESS_DENIED`를 반환한다. |
 
 ## 11. Completion record
 
 - Completed on: Pending
 - Final behavior: Pending
 - Unverified items: #36 동시 요청의 대기 순서는 별도 부하 테스트하지 않았으며 PostgreSQL 행 잠금과 Unique 제약으로 보호한다.
-- Remaining risks: group 실제 구현과 구성원 조회 계약이 확정돼야 그룹 선택 경로를 연결할 수 있다.
-- Follow-up work: #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.
+- Remaining risks: 실제 group Adapter가 연결되기 전 운영 환경은 그룹 후보를 제공하지 않으며 local·dev Stub은 `groupId`부터 연속된 userId 3명을 명단으로 사용한다.
+- Follow-up work: 요청·링크 Spec의 로그인 회원 자동 매칭과 비회원 브라우저 참여자 선택을 구현한다.
