@@ -48,19 +48,28 @@
 - Excluded from this increment: OCR 품목 저장·선택, 요청 확정, Share 생성, 수령 계좌와 공통 링크
 - Observable result: 생성자는 지출 합계와 기준 총액이 일치하는 정산의 더치페이를 선택하고, 기본 금액을 확인·수정하면서 현재 합계와 차액을 확인할 수 있다. 품목별 할당은 출처값만으로 성공시키지 않고 실제 OCR 품목 저장 기능이 완료될 때까지 명시적으로 거부한다.
 
+### Current increment: 기존 결제내역 가져오기
+
+- Scope: DRAFT 정산 생성자가 본인 연결 계좌의 월별 출금 거래를 후보로 조회하고 하나를 정산 지출로 가져오거나 다시 제거한다.
+- Related issue: [#43 기존 결제내역 정산 지출 변환](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/43)
+- Persistence prerequisite: [#109](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/109)로 병합된 `V13__add_settlement_expense_source_reference.sql`
+- Excluded from this increment: 새로운 CODEF API 호출 구현, 입금 거래 가져오기, 여러 거래 일괄 가져오기, OCR 결과 변환
+- Observable result: 생성자는 거래 월과 계좌를 기준으로 출금 후보와 이미 가져온 여부를 확인하고, 같은 거래를 한 정산에 중복 저장하지 않으면서 정산 지출 합계에 반영한다.
+
 ## 2. Domain analysis
 
 ### Domain boundary
 
 - Existing domain to reuse: Settlement와 SettlementParticipant를 배분의 소유 경계로 사용한다.
 - Reason a new domain is required, if applicable: 지출, 영수증 품목, 참여자별 품목 선택은 Settlement 하위 Entity로 새로 필요하다.
-- Relationships to other domains: payment-history와 receipt OCR은 후보 데이터를 제공하는 Output Port이고, request-link은 확정된 계산 결과를 Share로 고정한다.
+- Relationships to other domains: account의 기존 거래 조회 UseCase와 Port가 결제내역 후보를 제공하고, receipt OCR은 후속 외부 경계이며, request-link은 확정된 계산 결과를 Share로 고정한다.
 
 ### Ubiquitous language
 
 | Term | Meaning | Code representation |
 | --- | --- | --- |
 | 지출 | 정산 총액을 이루는 한 건의 비용 | SettlementExpense |
+| 외부 참조 | 같은 정산에 동일 거래를 중복으로 가져오지 않기 위한 원본 키 | SettlementExpense.sourceReference |
 | 배분 방식 | 더치페이 또는 품목별 배분 | AllocationType |
 | 영수증 품목 | OCR 결과에서 분리된 하나의 가격 항목 | SettlementItem |
 | 품목 선택 | 참여자가 품목의 부담 비율을 고르는 행위 | ItemSelection |
@@ -72,7 +81,7 @@
 | Actor | Goal | UseCase |
 | --- | --- | --- |
 | 생성자 | 수기 지출을 만들고 배분 방식을 선택한다. | ManageSettlementExpenseUseCase |
-| 생성자 | 결제 내역 또는 OCR 결과에서 지출을 가져온다. | ImportSettlementExpenseUseCase |
+| 생성자 | 본인 계좌의 결제 내역 후보를 보고 정산 지출로 가져온다. | GetSettlementPaymentExpenseCandidatesUseCase, ImportSettlementPaymentExpenseUseCase |
 | 생성자 | 더치페이 예상 금액을 확인한다. | CalculateDutchPayUseCase |
 | 링크로 식별된 참여자 | 자기 몫의 품목과 비율을 선택·제출한다. | SaveItemSelectionUseCase, SubmitItemAllocationUseCase |
 | 요청·링크 기능 | 검증이 끝난 배분 결과로 Share를 생성한다. | FinalizeAllocationUseCase |
@@ -108,11 +117,16 @@
 - 모든 참여자가 제출했지만 어떤 품목의 비율 합이 1이 아니다: Settlement를 SUSPENDED로 전환하고 미배분·과배분 품목을 생성자에게 반환한다.
 - 제출 전 또는 SUSPENDED 이후 참여자가 선택을 변경한다: 선택 변경을 거부한다.
 - OCR·결제 내역 Port가 개발 Stub에서 결과를 주지 못한다: 외부 후보 없음으로 처리하며 수기 지출 흐름은 계속 제공한다.
+- 다른 사용자의 계좌·거래를 조회하거나 가져온다: 계좌 또는 거래를 찾을 수 없는 것으로 처리한다.
+- 입금 거래, 소수 원 금액, 이미 가져온 거래를 선택한다: 정산 지출로 저장하지 않고 명시적인 오류를 반환한다.
 
 ### Boundary conditions
 
 - 1원 단위 금액도 더치페이 계산에 포함한다. 잔여금은 생성자에게 배분한다.
 - 지출 누적액이 Java `long` 원 단위 범위를 초과하는 등록·수정·조회는 `INVALID_SETTLEMENT_EXPENSE_TOTAL`로 거부하며 변경을 저장하지 않는다.
+- 결제내역 금액은 양의 정수 원 단위만 정산 지출로 변환하며 `BigDecimal.longValueExact()`가 실패하면 가져오기를 거부한다.
+- 같은 원본 거래는 한 정산에 한 번만 가져올 수 있고, 서로 다른 정산에서는 각각 가져올 수 있다.
+- 가져온 결제내역은 원본 의미를 보존하기 위해 설명·금액 PATCH는 막되 DELETE로 선택을 취소할 수 있다.
 - 한 품목을 선택하지 않은 참여자는 제출할 수 있다. 전체 품목을 반드시 모든 사람이 선택할 필요는 없고, 품목별 비율 합이 1이면 된다.
 - 한 참여자는 동일 품목을 하나의 비율로만 선택한다. 기존 선택을 바꾸면 행을 갱신한다.
 - 품목별 금액 계산 중 원 단위 반올림이 필요한 경우, 합계 보정 규칙은 PRD 확정 전 별도 결정으로 남긴다. MVP에서는 입력 품목 가격과 허용 분수의 조합으로 정수 합계가 보장되는 데이터만 요청 확정한다.
@@ -131,10 +145,11 @@ UpdateSettlementExpenseUseCase.update(settlementId, expenseId, UpdateSettlementE
 RemoveSettlementExpenseUseCase.remove(settlementId, expenseId)
   -> SettlementExpenseTotalResult
 
-ImportSettlementExpenseUseCase.loadCandidates(settlementId, source, criteria)
-  -> List<ExpenseCandidateResponse>
-ImportSettlementExpenseUseCase.importCandidate(settlementId, candidateId, source)
-  -> SettlementExpenseResponse
+GetSettlementPaymentExpenseCandidatesUseCase.get(settlementId, accountId, yearMonth)
+  -> List<SettlementPaymentExpenseCandidateResult>
+ImportSettlementPaymentExpenseUseCase.importExpense(
+  settlementId, ImportSettlementPaymentExpenseCommand
+) -> SettlementExpenseMutationResult
 
 SelectAllocationTypeUseCase.select(settlementId, allocationType) -> SettlementResponse
 CalculateDutchPayUseCase.calculate(settlementId) -> AllocationResult
@@ -156,7 +171,9 @@ AllocationFraction은 ONE, HALF, THIRD, QUARTER만 허용한다. 품목 선택 U
 | SaveSettlementExpensePort | 지출을 생성하거나 변경한다. | 수동 지출 생성·수정 UseCase | JPA Persistence Adapter |
 | DeleteSettlementExpensePort | 저장된 지출을 삭제한다. | 수동 지출 삭제 UseCase | JPA Persistence Adapter |
 | LoadSettlementParticipantsPort | 활성 참여자와 생성자 참여자를 조회한다. | 계산·제출 검증 UseCase | JPA Persistence Adapter |
-| LoadPaymentHistoryPort | 결제 내역 후보를 제공한다. | ImportSettlementExpenseUseCase | payment-history Adapter 또는 개발 Stub |
+| GetAccountTransactionsUseCase | 소유권 검증과 필요 시 기존 CODEF 동기화를 거친 월별 계좌 거래를 제공한다. | GetSettlementPaymentExpenseCandidatesUseCase | 기존 AccountQueryService |
+| LoadAccountPort | 선택 거래를 가져올 때 계좌가 현재 사용자 소유인지 확인한다. | ImportSettlementPaymentExpenseUseCase | 기존 AccountPersistenceAdapter |
+| LoadAccountTransactionPort | 선택한 계좌의 거래 한 건을 조회한다. | ImportSettlementPaymentExpenseUseCase | 기존 AccountTransactionPersistenceAdapter |
 | ExtractReceiptItemsPort | OCR 영수증 품목 후보를 제공한다. | ImportSettlementExpenseUseCase | receipt OCR Adapter 또는 개발 Stub |
 | DeliverAllocationResultPort | 검증된 배분 결과를 Share 고정 흐름에 전달한다. | FinalizeAllocationUseCase | request-link Application Adapter |
 
@@ -175,8 +192,12 @@ GET Response: { expenses: SettlementExpense[], totalExpenseAmount: integer }
 POST/PATCH Response: { expense: SettlementExpense, totalExpenseAmount: integer }
 DELETE Response: { totalExpenseAmount: integer }
 
-GET /api/v2/settlements/{settlementId}/expense-candidates?source=paymentHistory|receiptOcr
-POST /api/v2/settlements/{settlementId}/expenses/import
+GET /api/v2/settlements/{settlementId}/expense-candidates/payment-history?accountId={accountId}&yearMonth=YYYY-MM
+Response: [{ transactionId, description, amount, transactedAt, imported }]
+
+POST /api/v2/settlements/{settlementId}/expenses/payment-history
+Request: { accountId, transactionId }
+Response: { expense, totalExpenseAmount }
 Authentication: required, creator only
 
 PUT /api/v2/settlements/{settlementId}/allocation-type
@@ -211,10 +232,10 @@ Authentication: public link and resolved participant context required
 
 ### Persistence and external integrations
 
-- Database Entity, constraint, or query changes: 이번 증분은 병합된 V12의 `settlements.allocation_type`과 `settlement_dutch_pay_allocations`를 매핑하며 새 마이그레이션을 만들지 않는다. 후속 증분에서 settlement_items, settlement_item_selections, settlement_item_submissions를 추가한다. item selection에는 settlement_id, participant_id, item_id, fraction을 저장하고 participant_id와 item_id의 복합 Unique 제약을 둔다.
+- Database Entity, constraint, or query changes: 이번 증분은 병합된 V13의 `settlement_expenses.source_reference`와 중복 방지 제약을 매핑하고, 계좌·거래 단건 조회 쿼리를 기존 Adapter에 추가한다. 새 마이그레이션은 없다. 후속 증분에서 settlement_items, settlement_item_selections, settlement_item_submissions를 추가한다.
 - Redis key, TTL, or serialization changes: 없음.
-- External API or message changes: 결제 내역·OCR은 Port와 개발 Stub으로만 우선 연결한다. 실제 API 명세·환경 변수는 외부 공급자 확정 뒤 별도 Feature Plan으로 추가한다.
-- Environment variable or profile changes: dev profile에서 빈 후보를 반환하는 Stub을 제공한다.
+- External API or message changes: 새 외부 연동은 없다. 후보 조회는 병합된 AccountQueryService를 재사용하므로 기존 계좌 흐름이 필요할 때 수행하는 CODEF 동기화 계약을 그대로 따른다.
+- Environment variable or profile changes: 없음.
 
 ## 5. Design decisions
 
@@ -222,12 +243,12 @@ Authentication: public link and resolved participant context required
 
 - Rules and their locations: 허용 비율·같은 참여자의 중복 선택 방지·품목 합계 검증은 Domain에 둔다. DRAFT 수정 권한과 마지막 제출 뒤 상태 전환은 Application Service가 Settlement Domain 규칙과 함께 조정한다.
 - Behavior owned by Domain: 지출 양수 검증, 더치페이 나머지 생성자 배분, 품목별 비율 합계 검증, AllocationResult 합계 검증.
-- Flow orchestrated by Application: 외부 후보 변환, 생성자 권한 확인, 링크 참여자 문맥 확인, 전체 제출 여부 확인, SUSPENDED 전환과 request-link 전달.
+- Flow orchestrated by Application: 정산·계좌 소유권 확인, 출금 거래 필터링, 정수 원 변환, 중복 확인, 배분 초안 무효화, 외부 후보 변환, 링크 참여자 문맥 확인, 전체 제출 여부 확인, SUSPENDED 전환과 request-link 전달.
 
 ### Technology and patterns
 
-- Constraint to solve: 실제 OCR·결제 내역 연동 전에도 생성자는 수기 입력과 더치페이를 사용할 수 있어야 한다.
-- Selected approach: 지출 원본별 후보 조회는 Output Port로 분리하고, 수기 지출은 Settlement가 직접 소유한다.
+- Constraint to solve: #43 작성 뒤 account 거래 조회가 develop에 먼저 병합되어 별도 PaymentTransactionLookupPort·Stub을 만들면 같은 외부 경계를 중복 표현한다.
+- Selected approach: 후보 목록은 기존 GetAccountTransactionsUseCase를, 선택 거래와 계좌 소유권은 기존 LoadAccountTransactionPort·LoadAccountPort를 재사용하고 Settlement Application에서 변환 규칙만 소유한다.
 - Reason for selection: 외부 기능이 개발 Stub이어도 배분 핵심 규칙과 API 계약을 먼저 검증할 수 있다.
 - Alternatives considered: OCR·결제 내역 기능이 완성될 때까지 지출 등록 전체를 보류하는 방식은 최소 정산 흐름을 막으므로 제외한다.
 - Trade-offs and limits: MVP의 제한된 분수에서 발생하는 원 단위 나눗셈 문제는 요청 확정 시 검증 오류로 노출한다. 일반적인 반올림·잔여금 배분 정책은 후속 결정이 필요하다.
@@ -271,6 +292,15 @@ Existing behavior that must remain unchanged:
 - [x] 기준 총액·지출 합계·참여자 구성 변경 시 기존 배분 초안을 무효화한다.
 - [x] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
 
+### Current payment import increment
+
+- [x] SettlementExpense에 `sourceReference`와 PAYMENT_HISTORY 생성 규칙을 추가하고 V13 JPA 매핑을 연결한다.
+- [x] 본인 계좌의 월별 출금 후보와 이미 가져온 여부를 반환하는 UseCase를 구현한다.
+- [x] 선택 거래의 계좌 소유권·출금 유형·정수 원 금액·중복을 검증하고 지출로 저장한다.
+- [x] 가져온 지출은 PATCH를 막고 기존 DELETE로 제거할 수 있게 한다.
+- [x] 후보 조회·가져오기 API와 Swagger 계약을 추가한다.
+- [x] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
+
 ### Follow-up increments
 
 - [ ] 지출·배분 방식·품목·선택·제출 Domain 모델과 불변식을 정의한다.
@@ -294,6 +324,13 @@ docs(settlement): 더치페이 구현 결과 반영
 fix(settlement): 배분 무효화 잠금 순서 통일
 fix(settlement): 미구현 품목별 할당 선택 차단
 docs(settlement): 예정 커밋 제목 규칙 정렬
+docs: 결제내역 가져오기 구현 범위 구체화
+feat: 결제내역 정산 지출 모델과 영속 매핑 추가
+feat: 결제내역 후보 조회와 가져오기 기능 추가
+feat: 결제내역 정산 지출 API 추가
+test: 결제내역 가져오기 기능 검증 추가
+fix: 결제내역 API 검증 계약 충돌 수정
+docs: 결제내역 가져오기 구현 결과 반영
 ~~~
 
 ## 8. Verification
@@ -311,6 +348,10 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
+- [x] DRAFT 생성자만 본인 계좌의 출금 거래 후보를 조회하고 가져온다.
+- [x] 이미 가져온 거래가 후보 응답에 표시되고 같은 정산으로 중복 가져오기는 거부된다.
+- [x] 입금·소수 원·다른 사용자 계좌 거래는 정산 지출로 저장되지 않는다.
+- [x] 가져온 결제내역을 삭제하면 합계에서 빠지고 같은 거래를 다시 가져올 수 있다.
 - [ ] DRAFT 생성자만 수기 지출과 배분 방식을 변경한다.
 - [ ] 더치페이 계산 결과의 합은 항상 지출 총액과 일치하고 나머지는 생성자 몫이다.
 - [ ] 같은 품목을 여러 참여자가 허용 비율로 선택할 수 있고, 같은 참여자의 중복 행은 생기지 않는다.
@@ -327,6 +368,10 @@ git status --short --untracked-files=all
 | PostgreSQL 영속 검증 | Complete | V12 기반 더치페이 초안 교체·조회·수정·참여자 삭제 Cascade 통합 테스트 성공 |
 | 실제 HTTP | Complete | JWT 로그인 뒤 2명 500원 기본 배분, 400원 수정 시 차액 100원, 생성자 600원 수정 시 재균형, 지출 변경 뒤 배분 무효화 409 검증 성공 |
 | Swagger | Complete | `/v3/api-docs`의 배분 유형·더치페이 조회·수정 경로와 `/swagger-ui.html` 200 응답 확인 |
+| 결제내역 가져오기 자동 테스트 | Complete | Domain·Application·Web 계약과 V13 중복 제약 테스트 및 실제 PostgreSQL·Redis 연결 전체 `./gradlew clean test` 181개 성공 |
+| 결제내역 가져오기 PostgreSQL 영속 검증 | Complete | `PAYMENT_HISTORY`, 64자 `source_reference`, 금액·표시 순서 저장과 같은 정산 중복 409 변환 확인 |
+| 결제내역 가져오기 실제 HTTP | Complete | 로그인 뒤 출금 후보 조회, 가져오기, `imported=true`, 중복 409, PATCH 409, DELETE, 재가져오기 흐름 확인 |
+| 결제내역 가져오기 Swagger | Complete | `/v3/api-docs`의 후보 조회·가져오기 계약과 `/swagger-ui.html` 리다이렉트 응답 확인 |
 
 ## 9. Progress log
 
@@ -338,6 +383,8 @@ git status --short --untracked-files=all
 | 2026-08-23 | 리뷰에서 발견된 누적액 `long` 초과를 저장 전 400으로 변환하고 실제 HTTP 롤백 상태 검증 | 배분 방식과 더치페이 계산 | 금액 타입을 확장하면 API·DB 계약을 함께 변경해야 함 |
 | 2026-08-23 | V12 병합 뒤 배분 유형·더치페이 초안 구현 범위와 API 계약 확정 | Domain·영속·Application·Web 구현 | 입력 변경 뒤 기존 계산이 남지 않도록 무효화가 필요함 |
 | 2026-08-23 | 배분 유형 선택·기본 N빵·금액 수정·합계 응답과 입력 변경 무효화를 구현하고 159개 테스트·실제 HTTP·Swagger 검증 완료 | 외부 지출 후보 또는 품목별 할당 구현 | ITEM_ALLOCATION은 실제 OCR 품목을 검증할 저장 기능이 완료될 때까지 선택을 거부함 |
+| 2026-08-23 | V13 병합과 account 거래 조회 구현을 확인하고 결제내역 가져오기 계약 확정 | Domain·Application·Web 구현 | 예전 #43의 Stub 설계 대신 중복 Port 없이 현재 account 경계를 재사용해야 함 |
+| 2026-08-23 | 결제내역 후보 조회·가져오기·삭제와 중복 방지를 구현하고 자동 테스트·실제 HTTP·Swagger 검증 완료 | OCR 영수증 지출 가져오기 | 실제 HTTP에서 발견한 Validator 인터페이스 계약 충돌을 제약 상속 방식으로 수정함 |
 
 ## 10. Decision log
 
@@ -351,6 +398,8 @@ git status --short --untracked-files=all
 | 2026-08-23 | 배분 시작 전에 기준 총액과 지출 합계 일치를 검증한다. | 서로 다른 금액을 기준으로 기본 배분과 최종 검증이 갈라지는 것을 막는다. | 지출 입력 중에는 배분 유형을 선택할 수 없다. |
 | 2026-08-23 | 참여자·지출·기준 총액이 바뀌면 배분 유형과 더치페이 초안을 무효화한다. | 이전 입력으로 계산한 금액을 화면이나 요청 확정에서 재사용하지 않게 한다. | 생성자는 변경 뒤 배분 유형을 다시 선택해야 한다. |
 | 2026-08-23 | 개별 더치페이 금액 수정 중 불균형을 저장하고 차액을 응답한다. | 여러 필드를 순서대로 편집할 수 있게 하되 서버가 현재 불균형을 숨기지 않는다. | 요청 확정 단계는 `balanced=true`만 허용한다. |
+| 2026-08-23 | 결제내역 가져오기는 병합된 account UseCase·Port를 재사용한다. | 현재 코드에 실거래 조회와 동기화 경계가 있어 별도 Stub Port가 중복되기 때문이다. | #43의 초기 제안과 달리 새 외부 Adapter는 만들지 않는다. |
+| 2026-08-23 | 가져온 결제내역은 수정하지 못하지만 삭제할 수 있다. | 원본 금액을 임의 변경하지 않으면서 잘못 선택한 거래는 취소할 수 있어야 한다. | 다시 가져오기는 삭제 트랜잭션 완료 후 허용한다. |
 
 ## 11. Completion record
 

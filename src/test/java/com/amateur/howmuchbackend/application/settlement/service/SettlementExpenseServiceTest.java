@@ -267,6 +267,28 @@ class SettlementExpenseServiceTest {
         assertThat(result.totalExpenseAmount()).isEqualTo(8_000);
     }
 
+    @Test
+    @DisplayName("잘못 가져온 결제내역 지출도 초안에서 삭제할 수 있다")
+    void removesImportedExpense() {
+        givenOwnedDraftForUpdate();
+        SettlementExpense expense = SettlementExpense.paymentHistory(
+                SETTLEMENT_ID,
+                "transaction-key",
+                "카드 결제",
+                42_000,
+                0,
+                CREATED_AT
+        );
+        when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, expense.id()))
+                .thenReturn(Optional.of(expense));
+        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(50_000L);
+
+        var result = settlementExpenseService.remove(SETTLEMENT_ID, expense.id());
+
+        verify(deleteSettlementExpensePort).delete(expense);
+        assertThat(result.totalExpenseAmount()).isEqualTo(8_000);
+    }
+
     private void givenOwnedDraftForUpdate() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
