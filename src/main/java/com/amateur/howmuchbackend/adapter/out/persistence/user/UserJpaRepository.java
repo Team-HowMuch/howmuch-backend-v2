@@ -31,6 +31,8 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
             Pageable pageable
     );
 
+    List<UserJpaEntity> findAllByActiveTrueAndIdentityKeyIn(Collection<String> identityKeys);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select user from UserJpaEntity user where user.id = :id")
     Optional<UserJpaEntity> findByIdForUpdate(@Param("id") Long id);

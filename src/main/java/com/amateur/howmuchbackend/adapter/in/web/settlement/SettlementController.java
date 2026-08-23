@@ -4,9 +4,11 @@ import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.docs.SettlementDocs;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.MatchSettlementContactsWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SearchSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantCandidateWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementContactCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
@@ -16,6 +18,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
@@ -51,6 +54,7 @@ public class SettlementController implements SettlementDocs {
     private final GetSettlementParticipantAvatarUseCase getSettlementParticipantAvatarUseCase;
     private final SearchSettlementParticipantUseCase searchSettlementParticipantUseCase;
     private final GetSettlementParticipantCandidateAvatarUseCase getSettlementParticipantCandidateAvatarUseCase;
+    private final MatchSettlementContactsUseCase matchSettlementContactsUseCase;
 
     @Override
     @PostMapping
@@ -132,6 +136,20 @@ public class SettlementController implements SettlementDocs {
                 .cacheControl(CacheControl.noStore())
                 .contentType(MediaType.parseMediaType(image.contentType()))
                 .body(image.content());
+    }
+
+    @Override
+    @PostMapping("/{settlementId}/participant-candidates/contacts/match")
+    public ApiResponse<List<SettlementContactCandidateWebResponse>> matchSettlementContacts(
+            @PathVariable UUID settlementId,
+            @Valid @RequestBody MatchSettlementContactsWebRequest request
+    ) {
+        return ApiResponse.success(matchSettlementContactsUseCase.match(
+                        settlementId,
+                        request.toCommand()
+                ).stream()
+                .map(result -> SettlementContactCandidateWebResponse.from(settlementId, result))
+                .toList());
     }
 
     @Override
