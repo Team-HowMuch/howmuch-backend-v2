@@ -73,6 +73,15 @@ public class AccountJpaEntity extends BaseTimeJpaEntity {
     @Column(nullable = false)
     private boolean active;
 
+    @Column(name = "product_code", length = 10)
+    private String productCode;
+
+    @Column(name = "is_default", nullable = false)
+    private boolean isDefault;
+
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder;
+
     public AccountJpaEntity(
             UserJpaEntity user,
             ExternalConnectionJpaEntity externalConnection,
@@ -91,7 +100,10 @@ public class AccountJpaEntity extends BaseTimeJpaEntity {
             String name,
             String maskedNumber,
             BigDecimal balance,
-            String currency
+            String currency,
+            String productCode,
+            boolean isDefault,
+            int displayOrder
     ) {
         this.externalAccountKeyCiphertext = externalAccountKeyCiphertext;
         this.type = type;
@@ -100,5 +112,8 @@ public class AccountJpaEntity extends BaseTimeJpaEntity {
         this.balance = balance;
         this.currency = currency;
         this.active = true;
+        this.productCode = productCode;
+        this.isDefault = isDefault;
+        this.displayOrder = displayOrder;
     }
 }

@@ -14,6 +14,9 @@ public record Account(
         String maskedNumber,
         BigDecimal balance,
         String currency,
-        boolean active
+        boolean active,
+        String productCode,
+        boolean isDefault,
+        int displayOrder
 ) {
 }

@@ -21,6 +21,10 @@ public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, Lo
 
     Optional<AccountJpaEntity> findByExternalConnection_IdAndCandidateKey(Long connectionId, String candidateKey);
 
+    List<AccountJpaEntity> findByUser_IdAndActiveTrue(Long userId);
+
+    Optional<AccountJpaEntity> findByIdAndUser_IdAndActiveTrue(Long id, Long userId);
+
     @Modifying(clearAutomatically = true)
     @Query("""
             update AccountJpaEntity account

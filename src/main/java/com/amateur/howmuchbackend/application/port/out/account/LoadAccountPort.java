@@ -3,12 +3,13 @@ package com.amateur.howmuchbackend.application.port.out.account;
 import com.amateur.howmuchbackend.domain.account.Account;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
-public interface AccountStorePort {
+public interface LoadAccountPort {
     Set<String> findCandidateKeys(Long connectionId);
 
-    List<Account> saveAll(List<Account> accounts);
+    List<Account> findActiveByUserId(Long userId);
 
-    int deactivateAccountsForInactiveConnections();
+    Optional<Account> findActiveByIdAndUserId(Long accountId, Long userId);
 }

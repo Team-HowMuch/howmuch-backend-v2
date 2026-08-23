@@ -1,6 +1,6 @@
 package com.amateur.howmuchbackend.infra.codef.config;
 
-import com.amateur.howmuchbackend.application.port.out.account.AccountStorePort;
+import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CodefConnectionConfigurationRunner implements ApplicationRunner {
     private final ExternalConnectionStorePort connectionStorePort;
-    private final AccountStorePort accountStorePort;
+    private final SaveAccountPort saveAccountPort;
     private final CodefConfigurationFingerprint configurationFingerprint;
 
     @Override
@@ -21,7 +21,7 @@ public class CodefConnectionConfigurationRunner implements ApplicationRunner {
         int deactivatedConnections = connectionStorePort.deactivateIncompatibleConnections(
                 configurationFingerprint.current()
         );
-        int deactivatedAccounts = accountStorePort.deactivateAccountsForInactiveConnections();
+        int deactivatedAccounts = saveAccountPort.deactivateAccountsForInactiveConnections();
         if (deactivatedConnections > 0 || deactivatedAccounts > 0) {
             log.info(
                     "Deactivated {} CODEF connection(s) and {} account(s) because the configuration changed.",

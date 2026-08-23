@@ -8,19 +8,26 @@ public final class AccountMapper {
     }
 
     public static Account toDomain(AccountJpaEntity entity) {
+        return toDomain(entity, null);
+    }
+
+    public static Account toDomain(AccountJpaEntity entity, String externalAccountKey) {
         return new Account(
                 entity.getId(),
                 entity.getUser().getId(),
                 entity.getExternalConnection().getId(),
                 entity.getOrganization(),
                 entity.getCandidateKey(),
-                null,
+                externalAccountKey,
                 entity.getType(),
                 entity.getName(),
                 entity.getMaskedNumber(),
                 entity.getBalance(),
                 entity.getCurrency(),
-                entity.isActive()
+                entity.isActive(),
+                entity.getProductCode(),
+                entity.isDefault(),
+                entity.getDisplayOrder()
         );
     }
 }
