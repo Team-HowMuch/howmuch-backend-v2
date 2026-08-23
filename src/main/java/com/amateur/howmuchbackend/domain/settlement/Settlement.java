@@ -103,6 +103,10 @@ public record Settlement(
         requireDraft();
     }
 
+    public void ensureReceivingAccountEditable() {
+        requireDraft();
+    }
+
     public Settlement selectAllocationType(
             SettlementAllocationType selectedType,
             LocalDateTime now
