@@ -39,7 +39,7 @@ class CodefBankTransactionAdapterTest {
                                 "resAccountTrDate": "20260820",
                                 "resAccountTrTime": "001500",
                                 "resAccountOut": "12,500",
-                                "resAfterTranBalance": "1,250,000",
+                                "resAfterTranBalance": "0",
                                 "resAccountDesc1": "편의점",
                                 "resAccountDesc2": "생활비"
                               },
@@ -47,6 +47,7 @@ class CodefBankTransactionAdapterTest {
                                 "resAccountTrDate": "20260821",
                                 "resAccountTrTime": "101500",
                                 "resAccountIn": "50,000",
+                                "resAfterTranBalance": "-5,000",
                                 "resAccountDesc1": "입금"
                               },
                               {
@@ -80,9 +81,13 @@ class CodefBankTransactionAdapterTest {
         assertThat(result.getFirst()).satisfies(transaction -> {
             assertThat(transaction.type()).isEqualTo(AccountTransactionType.EXPENSE);
             assertThat(transaction.amount()).isEqualByComparingTo("12500");
+            assertThat(transaction.afterBalance()).isEqualByComparingTo("0");
             assertThat(transaction.transactedAt()).isEqualTo(LocalDateTime.of(2026, 8, 19, 15, 15));
             assertThat(transaction.description()).isEqualTo("편의점 생활비");
         });
-        assertThat(result.get(1).type()).isEqualTo(AccountTransactionType.INCOME);
+        assertThat(result.get(1)).satisfies(transaction -> {
+            assertThat(transaction.type()).isEqualTo(AccountTransactionType.INCOME);
+            assertThat(transaction.afterBalance()).isEqualByComparingTo("-5000");
+        });
     }
 }

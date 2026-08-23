@@ -94,8 +94,8 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
 
     private BankTransaction transaction(JsonNode item) {
         LocalDateTime transactedAt = transactedAt(item);
-        BigDecimal out = amount(text(item, "resAccountOut"));
-        BigDecimal in = amount(text(item, "resAccountIn"));
+        BigDecimal out = positiveAmount(text(item, "resAccountOut"));
+        BigDecimal in = positiveAmount(text(item, "resAccountIn"));
         AccountTransactionType type = out != null ? AccountTransactionType.EXPENSE
                 : in != null ? AccountTransactionType.INCOME : null;
         BigDecimal transactionAmount = out != null ? out : in;
@@ -107,7 +107,7 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
                 transactionAmount,
                 transactedAt,
                 description(item),
-                amount(text(item, "resAfterTranBalance"))
+                signedAmount(text(item, "resAfterTranBalance"))
         );
     }
 
@@ -147,13 +147,17 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         return result.length() <= 500 ? result : result.substring(0, 500);
     }
 
-    private BigDecimal amount(String value) {
+    private BigDecimal positiveAmount(String value) {
+        BigDecimal amount = signedAmount(value);
+        return amount != null && amount.signum() > 0 ? amount : null;
+    }
+
+    private BigDecimal signedAmount(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
         }
         try {
-            BigDecimal amount = new BigDecimal(value.replace(",", "").trim());
-            return amount.signum() > 0 ? amount : null;
+            return new BigDecimal(value.replace(",", "").trim());
         } catch (NumberFormatException ignored) {
             return null;
         }
