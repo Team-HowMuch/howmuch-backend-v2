@@ -336,13 +336,13 @@ Existing behavior that must remain unchanged:
 
 ### Current receipt import increment
 
-- [ ] SettlementItem Domain과 OCR 지출 생성 규칙을 구현한다.
-- [ ] 품목 Load·Save Port와 V14 JPA Entity·Repository·Mapper·Persistence Adapter를 구현한다.
-- [ ] OCR 호출과 쓰기 트랜잭션을 분리한 가져오기 UseCase를 구현한다.
-- [ ] 로컬·개발 OCR Stub과 운영 미연결 Adapter를 구현한다.
-- [ ] 영수증 가져오기·품목 목록 API와 Swagger 계약을 구현한다.
-- [ ] 품목 존재와 전체 지출 합계 일치를 검증해 ITEM_ALLOCATION 선택을 활성화한다.
-- [ ] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
+- [x] SettlementItem Domain과 OCR 지출 생성 규칙을 구현한다.
+- [x] 품목 Load·Save Port와 V14 JPA Entity·Repository·Mapper·Persistence Adapter를 구현한다.
+- [x] OCR 호출과 쓰기 트랜잭션을 분리한 가져오기 UseCase를 구현한다.
+- [x] 로컬·개발 OCR Stub과 운영 미연결 Adapter를 구현한다.
+- [x] 영수증 가져오기·품목 목록 API와 Swagger 계약을 구현한다.
+- [x] 품목 존재와 전체 지출 합계 일치를 검증해 ITEM_ALLOCATION 선택을 활성화한다.
+- [x] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
 
 ### Follow-up increments
 
@@ -403,6 +403,9 @@ git status --short --untracked-files=all
 - [x] 이미 가져온 거래가 후보 응답에 표시되고 같은 정산으로 중복 가져오기는 거부된다.
 - [x] 입금·소수 원·다른 사용자 계좌 거래는 정산 지출로 저장되지 않는다.
 - [x] 가져온 결제내역을 삭제하면 합계에서 빠지고 같은 거래를 다시 가져올 수 있다.
+- [x] DRAFT 생성자는 OCR 결과를 지출·품목으로 원자 저장하고 같은 참조의 중복 가져오기를 거부한다.
+- [x] 저장된 품목은 부모 지출·품목 표시 순서를 보존하며 지출 삭제 시 함께 삭제된다.
+- [x] 저장 품목 합계와 전체 지출 합계가 일치할 때 ITEM_ALLOCATION을 선택할 수 있다.
 - [ ] DRAFT 생성자만 수기 지출과 배분 방식을 변경한다.
 - [ ] 더치페이 계산 결과의 합은 항상 지출 총액과 일치하고 나머지는 생성자 몫이다.
 - [ ] 같은 품목을 여러 참여자가 허용 비율로 선택할 수 있고, 같은 참여자의 중복 행은 생기지 않는다.
@@ -423,6 +426,10 @@ git status --short --untracked-files=all
 | 결제내역 가져오기 PostgreSQL 영속 검증 | Complete | `PAYMENT_HISTORY`, 64자 `source_reference`, 금액·표시 순서 저장과 같은 정산 중복 409 변환 확인 |
 | 결제내역 가져오기 실제 HTTP | Complete | 로그인 뒤 출금 후보 조회, 가져오기, `imported=true`, 중복 409, PATCH 409, DELETE, 재가져오기 흐름 확인 |
 | 결제내역 가져오기 Swagger | Complete | `/v3/api-docs`의 후보 조회·가져오기 계약과 `/swagger-ui.html` 리다이렉트 응답 확인 |
+| OCR 영수증 가져오기 자동 테스트 | Complete | Domain·Application·Web·Stub·V14 영속·배분 유형 검증을 포함한 실제 PostgreSQL·Redis 연결 전체 테스트 205개 성공 |
+| OCR 영수증 가져오기 PostgreSQL 영속 검증 | Complete | 지출·품목 저장, 부모 지출·품목 순서 조회, 중복 참조 409 변환, 지출 삭제 Cascade 확인 |
+| OCR 영수증 가져오기 실제 HTTP | Complete | DRAFT 생성, Stub 영수증 30,000원 가져오기, 품목 2개·합계 조회, ITEM_ALLOCATION 선택, 중복 409 확인 |
+| OCR 영수증 가져오기 Swagger | Complete | `/v3/api-docs`의 영수증 가져오기·품목 조회 경로와 `/swagger-ui.html` 200 응답 확인 |
 
 ## 9. Progress log
 
@@ -436,6 +443,7 @@ git status --short --untracked-files=all
 | 2026-08-23 | 배분 유형 선택·기본 N빵·금액 수정·합계 응답과 입력 변경 무효화를 구현하고 159개 테스트·실제 HTTP·Swagger 검증 완료 | 외부 지출 후보 또는 품목별 할당 구현 | ITEM_ALLOCATION은 실제 OCR 품목을 검증할 저장 기능이 완료될 때까지 선택을 거부함 |
 | 2026-08-23 | V13 병합과 account 거래 조회 구현을 확인하고 결제내역 가져오기 계약 확정 | Domain·Application·Web 구현 | 예전 #43의 Stub 설계 대신 중복 Port 없이 현재 account 경계를 재사용해야 함 |
 | 2026-08-23 | 결제내역 후보 조회·가져오기·삭제와 중복 방지를 구현하고 자동 테스트·실제 HTTP·Swagger 검증 완료 | OCR 영수증 지출 가져오기 | 실제 HTTP에서 발견한 Validator 인터페이스 계약 충돌을 제약 상속 방식으로 수정함 |
+| 2026-08-23 | V14 품목 매핑, OCR Stub·가져오기·조회, ITEM_ALLOCATION 선택을 구현하고 205개 테스트·실제 HTTP·Swagger 검증 완료 | 공용 링크 참여자 문맥에서 품목 선택·제출 | 운영 OCR Adapter와 링크 참여자 식별이 아직 필요함 |
 
 ## 10. Decision log
 
@@ -451,6 +459,9 @@ git status --short --untracked-files=all
 | 2026-08-23 | 개별 더치페이 금액 수정 중 불균형을 저장하고 차액을 응답한다. | 여러 필드를 순서대로 편집할 수 있게 하되 서버가 현재 불균형을 숨기지 않는다. | 요청 확정 단계는 `balanced=true`만 허용한다. |
 | 2026-08-23 | 결제내역 가져오기는 병합된 account UseCase·Port를 재사용한다. | 현재 코드에 실거래 조회와 동기화 경계가 있어 별도 Stub Port가 중복되기 때문이다. | #43의 초기 제안과 달리 새 외부 Adapter는 만들지 않는다. |
 | 2026-08-23 | 가져온 결제내역은 수정하지 못하지만 삭제할 수 있다. | 원본 금액을 임의 변경하지 않으면서 잘못 선택한 거래는 취소할 수 있어야 한다. | 다시 가져오기는 삭제 트랜잭션 완료 후 허용한다. |
+| 2026-08-23 | OCR 호출은 쓰기 트랜잭션 밖에서 수행하고 저장 시 정산 행을 다시 잠근다. | 느린 외부 호출이 DB 연결·잠금을 점유하지 않으면서 상태 변경과 중복 저장을 직렬화한다. | 외부 호출 전 읽기 검증과 잠금 뒤 쓰기 검증을 모두 수행한다. |
+| 2026-08-23 | OCR Adapter에 요청자 ID와 결과 참조를 함께 전달한다. | 운영 연동이 결과 소유권을 검증하고 다른 사용자의 결과 참조 사용을 막을 수 있어야 한다. | 로컬·개발 Stub은 요청자 존재만 확인하고 고정 결과를 제공한다. |
+| 2026-08-23 | 품목별 할당 선택 시 전체 지출 합계와 저장 품목 합계를 비교한다. | 수기·결제내역처럼 품목이 없는 지출까지 포함된 금액을 품목 선택으로 누락하지 않게 한다. | 합계가 다르면 생성자가 지출 구성을 수정해야 한다. |
 
 ## 11. Completion record
 
