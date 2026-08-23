@@ -11,9 +11,11 @@ import java.util.UUID;
 public interface SettlementItemJpaRepository extends JpaRepository<SettlementItemJpaEntity, UUID> {
     @Query("""
             select item
-            from SettlementItemJpaEntity item
+            from SettlementItemJpaEntity item, SettlementExpenseJpaEntity expense
             where item.settlementId = :settlementId
-            order by item.createdAt asc, item.displayOrder asc, item.id asc
+              and expense.id = item.expenseId
+              and expense.settlementId = item.settlementId
+            order by expense.displayOrder asc, item.displayOrder asc, item.id asc
             """)
     List<SettlementItemJpaEntity> findAllOrderedBySettlementId(
             @Param("settlementId") UUID settlementId
