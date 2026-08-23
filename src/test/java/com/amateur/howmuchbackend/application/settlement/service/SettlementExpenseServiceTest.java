@@ -81,7 +81,7 @@ class SettlementExpenseServiceTest {
         when(loadSettlementExpensePort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(2);
         when(saveSettlementExpensePort.save(any(SettlementExpense.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(52_000L);
+        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(10_000L);
 
         var result = settlementExpenseService.create(
                 SETTLEMENT_ID,
@@ -94,6 +94,24 @@ class SettlementExpenseServiceTest {
         assertThat(captor.getValue().displayOrder()).isEqualTo(2);
         assertThat(result.expense().description()).isEqualTo("저녁 식사");
         assertThat(result.totalExpenseAmount()).isEqualTo(52_000);
+    }
+
+    @Test
+    @DisplayName("등록 후 누적액이 long 범위를 넘으면 저장 전에 명시적인 입력 오류를 반환한다")
+    void rejectsCreationThatOverflowsTotal() {
+        givenOwnedDraftForUpdate();
+        when(loadSettlementExpensePort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(1);
+        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID))
+                .thenReturn(Long.MAX_VALUE);
+
+        assertThatThrownBy(() -> settlementExpenseService.create(
+                SETTLEMENT_ID,
+                new CreateSettlementExpenseCommand("추가 지출", 1)
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL
+                ));
+        verify(saveSettlementExpensePort, never()).save(any(SettlementExpense.class));
     }
 
     @Test
@@ -111,6 +129,22 @@ class SettlementExpenseServiceTest {
                 .containsExactly("저녁 식사", "카페");
         assertThat(result.totalExpenseAmount()).isEqualTo(50_000);
         verify(loadSettlementExpensePort, never()).totalAmount(SETTLEMENT_ID);
+    }
+
+    @Test
+    @DisplayName("외부에서 유입된 지출 목록의 합계가 long 범위를 넘으면 500 대신 명시적인 오류를 반환한다")
+    void rejectsExpenseListThatOverflowsTotal() {
+        givenOwnedDraft();
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                expense(EXPENSE_ID, "최대 금액", Long.MAX_VALUE, 0),
+                expense(UUID.randomUUID(), "추가 금액", 1, 1)
+        ));
+
+        assertThatThrownBy(() -> settlementExpenseService.get(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(
+                                SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL
+                        ));
     }
 
     @Test
@@ -154,7 +188,7 @@ class SettlementExpenseServiceTest {
                 .thenReturn(Optional.of(expense(EXPENSE_ID, "저녁 식사", 42_000, 0)));
         when(saveSettlementExpensePort.update(any(SettlementExpense.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(58_000L);
+        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(50_000L);
 
         var result = settlementExpenseService.update(
                 SETTLEMENT_ID,
@@ -165,6 +199,26 @@ class SettlementExpenseServiceTest {
         assertThat(result.expense().description()).isEqualTo("저녁 식사");
         assertThat(result.expense().amount()).isEqualTo(50_000);
         assertThat(result.totalExpenseAmount()).isEqualTo(58_000);
+    }
+
+    @Test
+    @DisplayName("수정 후 누적액이 long 범위를 넘으면 기존 지출을 변경하지 않는다")
+    void rejectsUpdateThatOverflowsTotal() {
+        givenOwnedDraftForUpdate();
+        when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
+                .thenReturn(Optional.of(expense(EXPENSE_ID, "기존 지출", 1, 0)));
+        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID))
+                .thenReturn(Long.MAX_VALUE);
+
+        assertThatThrownBy(() -> settlementExpenseService.update(
+                SETTLEMENT_ID,
+                EXPENSE_ID,
+                new UpdateSettlementExpenseCommand(null, 2L)
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL
+                ));
+        verify(saveSettlementExpensePort, never()).update(any(SettlementExpense.class));
     }
 
     @Test
@@ -192,7 +246,7 @@ class SettlementExpenseServiceTest {
         SettlementExpense expense = expense(EXPENSE_ID, "저녁 식사", 42_000, 0);
         when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
                 .thenReturn(Optional.of(expense));
-        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(8_000L);
+        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(50_000L);
 
         var result = settlementExpenseService.remove(SETTLEMENT_ID, EXPENSE_ID);
 

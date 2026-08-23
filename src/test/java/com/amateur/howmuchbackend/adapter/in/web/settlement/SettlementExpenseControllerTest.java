@@ -10,8 +10,10 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementExpenseMutationResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementExpenseResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementExpenseTotalResult;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
+import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -116,6 +118,30 @@ class SettlementExpenseControllerTest {
                 .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
 
         verifyNoInteractions(createSettlementExpenseUseCase);
+    }
+
+    @Test
+    @DisplayName("지출 누적액이 long 범위를 넘으면 500이 아닌 400 오류 계약을 반환한다")
+    void returnsBadRequestForExpenseTotalOverflow() throws Exception {
+        when(createSettlementExpenseUseCase.create(
+                SETTLEMENT_ID,
+                new CreateSettlementExpenseCommand("추가 지출", 1)
+        )).thenThrow(ApplicationException.of(
+                SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL
+        ));
+
+        mockMvc.perform(post("/api/v2/settlements/{settlementId}/expenses", SETTLEMENT_ID)
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "description": "추가 지출",
+                                  "amount": 1
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.status").value(400))
+                .andExpect(jsonPath("$.error.code")
+                        .value("INVALID_SETTLEMENT_EXPENSE_TOTAL"));
     }
 
     @Test
