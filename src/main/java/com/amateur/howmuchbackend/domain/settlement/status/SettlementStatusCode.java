@@ -21,6 +21,8 @@ public enum SettlementStatusCode implements StatusCode {
     INVALID_SETTLEMENT_EXPENSE_TOTAL("정산 지출 누적액이 허용 범위를 초과했습니다.", 400),
     INVALID_SETTLEMENT_EXPENSE_ORDER("정산 지출 표시 순서는 0 이상이어야 합니다.", 400),
     INVALID_SETTLEMENT_EXPENSE_UPDATE("수정할 정산 지출 설명 또는 금액이 필요합니다.", 400),
+    INVALID_SETTLEMENT_ALLOCATION_TYPE("정산 배분 유형이 올바르지 않습니다.", 400),
+    INVALID_DUTCH_PAY_AMOUNT("더치페이 참여자 금액은 0원 이상이어야 합니다.", 400),
     SETTLEMENT_NOT_FOUND("정산을 찾을 수 없습니다.", 404),
     SETTLEMENT_EXPENSE_NOT_FOUND("정산 지출을 찾을 수 없습니다.", 404),
     SETTLEMENT_PARTICIPANT_NOT_FOUND("정산 참여자를 찾을 수 없습니다.", 404),
@@ -31,6 +33,15 @@ public enum SettlementStatusCode implements StatusCode {
     SETTLEMENT_PARTICIPANT_ALREADY_EXISTS("이미 정산에 포함된 참여자입니다.", 409),
     SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED("정산 생성자는 참여자에서 제거할 수 없습니다.", 409),
     SETTLEMENT_EXPENSE_NOT_EDITABLE("수동 등록한 정산 지출만 수정하거나 삭제할 수 있습니다.", 409),
+    SETTLEMENT_ALLOCATION_NOT_SELECTED("정산 배분 유형을 먼저 선택해야 합니다.", 409),
+    SETTLEMENT_DUTCH_PAY_REQUIRED("더치페이 유형의 정산만 금액을 관리할 수 있습니다.", 409),
+    SETTLEMENT_PARTICIPANTS_INSUFFICIENT("더치페이는 생성자를 포함해 참여자가 2명 이상이어야 합니다.", 409),
+    SETTLEMENT_CREATOR_PARTICIPANT_NOT_FOUND("정산 생성자 참여자를 찾을 수 없습니다.", 409),
+    SETTLEMENT_EXPENSE_REQUIRED("배분할 정산 지출이 필요합니다.", 409),
+    SETTLEMENT_EXPENSE_TOTAL_MISMATCH("정산 기준 총액과 지출 합계가 일치하지 않습니다.", 409),
+    SETTLEMENT_RECEIPT_EXPENSE_REQUIRED("품목별 할당에는 OCR 영수증 지출이 필요합니다.", 409),
+    SETTLEMENT_DUTCH_PAY_ALLOCATION_NOT_FOUND("더치페이 참여자 배분을 찾을 수 없습니다.", 404),
+    INVALID_DUTCH_PAY_TOTAL("더치페이 배분 합계가 허용 범위를 초과했습니다.", 400),
     INVALID_SETTLEMENT_STATUS_TRANSITION("허용되지 않는 정산 상태 변경입니다.", 409);
 
     private final String message;
