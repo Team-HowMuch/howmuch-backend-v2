@@ -13,6 +13,7 @@ public record SettlementResult(
         String title,
         long totalAmount,
         SettlementAllocationType allocationType,
+        Long receivingAccountId,
         SettlementStatus status,
         LocalDateTime createdAt
 ) {
@@ -24,7 +25,19 @@ public record SettlementResult(
             SettlementStatus status,
             LocalDateTime createdAt
     ) {
-        this(settlementId, creatorId, title, totalAmount, null, status, createdAt);
+        this(settlementId, creatorId, title, totalAmount, null, null, status, createdAt);
+    }
+
+    public SettlementResult(
+            UUID settlementId,
+            Long creatorId,
+            String title,
+            long totalAmount,
+            SettlementAllocationType allocationType,
+            SettlementStatus status,
+            LocalDateTime createdAt
+    ) {
+        this(settlementId, creatorId, title, totalAmount, allocationType, null, status, createdAt);
     }
 
     public static SettlementResult from(Settlement settlement) {
@@ -34,6 +47,7 @@ public record SettlementResult(
                 settlement.title(),
                 settlement.totalAmount(),
                 settlement.allocationType(),
+                settlement.receivingAccountId(),
                 settlement.status(),
                 settlement.createdAt()
         );

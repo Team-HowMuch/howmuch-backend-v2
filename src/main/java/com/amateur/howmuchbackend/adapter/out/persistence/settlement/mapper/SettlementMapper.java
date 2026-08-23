@@ -18,6 +18,7 @@ public final class SettlementMapper {
                 entity.getTitle(),
                 entity.getTotalAmount(),
                 entity.getAllocationType(),
+                entity.getReceivingAccountId(),
                 entity.getStatus(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
