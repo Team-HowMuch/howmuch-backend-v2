@@ -9,10 +9,14 @@ import com.amateur.howmuchbackend.adapter.out.persistence.commoncode.repository.
 import com.amateur.howmuchbackend.application.port.out.commoncode.LoadCommonCodeGroupPort;
 import com.amateur.howmuchbackend.application.port.out.commoncode.LoadCommonCodePort;
 import com.amateur.howmuchbackend.application.port.out.commoncode.SaveCommonCodeGroupPort;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCode;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCodeGroup;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCodeGroupSummary;
+import com.amateur.howmuchbackend.domain.commoncode.status.CommonCodeStatusCode;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -75,7 +79,12 @@ public class CommonCodePersistenceAdapter
                 })
                 .orElseGet(() -> new CommonCodeGroupJpaEntity(group));
 
-        CommonCodeGroupJpaEntity savedGroup = commonCodeGroupRepository.saveAndFlush(groupEntity);
+        CommonCodeGroupJpaEntity savedGroup;
+        try {
+            savedGroup = commonCodeGroupRepository.saveAndFlush(groupEntity);
+        } catch (DataIntegrityViolationException exception) {
+            throw translateGroupConstraintViolation(exception);
+        }
         Map<String, CommonCodeJpaEntity> existingDetails = commonCodeRepository
                 .findAllByGroupCode(group.groupCode())
                 .stream()
@@ -125,5 +134,30 @@ public class CommonCodePersistenceAdapter
         return commonCodeRepository.findAllByGroupCode(groupCode).stream()
                 .map(CommonCodeMapper::toDomain)
                 .toList();
+    }
+
+    private RuntimeException translateGroupConstraintViolation(DataIntegrityViolationException exception) {
+        if (hasConstraint(exception, "common_code_group_pkey")) {
+            return ApplicationException.of(
+                    CommonCodeStatusCode.COMMON_CODE_GROUP_ALREADY_EXISTS,
+                    exception
+            );
+        }
+        return exception;
+    }
+
+    private boolean hasConstraint(Throwable throwable, String constraintName) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraintViolation
+                    && constraintName.equals(constraintViolation.getConstraintName())) {
+                return true;
+            }
+            if (current.getMessage() != null && current.getMessage().contains(constraintName)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

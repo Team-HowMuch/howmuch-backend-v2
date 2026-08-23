@@ -16,7 +16,7 @@ public record UpdateCommonCodeGroupWebRequest(
         @Size(max = 50) String attr2Name,
         @Size(max = 50) String attr3Name,
         @NotNull Boolean active,
-        @NotNull List<@Valid CommonCodeDetailWebRequest> details
+        @NotNull List<@NotNull @Valid CommonCodeDetailWebRequest> details
 ) {
     public UpdateCommonCodeGroupCommand toCommand() {
         return new UpdateCommonCodeGroupCommand(

@@ -15,6 +15,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+import org.springframework.http.MediaType;
 
 import java.util.List;
 
@@ -46,12 +48,14 @@ class CommonCodeAdminControllerTest {
 
     @BeforeEach
     void setUp() {
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
         mockMvc = MockMvcBuilders.standaloneSetup(new CommonCodeAdminController(
                 searchUseCase,
                 getUseCase,
                 createUseCase,
                 updateUseCase
-        )).build();
+        )).setValidator(validator).build();
     }
 
     @Test
@@ -99,6 +103,22 @@ class CommonCodeAdminControllerTest {
                 .andExpect(jsonPath("$.data.details[0].attr3").value("bank-woori"));
 
         verify(updateUseCase).update(eq("BANK"), any());
+    }
+
+    @Test
+    @DisplayName("상세 목록의 null 원소를 400으로 거부한다")
+    void rejectsNullDetailElement() throws Exception {
+        mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "revision": 1,
+                                  "groupName": "은행 코드",
+                                  "active": true,
+                                  "details": [null]
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
     }
 
     private CommonCodeGroupResult groupResult() {
