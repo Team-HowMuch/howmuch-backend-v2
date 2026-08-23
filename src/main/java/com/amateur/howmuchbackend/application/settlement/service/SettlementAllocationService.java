@@ -21,7 +21,6 @@ import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementDutchPayAllocation;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
-import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
@@ -63,13 +62,15 @@ public class SettlementAllocationService implements
                     SettlementStatusCode.INVALID_SETTLEMENT_ALLOCATION_TYPE
             );
         }
+        if (selectedType == SettlementAllocationType.ITEM_ALLOCATION) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_ITEM_ALLOCATION_NOT_AVAILABLE
+            );
+        }
         List<SettlementExpense> expenses = loadSettlementExpensePort
                 .findAllBySettlementId(settlement.id());
         long expenseTotal = validateExpenseTotal(settlement, expenses);
 
-        if (selectedType == SettlementAllocationType.ITEM_ALLOCATION) {
-            ensureReceiptExpenseExists(expenses);
-        }
         if (selectedType == settlement.allocationType()) {
             ensureExistingSelectionIsUsable(settlement, selectedType);
             return SettlementAllocationTypeResult.of(settlement.id(), selectedType);
@@ -172,16 +173,6 @@ public class SettlementAllocationService implements
             );
         }
         return total;
-    }
-
-    private void ensureReceiptExpenseExists(List<SettlementExpense> expenses) {
-        boolean exists = expenses.stream()
-                .anyMatch(expense -> expense.source() == SettlementExpenseSource.RECEIPT_OCR);
-        if (!exists) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.SETTLEMENT_RECEIPT_EXPENSE_REQUIRED
-            );
-        }
     }
 
     private SettlementDutchPayResult assembleResult(Settlement settlement) {

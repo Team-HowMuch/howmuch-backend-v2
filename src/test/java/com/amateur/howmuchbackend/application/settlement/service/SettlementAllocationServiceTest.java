@@ -154,12 +154,10 @@ class SettlementAllocationServiceTest {
     }
 
     @Test
-    @DisplayName("OCR 지출이 없는 정산은 품목별 할당으로 선택하지 않는다")
-    void rejectsItemAllocationWithoutReceiptExpense() {
+    @DisplayName("실제 OCR 품목을 검증할 수 있을 때까지 품목별 할당 선택을 거부한다")
+    void rejectsItemAllocationUntilReceiptItemsAreAvailable() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(null, 1_000)));
-        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of(expense(1_000)));
 
         assertThatThrownBy(() -> service.select(
                 SETTLEMENT_ID,
@@ -168,7 +166,7 @@ class SettlementAllocationServiceTest {
                 )
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(
-                        SettlementStatusCode.SETTLEMENT_RECEIPT_EXPENSE_REQUIRED
+                        SettlementStatusCode.SETTLEMENT_ITEM_ALLOCATION_NOT_AVAILABLE
                 ));
     }
 

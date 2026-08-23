@@ -39,7 +39,7 @@ public enum SettlementStatusCode implements StatusCode {
     SETTLEMENT_CREATOR_PARTICIPANT_NOT_FOUND("정산 생성자 참여자를 찾을 수 없습니다.", 409),
     SETTLEMENT_EXPENSE_REQUIRED("배분할 정산 지출이 필요합니다.", 409),
     SETTLEMENT_EXPENSE_TOTAL_MISMATCH("정산 기준 총액과 지출 합계가 일치하지 않습니다.", 409),
-    SETTLEMENT_RECEIPT_EXPENSE_REQUIRED("품목별 할당에는 OCR 영수증 지출이 필요합니다.", 409),
+    SETTLEMENT_ITEM_ALLOCATION_NOT_AVAILABLE("OCR 품목 저장 기능이 준비된 후 품목별 할당을 선택할 수 있습니다.", 409),
     SETTLEMENT_DUTCH_PAY_ALLOCATION_NOT_FOUND("더치페이 참여자 배분을 찾을 수 없습니다.", 404),
     SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE("더치페이 참여자 배분이 완전하지 않습니다.", 409),
     INVALID_DUTCH_PAY_TOTAL("더치페이 배분 합계가 허용 범위를 초과했습니다.", 400),
