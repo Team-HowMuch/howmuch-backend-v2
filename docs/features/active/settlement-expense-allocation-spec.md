@@ -283,14 +283,17 @@ Existing behavior that must remain unchanged:
 ### Expected commit boundaries
 
 ~~~
-docs: 더치페이 구현 범위 구체화
-feat: 정산 배분 유형과 더치페이 규칙 추가
-feat: 더치페이 초안 영속 기능 추가
-feat: 더치페이 배분 관리 기능 추가
-feat: 더치페이 배분 API 추가
-refactor: 정산 입력 변경 시 배분 초안 무효화
-test: 더치페이 배분 기능 검증 추가
-docs: 더치페이 구현 결과 반영
+docs(settlement): 더치페이 구현 범위 구체화
+feat(settlement): 정산 배분 유형과 더치페이 규칙 추가
+feat(settlement): 더치페이 초안 영속 기능 추가
+feat(settlement): 더치페이 배분 관리 기능 추가
+feat(settlement): 더치페이 배분 API 추가
+refactor(settlement): 정산 입력 변경 시 배분 초안 무효화
+test(settlement): 더치페이 배분 기능 검증 추가
+docs(settlement): 더치페이 구현 결과 반영
+fix(settlement): 배분 무효화 잠금 순서 통일
+fix(settlement): 미구현 품목별 할당 선택 차단
+docs(settlement): 예정 커밋 제목 규칙 정렬
 ~~~
 
 ## 8. Verification
