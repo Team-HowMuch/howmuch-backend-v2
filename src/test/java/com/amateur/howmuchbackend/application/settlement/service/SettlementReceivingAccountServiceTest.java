@@ -8,7 +8,6 @@ import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
-import com.amateur.howmuchbackend.application.settlement.policy.SettlementReceivingAccountPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountType;
@@ -59,8 +58,7 @@ class SettlementReceivingAccountServiceTest {
                 loadSettlementPort,
                 saveSettlementPort,
                 loadAccountPort,
-                bankCatalog,
-                new SettlementReceivingAccountPolicy()
+                bankCatalog
         );
     }
 
