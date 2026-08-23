@@ -100,7 +100,7 @@
 ~~~
 AddSettlementParticipantUseCase.add(
   settlementId,
-  AddSettlementParticipantCommand(source, publicId, displayName, phoneNumber)
+  AddSettlementParticipantCommand(source, groupId, publicId, displayName, phoneNumber)
 ) -> SettlementParticipantResult
 
 RemoveSettlementParticipantUseCase.remove(settlementId, participantId) -> void
@@ -121,6 +121,11 @@ MatchSettlementContactsUseCase.match(
   MatchSettlementContactsCommand(contacts)
 ) -> List<SettlementContactCandidateResult>
 
+GetSettlementGroupParticipantCandidatesUseCase.get(
+  settlementId,
+  groupId
+) -> List<SettlementParticipantCandidateResult>
+
 GetSettlementParticipantCandidateAvatarUseCase.get(
   settlementId,
   publicId
@@ -131,6 +136,10 @@ LoadSettlementParticipantByUserUseCase.find(settlementId, userId)
 ~~~
 
 `AddSettlementParticipantWebRequest -> AddSettlementParticipantCommand -> SettlementParticipantResult -> SettlementParticipantWebResponse` 경계를 사용한다. #36의 `source`는 `REGISTERED_USER`, `CONTACT`만 허용한다. `REGISTERED_USER`는 `publicId`로 활성 회원을 정확히 조회하고 서버의 회원 이름을 표시 이름 스냅샷으로 사용한다. `CONTACT`는 `displayName`, `phoneNumber`만 받고, 저장 전에 전화번호를 HMAC으로 변환해 활성 회원이면 `linkedUserId`, 아니면 `phoneHash`로 저장한다. `GROUP_MEMBER`는 그룹 소속 검증이 필요한 #40에서 확장한다.
+
+#40의 그룹 경로는 `Long groupId`를 사용한다. 후보 조회 시 정산 생성자가 해당 그룹의 활성 구성원인지 먼저 검증하고, 그룹의 활성 구성원 순서를 유지한 채 활성 회원만 반환한다. 이미 정산에 `linkedUserId`로 연결됐거나 연락처 `phoneHash`가 현재 회원의 `identityKey`와 일치하는 사용자는 제외한다. 그룹 정보가 없으면 빈 후보 목록을 반환하고, 그룹은 존재하지만 생성자가 구성원이 아니면 접근 권한 오류를 반환한다.
+
+그룹 구성원 추가는 기존 `POST /participants`를 확장한다. `GROUP_MEMBER`는 `groupId`, `publicId`만 허용하며 후보 조회 이후에도 생성자의 그룹 소속과 선택 사용자의 활성 그룹 구성원 여부를 다시 검증한다. 검증된 회원은 `source=GROUP_MEMBER`, `linkedUserId`, 현재 이름 스냅샷으로 저장한다. 그룹 후보 목록과 추가 요청 사이에 구성원이 탈퇴하거나 비활성화된 경우 후보 없음으로 거부한다.
 
 #71은 요청 DTO 없이 정산 ID를 받아 `SettlementParticipantListItemResult` 목록을 반환한다. Web Response는 회원 정보가 있는 항목에만 참여자 전용 `avatarUrl`을 조립한다. 이미지 조회는 같은 정산의 생성자 권한과 참여자 소속을 다시 확인한 후 기존 `ProfileImageStoragePort`를 사용한다.
 
@@ -175,8 +184,12 @@ Request: { contacts: [{ contactId, displayName, phoneNumber }] }
 Response: [{ contactId, contactDisplayName, member, publicId?, memberDisplayName?, avatarUrl?, alreadyParticipant }]
 Authentication: required, creator only, DRAFT only
 
+GET /api/v2/settlements/{settlementId}/participant-candidates/groups/{groupId}/members
+Response: [{ publicId, displayName, avatarUrl? }]
+Authentication: required, creator only, DRAFT only, active group member only
+
 POST /api/v2/settlements/{settlementId}/participants
-Request: { source, publicId?, displayName?, phoneNumber? }
+Request: { source, groupId?, publicId?, displayName?, phoneNumber? }
 Response: { participantId, source, publicId?, displayName, displayOrder }
 Authentication: required, creator only
 
@@ -202,8 +215,8 @@ Authentication: required, creator only
 - Planned migration: `V9__create_settlement_participant_schema.sql`
 - Migration pull request: [#80 정산 참여자 영속 스키마 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/80) (Merged)
 - Redis key, TTL, or serialization changes: `settlement:contact-match:quota:requests:{userId}`는 1분, `settlement:contact-match:quota:contacts:{userId}`는 24시간 TTL을 사용하며 숫자만 저장한다.
-- External API or message changes: group 구성원 조회는 Output Port와 dev Stub으로만 연결한다.
-- Environment variable or profile changes: 없음.
+- External API or message changes: group 구성원 조회는 `Long groupId`와 활성 `userId` 순서 목록을 반환하는 Output Port로 연결한다.
+- Environment variable or profile changes: `local`, `dev`는 고정 그룹 명단 Stub을 사용하고 `prod`는 실제 group Adapter가 연결되기 전 빈 결과 Adapter로 기동한다.
 
 #36, #71, #38, #39는 기존 V9 스키마와 `users.identity_key`, `users.public_id`를 조회하는 기능이므로 추가 Flyway migration이 필요하지 않다.
 
@@ -292,6 +305,12 @@ fix: 연락처 목록 요소 검증 선언 보정
 docs: 정산 참여자 연락처 일괄 매칭 구현 결과 반영
 fix: 연락처 매칭 입력 길이 제한 추가
 fix: 연락처 매칭 사용자별 조회 한도 추가
+docs: 정산 그룹 참여자 구현 계획 반영
+feat: 정산 그룹 구성원 후보 조회 기능 추가
+feat: 정산 그룹 구성원 참여자 추가 기능 추가
+feat: 정산 그룹 참여자 API 추가
+test: 정산 그룹 참여자 동작 검증
+docs: 정산 그룹 참여자 구현 결과 반영
 ~~~
 
 ## 8. Verification
