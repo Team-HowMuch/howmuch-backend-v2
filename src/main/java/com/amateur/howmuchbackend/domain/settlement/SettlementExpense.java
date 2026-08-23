@@ -97,6 +97,28 @@ public record SettlementExpense(
         );
     }
 
+    public static SettlementExpense receiptOcr(
+            UUID settlementId,
+            String sourceReference,
+            String description,
+            long amount,
+            int displayOrder,
+            LocalDateTime now
+    ) {
+        Objects.requireNonNull(now, "OCR 영수증 지출 생성 시각은 필수입니다.");
+        return new SettlementExpense(
+                UUID.randomUUID(),
+                settlementId,
+                SettlementExpenseSource.RECEIPT_OCR,
+                sourceReference,
+                description,
+                amount,
+                displayOrder,
+                now,
+                now
+        );
+    }
+
     public SettlementExpense updateManual(
             String newDescription,
             Long newAmount,
