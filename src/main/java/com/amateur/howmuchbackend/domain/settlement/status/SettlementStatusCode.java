@@ -14,6 +14,7 @@ public enum SettlementStatusCode implements StatusCode {
     INVALID_SETTLEMENT_PARTICIPANT_DISPLAY_NAME("정산 참여자 이름은 1자 이상 100자 이하여야 합니다.", 400),
     INVALID_SETTLEMENT_PARTICIPANT_ORDER("정산 참여자 표시 순서는 0 이상이어야 합니다.", 400),
     INVALID_SETTLEMENT_PARTICIPANT_ADD_REQUEST("참여자 선택 경로에 맞는 식별 정보가 필요합니다.", 400),
+    INVALID_SETTLEMENT_CONTACT_MATCH_REQUEST("연락처 매칭 요청이 올바르지 않습니다.", 400),
     SETTLEMENT_NOT_FOUND("정산을 찾을 수 없습니다.", 404),
     SETTLEMENT_PARTICIPANT_NOT_FOUND("정산 참여자를 찾을 수 없습니다.", 404),
     SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND("추가할 정산 참여자 후보를 찾을 수 없습니다.", 404),

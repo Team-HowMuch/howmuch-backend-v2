@@ -2,7 +2,7 @@
 
 - Status: In Progress
 - Last updated: 2026-08-23
-- Related issues: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#36 정산 참여자 추가·제거 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/36), [#71 정산 참여자 목록 조회 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/71), [#38 정산 참여자 사용자 ID 검색 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/38)
+- Related issues: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#36 정산 참여자 추가·제거 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/36), [#71 정산 참여자 목록 조회 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/71), [#38 정산 참여자 사용자 ID 검색 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/38), [#39 정산 참여자 연락처 일괄 매칭 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/39)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
 - Prerequisite: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md)
@@ -116,6 +116,11 @@ SearchSettlementParticipantUseCase.searchByPublicId(
   SearchSettlementParticipantCommand(publicIdPrefix)
 ) -> List<SettlementParticipantCandidateResult>
 
+MatchSettlementContactsUseCase.match(
+  settlementId,
+  MatchSettlementContactsCommand(contacts)
+) -> List<SettlementContactCandidateResult>
+
 GetSettlementParticipantCandidateAvatarUseCase.get(
   settlementId,
   publicId
@@ -131,6 +136,12 @@ LoadSettlementParticipantByUserUseCase.find(settlementId, userId)
 
 #38은 `SearchSettlementParticipantWebRequest -> SearchSettlementParticipantCommand -> SettlementParticipantCandidateResult -> SettlementParticipantCandidateWebResponse` 경계를 사용한다. 검색어는 공백 제거와 소문자 변환 후 영문·숫자·점·밑줄 1~20자로 제한한다. 활성 회원을 `publicId` prefix로 최대 20명까지 오름차순 조회하고, 현재 정산에 이미 연결된 회원은 후보에서 제외한다. 후보 응답은 `publicId`, 표시 이름, 보호된 `avatarUrl`만 제공하며 내부 userId와 저장 파일명은 노출하지 않는다.
 
+#39는 `MatchSettlementContactsWebRequest -> MatchSettlementContactsCommand -> SettlementContactCandidateResult -> SettlementContactCandidateWebResponse` 경계를 사용한다. 요청은 1~500개의 `contactId`, `displayName`, `phoneNumber`를 받고, 연락처 ID와 표시 이름은 100자, 원본 전화번호는 20자로 제한한다. Application에서 길이를 다시 검증한 뒤 `IdentityPolicy`로 전화번호를 정규화·HMAC 처리한다. 같은 연락처 ID가 중복되면 요청 전체를 거부하고, 같은 정규화 전화번호가 여러 번 나오면 입력 순서상 첫 항목만 유지한다. 활성 회원은 HMAC 목록으로 한 번에 조회한다.
+
+응답은 `contactId`, 연락처 표시 이름, 회원 여부, 회원의 `publicId`·표시 이름·보호된 `avatarUrl`, 기존 참여 여부만 반환한다. 원본 전화번호, phoneHash, 내부 userId, 아바타 저장 파일명은 반환하거나 영속화하지 않는다. 사용자가 실제 선택한 연락처는 기존 `POST /participants`의 CONTACT 입력으로 다시 전달하며, 서버가 처리 중 가입 여부와 중복을 재검증한다.
+
+회원 정보 열거를 제한하기 위해 사용자별로 분당 10회, 24시간당 중복 제거 후 연락처 2,000개의 quota를 적용한다. Redis는 사용자 ID별 요청 수와 조회 수 숫자만 원자 증가하며 연락처 원문과 HMAC은 저장하지 않는다. 둘 중 하나를 초과하면 회원 조회 전에 `TOO_MANY_REQUEST` 429를 반환한다. Redis 장애 시 quota를 우회하지 않고 요청을 실패시킨다.
+
 ### Output Ports
 
 | Port | Purpose | Caller | Expected Adapter |
@@ -141,6 +152,8 @@ LoadSettlementParticipantByUserUseCase.find(settlementId, userId)
 | LoadSettlementPort | 정산을 잠금 조회해 참여자 변경과 요청 확정을 직렬화한다. | 추가·제거 UseCase | JPA Persistence Adapter |
 | LoadUserPort | `publicId`, `identityKey`, ID 또는 ID 목록으로 등록 회원을 조회한다. | 추가·목록·아바타 UseCase | user Persistence Adapter |
 | SearchUserPort | 활성 회원을 `publicId` prefix로 제한 조회하고 제외 대상 userId를 반영한다. | 공개 ID 후보 검색 UseCase | user Persistence Adapter |
+| MatchContactUsersPort | 연락처 HMAC 목록과 일치하는 활성 회원을 일괄 조회한다. | 연락처 일괄 매칭 UseCase | user Persistence Adapter |
+| TrackSettlementContactMatchUsagePort | 사용자별 연락처 매칭 요청 수와 조회 연락처 수를 원자 누적한다. | 연락처 일괄 매칭 UseCase | Redis Adapter |
 | ProfileImageStoragePort | 회원 참여자의 아바타 파일을 읽는다. | 참여자 아바타 UseCase | 기존 파일 저장 Adapter |
 | LoadGroupMembersPort | 특정 그룹의 구성원을 조회한다. | 그룹 기반 후보·추가 UseCase | group Adapter 또는 개발 Stub |
 | CurrentActorPort | 생성자 권한과 앱 로그인 사용자를 제공한다. | 모든 UseCase | 기존 Spring Security Adapter |
@@ -155,6 +168,11 @@ Authentication: required, creator only, DRAFT only
 
 GET /api/v2/settlements/{settlementId}/participant-candidates/users/{publicId}/avatar
 Response: image bytes
+Authentication: required, creator only, DRAFT only
+
+POST /api/v2/settlements/{settlementId}/participant-candidates/contacts/match
+Request: { contacts: [{ contactId, displayName, phoneNumber }] }
+Response: [{ contactId, contactDisplayName, member, publicId?, memberDisplayName?, avatarUrl?, alreadyParticipant }]
 Authentication: required, creator only, DRAFT only
 
 POST /api/v2/settlements/{settlementId}/participants
@@ -183,11 +201,11 @@ Authentication: required, creator only
 - Flyway migration required: Yes
 - Planned migration: `V9__create_settlement_participant_schema.sql`
 - Migration pull request: [#80 정산 참여자 영속 스키마 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/80) (Merged)
-- Redis key, TTL, or serialization changes: 없음.
+- Redis key, TTL, or serialization changes: `settlement:contact-match:quota:requests:{userId}`는 1분, `settlement:contact-match:quota:contacts:{userId}`는 24시간 TTL을 사용하며 숫자만 저장한다.
 - External API or message changes: group 구성원 조회는 Output Port와 dev Stub으로만 연결한다.
 - Environment variable or profile changes: 없음.
 
-#36, #71, #38은 기존 V9 스키마와 `users.public_id`를 조회하는 기능이므로 추가 Flyway migration이 필요하지 않다.
+#36, #71, #38, #39는 기존 V9 스키마와 `users.identity_key`, `users.public_id`를 조회하는 기능이므로 추가 Flyway migration이 필요하지 않다.
 
 ## 5. Design decisions
 
@@ -210,12 +228,12 @@ Authentication: required, creator only
 
 | Area | Impact | Verified file or contract |
 | --- | --- | --- |
-| API | 참여자 추가·제거·목록·아바타와 공개 ID 후보 검색 API 추가 | SettlementController, SettlementDocs |
-| Application | 추가·제거·목록·아바타·후보 검색 UseCase, Command/Result, 변경 Policy 추가 | application.settlement |
+| API | 참여자 추가·제거·목록·아바타와 공개 ID·연락처 후보 검색 API 추가 | SettlementController, SettlementDocs |
+| Application | 추가·제거·목록·아바타·공개 ID 검색·연락처 매칭 UseCase, Command/Result, 변경 Policy 추가 | application.settlement |
 | Domain | SettlementParticipant와 source 규칙 추가 | domain.settlement |
-| Persistence | 참여자 단건·목록·중복·표시 순서·삭제 쿼리, 정산 잠금 조회, 활성 회원 prefix 검색 추가 | adapter.out.persistence.settlement, adapter.out.persistence.user |
-| Redis | 없음 | N/A |
-| Security | 생성자만 DRAFT 참여자 변경, 생성자만 목록·아바타 조회, 로그인 회원 자동 매칭 | CurrentActorPort |
+| Persistence | 참여자 단건·목록·중복·표시 순서·삭제 쿼리, 정산 잠금 조회, 활성 회원 prefix·identityKey 목록 조회 추가 | adapter.out.persistence.settlement, adapter.out.persistence.user |
+| Redis | 사용자별 연락처 매칭 요청·조회 수 원자 카운터 추가 | SettlementContactMatchQuotaRedisAdapter |
+| Security | 생성자만 DRAFT 참여자 변경, 생성자만 목록·아바타 조회, 로그인 회원 자동 매칭, 사용자별 연락처 매칭 quota | CurrentActorPort, SettlementContactMatchQuotaPolicy |
 | Configuration | 개발용 group Stub 활성화 | dev profile |
 | Documentation | PRD와 요청·링크 Spec의 자동 매칭 계약 연결 | 이 문서 |
 
@@ -237,7 +255,9 @@ Existing behavior that must remain unchanged:
 - [x] #36에서 Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
 - [x] #71에서 표시 순서 기반 목록 조회와 회원 아바타 조회를 구현한다.
 - [x] #38에서 공개 ID prefix 후보 검색과 후보 아바타 조회를 구현한다.
-- [ ] #39·#40에서 연락처 일괄 매칭·그룹 검증을 구현한다.
+- [x] #39에서 연락처 정규화·HMAC 일괄 매칭과 기존 참여 여부 응답을 구현한다.
+- [x] #39 연락처 매칭 입력 길이와 사용자별 누적 조회 quota를 적용한다.
+- [ ] #40에서 그룹 조회·소속 검증과 선택 구성원 추가를 구현한다.
 - [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
 ### Expected commit boundaries
@@ -263,6 +283,15 @@ test: 정산 참여자 공개 ID 검색 동작 검증
 fix: 연락처 회원 전환 후보 중복 노출 방지
 fix: 공개 ID 검색어 정규화 순서 보정
 docs: 정산 참여자 공개 ID 검색 구현 결과 반영
+docs: 정산 참여자 연락처 일괄 매칭 구현 계획 반영
+feat: 정산 참여자 연락처 일괄 매칭 기능 구현
+feat: 정산 참여자 연락처 일괄 매칭 API 구현
+fix: 연락처 텍스트 정규화 순서 보정
+test: 정산 참여자 연락처 일괄 매칭 동작 검증
+fix: 연락처 목록 요소 검증 선언 보정
+docs: 정산 참여자 연락처 일괄 매칭 구현 결과 반영
+fix: 연락처 매칭 입력 길이 제한 추가
+fix: 연락처 매칭 사용자별 조회 한도 추가
 ~~~
 
 ## 8. Verification
@@ -307,7 +336,12 @@ git status --short --untracked-files=all
 | #38 권한·상태·오류 | Complete | 미인증 401, 다른 생성자 403, 비 DRAFT 409, 잘못된 검색어 400 검증 |
 | #38 연락처 회원 전환 | Complete | 기존 phoneHash와 신규 회원 identityKey가 일치하면 목록·아바타 후보에서 제외하는 자동 테스트 성공 |
 | #38 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 80개 테스트, OpenAPI 후보 목록·binary 이미지 경로, Swagger UI 200 |
-| 연락처·그룹 후보 | Pending | #39, #40 후속 구현 |
+| #39 연락처 일괄 매칭 | Complete | 실제 JWT HTTP로 회원·비회원 매칭, 입력 순서 유지, 같은 정규화 번호의 첫 항목 유지 검증 |
+| #39 개인정보·기존 참여 판정 | Complete | 응답의 원본 번호·HMAC·내부 userId·저장 파일명 비노출, 선택 연락처만 64자 HMAC으로 저장, 재매칭 `alreadyParticipant=true` 확인 |
+| #39 권한·오류 | Complete | 미인증 401, 다른 생성자 403, 잘못된 번호 400 `INVALID_PHONE_NUMBER` 검증 |
+| #39 입력·조회 한도 | Complete | 개별 필드 길이 제한, 사용자별 분당 10회·24시간 2,000개 quota와 Redis 원자 누적·TTL 검증 |
+| #39 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 96개 테스트, 실제 HTTP 200·400·429, OpenAPI 연락처 매칭 429 계약, Swagger UI 200 |
+| 그룹 후보 | Pending | #40 후속 구현 |
 
 ## 9. Progress log
 
@@ -322,6 +356,10 @@ git status --short --untracked-files=all
 | 2026-08-22 | #71 목록·아바타 API 구현과 PostgreSQL·Redis·Swagger 검증 완료 | #38 공개 ID 후보 검색 | 저장된 아바타 파일이 유실되면 URL 조회는 PROFILE_IMAGE_NOT_FOUND를 반환함 |
 | 2026-08-23 | #38 공개 ID prefix 검색의 입력·제외·응답·아바타 계약 확정 | Application·Persistence·Web 구현 | `_`를 SQL wildcard가 아닌 공개 ID 문자로 검색하고 결과 수를 20명으로 제한해야 함 |
 | 2026-08-23 | #38 공개 ID 후보 검색·아바타 API와 PostgreSQL·Redis·Swagger 검증 완료 | #39 연락처 일괄 매칭 | 연락처 추가 뒤 가입한 회원은 linkedUserId가 없어도 phoneHash와 identityKey로 중복 제외해야 함 |
+| 2026-08-23 | #39 연락처 일괄 매칭의 요청 제한·중복·개인정보·응답 계약 확정 | Application·Persistence·Web 구현 | 원본 전화번호를 저장·응답·로그하지 않고 요청 범위에서만 HMAC으로 다뤄야 함 |
+| 2026-08-23 | #39 연락처 일괄 매칭 API와 PostgreSQL·Redis·Swagger 검증 완료 | #40 그룹 구성원 선택·추가 | 같은 번호의 중복 입력은 첫 항목만 반환하고 실제 선택 시 기존 추가 API가 다시 검증함 |
+| 2026-08-23 | #39 리뷰에서 입력 길이와 누적 회원 조회 제한 위험 확인 | 사용자별 Redis quota 구현 | 정산별 제한은 새 정산 생성으로 우회되므로 사용자 ID를 기준으로 해야 함 |
+| 2026-08-23 | #39 입력 길이와 사용자별 누적 조회 quota 구현·실제 HTTP 검증 완료 | #40 그룹 구성원 선택·추가 | Redis 장애 시 개인정보 열거 방지를 위해 연락처 회원 조회를 실패시킴 |
 
 ## 10. Decision log
 
@@ -339,11 +377,14 @@ git status --short --untracked-files=all
 | 2026-08-23 | 공개 ID 후보 검색은 전용 user 경로와 최대 20개의 prefix 결과를 사용한다. | 연락처 일괄 매칭과 요청 형태가 달라 하나의 `type` query 계약으로 묶지 않고, 사용자 열거와 무제한 조회를 방지한다. | 검색어는 1~20자로 제한하고 이미 추가된 회원은 제외한다. |
 | 2026-08-23 | 후보 아바타는 정산 ID와 publicId 기반 보호된 URL로 제공한다. | 후보는 아직 participantId가 없으므로 저장 파일명을 노출하지 않는 별도 조회 계약이 필요하다. | 생성자·DRAFT·활성 회원·미추가 후보를 다시 검증한다. |
 | 2026-08-23 | 공개 ID 후보에서 linkedUserId와 phoneHash 두 식별 경로를 모두 제외한다. | 연락처로 먼저 추가된 비회원이 가입해도 기존 정산 참여자와 동일인이다. | phoneHash 제외 수만큼 추가 조회한 뒤 최대 20명으로 다시 제한한다. |
+| 2026-08-23 | 연락처 매칭은 최대 500개를 POST body로 받고 같은 번호의 첫 항목만 반환한다. | 주소록을 URL에 노출하지 않고 요청·DB 부하를 제한하며 동일 번호의 중복 후보를 막는다. | 500개를 넘으면 클라이언트가 요청을 나눠야 한다. |
+| 2026-08-23 | 연락처 매칭은 후보만 반환하고 실제 저장은 기존 CONTACT 참여자 추가 API가 재검증한다. | 매칭과 사용자 선택 사이에 가입·중복 상태가 바뀔 수 있다. | 후보 응답만으로 참여자가 확정됐다고 간주하지 않는다. |
+| 2026-08-23 | 연락처 매칭은 사용자별 분당 10회와 24시간당 2,000개 조회 quota를 함께 적용한다. | 요청당 500개 제한만으로는 반복 호출에 의한 전화번호 기반 회원 정보 열거를 막을 수 없다. | Redis에는 사용자 ID별 숫자만 저장하고, 초과 또는 Redis 장애 시 회원 조회를 진행하지 않는다. |
 
 ## 11. Completion record
 
 - Completed on: Pending
 - Final behavior: Pending
 - Unverified items: #36 동시 요청의 대기 순서는 별도 부하 테스트하지 않았으며 PostgreSQL 행 잠금과 Unique 제약으로 보호한다.
-- Remaining risks: group 실제 구현과 연락처 후보 공급 계약이 확정돼야 운영 Adapter를 연결할 수 있다.
-- Follow-up work: #39 연락처 일괄 매칭, #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.
+- Remaining risks: group 실제 구현과 구성원 조회 계약이 확정돼야 그룹 선택 경로를 연결할 수 있다.
+- Follow-up work: #40 그룹 구성원 추가 후 지출·배분과 요청·링크 Spec을 구현한다.

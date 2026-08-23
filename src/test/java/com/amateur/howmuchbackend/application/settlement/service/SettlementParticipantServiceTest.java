@@ -2,19 +2,26 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.MatchSettlementContactsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SearchSettlementParticipantCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementContactCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.TrackSettlementContactMatchUsagePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.MatchContactUsersPort;
 import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
 import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementParticipantModificationPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementContactMatchQuotaPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementContactMatchUsage;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
@@ -22,6 +29,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.UserRole;
+import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,13 +39,18 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -80,12 +93,29 @@ class SettlementParticipantServiceTest {
     private SearchUserPort searchUserPort;
 
     @Mock
+    private MatchContactUsersPort matchContactUsersPort;
+
+    @Mock
+    private TrackSettlementContactMatchUsagePort trackSettlementContactMatchUsagePort;
+
+    @Mock
     private ProfileImageStoragePort profileImageStoragePort;
 
     private SettlementParticipantService settlementParticipantService;
+    private IdentityPolicy identityPolicy;
 
     @BeforeEach
     void setUp() {
+        identityPolicy = new IdentityPolicy("test-identity-secret");
+        lenient().when(trackSettlementContactMatchUsagePort.recordUsage(
+                any(),
+                anyInt(),
+                any(),
+                any()
+        )).thenAnswer(invocation -> new SettlementContactMatchUsage(
+                1,
+                invocation.getArgument(1, Integer.class)
+        ));
         settlementParticipantService = new SettlementParticipantService(
                 currentActorPort,
                 loadSettlementPort,
@@ -94,10 +124,13 @@ class SettlementParticipantServiceTest {
                 deleteSettlementParticipantPort,
                 loadUserPort,
                 searchUserPort,
+                matchContactUsersPort,
+                trackSettlementContactMatchUsagePort,
                 profileImageStoragePort,
                 new PublicIdPolicy(),
-                new IdentityPolicy("test-identity-secret"),
-                new SettlementParticipantModificationPolicy()
+                identityPolicy,
+                new SettlementParticipantModificationPolicy(),
+                new SettlementContactMatchQuotaPolicy()
         );
     }
 
@@ -415,6 +448,221 @@ class SettlementParticipantServiceTest {
         verifyNoInteractions(profileImageStoragePort);
     }
 
+    @Test
+    @DisplayName("연락처를 HMAC으로 일괄 매칭하고 입력 순서와 공개 정보만 반환한다")
+    void matchesSettlementContacts() {
+        String memberPhone = "010-1111-2222";
+        String externalPhone = "010-2222-3333";
+        String existingMemberPhone = "010-3333-4444";
+        String existingExternalPhone = "010-4444-5555";
+        String memberHash = identityPolicy.phoneHash(memberPhone);
+        String externalHash = identityPolicy.phoneHash(externalPhone);
+        String existingMemberHash = identityPolicy.phoneHash(existingMemberPhone);
+        String existingExternalHash = identityPolicy.phoneHash(existingExternalPhone);
+        User member = user(OTHER_USER_ID, memberHash, "contact.member", "member.png");
+        User existingMember = user(LINKED_USER_ID, existingMemberHash, "linked.id", "linked.png");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(matchContactUsersPort.findActiveByIdentityKeys(Set.of(
+                memberHash,
+                externalHash,
+                existingMemberHash,
+                existingExternalHash
+        ))).thenReturn(List.of(member, existingMember));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(
+                        registeredCreator(),
+                        linkedContact(),
+                        unlinkedContact(existingExternalHash)
+                ));
+
+        var result = settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact("  first  ", "  주소록 회원  ", memberPhone),
+                        contact("second", "비회원", externalPhone),
+                        contact("duplicate-phone", "중복 번호", "01011112222"),
+                        contact("existing-member", "기존 회원", existingMemberPhone),
+                        contact("existing-contact", "기존 연락처", existingExternalPhone)
+                ))
+        );
+
+        assertThat(result).extracting(item -> item.contactId())
+                .containsExactly("first", "second", "existing-member", "existing-contact");
+        assertThat(result).extracting(item -> item.contactDisplayName())
+                .containsExactly("주소록 회원", "비회원", "기존 회원", "기존 연락처");
+        assertThat(result).extracting(item -> item.member())
+                .containsExactly(true, false, true, false);
+        assertThat(result).extracting(item -> item.alreadyParticipant())
+                .containsExactly(false, false, true, true);
+        assertThat(result).extracting(item -> item.hasAvatar())
+                .containsExactly(true, false, false, false);
+        assertThat(result.get(0).publicId()).isEqualTo("contact.member");
+        assertThat(result.get(0).memberDisplayName()).isEqualTo("회원 3");
+        assertThat(result.get(1).publicId()).isNull();
+        verify(trackSettlementContactMatchUsagePort).recordUsage(
+                CREATOR_ID,
+                4,
+                Duration.ofMinutes(1),
+                Duration.ofHours(24)
+        );
+    }
+
+    @Test
+    @DisplayName("분당 연락처 매칭 요청 한도를 초과하면 회원 조회를 거부한다")
+    void rejectsContactMatchingOverRequestQuota() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(trackSettlementContactMatchUsagePort.recordUsage(
+                CREATOR_ID,
+                1,
+                Duration.ofMinutes(1),
+                Duration.ofHours(24)
+        )).thenReturn(new SettlementContactMatchUsage(11, 1));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact("contact", "연락처", "01011112222")
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(CommonStatusCode.TOO_MANY_REQUEST));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
+    @DisplayName("일일 연락처 조회 한도를 초과하면 회원 조회를 거부한다")
+    void rejectsContactMatchingOverContactQuota() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+        when(trackSettlementContactMatchUsagePort.recordUsage(
+                CREATOR_ID,
+                1,
+                Duration.ofMinutes(1),
+                Duration.ofHours(24)
+        )).thenReturn(new SettlementContactMatchUsage(1, 2_001));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact("contact", "연락처", "01011112222")
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(CommonStatusCode.TOO_MANY_REQUEST));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
+    @DisplayName("같은 연락처 ID가 여러 전화번호를 가리키는 매칭 요청을 거부한다")
+    void rejectsDuplicateContactIds() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact("same", "첫 번째", "01011112222"),
+                        contact(" same ", "두 번째", "01022223333")
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.INVALID_SETTLEMENT_CONTACT_MATCH_REQUEST
+                ));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
+    @DisplayName("잘못된 휴대폰 번호가 포함된 연락처 매칭 요청을 거부한다")
+    void rejectsInvalidContactPhoneNumber() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact("invalid-phone", "유선 번호", "02-1234-5678")
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(AuthStatusCode.INVALID_PHONE_NUMBER));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
+    @DisplayName("원본 길이 제한을 초과한 휴대폰 번호를 정규화 전에 거부한다")
+    void rejectsOversizedRawContactPhoneNumber() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact(
+                                "oversized-phone",
+                                "긴 구분자 번호",
+                                "-".repeat(21) + "01011112222"
+                        )
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.INVALID_SETTLEMENT_CONTACT_MATCH_REQUEST
+                ));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
+    @DisplayName("한 요청에서 500개를 초과한 연락처 매칭을 거부한다")
+    void rejectsTooManyContacts() {
+        List<SettlementContactCommand> contacts = new ArrayList<>();
+        for (int index = 0; index < 501; index++) {
+            contacts.add(contact("contact-" + index, "연락처 " + index, "01011112222"));
+        }
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(contacts)
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.INVALID_SETTLEMENT_CONTACT_MATCH_REQUEST
+                ));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
+    @DisplayName("생성자가 아닌 사용자는 주소록 연락처를 매칭할 수 없다")
+    void rejectsContactMatchingForAnotherUser() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact("contact", "연락처", "01011112222")
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
+    @DisplayName("참여자를 변경할 수 없는 정산에서는 연락처 매칭도 거부한다")
+    void rejectsContactMatchingForRequestedSettlement() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact("contact", "연락처", "01011112222")
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_EDITABLE));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
     private Settlement settlement() {
         return new Settlement(
                 SETTLEMENT_ID,
@@ -468,12 +716,16 @@ class SettlementParticipantServiceTest {
     }
 
     private SettlementParticipant unlinkedContact() {
+        return unlinkedContact("a".repeat(64));
+    }
+
+    private SettlementParticipant unlinkedContact(String phoneHash) {
         return new SettlementParticipant(
                 CONTACT_PARTICIPANT_ID,
                 SETTLEMENT_ID,
                 SettlementParticipantSource.CONTACT,
                 null,
-                "a".repeat(64),
+                phoneHash,
                 "비회원 연락처",
                 2,
                 CREATED_AT,
@@ -483,6 +735,14 @@ class SettlementParticipantServiceTest {
 
     private User creator() {
         return user(CREATOR_ID, "creator.id", null);
+    }
+
+    private SettlementContactCommand contact(
+            String contactId,
+            String displayName,
+            String phoneNumber
+    ) {
+        return new SettlementContactCommand(contactId, displayName, phoneNumber);
     }
 
     private User linkedUser(String avatarFileName) {

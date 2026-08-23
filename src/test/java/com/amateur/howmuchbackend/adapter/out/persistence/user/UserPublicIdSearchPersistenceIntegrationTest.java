@@ -57,7 +57,31 @@ class UserPublicIdSearchPersistenceIntegrationTest {
                 .containsExactly(prefix + "beta", prefix + "gamma");
     }
 
+    @Test
+    @DisplayName("연락처 HMAC 목록과 일치하는 활성 회원만 한 번에 조회한다")
+    void matchesActiveUsersByIdentityKeys() {
+        String key = UUID.randomUUID().toString().replace("-", "").substring(0, 6);
+        String activeIdentityKey = "active-contact-" + key;
+        String inactiveIdentityKey = "inactive-contact-" + key;
+        insertUser("a" + key, true, activeIdentityKey);
+        insertUser("i" + key, false, inactiveIdentityKey);
+        insertUser("o" + key, true, "other-contact-" + key);
+
+        List<User> result = userPersistenceAdapter.findActiveByIdentityKeys(Set.of(
+                activeIdentityKey,
+                inactiveIdentityKey,
+                "missing-contact-" + key
+        ));
+
+        assertThat(result).extracting(User::identityKey)
+                .containsExactly(activeIdentityKey);
+    }
+
     private Long insertUser(String publicId, boolean active) {
+        return insertUser(publicId, active, "public-id-search-" + UUID.randomUUID());
+    }
+
+    private Long insertUser(String publicId, boolean active, String identityKey) {
         String uniqueKey = UUID.randomUUID().toString();
         Long id = jdbcTemplate.queryForObject("""
                         INSERT INTO users (
@@ -77,7 +101,7 @@ class UserPublicIdSearchPersistenceIntegrationTest {
                         RETURNING id
                         """,
                 Long.class,
-                "public-id-search-" + uniqueKey,
+                identityKey,
                 "검색 후보",
                 publicId,
                 "search-" + uniqueKey.substring(0, 12),

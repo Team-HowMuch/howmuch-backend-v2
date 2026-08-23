@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.user;
 
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.MatchContactUsersPort;
 import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -19,7 +20,7 @@ import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
-public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort, SearchUserPort {
+public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort, SearchUserPort, MatchContactUsersPort {
     private final UserJpaRepository userJpaRepository;
 
     @Override
@@ -78,6 +79,17 @@ public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort, Searc
                         pageRequest
                 );
         return users.stream()
+                .map(UserMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<User> findActiveByIdentityKeys(Collection<String> identityKeys) {
+        if (identityKeys.isEmpty()) {
+            return List.of();
+        }
+        return userJpaRepository.findAllByActiveTrueAndIdentityKeyIn(identityKeys)
+                .stream()
                 .map(UserMapper::toDomain)
                 .toList();
     }

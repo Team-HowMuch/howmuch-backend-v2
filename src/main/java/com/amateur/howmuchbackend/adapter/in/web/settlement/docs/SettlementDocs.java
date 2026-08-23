@@ -3,9 +3,11 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.docs;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.MatchSettlementContactsWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SearchSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantCandidateWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementContactCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
@@ -262,6 +264,51 @@ public interface SettlementDocs {
     ResponseEntity<byte[]> getSettlementParticipantCandidateAvatar(
             UUID settlementId,
             String publicId
+    );
+
+    @Operation(
+            summary = "정산 참여자 연락처 일괄 매칭",
+            description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 주소록 연락처를 활성 회원과 일괄 매칭합니다. "
+                    + "같은 정규화 전화번호는 첫 항목만 반환하고 기존 참여 여부를 함께 제공합니다. "
+                    + "사용자별 분당 10회, 24시간당 연락처 2,000개까지 조회할 수 있습니다. "
+                    + "원본 전화번호와 HMAC, 내부 사용자 ID, 아바타 저장 파일명은 저장하거나 응답하지 않습니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 참여자 연락처 일괄 매칭 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_ARGUMENT, INVALID_PHONE_NUMBER 또는 "
+                            + "INVALID_SETTLEMENT_CONTACT_MATCH_REQUEST - 입력 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND - 정산 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "429",
+                    description = "TOO_MANY_REQUEST - 사용자별 연락처 매칭 한도 초과"
+            )
+    })
+    ApiResponse<List<SettlementContactCandidateWebResponse>> matchSettlementContacts(
+            UUID settlementId,
+            MatchSettlementContactsWebRequest request
     );
 
     @Operation(
