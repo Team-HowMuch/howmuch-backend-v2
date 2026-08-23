@@ -13,6 +13,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettleme
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.TrackSettlementContactMatchUsagePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.MatchContactUsersPort;
@@ -107,6 +108,12 @@ class SettlementParticipantServiceTest {
     @Mock
     private ProfileImageStoragePort profileImageStoragePort;
 
+    @Mock
+    private SaveSettlementPort saveSettlementPort;
+
+    @Mock
+    private SettlementAllocationDraftInvalidator allocationDraftInvalidator;
+
     private SettlementParticipantService settlementParticipantService;
     private IdentityPolicy identityPolicy;
 
@@ -137,8 +144,12 @@ class SettlementParticipantServiceTest {
                 new PublicIdPolicy(),
                 identityPolicy,
                 new SettlementParticipantModificationPolicy(),
-                new SettlementContactMatchQuotaPolicy()
+                new SettlementContactMatchQuotaPolicy(),
+                saveSettlementPort,
+                allocationDraftInvalidator
         );
+        lenient().when(allocationDraftInvalidator.invalidate(any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -773,6 +784,7 @@ class SettlementParticipantServiceTest {
         assertThat(result.publicId()).isEqualTo("group.member");
         assertThat(result.displayName()).isEqualTo("회원 3");
         assertThat(result.displayOrder()).isEqualTo(3);
+        verify(allocationDraftInvalidator).invalidate(any(Settlement.class), any(LocalDateTime.class));
     }
 
     @Test
