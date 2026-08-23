@@ -1,6 +1,6 @@
 # Feature Plan: 정산 수령 계좌 조회와 선택
 
-- Status: In Progress
+- Status: Completed
 - Last updated: 2026-08-23
 - Related issues: [#51 수령 결제수단 조회](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/51), [#53 정산 수령 계좌 선택 API](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/53)
 - Parent issue: [#26 정산 요청 링크 및 수금 계좌 설정](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/26)
@@ -15,11 +15,11 @@
 
 ### Success criteria
 
-- [ ] 생성자는 자신이 연결한 활성 원화 입출금 계좌를 기본 계좌 우선 순서로 조회한다.
-- [ ] 생성자는 DRAFT 정산에 조회된 계좌 하나를 수령 계좌로 선택하거나 다른 계좌로 교체한다.
-- [ ] 다른 사용자의 계좌, 비활성 계좌, 외화·비입출금 계좌는 선택할 수 없다.
-- [ ] 정산 조회 응답에서 현재 선택된 `receivingAccountId`를 확인할 수 있다.
-- [ ] DRAFT가 아닌 정산의 수령 계좌는 변경할 수 없다.
+- [x] 생성자는 자신이 연결한 활성 원화 입출금 계좌를 기본 계좌 우선 순서로 조회한다.
+- [x] 생성자는 DRAFT 정산에 조회된 계좌 하나를 수령 계좌로 선택하거나 다른 계좌로 교체한다.
+- [x] 다른 사용자의 계좌, 비활성 계좌, 외화·비입출금 계좌는 선택할 수 없다.
+- [x] 정산 조회 응답에서 현재 선택된 `receivingAccountId`를 확인할 수 있다.
+- [x] DRAFT가 아닌 정산의 수령 계좌는 변경할 수 없다.
 
 ### Out of scope
 
@@ -103,12 +103,22 @@ Authentication: required, creator only, DRAFT only
 | Date | Completed | Next |
 | --- | --- | --- |
 | 2026-08-23 | V15 머지와 실제 Account 경계 확인, 구현 범위 확정 | Domain·Application·Web 구현 |
+| 2026-08-23 | Domain·Application·Web·Swagger 구현과 자동·실제 HTTP 검증 완료 | 요청 링크와 Share 확정 구현 |
 
 ## 9. Results
 
 | Item | Result | Evidence |
 | --- | --- | --- |
-| 구현 | Pending | 구현 전 |
-| 자동 테스트 | Pending | 구현 전 |
-| 실제 HTTP·Swagger | Pending | 구현 전 |
+| 구현 | Complete | 수령 계좌 전용 Controller·UseCase·Service·Policy와 V15 JPA 매핑 |
+| 자동 테스트 | Complete | 신규 Domain·Application·Web·PostgreSQL 통합 테스트, 전체 219개 통과 |
+| 실제 HTTP | Complete | 로그인 → 정산 생성 → 후보 조회 → 선택 → 재조회, 타인 계좌 404, 외화 계좌 제외 |
+| Swagger | Complete | `/swagger-ui.html` 200, OpenAPI GET·PUT 경로 확인 |
+| 데이터 정리 | Complete | HTTP 테스트 사용자·계좌·정산 0건, 테스트 Redis 세션 삭제 확인 |
 
+## 10. Completion record
+
+- Completed on: 2026-08-23
+- Final behavior: 정산 생성자는 자신의 활성 원화 입출금 계좌만 기본 계좌 우선으로 조회하고, DRAFT 정산의 수령 계좌를 선택·교체할 수 있다. 정산 조회 응답은 선택된 `receivingAccountId`를 반환한다.
+- Verification: `./gradlew compileJava`, 관련 25개 테스트, PostgreSQL·Redis를 사용하는 전체 219개 테스트, 실제 JWT HTTP와 Swagger 검증을 완료했다.
+- Remaining risks: 요청 확정 시 계좌 표시·원본 정보를 불변 스냅샷으로 고정하는 작업은 후속 요청 링크 PR 범위다.
+- Follow-up: [정산 요청 링크 및 Share 확정 Plan](../active/settlement-request-link-spec.md)

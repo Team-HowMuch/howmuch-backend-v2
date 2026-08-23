@@ -6,6 +6,7 @@
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
 - Prerequisites: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](settlement-participants-spec.md), [정산 지출 및 금액 배분 Spec](settlement-expense-allocation-spec.md)
+- Completed increment: [정산 수령 계좌 조회와 선택](../completed/settlement-receiving-account.md)
 
 ## 1. Purpose
 
@@ -233,7 +234,8 @@ Existing behavior that must remain unchanged:
 
 - [ ] 공통 링크·수금 계좌 스냅샷·불변 Share·참여 문맥 Domain 모델과 상태 규칙을 정의한다.
 - [ ] 링크·Share·계좌·참여자·배분 결과·Redis 문맥 Output Port를 정의한다.
-- [ ] 수금 계좌 설정, 링크 발급, 앱 자동 매칭, 브라우저 참여 선택, Share 확정, Toss 안내 UseCase를 구현한다.
+- [x] 수금 계좌 조회·선택 UseCase와 API를 구현한다.
+- [ ] 링크 발급, 앱 자동 매칭, 브라우저 참여 선택, Share 확정, Toss 안내 UseCase를 구현한다.
 - [ ] JPA Entity·Repository·Mapper·Persistence Adapter와 Redis 참여 문맥 Adapter를 구현한다.
 - [ ] 생성자 API와 public link API, Swagger, 선택적 인증 처리, OS 링크 설정 배포 문서를 구현한다.
 - [ ] 더치페이와 품목별 배분 각각의 Share 확정 시점·잠금·입금 현황 연계를 통합 검증한다.
