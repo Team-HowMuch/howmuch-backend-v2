@@ -58,17 +58,17 @@ public class SettlementAllocationService implements
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId);
         settlement.ensureAllocationEditable();
         SettlementAllocationType selectedType = command == null ? null : command.allocationType();
+        if (selectedType == null) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.INVALID_SETTLEMENT_ALLOCATION_TYPE
+            );
+        }
         List<SettlementExpense> expenses = loadSettlementExpensePort
                 .findAllBySettlementId(settlement.id());
         long expenseTotal = validateExpenseTotal(settlement, expenses);
 
         if (selectedType == SettlementAllocationType.ITEM_ALLOCATION) {
             ensureReceiptExpenseExists(expenses);
-        }
-        if (selectedType == null) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.INVALID_SETTLEMENT_ALLOCATION_TYPE
-            );
         }
         if (selectedType == settlement.allocationType()) {
             ensureExistingSelectionIsUsable(settlement, selectedType);
