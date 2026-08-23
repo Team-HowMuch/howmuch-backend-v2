@@ -37,6 +37,7 @@ public class SettlementService implements
     private final SaveSettlementPort saveSettlementPort;
     private final SaveSettlementParticipantPort saveSettlementParticipantPort;
     private final LoadUserPort loadUserPort;
+    private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
     @Override
     @Transactional
@@ -73,11 +74,16 @@ public class SettlementService implements
     @Transactional
     public SettlementResult update(UUID settlementId, UpdateSettlementDraftCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
-        Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
-        Settlement updated = settlement.updateDraft(
+        Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        Settlement updateBase = command.totalAmount() != null
+                && command.totalAmount() != settlement.totalAmount()
+                ? allocationDraftInvalidator.invalidate(settlement, now)
+                : settlement;
+        Settlement updated = updateBase.updateDraft(
                 command.title(),
                 command.totalAmount(),
-                LocalDateTime.now(ZoneOffset.UTC)
+                now
         );
         return SettlementResult.from(saveSettlementPort.update(updated));
     }
@@ -85,6 +91,16 @@ public class SettlementService implements
     private Settlement loadOwnedSettlement(UUID settlementId, Long userId) {
         Settlement settlement = loadSettlementPort.findById(settlementId)
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
+        return verifyOwnership(settlement, userId);
+    }
+
+    private Settlement loadOwnedSettlementForUpdate(UUID settlementId, Long userId) {
+        Settlement settlement = loadSettlementPort.findByIdForUpdate(settlementId)
+                .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
+        return verifyOwnership(settlement, userId);
+    }
+
+    private Settlement verifyOwnership(Settlement settlement, Long userId) {
         if (!settlement.isCreatedBy(userId)) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
         }

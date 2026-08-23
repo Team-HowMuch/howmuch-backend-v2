@@ -40,6 +40,14 @@
 - Excluded from this increment: 결제 내역·OCR 가져오기, 배분 방식 선택과 계산, 품목 선택·제출, 요청 링크 연동
 - Observable result: 생성자는 지출과 최신 `totalExpenseAmount`를 확인하며 DRAFT에서만 수동 지출을 변경할 수 있다.
 
+### Current increment: 배분 유형 선택과 더치페이 초안
+
+- Scope: DRAFT 정산의 더치페이 유형 선택, 기본 N빵 계산, 참여자별 금액 수정, 현재 합계 검증. ITEM_ALLOCATION enum과 다음 단계 계약은 예약하되 실제 OCR 품목 저장 전까지 선택을 거부한다.
+- Related issues: [#45 정산 유형 선택 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/45), [#46 더치페이 참여자별 금액 수정 및 합계 검증 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/46), [#47 더치페이 기본 N빵 계산 정책 구현](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/47)
+- Persistence prerequisite: `V12__create_settlement_dutch_pay_schema.sql`이 `develop`에 병합되어 추가 Flyway 변경은 없다.
+- Excluded from this increment: OCR 품목 저장·선택, 요청 확정, Share 생성, 수령 계좌와 공통 링크
+- Observable result: 생성자는 지출 합계와 기준 총액이 일치하는 정산의 더치페이를 선택하고, 기본 금액을 확인·수정하면서 현재 합계와 차액을 확인할 수 있다. 품목별 할당은 출처값만으로 성공시키지 않고 실제 OCR 품목 저장 기능이 완료될 때까지 명시적으로 거부한다.
+
 ## 2. Domain analysis
 
 ### Domain boundary
@@ -174,6 +182,24 @@ Authentication: required, creator only
 PUT /api/v2/settlements/{settlementId}/allocation-type
 Request: { allocationType: DUTCH_PAY|ITEM_ALLOCATION }
 Authentication: required, creator only
+ITEM_ALLOCATION: OCR 품목 저장 기능 완료 전 SETTLEMENT_ITEM_ALLOCATION_NOT_AVAILABLE
+
+GET /api/v2/settlements/{settlementId}/dutch-pay-allocations
+Authentication: required, creator only
+
+PATCH /api/v2/settlements/{settlementId}/dutch-pay-allocations/{participantId}
+Request: { amount: nonnegative integer }
+Authentication: required, creator only
+
+Allocation type response: { settlementId, allocationType, nextStep }
+Dutch pay response: {
+  settlementId,
+  totalAmount,
+  allocatedAmount,
+  differenceAmount,
+  balanced,
+  participants: [{ participantId, displayName, amount, creator }]
+}
 
 PUT /api/v2/settlement-links/{token}/participants/{participantId}/items/{itemId}
 Request: { fraction: ONE|HALF|THIRD|QUARTER }
@@ -185,7 +211,7 @@ Authentication: public link and resolved participant context required
 
 ### Persistence and external integrations
 
-- Database Entity, constraint, or query changes: 이번 증분은 병합된 `settlement_expenses`를 매핑하며 새 마이그레이션을 만들지 않는다. 후속 증분에서 settlement_items, settlement_item_selections, settlement_item_submissions를 추가한다. item selection에는 settlement_id, participant_id, item_id, fraction을 저장하고 participant_id와 item_id의 복합 Unique 제약을 둔다.
+- Database Entity, constraint, or query changes: 이번 증분은 병합된 V12의 `settlements.allocation_type`과 `settlement_dutch_pay_allocations`를 매핑하며 새 마이그레이션을 만들지 않는다. 후속 증분에서 settlement_items, settlement_item_selections, settlement_item_submissions를 추가한다. item selection에는 settlement_id, participant_id, item_id, fraction을 저장하고 participant_id와 item_id의 복합 Unique 제약을 둔다.
 - Redis key, TTL, or serialization changes: 없음.
 - External API or message changes: 결제 내역·OCR은 Port와 개발 Stub으로만 우선 연결한다. 실제 API 명세·환경 변수는 외부 공급자 확정 뒤 별도 Feature Plan으로 추가한다.
 - Environment variable or profile changes: dev profile에서 빈 후보를 반환하는 Stub을 제공한다.
@@ -236,6 +262,15 @@ Existing behavior that must remain unchanged:
 - [x] 정산 행 잠금으로 지출 변경과 상태 확정이 겹치지 않게 하고 동시 표시 순서 충돌을 방지한다.
 - [x] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP 검증을 수행한다.
 
+### Current allocation increment
+
+- [x] Settlement에 AllocationType 선택·초기화 규칙을 추가한다.
+- [x] 기본 N빵과 생성자 잔여금 배분을 Domain Policy로 구현한다.
+- [x] 더치페이 초안 Entity·Port·JPA Adapter를 V12 스키마에 연결한다.
+- [x] 배분 유형 선택·조회·참여자 금액 수정 UseCase와 API를 구현한다.
+- [x] 기준 총액·지출 합계·참여자 구성 변경 시 기존 배분 초안을 무효화한다.
+- [x] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
+
 ### Follow-up increments
 
 - [ ] 지출·배분 방식·품목·선택·제출 Domain 모델과 불변식을 정의한다.
@@ -248,12 +283,17 @@ Existing behavior that must remain unchanged:
 ### Expected commit boundaries
 
 ~~~
-docs: 수동 정산 지출 구현 범위 구체화
-feat: 정산 지출 도메인과 영속 구조 추가
-feat: 수동 정산 지출 관리 기능 추가
-feat: 수동 정산 지출 API 추가
-test: 수동 정산 지출 기능 검증 추가
-docs: 수동 정산 지출 구현 결과 반영
+docs(settlement): 더치페이 구현 범위 구체화
+feat(settlement): 정산 배분 유형과 더치페이 규칙 추가
+feat(settlement): 더치페이 초안 영속 기능 추가
+feat(settlement): 더치페이 배분 관리 기능 추가
+feat(settlement): 더치페이 배분 API 추가
+refactor(settlement): 정산 입력 변경 시 배분 초안 무효화
+test(settlement): 더치페이 배분 기능 검증 추가
+docs(settlement): 더치페이 구현 결과 반영
+fix(settlement): 배분 무효화 잠금 순서 통일
+fix(settlement): 미구현 품목별 할당 선택 차단
+docs(settlement): 예정 커밋 제목 규칙 정렬
 ~~~
 
 ## 8. Verification
@@ -283,10 +323,10 @@ git status --short --untracked-files=all
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
 | 구현·컴파일 | Complete | `./gradlew compileJava` 성공 |
-| 자동 테스트 | Complete | 더미 Discord URL을 주입한 `./gradlew test` 140개 성공 |
-| PostgreSQL 영속 검증 | Complete | V11 기반 저장·순서 조회·합계·수정·삭제·Cascade 통합 테스트 성공 |
-| 실제 HTTP | Complete | 로그인, 정산 생성, 지출 등록·목록·부분 수정·삭제, 빈 PATCH와 누적액 초과 400 검증 성공 |
-| Swagger | Complete | `/v3/api-docs`의 지출 경로와 `/swagger-ui.html` 200 응답 확인 |
+| 자동 테스트 | Complete | 격리 PostgreSQL 스키마와 더미 Discord URL을 사용한 `./gradlew test` 159개 성공 |
+| PostgreSQL 영속 검증 | Complete | V12 기반 더치페이 초안 교체·조회·수정·참여자 삭제 Cascade 통합 테스트 성공 |
+| 실제 HTTP | Complete | JWT 로그인 뒤 2명 500원 기본 배분, 400원 수정 시 차액 100원, 생성자 600원 수정 시 재균형, 지출 변경 뒤 배분 무효화 409 검증 성공 |
+| Swagger | Complete | `/v3/api-docs`의 배분 유형·더치페이 조회·수정 경로와 `/swagger-ui.html` 200 응답 확인 |
 
 ## 9. Progress log
 
@@ -296,6 +336,8 @@ git status --short --untracked-files=all
 | 2026-08-23 | 첫 구현 증분을 수동 지출 CRUD로 제한하고 V11 병합을 확인 | 지출 Domain·Application·Web 구현 | 기준 총액과 누적 지출액의 불일치 처리 시점 필요 |
 | 2026-08-23 | 수동 지출 CRUD와 테스트·실제 HTTP·Swagger 검증 완료 | 배분 방식과 더치페이 계산 | 후속 요청 확정 흐름도 정산 행 잠금을 사용해야 함 |
 | 2026-08-23 | 리뷰에서 발견된 누적액 `long` 초과를 저장 전 400으로 변환하고 실제 HTTP 롤백 상태 검증 | 배분 방식과 더치페이 계산 | 금액 타입을 확장하면 API·DB 계약을 함께 변경해야 함 |
+| 2026-08-23 | V12 병합 뒤 배분 유형·더치페이 초안 구현 범위와 API 계약 확정 | Domain·영속·Application·Web 구현 | 입력 변경 뒤 기존 계산이 남지 않도록 무효화가 필요함 |
+| 2026-08-23 | 배분 유형 선택·기본 N빵·금액 수정·합계 응답과 입력 변경 무효화를 구현하고 159개 테스트·실제 HTTP·Swagger 검증 완료 | 외부 지출 후보 또는 품목별 할당 구현 | ITEM_ALLOCATION은 실제 OCR 품목을 검증할 저장 기능이 완료될 때까지 선택을 거부함 |
 
 ## 10. Decision log
 
@@ -306,6 +348,9 @@ git status --short --untracked-files=all
 | 2026-08-21 | 품목별 Share는 모든 제출과 합계 검증 뒤에만 고정한다. | 미완료 상태에서 송금액이 바뀌지 않도록 한다. | 중간 금액으로 송금하는 기능은 제공하지 않는다. |
 | 2026-08-23 | 지출 CRUD는 Settlement `totalAmount`를 자동 변경하지 않고 `totalExpenseAmount`를 별도로 반환한다. | 부분 입력 중 기준 총액이 의도치 않게 바뀌지 않게 한다. | 요청 확정 시 두 합계의 일치를 검증한다. |
 | 2026-08-23 | 지출 변경은 정산 행을 쓰기 잠금한 뒤 수행한다. | DRAFT 확인과 표시 순서 계산을 상태 확정·동시 등록과 직렬화한다. | 후속 요청 확정 흐름도 같은 잠금 계약을 사용해야 한다. |
+| 2026-08-23 | 배분 시작 전에 기준 총액과 지출 합계 일치를 검증한다. | 서로 다른 금액을 기준으로 기본 배분과 최종 검증이 갈라지는 것을 막는다. | 지출 입력 중에는 배분 유형을 선택할 수 없다. |
+| 2026-08-23 | 참여자·지출·기준 총액이 바뀌면 배분 유형과 더치페이 초안을 무효화한다. | 이전 입력으로 계산한 금액을 화면이나 요청 확정에서 재사용하지 않게 한다. | 생성자는 변경 뒤 배분 유형을 다시 선택해야 한다. |
+| 2026-08-23 | 개별 더치페이 금액 수정 중 불균형을 저장하고 차액을 응답한다. | 여러 필드를 순서대로 편집할 수 있게 하되 서버가 현재 불균형을 숨기지 않는다. | 요청 확정 단계는 `balanced=true`만 허용한다. |
 
 ## 11. Completion record
 
