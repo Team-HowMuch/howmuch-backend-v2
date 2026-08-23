@@ -72,6 +72,8 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
         } else if (!connectionStorePort.hasInstitution(connection.id(), command.organization())) {
             var result = bankConnectionPort.add(connection.connectedId(), registration);
             connectionStorePort.saveInstitution(institution(connection.id(), command.organization(), result.resultCode()));
+        } else {
+            bankConnectionPort.update(connection.connectedId(), registration);
         }
 
         Set<String> linkedKeys = accountStorePort.findCandidateKeys(connection.id());

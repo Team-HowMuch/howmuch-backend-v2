@@ -10,6 +10,8 @@ public interface BankConnectionPort {
 
     ConnectionResult add(String connectedId, BankRegistration registration);
 
+    ConnectionResult update(String connectedId, BankRegistration registration);
+
     List<ExternalAccountCandidate> findAccounts(String connectedId, String organization, String birthDate);
 
     record BankRegistration(String organization, String loginId, String password, String birthDate) {
