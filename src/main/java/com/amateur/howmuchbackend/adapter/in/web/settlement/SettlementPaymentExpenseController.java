@@ -7,8 +7,6 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.Settlem
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementPaymentExpenseCandidateWebResponse;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementPaymentExpenseCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ImportSettlementPaymentExpenseUseCase;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,7 +33,7 @@ public class SettlementPaymentExpenseController implements SettlementPaymentExpe
     @GetMapping("/expense-candidates/payment-history")
     public ApiResponse<List<SettlementPaymentExpenseCandidateWebResponse>> getPaymentExpenseCandidates(
             @PathVariable UUID settlementId,
-            @RequestParam @Positive Long accountId,
+            @RequestParam Long accountId,
             @RequestParam(required = false) YearMonth yearMonth
     ) {
         return ApiResponse.success(getCandidatesUseCase.get(
@@ -51,7 +49,7 @@ public class SettlementPaymentExpenseController implements SettlementPaymentExpe
     @PostMapping("/expenses/payment-history")
     public ApiResponse<SettlementExpenseMutationWebResponse> importPaymentExpense(
             @PathVariable UUID settlementId,
-            @Valid @RequestBody ImportSettlementPaymentExpenseWebRequest request
+            @RequestBody ImportSettlementPaymentExpenseWebRequest request
     ) {
         return ApiResponse.success(SettlementExpenseMutationWebResponse.from(
                 importExpenseUseCase.importExpense(settlementId, request.toCommand())
