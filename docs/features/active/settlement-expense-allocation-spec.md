@@ -263,12 +263,12 @@ Existing behavior that must remain unchanged:
 
 ### Current allocation increment
 
-- [ ] Settlement에 AllocationType 선택·초기화 규칙을 추가한다.
-- [ ] 기본 N빵과 생성자 잔여금 배분을 Domain Policy로 구현한다.
-- [ ] 더치페이 초안 Entity·Port·JPA Adapter를 V12 스키마에 연결한다.
-- [ ] 배분 유형 선택·조회·참여자 금액 수정 UseCase와 API를 구현한다.
-- [ ] 기준 총액·지출 합계·참여자 구성 변경 시 기존 배분 초안을 무효화한다.
-- [ ] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
+- [x] Settlement에 AllocationType 선택·초기화 규칙을 추가한다.
+- [x] 기본 N빵과 생성자 잔여금 배분을 Domain Policy로 구현한다.
+- [x] 더치페이 초안 Entity·Port·JPA Adapter를 V12 스키마에 연결한다.
+- [x] 배분 유형 선택·조회·참여자 금액 수정 UseCase와 API를 구현한다.
+- [x] 기준 총액·지출 합계·참여자 구성 변경 시 기존 배분 초안을 무효화한다.
+- [x] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
 
 ### Follow-up increments
 
@@ -319,10 +319,10 @@ git status --short --untracked-files=all
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
 | 구현·컴파일 | Complete | `./gradlew compileJava` 성공 |
-| 자동 테스트 | Complete | 더미 Discord URL을 주입한 `./gradlew test` 140개 성공 |
-| PostgreSQL 영속 검증 | Complete | V11 기반 저장·순서 조회·합계·수정·삭제·Cascade 통합 테스트 성공 |
-| 실제 HTTP | Complete | 로그인, 정산 생성, 지출 등록·목록·부분 수정·삭제, 빈 PATCH와 누적액 초과 400 검증 성공 |
-| Swagger | Complete | `/v3/api-docs`의 지출 경로와 `/swagger-ui.html` 200 응답 확인 |
+| 자동 테스트 | Complete | 격리 PostgreSQL 스키마와 더미 Discord URL을 사용한 `./gradlew test` 159개 성공 |
+| PostgreSQL 영속 검증 | Complete | V12 기반 더치페이 초안 교체·조회·수정·참여자 삭제 Cascade 통합 테스트 성공 |
+| 실제 HTTP | Complete | JWT 로그인 뒤 2명 500원 기본 배분, 400원 수정 시 차액 100원, 생성자 600원 수정 시 재균형, 지출 변경 뒤 배분 무효화 409 검증 성공 |
+| Swagger | Complete | `/v3/api-docs`의 배분 유형·더치페이 조회·수정 경로와 `/swagger-ui.html` 200 응답 확인 |
 
 ## 9. Progress log
 
@@ -333,6 +333,7 @@ git status --short --untracked-files=all
 | 2026-08-23 | 수동 지출 CRUD와 테스트·실제 HTTP·Swagger 검증 완료 | 배분 방식과 더치페이 계산 | 후속 요청 확정 흐름도 정산 행 잠금을 사용해야 함 |
 | 2026-08-23 | 리뷰에서 발견된 누적액 `long` 초과를 저장 전 400으로 변환하고 실제 HTTP 롤백 상태 검증 | 배분 방식과 더치페이 계산 | 금액 타입을 확장하면 API·DB 계약을 함께 변경해야 함 |
 | 2026-08-23 | V12 병합 뒤 배분 유형·더치페이 초안 구현 범위와 API 계약 확정 | Domain·영속·Application·Web 구현 | 입력 변경 뒤 기존 계산이 남지 않도록 무효화가 필요함 |
+| 2026-08-23 | 배분 유형 선택·기본 N빵·금액 수정·합계 응답과 입력 변경 무효화를 구현하고 159개 테스트·실제 HTTP·Swagger 검증 완료 | 외부 지출 후보 또는 품목별 할당 구현 | ITEM_ALLOCATION 선택은 OCR 지출이 있어야 실제로 진입 가능함 |
 
 ## 10. Decision log
 
