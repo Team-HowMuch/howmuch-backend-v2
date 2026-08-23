@@ -21,6 +21,7 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
     private static final String SUCCESS = "CF-00000";
     private static final String ACCOUNT_CREATE_PATH = "/v1/account/create";
     private static final String ACCOUNT_ADD_PATH = "/v1/account/add";
+    private static final String ACCOUNT_UPDATE_PATH = "/v1/account/update";
     private static final String ACCOUNT_LIST_PATH = "/v1/kr/bank/p/account/account-list";
 
     private final CodefClient client;
@@ -34,7 +35,16 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
 
     @Override
     public ConnectionResult add(String connectedId, BankRegistration registration) {
-        JsonNode response = post(ACCOUNT_ADD_PATH, Map.of(
+        return change(ACCOUNT_ADD_PATH, connectedId, registration);
+    }
+
+    @Override
+    public ConnectionResult update(String connectedId, BankRegistration registration) {
+        return change(ACCOUNT_UPDATE_PATH, connectedId, registration);
+    }
+
+    private ConnectionResult change(String path, String connectedId, BankRegistration registration) {
+        JsonNode response = post(path, Map.of(
                 "connectedId", connectedId,
                 "accountList", List.of(accountPayload(registration))
         ));

@@ -1,8 +1,8 @@
 # 기능 계획: CODEF 은행 연결과 결제계좌 연동
 
-- 상태: 구현 완료, PostgreSQL 실행 검증 대기
-- 최종 수정일: 2026-08-22
-- 관련 이슈: [#20 외부 결제수단 API 연동](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/20)
+- 상태: 구현 및 PostgreSQL 검증 완료
+- 최종 수정일: 2026-08-23
+- 관련 이슈: [#20 외부 결제수단 API 연동](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/20), [#102 동일 은행 재연결 시 CODEF 인증정보 갱신](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/102), [codef-mock-server #1 기관별 로그인 매핑 수정](https://github.com/Team-HowMuch/codef-mock-server/issues/1)
 - 관련 명세: [Notion `SYNC-001`](https://app.notion.com/p/35a6e559a65082788f0d81a89b1c221f)
 - 관련 ADR: [목적 중심 Port](../../adr/0001-purpose-oriented-ports.md), [Framework-neutral StatusCode](../../adr/0002-framework-neutral-status-code.md), [Capability 중심 Output Port](../../adr/0003-capability-oriented-output-ports.md)
 
@@ -26,6 +26,8 @@
 - [x] CODEF 설정 지문이 달라지면 연결과 그 연결의 계좌를 사용할 수 없게 한다.
 - [x] 새 기능은 Web Request→Command→UseCase→Result→Web Response와 capability 중심 Port 규칙을 따른다.
 - [x] Domain의 상태 코드가 Spring `HttpStatus`에 의존하지 않는다.
+- [x] 동일 기관의 인증정보를 다른 가상 사용자로 수정하면 이후 계좌·거래 조회가 수정된 사용자 데이터를 반환한다.
+- [x] 하나의 `connectedId`에 기관별로 서로 다른 가상 사용자를 연결해도 데이터가 섞이지 않는다.
 
 ### 제외 범위
 
@@ -33,7 +35,6 @@
 - 거래내역 수집과 자동 동기화
 - 연결 해지와 CODEF 2-way 인증 완료
 - 수동 계좌 등록, 기본 계좌, 색상·정렬 등 화면 설정
-- 새 테스트 파일
 
 ## 2. 근거와 재사용 범위
 
@@ -41,6 +42,7 @@
 
 - 한 사용자의 `connectedId` 아래 여러 기관을 등록한다.
 - 최초 기관은 `/v1/account/create`, 추가 기관은 `/v1/account/add`를 사용한다.
+- 이미 등록된 동일 기관의 인증정보 변경은 `/v1/account/update`를 사용한다.
 - `/v1/kr/bank/p/account/account-list`에서 `resDepositTrust`, `resForeignCurrency` 계좌를 조회한다.
 - 비밀번호는 CODEF public key로 RSA 암호화하고 평문을 저장·로그하지 않는다.
 
@@ -95,7 +97,7 @@ List<BankCatalogResult> -> List<BankCatalogWebResponse>
 
 | Port | Capability | Caller | Adapter |
 |---|---|---|---|
-| `BankConnectionPort` | CODEF 기관 create/add와 은행 계좌 후보 조회 | `BankAccountService` | `CodefBankConnectionAdapter` |
+| `BankConnectionPort` | CODEF 기관 create/add/update와 은행 계좌 후보 조회 | `BankAccountService` | `CodefBankConnectionAdapter` |
 | `ExternalConnectionStorePort` | 연결·기관 상태 저장과 호환성 비활성화 | Service, startup runner | JPA Adapter |
 | `AccountStorePort` | 후보 중복 확인, 계좌 저장·재활성화, 비호환 계좌 비활성화 | Service, startup runner | JPA Adapter |
 | `LoadUserPort` | 현재 사용자 조회 | `BankAccountService` | 기존 User Persistence Adapter |
@@ -138,6 +140,8 @@ Account: id, organization, type, name, maskedNumber, balance, currency
 - `external_account_key_ciphertext`, `type`, `name`, `masked_number`, `balance`, `currency`, `active`
 - `(external_connection_id, candidate_key)` unique
 - 원본 외부 계좌 Key는 `CODEF_CONNECTED_ID_ENCRYPTION_KEY`로 AES-GCM 암호화한다.
+
+이번 재연결 수정은 Backend 영속화 구조를 바꾸지 않으므로 Flyway 마이그레이션이 필요하지 않다. Mock SQLite의 `institutions.login_id`는 Mock 서버 시작 시 자체 backfill한다.
 
 설정 지문 불일치 시 `external_connections.active=false`로 전환하고 연결된 `accounts.active=false`로 전환한다. 재연결 후 사용자가 같은 후보를 다시 선택하면 현재 암호문과 표시 정보로 갱신한다.
 
@@ -197,7 +201,8 @@ git status --short --untracked-files=all
 3. 같은 후보 재연동 → 같은 Account ID 갱신
 4. 위조·다른 사용자 candidateKey → 저장 없이 오류
 5. 설정 지문 변경 → 연결·계좌 비활성화
-6. 같은 기관 재연결 → account/add 중복 호출 없이 후보 재조회
+6. 같은 기관 재연결 → `/v1/account/update` 호출 후 수정된 인증정보의 후보 재조회
+7. 서로 다른 기관에 다른 Mock `loginId` 등록 → 기관별 해당 사용자 계좌 반환
 
 실제 CODEF 자격증명이 없으면 Mock으로 외부 계약을 검증하고 실제 CODEF 호출은 미검증으로 명시한다.
 
@@ -208,6 +213,8 @@ git status --short --untracked-files=all
 | 2026-08-20 | 기존 V2 payment 구현, 최신 아키텍처 규칙, 기존 backend 연결·후보·저장 흐름 재분석 | external/account 수직 기능 구현 | 로컬 PostgreSQL·Docker 중지, 실제 CODEF 자격증명 없음 |
 | 2026-08-20 | external/account 경계, 2단계 후보 검증·연동, 암호화 영속성, 설정 변경 비활성화, Mock 프로필 구현 | PostgreSQL 가동 환경에서 Flyway·Context 테스트 | 실제 CODEF 자격증명 없음 |
 | 2026-08-22 | `BankCatalog` 조회 API와 연결·계좌 연동 전 지원 은행 검증 추가 | PostgreSQL에서 카탈로그 조회와 미지원 코드 오류 확인 | 실제 CODEF 자격증명 없음 |
+| 2026-08-23 | 운영 Mock의 `connectedId`가 최초 `loginId`로 고정되는 원인 확인, 공식 `/v1/account/update` 계약 확정 | 기관별 매핑·재연결 구현과 회귀 검증 | 기존 Mock SQLite 매핑은 최초 연결 사용자로 backfill 필요 |
+| 2026-08-23 | Mock 기관별 `loginId` 매핑·SQLite backfill·`/v1/account/update`, Backend 재연결 `update` 호출 구현 | 배포 후 실제 `troll`/`warstroll`/`yong` 재연결 확인 | 실제 CODEF 자격증명으로는 미검증 |
 
 ## 11. 검증 결과
 
@@ -217,6 +224,10 @@ git status --short --untracked-files=all
 - `./gradlew compileJava --no-daemon --console=plain`: 성공 (`BankCatalog` 연결 포함)
 - `./gradlew test --console=plain`: 로컬 PostgreSQL 5432 중지로 Flyway 연결 단계에서 실패
 - 실제 CODEF 호출: 자격증명이 없어 미수행
+- `python3 -m unittest -v`: 5개 성공. 기관별 사용자, 동일 기관 수정, 계좌·거래 조회, 기존 SQLite backfill 확인
+- `./gradlew test --tests com.amateur.howmuchbackend.application.account.service.BankAccountServiceTest --console=plain`: 성공
+- 로컬 PostgreSQL·Redis와 테스트 설정을 주입한 `./gradlew test --console=plain`: 104개 성공
+- `./gradlew compileJava --console=plain`: 성공
 
 ## 10. 참고 자료
 

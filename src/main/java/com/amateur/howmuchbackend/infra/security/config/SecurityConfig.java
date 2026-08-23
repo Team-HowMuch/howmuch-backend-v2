@@ -53,6 +53,12 @@ public class SecurityConfig {
                                 "/api/v2/auth/login",
                                 "/api/v2/auth/token/refresh"
                         ).permitAll()
+                        .requestMatchers(
+                                "/admin/common-codes",
+                                "/admin/common-codes/**",
+                                "/admin/common-codes.css",
+                                "/admin/common-codes.js"
+                        ).permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())

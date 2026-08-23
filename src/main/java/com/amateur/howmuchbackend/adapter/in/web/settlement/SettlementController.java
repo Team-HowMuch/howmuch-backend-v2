@@ -4,9 +4,11 @@ import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.docs.SettlementDocs;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.MatchSettlementContactsWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SearchSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantCandidateWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementContactCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
@@ -14,8 +16,10 @@ import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
@@ -51,6 +55,8 @@ public class SettlementController implements SettlementDocs {
     private final GetSettlementParticipantAvatarUseCase getSettlementParticipantAvatarUseCase;
     private final SearchSettlementParticipantUseCase searchSettlementParticipantUseCase;
     private final GetSettlementParticipantCandidateAvatarUseCase getSettlementParticipantCandidateAvatarUseCase;
+    private final MatchSettlementContactsUseCase matchSettlementContactsUseCase;
+    private final GetSettlementGroupParticipantCandidatesUseCase getSettlementGroupParticipantCandidatesUseCase;
 
     @Override
     @PostMapping
@@ -132,6 +138,33 @@ public class SettlementController implements SettlementDocs {
                 .cacheControl(CacheControl.noStore())
                 .contentType(MediaType.parseMediaType(image.contentType()))
                 .body(image.content());
+    }
+
+    @Override
+    @PostMapping("/{settlementId}/participant-candidates/contacts/match")
+    public ApiResponse<List<SettlementContactCandidateWebResponse>> matchSettlementContacts(
+            @PathVariable UUID settlementId,
+            @Valid @RequestBody MatchSettlementContactsWebRequest request
+    ) {
+        return ApiResponse.success(matchSettlementContactsUseCase.match(
+                        settlementId,
+                        request.toCommand()
+                ).stream()
+                .map(result -> SettlementContactCandidateWebResponse.from(settlementId, result))
+                .toList());
+    }
+
+    @Override
+    @GetMapping("/{settlementId}/participant-candidates/groups/{groupId}/members")
+    public ApiResponse<List<SettlementParticipantCandidateWebResponse>> getSettlementGroupParticipantCandidates(
+            @PathVariable UUID settlementId,
+            @PathVariable Long groupId
+    ) {
+        return ApiResponse.success(getSettlementGroupParticipantCandidatesUseCase
+                .get(settlementId, groupId)
+                .stream()
+                .map(result -> SettlementParticipantCandidateWebResponse.from(settlementId, result))
+                .toList());
     }
 
     @Override

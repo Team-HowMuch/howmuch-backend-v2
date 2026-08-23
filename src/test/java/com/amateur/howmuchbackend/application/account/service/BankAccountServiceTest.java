@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.account.service;
 
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.in.account.command.ConnectBankCommand;
 import com.amateur.howmuchbackend.application.port.in.account.command.LinkBankAccountsCommand;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
@@ -26,6 +27,7 @@ import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -45,6 +47,29 @@ class BankAccountServiceTest {
     @Mock private User user;
 
     @Test
+    @DisplayName("이미 연결된 은행은 CODEF 계정 수정 후 계좌 후보를 재조회한다")
+    void updatesCredentialsForExistingInstitution() {
+        Long userId = 1L;
+        Long connectionId = 7L;
+        String connectedId = "CID-1";
+        String organization = "0020";
+        var registration = new BankConnectionPort.BankRegistration(organization, "yong", "password", null);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(userId));
+        when(loadUserPort.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
+        when(connectionStorePort.findActiveByUserId(userId))
+                .thenReturn(Optional.of(new ExternalConnection(connectionId, userId, connectedId)));
+        when(connectionStorePort.hasInstitution(connectionId, organization)).thenReturn(true);
+        when(loadAccountPort.findCandidateKeys(connectionId)).thenReturn(Set.of());
+        when(bankConnectionPort.findAccounts(connectedId, organization, null))
+                .thenReturn(List.of(candidate("2002123456789", "yong 통장")));
+
+        var result = service().connect(new ConnectBankCommand(organization, "yong", "password", null));
+
+        verify(bankConnectionPort).update(connectedId, registration);
+        assertThat(result.candidates()).extracting(candidate -> candidate.name()).containsExactly("yong 통장");
+    }
+
+    @Test
     @DisplayName("처음 선택한 계좌 하나만 기본으로 두고 표시 순서를 부여한다")
     void assignsDefaultAndDisplayOrderToNewAccounts() throws Exception {
         Long userId = 1L;
@@ -61,12 +86,8 @@ class BankAccountServiceTest {
         when(bankConnectionPort.findAccounts(connectedId, organization, null)).thenReturn(List.of(first, second));
         when(loadAccountPort.findActiveByUserId(userId)).thenReturn(List.of());
         when(saveAccountPort.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
-        BankAccountService service = new BankAccountService(
-                currentActorPort, loadUserPort, connectionStorePort, loadAccountPort,
-                saveAccountPort, bankConnectionPort, bankCatalog
-        );
 
-        service.link(new LinkBankAccountsCommand(
+        service().link(new LinkBankAccountsCommand(
                 connectionId,
                 organization,
                 List.of(
@@ -82,6 +103,13 @@ class BankAccountServiceTest {
         assertThat(captor.getValue()).extracting(Account::isDefault).containsExactly(true, false);
         assertThat(captor.getValue()).extracting(Account::displayOrder).containsExactly(0, 1);
         assertThat(captor.getValue()).extracting(Account::productCode).containsOnly("11");
+    }
+
+    private BankAccountService service() {
+        return new BankAccountService(
+                currentActorPort, loadUserPort, connectionStorePort, loadAccountPort,
+                saveAccountPort, bankConnectionPort, bankCatalog
+        );
     }
 
     private BankConnectionPort.ExternalAccountCandidate candidate(String key, String name) {

@@ -4,15 +4,20 @@ import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementContactCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -37,6 +42,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -79,6 +85,12 @@ class SettlementControllerTest {
     @Mock
     private GetSettlementParticipantCandidateAvatarUseCase getSettlementParticipantCandidateAvatarUseCase;
 
+    @Mock
+    private MatchSettlementContactsUseCase matchSettlementContactsUseCase;
+
+    @Mock
+    private GetSettlementGroupParticipantCandidatesUseCase getSettlementGroupParticipantCandidatesUseCase;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -94,7 +106,9 @@ class SettlementControllerTest {
                 getSettlementParticipantsUseCase,
                 getSettlementParticipantAvatarUseCase,
                 searchSettlementParticipantUseCase,
-                getSettlementParticipantCandidateAvatarUseCase
+                getSettlementParticipantCandidateAvatarUseCase,
+                matchSettlementContactsUseCase,
+                getSettlementGroupParticipantCandidatesUseCase
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -332,6 +346,90 @@ class SettlementControllerTest {
     }
 
     @Test
+    @DisplayName("그룹 구성원 후보에 공개 정보와 보호된 아바타 URL만 반환한다")
+    void getsSettlementGroupParticipantCandidates() throws Exception {
+        when(getSettlementGroupParticipantCandidatesUseCase.get(SETTLEMENT_ID, 10L))
+                .thenReturn(List.of(
+                        new SettlementParticipantCandidateResult("group.member", "그룹 회원", true)
+                ));
+
+        mockMvc.perform(get(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/groups/{groupId}/members",
+                        SETTLEMENT_ID,
+                        10L
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].publicId").value("group.member"))
+                .andExpect(jsonPath("$.data[0].displayName").value("그룹 회원"))
+                .andExpect(jsonPath("$.data[0].avatarUrl").value(
+                        "/api/v2/settlements/%s/participant-candidates/users/group.member/avatar"
+                                .formatted(SETTLEMENT_ID)
+                ))
+                .andExpect(jsonPath("$.data[0].userId").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("그룹 ID와 공개 ID를 그룹 참여자 추가 Command로 변환한다")
+    void addsSettlementGroupParticipant() throws Exception {
+        UUID participantId = UUID.fromString("3b9da522-552a-4168-b052-794be9dbbe53");
+        when(addSettlementParticipantUseCase.add(
+                SETTLEMENT_ID,
+                new AddSettlementParticipantCommand(
+                        SettlementParticipantSource.GROUP_MEMBER,
+                        10L,
+                        "group.member",
+                        null,
+                        null
+                )
+        )).thenReturn(new SettlementParticipantResult(
+                participantId,
+                SettlementParticipantSource.GROUP_MEMBER,
+                "group.member",
+                "그룹 회원",
+                2
+        ));
+
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participants",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "source": "GROUP_MEMBER",
+                          "groupId": 10,
+                          "publicId": "group.member"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.participantId").value(participantId.toString()))
+                .andExpect(jsonPath("$.data.source").value("GROUP_MEMBER"))
+                .andExpect(jsonPath("$.data.publicId").value("group.member"))
+                .andExpect(jsonPath("$.data.displayName").value("그룹 회원"));
+    }
+
+    @Test
+    @DisplayName("양수가 아닌 그룹 ID는 UseCase 호출 없이 거부한다")
+    void rejectsNonPositiveGroupIdForParticipantAdd() throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participants",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "source": "GROUP_MEMBER",
+                          "groupId": 0,
+                          "publicId": "group.member"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+
+        verifyNoInteractions(addSettlementParticipantUseCase);
+    }
+
+    @Test
     @DisplayName("빈 공개 ID 검색어는 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
     void rejectsBlankParticipantCandidateSearch() throws Exception {
         mockMvc.perform(get(
@@ -358,6 +456,172 @@ class SettlementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("image/png"))
                 .andExpect(content().bytes(imageContent));
+    }
+
+    @Test
+    @DisplayName("연락처 매칭 결과에 공개 정보와 기존 참여 여부만 반환한다")
+    void matchesSettlementContacts() throws Exception {
+        when(matchSettlementContactsUseCase.match(eq(SETTLEMENT_ID), any())).thenReturn(List.of(
+                new SettlementContactCandidateResult(
+                        "contact-1",
+                        "주소록 회원",
+                        true,
+                        "contact.member",
+                        "서비스 회원",
+                        true,
+                        false
+                ),
+                new SettlementContactCandidateResult(
+                        "contact-2",
+                        "비회원",
+                        false,
+                        null,
+                        null,
+                        false,
+                        true
+                )
+        ));
+
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "contacts": [
+                            {
+                              "contactId": "contact-1",
+                              "displayName": "주소록 회원",
+                              "phoneNumber": "010-1111-2222"
+                            },
+                            {
+                              "contactId": "contact-2",
+                              "displayName": "비회원",
+                              "phoneNumber": "010-2222-3333"
+                            }
+                          ]
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].contactId").value("contact-1"))
+                .andExpect(jsonPath("$.data[0].contactDisplayName").value("주소록 회원"))
+                .andExpect(jsonPath("$.data[0].member").value(true))
+                .andExpect(jsonPath("$.data[0].publicId").value("contact.member"))
+                .andExpect(jsonPath("$.data[0].memberDisplayName").value("서비스 회원"))
+                .andExpect(jsonPath("$.data[0].avatarUrl").value(
+                        "/api/v2/settlements/%s/participant-candidates/users/contact.member/avatar"
+                                .formatted(SETTLEMENT_ID)
+                ))
+                .andExpect(jsonPath("$.data[0].phoneNumber").doesNotExist())
+                .andExpect(jsonPath("$.data[0].phoneHash").doesNotExist())
+                .andExpect(jsonPath("$.data[0].userId").doesNotExist())
+                .andExpect(jsonPath("$.data[0].avatarFileName").doesNotExist())
+                .andExpect(jsonPath("$.data[1].member").value(false))
+                .andExpect(jsonPath("$.data[1].alreadyParticipant").value(true))
+                .andExpect(jsonPath("$.data[1].publicId").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("빈 연락처 목록은 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
+    void rejectsEmptyContactMatchingRequest() throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "contacts": []
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+    }
+
+    @Test
+    @DisplayName("null 연락처 항목은 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
+    void rejectsNullContactMatchingItem() throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "contacts": [null]
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+
+        verifyNoInteractions(matchSettlementContactsUseCase);
+    }
+
+    @Test
+    @DisplayName("휴대폰 번호가 비어 있는 연락처 항목을 INVALID_ARGUMENT로 거부한다")
+    void rejectsContactWithoutPhoneNumber() throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "contacts": [
+                            {
+                              "contactId": "contact-1",
+                              "displayName": "연락처",
+                              "phoneNumber": " "
+                            }
+                          ]
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+    }
+
+    @Test
+    @DisplayName("길이 제한을 초과한 연락처 항목을 UseCase 호출 없이 거부한다")
+    void rejectsOversizedContactMatchingFields() throws Exception {
+        String oversizedContactId = "c".repeat(101);
+        String oversizedDisplayName = "이".repeat(101);
+        String oversizedPhoneNumber = "-".repeat(21) + "01011112222";
+
+        assertInvalidContactFields(oversizedContactId, "연락처", "01011112222");
+        assertInvalidContactFields("contact-1", oversizedDisplayName, "01011112222");
+        assertInvalidContactFields("contact-1", "연락처", oversizedPhoneNumber);
+
+        verifyNoInteractions(matchSettlementContactsUseCase);
+    }
+
+    private void assertInvalidContactFields(
+            String contactId,
+            String displayName,
+            String phoneNumber
+    ) throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "contacts": [
+                            {
+                              "contactId": "%s",
+                              "displayName": "%s",
+                              "phoneNumber": "%s"
+                            }
+                          ]
+                        }
+                        """.formatted(
+                        contactId,
+                        displayName,
+                        phoneNumber
+                )))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
     }
 
     private SettlementResult result() {

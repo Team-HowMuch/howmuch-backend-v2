@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>공통 코드 관리자</title>
+    <link rel="stylesheet" href="/admin/common-codes.css">
+</head>
+<body>
+<main class="page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">ADMIN</p>
+            <h1>공통 코드 관리자</h1>
+            <p class="muted">그룹의 표시 이름과 상세 코드 값을 관리합니다.</p>
+        </div>
+        <button id="logoutButton" class="button secondary hidden" type="button">로그아웃</button>
+    </header>
+
+    <section id="loginPanel" class="card narrow">
+        <h2>관리자 로그인</h2>
+        <form id="loginForm" class="form-grid">
+            <label>휴대폰 번호<input id="phoneNumber" name="phoneNumber" type="text" autocomplete="username" required></label>
+            <label>PIN<input id="pin" name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" required></label>
+            <button class="button primary" type="submit">로그인</button>
+        </form>
+    </section>
+
+    <section id="adminPanel" class="hidden">
+        <div id="message" class="message hidden" role="status"></div>
+        <div class="toolbar card">
+            <form id="searchForm" class="search-form">
+                <input id="keyword" type="search" placeholder="그룹 코드 또는 그룹명">
+                <button class="button secondary" type="submit">검색</button>
+            </form>
+            <button id="newGroupButton" class="button primary" type="button">그룹 생성</button>
+        </div>
+
+        <div class="workspace">
+            <aside class="card group-panel">
+                <div class="section-title"><h2>그룹</h2><span id="groupCount" class="muted"></span></div>
+                <div id="groupList" class="group-list"></div>
+            </aside>
+
+            <section class="card editor-panel">
+                <div id="emptyState" class="empty-state">그룹을 선택하거나 새 그룹을 생성하세요.</div>
+                <form id="groupForm" class="hidden">
+                    <div class="section-title">
+                        <div><p class="eyebrow">GROUP</p><h2 id="editorTitle">그룹 편집</h2></div>
+                        <span id="revisionLabel" class="muted"></span>
+                    </div>
+                    <div class="form-grid three-columns">
+                        <label>그룹 코드<input id="groupCode" type="text" maxlength="50" required></label>
+                        <label>그룹명<input id="groupName" type="text" maxlength="100" required></label>
+                        <label class="checkbox-label"><input id="groupActive" type="checkbox"> 사용</label>
+                        <label class="wide">설명<textarea id="groupDescription" maxlength="500"></textarea></label>
+                        <label>attr1 이름<input id="attr1Name" type="text" maxlength="50"></label>
+                        <label>attr2 이름<input id="attr2Name" type="text" maxlength="50"></label>
+                        <label>attr3 이름<input id="attr3Name" type="text" maxlength="50"></label>
+                    </div>
+
+                    <div class="section-title detail-heading">
+                        <div><h2>상세 코드</h2><p class="muted">기존 코드는 식별자이므로 코드값을 변경하지 않습니다.</p></div>
+                        <button id="addDetailButton" class="button secondary" type="button">상세 추가</button>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>순서</th><th>코드</th><th>이름</th><th>설명</th><th>attr1</th><th>attr2</th><th>attr3</th><th>사용</th><th>작업</th></tr></thead>
+                            <tbody id="detailRows"></tbody>
+                        </table>
+                    </div>
+                    <div class="actions"><button id="cancelButton" class="button secondary" type="button">취소</button><button class="button primary" type="submit">저장</button></div>
+                </form>
+            </section>
+        </div>
+    </section>
+</main>
+<script src="/admin/common-codes.js"></script>
+</body>
+</html>
