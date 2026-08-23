@@ -8,13 +8,13 @@ import com.amateur.howmuchbackend.application.port.out.commoncode.LoadCommonCode
 import com.amateur.howmuchbackend.application.port.out.commoncode.SaveCommonCodeGroupPort;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCode;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCodeGroup;
+import com.amateur.howmuchbackend.infra.cache.config.CommonCodeCacheConfig;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,7 +32,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@SpringJUnitConfig(CommonCodePersistenceAdapterCacheTest.CacheTestConfiguration.class)
+@SpringJUnitConfig({
+        CommonCodeCacheConfig.class,
+        CommonCodePersistenceAdapterCacheTest.CacheTestConfiguration.class
+})
 @DisplayName("공통 코드 조회 캐시")
 class CommonCodePersistenceAdapterCacheTest {
     @Autowired
@@ -112,7 +115,6 @@ class CommonCodePersistenceAdapterCacheTest {
     }
 
     @Configuration
-    @EnableCaching(proxyTargetClass = true)
     static class CacheTestConfiguration {
         @Bean
         CommonCodeGroupJpaRepository commonCodeGroupRepository() {
