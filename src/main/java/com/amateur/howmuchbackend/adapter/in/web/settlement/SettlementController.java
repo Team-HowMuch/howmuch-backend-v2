@@ -16,6 +16,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
@@ -24,6 +25,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlemen
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -55,6 +57,7 @@ public class SettlementController implements SettlementDocs {
     private final SearchSettlementParticipantUseCase searchSettlementParticipantUseCase;
     private final GetSettlementParticipantCandidateAvatarUseCase getSettlementParticipantCandidateAvatarUseCase;
     private final MatchSettlementContactsUseCase matchSettlementContactsUseCase;
+    private final GetSettlementGroupParticipantCandidatesUseCase getSettlementGroupParticipantCandidatesUseCase;
 
     @Override
     @PostMapping
@@ -149,6 +152,19 @@ public class SettlementController implements SettlementDocs {
                         request.toCommand()
                 ).stream()
                 .map(result -> SettlementContactCandidateWebResponse.from(settlementId, result))
+                .toList());
+    }
+
+    @Override
+    @GetMapping("/{settlementId}/participant-candidates/groups/{groupId}/members")
+    public ApiResponse<List<SettlementParticipantCandidateWebResponse>> getSettlementGroupParticipantCandidates(
+            @PathVariable UUID settlementId,
+            @Positive @PathVariable Long groupId
+    ) {
+        return ApiResponse.success(getSettlementGroupParticipantCandidatesUseCase
+                .get(settlementId, groupId)
+                .stream()
+                .map(result -> SettlementParticipantCandidateWebResponse.from(settlementId, result))
                 .toList());
     }
 
