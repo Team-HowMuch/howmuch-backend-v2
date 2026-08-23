@@ -11,6 +11,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDutchPayResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
@@ -21,6 +22,7 @@ import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementDutchPayAllocation;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +47,7 @@ public class SettlementAllocationService implements
     private final SaveSettlementPort saveSettlementPort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementExpensePort loadSettlementExpensePort;
+    private final LoadSettlementItemPort loadSettlementItemPort;
     private final SettlementDutchPayAllocationStorePort allocationStorePort;
     private final DutchPayAllocationPolicy dutchPayAllocationPolicy;
 
@@ -62,14 +65,12 @@ public class SettlementAllocationService implements
                     SettlementStatusCode.INVALID_SETTLEMENT_ALLOCATION_TYPE
             );
         }
-        if (selectedType == SettlementAllocationType.ITEM_ALLOCATION) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.SETTLEMENT_ITEM_ALLOCATION_NOT_AVAILABLE
-            );
-        }
         List<SettlementExpense> expenses = loadSettlementExpensePort
                 .findAllBySettlementId(settlement.id());
         long expenseTotal = validateExpenseTotal(settlement, expenses);
+        if (selectedType == SettlementAllocationType.ITEM_ALLOCATION) {
+            validateItemTotal(settlement.id(), expenseTotal);
+        }
 
         if (selectedType == settlement.allocationType()) {
             ensureExistingSelectionIsUsable(settlement, selectedType);
@@ -173,6 +174,30 @@ public class SettlementAllocationService implements
             );
         }
         return total;
+    }
+
+    private void validateItemTotal(UUID settlementId, long expenseTotal) {
+        List<SettlementItem> items = loadSettlementItemPort
+                .findAllBySettlementId(settlementId);
+        if (items.isEmpty()) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ITEM_REQUIRED);
+        }
+        long itemTotal = 0L;
+        try {
+            for (SettlementItem item : items) {
+                itemTotal = Math.addExact(itemTotal, item.amount());
+            }
+        } catch (ArithmeticException exception) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH,
+                    exception
+            );
+        }
+        if (itemTotal != expenseTotal) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH
+            );
+        }
     }
 
     private SettlementDutchPayResult assembleResult(Settlement settlement) {

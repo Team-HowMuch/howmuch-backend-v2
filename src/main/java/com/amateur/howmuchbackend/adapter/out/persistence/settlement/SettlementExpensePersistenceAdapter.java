@@ -84,6 +84,12 @@ public class SettlementExpensePersistenceAdapter implements
                     exception,
                     "uk_settlement_expenses_settlement_source_reference"
             )) {
+                if (expense.source() == SettlementExpenseSource.RECEIPT_OCR) {
+                    throw ApplicationException.of(
+                            SettlementStatusCode.SETTLEMENT_RECEIPT_ALREADY_IMPORTED,
+                            exception
+                    );
+                }
                 throw ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_EXPENSE_ALREADY_IMPORTED,
                         exception
