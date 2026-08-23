@@ -228,12 +228,12 @@ Existing behavior that must remain unchanged:
 
 ### Current increment
 
-- [ ] SettlementExpense Domain과 MANUAL 원본·설명·금액·표시 순서 불변식을 구현한다.
-- [ ] Load·Save·Delete 지출 Port와 JPA Entity·Repository·Mapper·Persistence Adapter를 구현한다.
-- [ ] 생성자 소유권과 DRAFT 상태를 검증하는 생성·조회·수정·삭제 UseCase와 Service를 구현한다.
-- [ ] 지출 목록과 각 변경 뒤 최신 `totalExpenseAmount`를 반환하는 Web API·Swagger 계약을 구현한다.
-- [ ] 정산 행 잠금으로 지출 변경과 상태 확정이 겹치지 않게 하고 동시 표시 순서 충돌을 방지한다.
-- [ ] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP 검증을 수행한다.
+- [x] SettlementExpense Domain과 MANUAL 원본·설명·금액·표시 순서 불변식을 구현한다.
+- [x] Load·Save·Delete 지출 Port와 JPA Entity·Repository·Mapper·Persistence Adapter를 구현한다.
+- [x] 생성자 소유권과 DRAFT 상태를 검증하는 생성·조회·수정·삭제 UseCase와 Service를 구현한다.
+- [x] 지출 목록과 각 변경 뒤 최신 `totalExpenseAmount`를 반환하는 Web API·Swagger 계약을 구현한다.
+- [x] 정산 행 잠금으로 지출 변경과 상태 확정이 겹치지 않게 하고 동시 표시 순서 충돌을 방지한다.
+- [x] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP 검증을 수행한다.
 
 ### Follow-up increments
 
@@ -281,7 +281,11 @@ git status --short --untracked-files=all
 | Item | Result | Evidence |
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
-| 구현·컴파일 | Pending | 구현 전 |
+| 구현·컴파일 | Complete | `./gradlew compileJava` 성공 |
+| 자동 테스트 | Complete | 더미 Discord URL을 주입한 `./gradlew test` 136개 성공 |
+| PostgreSQL 영속 검증 | Complete | V11 기반 저장·순서 조회·합계·수정·삭제·Cascade 통합 테스트 성공 |
+| 실제 HTTP | Complete | 로그인, 정산 생성, 지출 등록·목록·부분 수정·삭제와 빈 PATCH 400 검증 성공 |
+| Swagger | Complete | `/v3/api-docs`의 지출 경로와 `/swagger-ui.html` 200 응답 확인 |
 
 ## 9. Progress log
 
@@ -289,6 +293,7 @@ git status --short --untracked-files=all
 | --- | --- | --- | --- |
 | 2026-08-21 | 두 배분 방식과 전체 제출 검증 설계 기록 | 요청 링크에서 Share·송금 정보 고정 | 분수·원 단위 반올림 정책 미정 |
 | 2026-08-23 | 첫 구현 증분을 수동 지출 CRUD로 제한하고 V11 병합을 확인 | 지출 Domain·Application·Web 구현 | 기준 총액과 누적 지출액의 불일치 처리 시점 필요 |
+| 2026-08-23 | 수동 지출 CRUD와 테스트·실제 HTTP·Swagger 검증 완료 | 배분 방식과 더치페이 계산 | 후속 요청 확정 흐름도 정산 행 잠금을 사용해야 함 |
 
 ## 10. Decision log
 
