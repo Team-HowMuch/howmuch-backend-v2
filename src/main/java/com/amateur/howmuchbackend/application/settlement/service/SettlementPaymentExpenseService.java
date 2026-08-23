@@ -54,7 +54,6 @@ public class SettlementPaymentExpenseService implements
     private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
     @Override
-    @Transactional
     public List<SettlementPaymentExpenseCandidateResult> get(
             UUID settlementId,
             Long accountId,

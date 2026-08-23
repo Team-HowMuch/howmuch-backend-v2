@@ -27,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -82,6 +83,32 @@ class SettlementPaymentExpenseServiceTest {
         );
         lenient().when(allocationDraftInvalidator.invalidate(any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    @Test
+    @DisplayName("외부 계좌 동기화는 DB 트랜잭션 밖에서 실행하고 가져오기 저장은 트랜잭션을 유지한다")
+    void keepsExternalSynchronizationOutsideDatabaseTransaction() throws NoSuchMethodException {
+        var candidateMethod = SettlementPaymentExpenseService.class.getMethod(
+                "get",
+                UUID.class,
+                Long.class,
+                YearMonth.class
+        );
+        var importMethod = SettlementPaymentExpenseService.class.getMethod(
+                "importExpense",
+                UUID.class,
+                ImportSettlementPaymentExpenseCommand.class
+        );
+        var transactionAttributes = new AnnotationTransactionAttributeSource();
+
+        assertThat(transactionAttributes.getTransactionAttribute(
+                candidateMethod,
+                SettlementPaymentExpenseService.class
+        )).isNull();
+        assertThat(transactionAttributes.getTransactionAttribute(
+                importMethod,
+                SettlementPaymentExpenseService.class
+        )).isNotNull();
     }
 
     @Test
