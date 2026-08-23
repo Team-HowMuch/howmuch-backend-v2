@@ -161,7 +161,7 @@ Authentication: 기존 bearerAuth 유지
 | Persistence | 조회 Adapter 캐시 annotation, 저장 후 무효화 | `CommonCodePersistenceAdapter` |
 | Redis | 영향 없음 | 해당 없음 |
 | Security | 영향 없음 | 해당 없음 |
-| Configuration | Spring Cache/Caffeine 의존성과 1분 spec 추가 | `build.gradle`, `application.yaml` |
+| Configuration | `CommonCodeCacheConfig`에서 Spring Cache 활성화, Caffeine 의존성과 1분 spec 추가 | `CommonCodeCacheConfig`, `build.gradle`, `application.yaml` |
 | Documentation | Feature Plan과 Issue #67 갱신 | 본 문서 |
 
 Existing behavior that must remain unchanged:
@@ -180,7 +180,7 @@ Existing behavior that must remain unchanged:
 - [x] Application Service: `N/A` — 호출 흐름 유지
 - [x] Output Adapters: CommonCode 조회 캐시와 저장 후 무효화
 - [ ] Web Request/Response DTOs, Controllers, and Swagger: `N/A` — API 계약 변경 없음
-- [x] Infra configuration and Bean wiring: Spring Cache/Caffeine 자동 설정
+- [x] Infra configuration and Bean wiring: `CommonCodeCacheConfig`에서 `@EnableCaching` 활성화 및 Caffeine 자동 설정
 - [x] Documentation and verification results
 
 ### Expected commit boundaries
@@ -217,6 +217,7 @@ git status --short --untracked-files=all
 | 저장 후 캐시 무효화 | Passed | `CommonCodePersistenceAdapterCacheTest.evictsCachesAfterSave` |
 | 1분 TTL | Passed | `application.yaml`의 `expireAfterWrite=60s`와 Caffeine 설정 |
 | 전체 Gradle 테스트 | Passed | `.env` 환경에서 `./gradlew test` |
+| 애플리케이션 캐시 프록시 활성화 | Passed | `CommonCodeCacheConfig`를 로드하는 `CommonCodePersistenceAdapterCacheTest` |
 
 ## 9. Progress log
 
