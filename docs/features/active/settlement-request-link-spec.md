@@ -1,7 +1,7 @@
 # Feature Plan: 정산 요청 링크 및 Share 확정
 
 - Status: Draft
-- Last updated: 2026-08-21
+- Last updated: 2026-08-23
 - Related issue: [#26 정산 요청 링크 및 수금 계좌 설정](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/26)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
@@ -38,7 +38,7 @@
 
 - Existing domain to reuse: Settlement, SettlementParticipant, SettlementExpense와 AllocationResult를 사용한다.
 - Reason a new domain is required, if applicable: 공통 링크, 수금 계좌 스냅샷, 불변 Share, 공개 링크 참여 문맥이 필요하다.
-- Relationships to other domains: user/auth는 앱의 현재 userId를 제공한다. payment-method는 생성자의 수금 계좌 후보를 제공한다. allocation은 더치페이 또는 품목별 계산 결과를 제공한다. deposit-status는 Share와 계좌 스냅샷을 기준으로 CODEF 거래를 대조한다.
+- Relationships to other domains: user/auth는 앱의 현재 userId를 제공한다. account는 생성자의 CODEF 연결 계좌와 수금 계좌 후보를 제공한다. allocation은 더치페이 또는 품목별 계산 결과를 제공한다. deposit-status는 Share와 계좌 스냅샷을 기준으로 CODEF 거래를 대조한다.
 
 ### Ubiquitous language
 
@@ -151,7 +151,7 @@ SettlementLinkEntryResponse는 entryMode, settlementTitle, allocationPhase, part
 | --- | --- | --- | --- |
 | LoadSettlementLinkPort | tokenHash·상태·정산을 조회한다. | 링크 해석·송금 안내 UseCase | JPA Persistence Adapter |
 | SaveSettlementLinkPort | 링크와 활성·만료 상태를 저장한다. | 요청 확정 UseCase | JPA Persistence Adapter |
-| LoadReceivingAccountPort | 생성자가 선택할 수금 계좌 후보를 조회한다. | 계좌 설정 UseCase | payment-method Adapter 또는 개발 Stub |
+| LoadAccountPort | 생성자가 선택할 수금 계좌 후보와 소유권을 조회한다. | 계좌 설정 UseCase | 기존 AccountPersistenceAdapter |
 | SaveSettlementSharePort | 불변 Share와 계좌 스냅샷을 저장한다. | Share 확정 UseCase | JPA Persistence Adapter |
 | LoadSettlementSharePort | 참여자의 확정 Share를 조회한다. | 송금 안내 UseCase, 입금 현황 | JPA Persistence Adapter |
 | LoadSettlementParticipantByUserPort | 앱 userId의 등록 참여자를 조회한다. | 링크 해석 UseCase | participant Persistence Adapter |
@@ -191,8 +191,8 @@ Authentication: public link and LinkParticipantContext required
 
 - Database Entity, constraint, or query changes: settlement_links에 settlement_id, token_hash unique, status, expires_at을 저장한다. settlement_receiving_account_snapshots에 settlement_id unique, source_account_id, bank_code, account_number, account_holder를 저장한다. settlement_shares에 settlement_id, payer_participant_id, amount, 계좌 스냅샷 참조, 확정 시각을 저장하고 정산과 payer 범위 Unique 제약을 둔다.
 - Redis key, TTL, or serialization changes: settlement-link-participant:{contextId}에 tokenHash와 participantId를 저장한다. TTL은 보안·UX 정책 확정 전 구성값으로 두며, 만료 후 다시 링크를 해석한다.
-- External API or message changes: payment-method 계좌 후보 조회는 Output Port와 개발 Stub으로 시작한다. 단일 HTTPS 링크의 앱 라우팅은 iOS Associated Domains와 Android Digital Asset Links 설정을 배포 단계에서 연결한다.
-- Environment variable or profile changes: link base URL과 참여 문맥 TTL을 Properties로 관리한다. dev profile은 수금 계좌 후보 Stub을 제공한다.
+- External API or message changes: 계좌 후보는 기존 CODEF 연결 계좌의 Account 저장 데이터를 사용한다. 단일 HTTPS 링크의 앱 라우팅은 iOS Associated Domains와 Android Digital Asset Links 설정을 배포 단계에서 연결한다.
+- Environment variable or profile changes: link base URL과 참여 문맥 TTL을 Properties로 관리한다. 수금 계좌 후보용 개발 Stub은 추가하지 않는다.
 
 ## 5. Design decisions
 
@@ -220,7 +220,7 @@ Authentication: public link and LinkParticipantContext required
 | Persistence | 링크·계좌 스냅샷·Share JPA 저장 구조 | adapter.out.persistence.settlement |
 | Redis | LinkParticipantContext와 TTL | adapter.out.redis.settlement |
 | Security | 생성자 권한, 앱 optional auth, public link context | Security Adapter |
-| Configuration | link base URL, context TTL, payment-method dev Stub | infra.settlement |
+| Configuration | link base URL, context TTL | infra.settlement |
 | Documentation | 앱 직접 진입·브라우저 fallback·Toss 역할 분리 | PRD, allocation Spec |
 
 Existing behavior that must remain unchanged:
@@ -234,7 +234,7 @@ Existing behavior that must remain unchanged:
 - [ ] 공통 링크·수금 계좌 스냅샷·불변 Share·참여 문맥 Domain 모델과 상태 규칙을 정의한다.
 - [ ] 링크·Share·계좌·참여자·배분 결과·Redis 문맥 Output Port를 정의한다.
 - [ ] 수금 계좌 설정, 링크 발급, 앱 자동 매칭, 브라우저 참여 선택, Share 확정, Toss 안내 UseCase를 구현한다.
-- [ ] JPA Entity·Repository·Mapper·Persistence Adapter, Redis 참여 문맥 Adapter, payment-method 개발 Stub을 구현한다.
+- [ ] JPA Entity·Repository·Mapper·Persistence Adapter와 Redis 참여 문맥 Adapter를 구현한다.
 - [ ] 생성자 API와 public link API, Swagger, 선택적 인증 처리, OS 링크 설정 배포 문서를 구현한다.
 - [ ] 더치페이와 품목별 배분 각각의 Share 확정 시점·잠금·입금 현황 연계를 통합 검증한다.
 
@@ -257,7 +257,7 @@ git diff --check
 git status --short --untracked-files=all
 ~~~
 
-수동 검증 전제조건: PostgreSQL·Redis, 생성자·자동 매칭 가능한 앱 회원·브라우저 참여자, 수금 계좌 개발 Stub, iOS/Android 링크 도메인 검증 배포 환경이 필요하다.
+수동 검증 전제조건: PostgreSQL·Redis, 생성자·자동 매칭 가능한 앱 회원·브라우저 참여자, CODEF 연결 계좌, iOS/Android 링크 도메인 검증 배포 환경이 필요하다.
 
 ### Completion criteria
 
@@ -279,6 +279,7 @@ git status --short --untracked-files=all
 | Date | Completed work | Next work | Discovered risk |
 | --- | --- | --- | --- |
 | 2026-08-21 | 공통 링크·앱 자동 매칭·브라우저 fallback·Share 고정 설계 기록 | 수금 계좌와 public link 실제 구현 | App/Universal Link 배포 검증과 payment-method 계약 미정 |
+| 2026-08-23 | V15 수령 계좌 참조 스키마와 실제 Account 조회 경계 확정 | 수령 계좌 조회·선택 후 public link 구현 | App/Universal Link 배포 검증 미정 |
 
 ## 10. Decision log
 
@@ -288,11 +289,12 @@ git status --short --untracked-files=all
 | 2026-08-21 | 앱 회원은 userId 매칭 성공 시 이름 선택을 건너뛴다. | 공통 링크에서도 로그인한 참여자를 바로 개인 단계로 보내기 위해서다. | 세션·매칭이 없으면 브라우저 선택으로 내린다. |
 | 2026-08-21 | 품목별 Share는 전체 선택 검증 뒤에만 고정한다. | 선택 중 송금액 변경을 막는다. | 중간 Share·부분 송금은 제공하지 않는다. |
 | 2026-08-21 | Toss 이동과 입금 완료 판정을 분리한다. | 앱 호출은 송금 성공 증명이 아니기 때문이다. | CODEF 거래 검증이 완료 상태를 결정한다. |
+| 2026-08-23 | 수금 계좌 후보는 기존 `LoadAccountPort`를 재사용한다. | CODEF 연결 계좌가 이미 실제 Account 도메인과 Adapter로 제공된다. | 별도 payment-method Port와 개발 Stub을 만들지 않는다. |
 
 ## 11. Completion record
 
 - Completed on: Pending
 - Final behavior: Pending
 - Unverified items: 전체 구현 전
-- Remaining risks: payment-method 계좌 데이터 계약, App/Universal Link 운영 배포, LinkParticipantContext TTL·폐기 정책을 구현 전에 확정해야 한다.
+- Remaining risks: App/Universal Link 운영 배포와 LinkParticipantContext TTL·폐기 정책을 구현 전에 확정해야 한다.
 - Follow-up work: 입금 현황과 CODEF 거래 대조 기능을 별도 Feature Plan으로 정의한다.
