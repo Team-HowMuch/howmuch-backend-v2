@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettleme
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementExpensePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,6 +63,12 @@ class SettlementExpenseServiceTest {
     @Mock
     private DeleteSettlementExpensePort deleteSettlementExpensePort;
 
+    @Mock
+    private SaveSettlementPort saveSettlementPort;
+
+    @Mock
+    private SettlementAllocationDraftInvalidator allocationDraftInvalidator;
+
     private SettlementExpenseService settlementExpenseService;
 
     @BeforeEach
@@ -70,8 +78,12 @@ class SettlementExpenseServiceTest {
                 loadSettlementPort,
                 loadSettlementExpensePort,
                 saveSettlementExpensePort,
-                deleteSettlementExpensePort
+                deleteSettlementExpensePort,
+                saveSettlementPort,
+                allocationDraftInvalidator
         );
+        lenient().when(allocationDraftInvalidator.invalidate(any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -90,6 +102,7 @@ class SettlementExpenseServiceTest {
 
         ArgumentCaptor<SettlementExpense> captor = ArgumentCaptor.forClass(SettlementExpense.class);
         verify(loadSettlementPort).findByIdForUpdate(SETTLEMENT_ID);
+        verify(allocationDraftInvalidator).invalidate(any(Settlement.class), any(LocalDateTime.class));
         verify(saveSettlementExpensePort).save(captor.capture());
         assertThat(captor.getValue().displayOrder()).isEqualTo(2);
         assertThat(result.expense().description()).isEqualTo("저녁 식사");
