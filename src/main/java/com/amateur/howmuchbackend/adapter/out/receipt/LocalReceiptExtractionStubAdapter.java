@@ -11,8 +11,8 @@ import java.util.Optional;
 @Profile({"local", "dev"})
 public class LocalReceiptExtractionStubAdapter implements ExtractReceiptItemsPort {
     @Override
-    public Optional<ReceiptExtraction> extract(String receiptReference) {
-        if (receiptReference == null || receiptReference.isBlank()) {
+    public Optional<ReceiptExtraction> extract(Long requesterId, String receiptReference) {
+        if (requesterId == null || receiptReference == null || receiptReference.isBlank()) {
             return Optional.empty();
         }
         return Optional.of(new ReceiptExtraction(

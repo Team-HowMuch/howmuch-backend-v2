@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ExtractReceiptItemsPort {
-    Optional<ReceiptExtraction> extract(String receiptReference);
+    Optional<ReceiptExtraction> extract(Long requesterId, String receiptReference);
 
     record ReceiptExtraction(
             String description,
