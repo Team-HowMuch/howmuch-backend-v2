@@ -327,7 +327,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "INVALID_ARGUMENT - 그룹 ID 형식 오류"
+                    description = "INVALID_ARGUMENT 또는 INVALID_SETTLEMENT_GROUP_ID - 그룹 ID 오류"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401",
