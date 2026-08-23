@@ -19,12 +19,4 @@ public interface SettlementItemJpaRepository extends JpaRepository<SettlementIte
             @Param("settlementId") UUID settlementId
     );
 
-    @Query("""
-            select coalesce(sum(item.amount), 0)
-            from SettlementItemJpaEntity item
-            where item.settlementId = :settlementId
-            """)
-    long sumAmountBySettlementId(@Param("settlementId") UUID settlementId);
-
-    boolean existsBySettlementId(UUID settlementId);
 }

@@ -27,16 +27,6 @@ public class SettlementItemPersistenceAdapter implements
     }
 
     @Override
-    public long totalAmount(UUID settlementId) {
-        return settlementItemJpaRepository.sumAmountBySettlementId(settlementId);
-    }
-
-    @Override
-    public boolean existsBySettlementId(UUID settlementId) {
-        return settlementItemJpaRepository.existsBySettlementId(settlementId);
-    }
-
-    @Override
     public List<SettlementItem> saveAll(List<SettlementItem> items) {
         return settlementItemJpaRepository.saveAllAndFlush(items.stream()
                         .map(SettlementItemMapper::toEntity)
