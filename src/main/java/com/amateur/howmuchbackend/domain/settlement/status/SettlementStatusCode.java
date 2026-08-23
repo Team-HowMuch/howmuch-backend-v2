@@ -41,6 +41,7 @@ public enum SettlementStatusCode implements StatusCode {
     SETTLEMENT_EXPENSE_TOTAL_MISMATCH("정산 기준 총액과 지출 합계가 일치하지 않습니다.", 409),
     SETTLEMENT_RECEIPT_EXPENSE_REQUIRED("품목별 할당에는 OCR 영수증 지출이 필요합니다.", 409),
     SETTLEMENT_DUTCH_PAY_ALLOCATION_NOT_FOUND("더치페이 참여자 배분을 찾을 수 없습니다.", 404),
+    SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE("더치페이 참여자 배분이 완전하지 않습니다.", 409),
     INVALID_DUTCH_PAY_TOTAL("더치페이 배분 합계가 허용 범위를 초과했습니다.", 400),
     INVALID_SETTLEMENT_STATUS_TRANSITION("허용되지 않는 정산 상태 변경입니다.", 409);
 
