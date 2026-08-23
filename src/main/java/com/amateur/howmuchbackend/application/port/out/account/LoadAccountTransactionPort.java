@@ -14,6 +14,8 @@ public interface LoadAccountTransactionPort {
 
     List<Transaction> findByAccountIdAndYearMonth(Long accountId, YearMonth yearMonth);
 
+    Optional<Transaction> findByAccountIdAndId(Long accountId, Long transactionId);
+
     Optional<AccountMonthlySummary> findSummary(Long accountId, YearMonth yearMonth);
 
     AccountMonthlySummary calculateSummary(Long accountId, YearMonth yearMonth);

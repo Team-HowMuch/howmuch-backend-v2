@@ -84,22 +84,55 @@ class SettlementExpenseTest {
     @Test
     @DisplayName("외부 원본의 수정 정책이 확정되기 전에는 수동 지출 API 수정을 거부한다")
     void rejectsUpdateForImportedExpense() {
-        SettlementExpense imported = new SettlementExpense(
-                UUID.randomUUID(),
+        SettlementExpense imported = SettlementExpense.paymentHistory(
                 SETTLEMENT_ID,
-                SettlementExpenseSource.PAYMENT_HISTORY,
+                "  transaction-key  ",
                 "카드 결제",
                 42_000,
                 0,
-                NOW,
                 NOW
         );
 
+        assertThat(imported.sourceReference()).isEqualTo("transaction-key");
         assertThatThrownBy(() -> imported.updateManual("변경", null, NOW.plusMinutes(1)))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
                                 SettlementStatusCode.SETTLEMENT_EXPENSE_NOT_EDITABLE
                         ));
+    }
+
+    @Test
+    @DisplayName("수동 지출에 외부 참조가 있거나 결제내역에 외부 참조가 없으면 거부한다")
+    void validatesSourceReferenceByExpenseSource() {
+        assertThatThrownBy(() -> new SettlementExpense(
+                UUID.randomUUID(),
+                SETTLEMENT_ID,
+                SettlementExpenseSource.MANUAL,
+                "transaction-key",
+                "카드 결제",
+                42_000,
+                0,
+                NOW,
+                NOW
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_SOURCE_REFERENCE
+                ));
+
+        assertThatThrownBy(() -> new SettlementExpense(
+                UUID.randomUUID(),
+                SETTLEMENT_ID,
+                SettlementExpenseSource.PAYMENT_HISTORY,
+                null,
+                "카드 결제",
+                42_000,
+                0,
+                NOW,
+                NOW
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_SOURCE_REFERENCE
+                ));
     }
 
     private SettlementExpense manualExpense() {

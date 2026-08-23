@@ -117,7 +117,6 @@ public class SettlementExpenseService implements
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId);
         settlement.ensureExpensesEditable();
         SettlementExpense expense = loadExpense(settlementId, expenseId);
-        expense.ensureRemovable();
         long totalExpenseAmount = removeFromTotal(
                 loadSettlementExpensePort.totalAmount(settlementId),
                 expense.amount()
