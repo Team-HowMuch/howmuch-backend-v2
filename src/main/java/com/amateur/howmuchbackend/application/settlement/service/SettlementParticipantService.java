@@ -2,7 +2,9 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
+import com.amateur.howmuchbackend.application.group.model.GroupMemberRoster;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
@@ -18,6 +20,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMembersPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
@@ -64,7 +67,8 @@ public class SettlementParticipantService implements
         GetSettlementParticipantAvatarUseCase,
         SearchSettlementParticipantUseCase,
         GetSettlementParticipantCandidateAvatarUseCase,
-        MatchSettlementContactsUseCase {
+        MatchSettlementContactsUseCase,
+        GetSettlementGroupParticipantCandidatesUseCase {
     private static final int MAX_PUBLIC_ID_CANDIDATES = 20;
     private static final int MAX_CONTACTS_PER_REQUEST = 500;
     private static final int MAX_CONTACT_ID_LENGTH = 100;
@@ -72,6 +76,7 @@ public class SettlementParticipantService implements
     private static final int MAX_CONTACT_PHONE_NUMBER_LENGTH = 20;
 
     private final CurrentActorPort currentActorPort;
+    private final LoadGroupMembersPort loadGroupMembersPort;
     private final LoadSettlementPort loadSettlementPort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final SaveSettlementParticipantPort saveSettlementParticipantPort;
@@ -245,6 +250,48 @@ public class SettlementParticipantService implements
                         participantPhoneHashes
                 ))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SettlementParticipantCandidateResult> get(UUID settlementId, Long groupId) {
+        Settlement settlement = loadOwnedSettlement(settlementId);
+        settlement.ensureParticipantsEditable();
+        GroupMemberRoster roster = loadGroupMembersPort.findActiveRoster(groupId)
+                .orElse(null);
+        if (roster == null) {
+            return List.of();
+        }
+        ensureGroupMember(roster, settlement.creatorId());
+
+        List<SettlementParticipant> participants = loadSettlementParticipantPort
+                .findAllBySettlementId(settlement.id());
+        Set<Long> excludedUserIds = participants.stream()
+                .map(SettlementParticipant::linkedUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<String> excludedPhoneHashes = participants.stream()
+                .map(SettlementParticipant::phoneHash)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, User> activeUsersById = loadUserPort.findAllByIds(roster.activeUserIds())
+                .stream()
+                .filter(User::active)
+                .collect(Collectors.toMap(User::id, Function.identity()));
+
+        return roster.activeUserIds().stream()
+                .map(activeUsersById::get)
+                .filter(Objects::nonNull)
+                .filter(user -> !excludedUserIds.contains(user.id()))
+                .filter(user -> !excludedPhoneHashes.contains(user.identityKey()))
+                .map(SettlementParticipantCandidateResult::from)
+                .toList();
+    }
+
+    private void ensureGroupMember(GroupMemberRoster roster, Long userId) {
+        if (!roster.contains(userId)) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_GROUP_ACCESS_DENIED);
+        }
     }
 
     private List<NormalizedContact> normalizeContacts(MatchSettlementContactsCommand command) {
