@@ -66,6 +66,7 @@ public class SettlementParticipantService implements
     private static final int MAX_CONTACTS_PER_REQUEST = 500;
     private static final int MAX_CONTACT_ID_LENGTH = 100;
     private static final int MAX_CONTACT_DISPLAY_NAME_LENGTH = 100;
+    private static final int MAX_CONTACT_PHONE_NUMBER_LENGTH = 20;
 
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
@@ -255,7 +256,11 @@ public class SettlementParticipantService implements
                     contact.displayName(),
                     MAX_CONTACT_DISPLAY_NAME_LENGTH
             );
-            String phoneHash = identityPolicy.phoneHash(contact.phoneNumber());
+            String phoneNumber = contact.phoneNumber();
+            if (phoneNumber == null || phoneNumber.length() > MAX_CONTACT_PHONE_NUMBER_LENGTH) {
+                throw invalidContactMatchRequest();
+            }
+            String phoneHash = identityPolicy.phoneHash(phoneNumber);
             contactsByPhoneHash.putIfAbsent(
                     phoneHash,
                     new NormalizedContact(contactId, displayName, phoneHash)

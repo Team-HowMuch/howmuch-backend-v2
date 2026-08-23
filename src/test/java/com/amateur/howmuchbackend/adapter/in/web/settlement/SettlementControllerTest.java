@@ -490,6 +490,49 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
     }
 
+    @Test
+    @DisplayName("길이 제한을 초과한 연락처 항목을 UseCase 호출 없이 거부한다")
+    void rejectsOversizedContactMatchingFields() throws Exception {
+        String oversizedContactId = "c".repeat(101);
+        String oversizedDisplayName = "이".repeat(101);
+        String oversizedPhoneNumber = "-".repeat(21) + "01011112222";
+
+        assertInvalidContactFields(oversizedContactId, "연락처", "01011112222");
+        assertInvalidContactFields("contact-1", oversizedDisplayName, "01011112222");
+        assertInvalidContactFields("contact-1", "연락처", oversizedPhoneNumber);
+
+        verifyNoInteractions(matchSettlementContactsUseCase);
+    }
+
+    private void assertInvalidContactFields(
+            String contactId,
+            String displayName,
+            String phoneNumber
+    ) throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "contacts": [
+                            {
+                              "contactId": "%s",
+                              "displayName": "%s",
+                              "phoneNumber": "%s"
+                            }
+                          ]
+                        }
+                        """.formatted(
+                        contactId,
+                        displayName,
+                        phoneNumber
+                )))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+    }
+
     private SettlementResult result() {
         return new SettlementResult(
                 SETTLEMENT_ID,

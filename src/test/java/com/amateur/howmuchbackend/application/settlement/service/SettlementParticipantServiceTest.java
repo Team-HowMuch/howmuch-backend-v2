@@ -516,6 +516,28 @@ class SettlementParticipantServiceTest {
     }
 
     @Test
+    @DisplayName("원본 길이 제한을 초과한 휴대폰 번호를 정규화 전에 거부한다")
+    void rejectsOversizedRawContactPhoneNumber() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
+
+        assertThatThrownBy(() -> settlementParticipantService.match(
+                SETTLEMENT_ID,
+                new MatchSettlementContactsCommand(List.of(
+                        contact(
+                                "oversized-phone",
+                                "긴 구분자 번호",
+                                "-".repeat(21) + "01011112222"
+                        )
+                ))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.INVALID_SETTLEMENT_CONTACT_MATCH_REQUEST
+                ));
+        verifyNoInteractions(matchContactUsersPort);
+    }
+
+    @Test
     @DisplayName("한 요청에서 500개를 초과한 연락처 매칭을 거부한다")
     void rejectsTooManyContacts() {
         List<SettlementContactCommand> contacts = new ArrayList<>();
