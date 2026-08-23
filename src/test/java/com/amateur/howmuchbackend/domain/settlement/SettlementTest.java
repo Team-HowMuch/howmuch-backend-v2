@@ -92,6 +92,45 @@ class SettlementTest {
     }
 
     @Nested
+    @DisplayName("수령 계좌 선택 정책")
+    class ReceivingAccountPolicy {
+        @Test
+        @DisplayName("송금 안내에 사용할 수 있도록 초안에 수령 계좌를 선택한다")
+        void selectsReceivingAccount() {
+            Settlement selected = draft().selectReceivingAccount(7L, CREATED_AT.plusMinutes(1));
+
+            assertThat(selected.receivingAccountId()).isEqualTo(7L);
+            assertThat(selected.updatedAt()).isEqualTo(CREATED_AT.plusMinutes(1));
+        }
+
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(longs = {0, -1})
+        @DisplayName("유효한 계좌를 참조하도록 비어 있거나 0 이하인 ID를 거부한다")
+        void rejectsInvalidAccountId(Long accountId) {
+            assertThatThrownBy(() -> draft().selectReceivingAccount(
+                    accountId, CREATED_AT.plusMinutes(1)
+            )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                    assertThat(exception.getStatusCode()).isEqualTo(
+                            SettlementStatusCode.INVALID_SETTLEMENT_RECEIVING_ACCOUNT_ID
+                    ));
+        }
+
+        @Test
+        @DisplayName("요청 참여자의 송금 대상이 바뀌지 않도록 초안 이후 선택을 거부한다")
+        void rejectsSelectionAfterRequest() {
+            Settlement requested = draft().request(CREATED_AT.plusMinutes(1));
+
+            assertThatThrownBy(() -> requested.selectReceivingAccount(
+                    7L, CREATED_AT.plusMinutes(2)
+            )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                    assertThat(exception.getStatusCode()).isEqualTo(
+                            SettlementStatusCode.SETTLEMENT_NOT_EDITABLE
+                    ));
+        }
+    }
+
+    @Nested
     @DisplayName("상태 전이 정책")
     class StatusTransitionPolicy {
         @Test
