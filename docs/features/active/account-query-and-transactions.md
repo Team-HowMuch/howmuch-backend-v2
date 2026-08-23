@@ -1,6 +1,6 @@
 # 기능 계획: 연결 계좌 조회와 소비내역
 
-- 상태: 설계 검토 완료, Flyway migration 선행 필요
+- 상태: 구현 및 검증 완료, migration PR merge 대기
 - 최종 수정일: 2026-08-23
 - 상위 이슈: [#87 연결 계좌 조회와 소비내역 제공](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/87)
 - 하위 이슈: [#88 스키마](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/88), [#89 기본 계좌·순서](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/89), [#90 목록](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/90), [#91 상세](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/91), [#92 CODEF 거래 Adapter](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/92), [#93 거래 영속화](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/93), [#94 월 요약](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/94), [#95 거래 조회](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/95), [#96 검증](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/96), [#97 삭제 정책](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/97)
@@ -19,12 +19,12 @@
 
 ### 성공 기준
 
-- [ ] 인증 사용자가 자신의 활성 계좌 목록을 금융기관으로 필터링하고 기본 계좌 우선 또는 최근 사용순으로 조회한다.
-- [ ] 계좌 상세에서 계좌명, 금융기관, 마스킹 계좌번호, 기본 여부, 표시 순서와 요청 월 소비 금액·건수·최근 사용일을 확인한다.
-- [ ] 계좌별 요청 월 거래내역이 저장되지 않았다면 CODEF 개인 수시입출 거래내역을 한 번 조회하고 중복 없이 저장한다.
-- [ ] 월 요약이 있으면 그대로 반환하고, 없으면 저장된 거래에서 계산해 저장한 뒤 반환한다.
-- [ ] 타인의 계좌 ID는 계좌가 없는 것과 같은 `404 ACCOUNT_NOT_FOUND`로 처리한다.
-- [ ] 동일 거래를 다시 가져와도 거래와 월 요약이 중복되지 않는다.
+- [x] 인증 사용자가 자신의 활성 계좌 목록을 금융기관으로 필터링하고 기본 계좌 우선 또는 최근 사용순으로 조회한다.
+- [x] 계좌 상세에서 계좌명, 금융기관, 마스킹 계좌번호, 기본 여부, 표시 순서와 요청 월 소비 금액·건수·최근 사용일을 확인한다.
+- [x] 계좌별 요청 월 거래내역이 저장되지 않았다면 CODEF 개인 수시입출 거래내역을 한 번 조회하고 중복 없이 저장한다.
+- [x] 월 요약이 있으면 그대로 반환하고, 없으면 저장된 거래에서 계산해 저장한 뒤 반환한다.
+- [x] 타인의 계좌 ID는 계좌가 없는 것과 같은 `404 ACCOUNT_NOT_FOUND`로 처리한다.
+- [x] 동일 거래를 다시 가져와도 거래와 월 요약이 중복되지 않는다.
 
 ### 제외 범위
 
@@ -53,7 +53,7 @@
 | 연결 계좌 | CODEF 후보 중 사용자가 HowMuch에 저장한 활성 계좌 | `Account` |
 | 기본 계좌 | 사용자 계좌 목록에서 우선 표시되는 하나의 활성 계좌 | `Account.isDefault` |
 | 표시 순서 | 기본 정렬에서 계좌를 배치하는 0 이상의 값 | `Account.displayOrder` |
-| 계좌 거래 | CODEF 계좌에서 가져와 서비스에 저장한 입출금 기록 | `AccountTransaction` |
+| 계좌 거래 | CODEF 계좌에서 가져와 서비스에 저장한 입출금 기록 | `Transaction` |
 | 소비 | 계좌 거래 중 출금인 기록 | `AccountTransactionType.EXPENSE` |
 | 월 소비 요약 | 계좌와 월별 소비 금액·건수·최근 사용일 캐시 | `AccountMonthlySummary` |
 
@@ -220,7 +220,7 @@ Response item:
   - 활성 기본 계좌를 사용자별 하나로 제한하는 PostgreSQL partial unique index
   - `account_transactions` 생성과 `(account_id, external_transaction_key)` Unique 제약
   - `account_monthly_summaries` 생성과 `(account_id, year_month)` Unique 제약
-- Migration pull request: `Pending`
+- Migration pull request: [#99 build(database): 계좌 표시 정보와 거래 요약 스키마 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/99)
 - Redis 변경: 없음
 - CODEF:
   - `POST /v1/kr/bank/p/account/transaction-list`
@@ -274,16 +274,16 @@ Response item:
 
 ## 7. 구현 계획
 
-- [ ] Migration-only pull request to `develop` (`Required`)
-- [ ] `GetAccountsUseCase`, `GetAccountDetailUseCase`, `GetAccountTransactionsUseCase`와 Result
-- [ ] `LoadAccountPort`, `SaveAccountPort`, 거래 영속 Port, `BankTransactionPort`
-- [ ] `Account` 표시 상태와 `AccountTransaction`, `AccountMonthlySummary`
-- [ ] 계좌 목록·상세·거래 조회 Application Service
-- [ ] 계좌·거래·월 요약 Persistence Adapter
-- [ ] CODEF 개인 수시입출 거래내역 Adapter
-- [ ] Web Response DTO, Controller, Swagger
-- [ ] 계좌 소유권, 거래 중복, 월 요약 적중·미적중, CODEF 응답 매핑 테스트
-- [ ] 문서와 검증 결과 반영
+- [x] Migration-only pull request to `develop` (`Required`)
+- [x] `GetAccountsUseCase`, `GetAccountDetailUseCase`, `GetAccountTransactionsUseCase`와 Result
+- [x] `LoadAccountPort`, `SaveAccountPort`, 거래 영속 Port, `BankTransactionPort`
+- [x] `Account` 표시 상태와 `Transaction`, `AccountMonthlySummary`
+- [x] 계좌 목록·상세·거래 조회 Application Service
+- [x] 계좌·거래·월 요약 Persistence Adapter
+- [x] CODEF 개인 수시입출 거래내역 Adapter
+- [x] Web Response DTO, Controller, Swagger
+- [x] 계좌 소유권, 거래 중복, 월 요약 적중·미적중, CODEF 응답 매핑 테스트
+- [x] 문서와 검증 결과 반영
 
 ### 예상 커밋 경계
 
@@ -313,27 +313,29 @@ git status --short --untracked-files=all
 
 ### 완료 기준
 
-- [ ] 목록 필터와 두 정렬 기준을 자동 테스트와 HTTP 호출로 확인했다.
-- [ ] 타인·비활성 계좌 접근이 차단되는 것을 확인했다.
-- [ ] 최초 월 조회에서 Mock 거래가 저장되고 같은 요청의 재호출에서 중복되지 않는 것을 확인했다.
-- [ ] 거래가 없는 월도 0원·0건 요약이 저장되는 것을 확인했다.
-- [ ] 서울 거래일시가 UTC `LocalDateTime`으로 변환되는 것을 확인했다.
-- [ ] Swagger 응답 필드와 실제 응답이 일치하는 것을 확인했다.
+- [x] 목록 필터와 두 정렬 기준을 자동 테스트와 HTTP 호출로 확인했다.
+- [x] 타인·비활성 계좌 접근이 차단되는 것을 확인했다.
+- [x] 최초 월 조회에서 Mock 거래가 저장되고 같은 요청의 재호출에서 중복되지 않는 것을 확인했다.
+- [x] 거래가 없는 월도 0원·0건 요약이 저장되는 것을 확인했다.
+- [x] 서울 거래일시가 UTC `LocalDateTime`으로 변환되는 것을 확인했다.
+- [x] Swagger 응답 필드와 실제 응답이 일치하는 것을 확인했다.
 
 ### 결과
 
 | 항목 | 결과 | 근거 |
 |---|---|---|
 | 설계 근거 조사 | 완료 | 현재 v2 연결 흐름, v1 참고 구현, CODEF 공식 샘플, 개발 Mock 비교 |
-| Flyway migration | 대기 | migration-only PR 필요 |
-| Java 구현 | 대기 | migration gate 이후 별도 작업 |
-| 실행 검증 | 대기 | 구현 후 PostgreSQL·Redis·Mock 필요 |
+| Flyway migration | 완료 | migration-only PR [#99](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/99), PostgreSQL V1~V10 적용 확인 |
+| Java 구현 | 완료 | 계좌 목록·상세·거래 API, CODEF Adapter, 거래·요약 Persistence 구현 |
+| 자동 검증 | 완료 | 계좌 Application·Web·CODEF 단위 테스트와 PostgreSQL 통합 테스트, 전체 92개 테스트 통과 |
+| 실행 검증 | 완료 | 개발 Mock과 임시 PostgreSQL에서 연결·연동·목록·상세·거래·반복 조회와 OpenAPI 확인 |
 
 ## 9. 진행 기록
 
 | 날짜 | 완료 작업 | 다음 작업 | 발견한 위험 |
 |---|---|---|---|
 | 2026-08-23 | 요구사항, 기존 v2, v1 참고 구현, CODEF 공식 샘플, 개발 Mock 조사와 계약 설계 | 이슈 분리와 migration-only PR | 월 요약 갱신 정책과 계좌 삭제 정책은 후속 결정 필요 |
+| 2026-08-23 | migration PR #99 기반 구현, 자동 테스트와 실제 Mock HTTP 검증 | migration PR merge 후 구현 PR 통합 | 월 요약 생성 후 갱신은 Batch 또는 새로고침 정책 필요 |
 
 ## 10. 결정 기록
 
@@ -356,8 +358,10 @@ git status --short --untracked-files=all
 
 ## 12. 완료 기록
 
-- 완료일:
-- 최종 동작:
+- 완료일: 2026-08-23
+- 최종 동작: 인증 사용자가 연결 계좌를 필터·정렬해 조회하고, 요청 월 요약이 없을 때만 CODEF 수시입출 거래를 적재·집계한 뒤 상세와 최신순 거래내역을 조회한다.
+- 검증: 임시 PostgreSQL에 V1~V10 적용, 전체 92개 테스트, 개발 Mock 기반 실제 HTTP 흐름과 OpenAPI 확인.
+- 배포 전제: migration PR #99가 먼저 `develop`에 merge되어야 한다.
 - 미검증 항목:
 - 남은 위험:
 - 후속 작업:

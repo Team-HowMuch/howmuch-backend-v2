@@ -26,7 +26,8 @@ public interface BankConnectionPort {
             String name,
             String maskedNumber,
             BigDecimal balance,
-            String currency
+            String currency,
+            String productCode
     ) {
     }
 }
