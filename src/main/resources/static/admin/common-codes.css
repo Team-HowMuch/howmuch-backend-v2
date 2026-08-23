@@ -1,0 +1,55 @@
+:root { color-scheme: light; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #222; background: #f5f6f8; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.page { max-width: 1440px; margin: 0 auto; padding: 42px 28px 64px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 32px; letter-spacing: -0.04em; }
+h2 { font-size: 18px; letter-spacing: -0.02em; }
+.eyebrow { color: #6875f5; font-size: 12px; font-weight: 800; letter-spacing: .12em; margin-bottom: 8px; }
+.muted { color: #78808e; font-size: 13px; }
+.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 4px 18px rgba(29, 37, 55, .04); }
+.narrow { max-width: 440px; padding: 24px; }
+.narrow h2 { margin-bottom: 18px; }
+.hidden { display: none !important; }
+.form-grid { display: grid; gap: 14px; }
+.three-columns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+label { display: grid; gap: 7px; color: #4d5562; font-size: 13px; font-weight: 700; }
+input, textarea, select { width: 100%; border: 1px solid #dfe3e8; border-radius: 7px; background: #fff; color: #222; font: inherit; font-size: 14px; padding: 10px 11px; }
+textarea { min-height: 70px; resize: vertical; }
+input:focus, textarea:focus, select:focus { border-color: #6875f5; outline: 3px solid rgba(104, 117, 245, .14); }
+.wide { grid-column: 1 / -1; }
+.checkbox-label { display: flex; align-items: center; gap: 8px; align-self: end; min-height: 40px; }
+.checkbox-label input { width: 17px; height: 17px; }
+.button { border: 0; border-radius: 7px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 800; padding: 10px 15px; }
+.button.primary { background: #252525; color: #fff; }
+.button.secondary { background: #f0f2f5; color: #343a46; }
+.button:hover { filter: brightness(.96); }
+.toolbar { display: flex; gap: 12px; justify-content: space-between; margin-bottom: 18px; padding: 14px; }
+.search-form { display: flex; gap: 8px; max-width: 580px; width: 100%; }
+.workspace { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; align-items: start; }
+.group-panel, .editor-panel { padding: 20px; }
+.section-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.group-list { display: grid; gap: 6px; }
+.group-item { display: grid; gap: 4px; width: 100%; border: 0; border-radius: 8px; background: transparent; color: #303641; cursor: pointer; padding: 12px; text-align: left; }
+.group-item:hover, .group-item.selected { background: #edf1ff; }
+.group-item strong { font-size: 14px; }
+.group-item span { color: #818896; font-size: 12px; }
+.empty-state { color: #858c98; padding: 100px 20px; text-align: center; }
+.detail-heading { border-top: 1px solid #edf0f3; margin-top: 26px; padding-top: 22px; }
+.table-wrap { overflow-x: auto; border: 1px solid #e7e9ed; border-radius: 8px; }
+table { border-collapse: collapse; min-width: 1050px; width: 100%; }
+th, td { border-bottom: 1px solid #edf0f3; padding: 9px 8px; text-align: left; vertical-align: middle; }
+th { background: #fafbfc; color: #6b7280; font-size: 12px; white-space: nowrap; }
+td input { min-width: 86px; padding: 8px; }
+td input.code-input { min-width: 72px; }
+.active-cell { text-align: center; }
+.active-cell input { min-width: 17px; width: 17px; height: 17px; }
+.delete-cell { text-align: center; }
+.delete-button { border: 0; background: transparent; color: #b3261e; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; padding: 6px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.message { border-radius: 8px; margin-bottom: 14px; padding: 12px 14px; }
+.message.success { background: #eaf8ef; color: #176b39; }
+.message.error { background: #fff0f0; color: #a32929; }
+@media (max-width: 900px) { .workspace { grid-template-columns: 1fr; } .group-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } .three-columns { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .page { padding: 24px 14px 40px; } .page-header, .toolbar { align-items: stretch; flex-direction: column; } .search-form { max-width: none; } .three-columns { grid-template-columns: 1fr; } .wide { grid-column: auto; } .group-list { grid-template-columns: 1fr; } }
