@@ -294,12 +294,12 @@ Existing behavior that must remain unchanged:
 
 ### Current payment import increment
 
-- [ ] SettlementExpense에 `sourceReference`와 PAYMENT_HISTORY 생성 규칙을 추가하고 V13 JPA 매핑을 연결한다.
-- [ ] 본인 계좌의 월별 출금 후보와 이미 가져온 여부를 반환하는 UseCase를 구현한다.
-- [ ] 선택 거래의 계좌 소유권·출금 유형·정수 원 금액·중복을 검증하고 지출로 저장한다.
-- [ ] 가져온 지출은 PATCH를 막고 기존 DELETE로 제거할 수 있게 한다.
-- [ ] 후보 조회·가져오기 API와 Swagger 계약을 추가한다.
-- [ ] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
+- [x] SettlementExpense에 `sourceReference`와 PAYMENT_HISTORY 생성 규칙을 추가하고 V13 JPA 매핑을 연결한다.
+- [x] 본인 계좌의 월별 출금 후보와 이미 가져온 여부를 반환하는 UseCase를 구현한다.
+- [x] 선택 거래의 계좌 소유권·출금 유형·정수 원 금액·중복을 검증하고 지출로 저장한다.
+- [x] 가져온 지출은 PATCH를 막고 기존 DELETE로 제거할 수 있게 한다.
+- [x] 후보 조회·가져오기 API와 Swagger 계약을 추가한다.
+- [x] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
 
 ### Follow-up increments
 
@@ -329,6 +329,7 @@ feat: 결제내역 정산 지출 모델과 영속 매핑 추가
 feat: 결제내역 후보 조회와 가져오기 기능 추가
 feat: 결제내역 정산 지출 API 추가
 test: 결제내역 가져오기 기능 검증 추가
+fix: 결제내역 API 검증 계약 충돌 수정
 docs: 결제내역 가져오기 구현 결과 반영
 ~~~
 
@@ -347,10 +348,10 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] DRAFT 생성자만 본인 계좌의 출금 거래 후보를 조회하고 가져온다.
-- [ ] 이미 가져온 거래가 후보 응답에 표시되고 같은 정산으로 중복 가져오기는 거부된다.
-- [ ] 입금·소수 원·다른 사용자 계좌 거래는 정산 지출로 저장되지 않는다.
-- [ ] 가져온 결제내역을 삭제하면 합계에서 빠지고 같은 거래를 다시 가져올 수 있다.
+- [x] DRAFT 생성자만 본인 계좌의 출금 거래 후보를 조회하고 가져온다.
+- [x] 이미 가져온 거래가 후보 응답에 표시되고 같은 정산으로 중복 가져오기는 거부된다.
+- [x] 입금·소수 원·다른 사용자 계좌 거래는 정산 지출로 저장되지 않는다.
+- [x] 가져온 결제내역을 삭제하면 합계에서 빠지고 같은 거래를 다시 가져올 수 있다.
 - [ ] DRAFT 생성자만 수기 지출과 배분 방식을 변경한다.
 - [ ] 더치페이 계산 결과의 합은 항상 지출 총액과 일치하고 나머지는 생성자 몫이다.
 - [ ] 같은 품목을 여러 참여자가 허용 비율로 선택할 수 있고, 같은 참여자의 중복 행은 생기지 않는다.
@@ -367,6 +368,10 @@ git status --short --untracked-files=all
 | PostgreSQL 영속 검증 | Complete | V12 기반 더치페이 초안 교체·조회·수정·참여자 삭제 Cascade 통합 테스트 성공 |
 | 실제 HTTP | Complete | JWT 로그인 뒤 2명 500원 기본 배분, 400원 수정 시 차액 100원, 생성자 600원 수정 시 재균형, 지출 변경 뒤 배분 무효화 409 검증 성공 |
 | Swagger | Complete | `/v3/api-docs`의 배분 유형·더치페이 조회·수정 경로와 `/swagger-ui.html` 200 응답 확인 |
+| 결제내역 가져오기 자동 테스트 | Complete | Domain·Application·Web 계약과 V13 중복 제약 테스트 및 실제 PostgreSQL·Redis 연결 전체 `./gradlew clean test` 181개 성공 |
+| 결제내역 가져오기 PostgreSQL 영속 검증 | Complete | `PAYMENT_HISTORY`, 64자 `source_reference`, 금액·표시 순서 저장과 같은 정산 중복 409 변환 확인 |
+| 결제내역 가져오기 실제 HTTP | Complete | 로그인 뒤 출금 후보 조회, 가져오기, `imported=true`, 중복 409, PATCH 409, DELETE, 재가져오기 흐름 확인 |
+| 결제내역 가져오기 Swagger | Complete | `/v3/api-docs`의 후보 조회·가져오기 계약과 `/swagger-ui.html` 리다이렉트 응답 확인 |
 
 ## 9. Progress log
 
@@ -379,6 +384,7 @@ git status --short --untracked-files=all
 | 2026-08-23 | V12 병합 뒤 배분 유형·더치페이 초안 구현 범위와 API 계약 확정 | Domain·영속·Application·Web 구현 | 입력 변경 뒤 기존 계산이 남지 않도록 무효화가 필요함 |
 | 2026-08-23 | 배분 유형 선택·기본 N빵·금액 수정·합계 응답과 입력 변경 무효화를 구현하고 159개 테스트·실제 HTTP·Swagger 검증 완료 | 외부 지출 후보 또는 품목별 할당 구현 | ITEM_ALLOCATION은 실제 OCR 품목을 검증할 저장 기능이 완료될 때까지 선택을 거부함 |
 | 2026-08-23 | V13 병합과 account 거래 조회 구현을 확인하고 결제내역 가져오기 계약 확정 | Domain·Application·Web 구현 | 예전 #43의 Stub 설계 대신 중복 Port 없이 현재 account 경계를 재사용해야 함 |
+| 2026-08-23 | 결제내역 후보 조회·가져오기·삭제와 중복 방지를 구현하고 자동 테스트·실제 HTTP·Swagger 검증 완료 | OCR 영수증 지출 가져오기 | 실제 HTTP에서 발견한 Validator 인터페이스 계약 충돌을 제약 상속 방식으로 수정함 |
 
 ## 10. Decision log
 
