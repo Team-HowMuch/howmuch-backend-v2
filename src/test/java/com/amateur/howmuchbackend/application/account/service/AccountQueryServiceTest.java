@@ -14,8 +14,8 @@ import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountMonthlySummary;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
-import com.amateur.howmuchbackend.domain.account.AccountTransaction;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
+import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.account.AccountType;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
@@ -144,7 +144,7 @@ class AccountQueryServiceTest {
         service.getAccountDetail(account.id(), AUGUST);
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<AccountTransaction>> captor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<Transaction>> captor = ArgumentCaptor.forClass(List.class);
         verify(saveTransactionPort).saveAllIgnoringDuplicates(captor.capture());
         assertThat(captor.getValue()).singleElement().satisfies(transaction -> {
             assertThat(transaction.externalTransactionKey()).matches("[0-9a-f]{64}");

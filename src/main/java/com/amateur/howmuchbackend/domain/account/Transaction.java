@@ -3,7 +3,7 @@ package com.amateur.howmuchbackend.domain.account;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public record AccountTransaction(
+public record Transaction(
         Long id,
         Long accountId,
         String externalTransactionKey,

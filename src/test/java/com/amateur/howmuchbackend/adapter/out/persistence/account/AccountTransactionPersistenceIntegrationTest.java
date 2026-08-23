@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.account;
 
-import com.amateur.howmuchbackend.domain.account.AccountTransaction;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
+import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.ExternalConnectionPersistenceAdapter;
 import com.amateur.howmuchbackend.infra.codef.config.CodefConfigurationFingerprint;
@@ -112,13 +112,13 @@ class AccountTransactionPersistenceIntegrationTest {
     @Test
     @DisplayName("중복 거래를 한 번만 저장하고 출금만 월 소비로 집계한다")
     void storesTransactionsAndSummaryWithoutDuplicates() {
-        AccountTransaction expense = transaction(
+        Transaction expense = transaction(
                 "a".repeat(64), AccountTransactionType.EXPENSE, "12500", LocalDateTime.of(2026, 8, 20, 0, 15)
         );
-        AccountTransaction income = transaction(
+        Transaction income = transaction(
                 "b".repeat(64), AccountTransactionType.INCOME, "50000", LocalDateTime.of(2026, 8, 21, 1, 15)
         );
-        AccountTransaction monthBoundary = transaction(
+        Transaction monthBoundary = transaction(
                 "c".repeat(64), AccountTransactionType.EXPENSE, "2500", LocalDateTime.of(2026, 7, 31, 15, 30)
         );
 
@@ -153,13 +153,13 @@ class AccountTransactionPersistenceIntegrationTest {
                 .hasValueSatisfying(connection -> assertThat(connection.connectedId()).isEqualTo("CID-TEST"));
     }
 
-    private AccountTransaction transaction(
+    private Transaction transaction(
             String key,
             AccountTransactionType type,
             String amount,
             LocalDateTime transactedAt
     ) {
-        return new AccountTransaction(
+        return new Transaction(
                 null, accountId, key, type, new BigDecimal(amount), transactedAt, "테스트 거래",
                 new BigDecimal("1000000")
         );

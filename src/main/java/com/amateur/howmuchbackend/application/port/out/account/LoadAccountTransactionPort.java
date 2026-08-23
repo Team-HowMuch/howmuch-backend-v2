@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.application.port.out.account;
 
 import com.amateur.howmuchbackend.domain.account.AccountMonthlySummary;
-import com.amateur.howmuchbackend.domain.account.AccountTransaction;
+import com.amateur.howmuchbackend.domain.account.Transaction;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -12,7 +12,7 @@ import java.util.Optional;
 public interface LoadAccountTransactionPort {
     Map<Long, LocalDateTime> findLastUsedAtByAccountIds(List<Long> accountIds);
 
-    List<AccountTransaction> findByAccountIdAndYearMonth(Long accountId, YearMonth yearMonth);
+    List<Transaction> findByAccountIdAndYearMonth(Long accountId, YearMonth yearMonth);
 
     Optional<AccountMonthlySummary> findSummary(Long accountId, YearMonth yearMonth);
 

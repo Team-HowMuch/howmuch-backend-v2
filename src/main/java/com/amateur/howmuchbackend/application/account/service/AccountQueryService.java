@@ -19,7 +19,7 @@ import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountMonthlySummary;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
-import com.amateur.howmuchbackend.domain.account.AccountTransaction;
+import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
@@ -129,14 +129,14 @@ public class AccountQueryService
                     .orElseThrow(() -> ApplicationException.of(
                             ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND
                     ));
-            List<AccountTransaction> transactions = bankTransactionPort.fetch(
+            List<Transaction> transactions = bankTransactionPort.fetch(
                             connection.connectedId(),
                             account.organization(),
                             account.externalAccountKey(),
                             yearMonth.atDay(1),
                             yearMonth.atEndOfMonth()
                     ).stream()
-                    .map(transaction -> new AccountTransaction(
+                    .map(transaction -> new Transaction(
                             null,
                             account.id(),
                             transactionKey(account.externalAccountKey(), transaction),

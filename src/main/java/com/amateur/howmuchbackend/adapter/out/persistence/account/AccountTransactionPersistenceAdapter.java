@@ -7,7 +7,7 @@ import com.amateur.howmuchbackend.adapter.out.persistence.account.repository.Acc
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
 import com.amateur.howmuchbackend.domain.account.AccountMonthlySummary;
-import com.amateur.howmuchbackend.domain.account.AccountTransaction;
+import com.amateur.howmuchbackend.domain.account.Transaction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +46,7 @@ public class AccountTransactionPersistenceAdapter
 
     @Override
     @Transactional(readOnly = true)
-    public List<AccountTransaction> findByAccountIdAndYearMonth(Long accountId, YearMonth yearMonth) {
+    public List<Transaction> findByAccountIdAndYearMonth(Long accountId, YearMonth yearMonth) {
         LocalDateTime start = monthStartUtc(yearMonth);
         return transactionRepository
                 .findByAccount_IdAndTransactedAtGreaterThanEqualAndTransactedAtLessThanOrderByTransactedAtDescIdDesc(
@@ -78,8 +78,8 @@ public class AccountTransactionPersistenceAdapter
 
     @Override
     @Transactional
-    public void saveAllIgnoringDuplicates(List<AccountTransaction> transactions) {
-        for (AccountTransaction transaction : transactions) {
+    public void saveAllIgnoringDuplicates(List<Transaction> transactions) {
+        for (Transaction transaction : transactions) {
             transactionRepository.insertIgnoringDuplicate(
                     transaction.accountId(), transaction.externalTransactionKey(), transaction.type().name(),
                     transaction.amount(), transaction.transactedAt(), transaction.description(),
@@ -97,8 +97,8 @@ public class AccountTransactionPersistenceAdapter
         );
     }
 
-    private AccountTransaction toDomain(AccountTransactionJpaEntity entity) {
-        return new AccountTransaction(
+    private Transaction toDomain(AccountTransactionJpaEntity entity) {
+        return new Transaction(
                 entity.getId(), entity.getAccount().getId(), entity.getExternalTransactionKey(), entity.getType(),
                 entity.getAmount(), entity.getTransactedAt(), entity.getDescription(), entity.getAfterBalance()
         );

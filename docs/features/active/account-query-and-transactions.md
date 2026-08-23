@@ -53,7 +53,7 @@
 | 연결 계좌 | CODEF 후보 중 사용자가 HowMuch에 저장한 활성 계좌 | `Account` |
 | 기본 계좌 | 사용자 계좌 목록에서 우선 표시되는 하나의 활성 계좌 | `Account.isDefault` |
 | 표시 순서 | 기본 정렬에서 계좌를 배치하는 0 이상의 값 | `Account.displayOrder` |
-| 계좌 거래 | CODEF 계좌에서 가져와 서비스에 저장한 입출금 기록 | `AccountTransaction` |
+| 계좌 거래 | CODEF 계좌에서 가져와 서비스에 저장한 입출금 기록 | `Transaction` |
 | 소비 | 계좌 거래 중 출금인 기록 | `AccountTransactionType.EXPENSE` |
 | 월 소비 요약 | 계좌와 월별 소비 금액·건수·최근 사용일 캐시 | `AccountMonthlySummary` |
 
@@ -277,7 +277,7 @@ Response item:
 - [x] Migration-only pull request to `develop` (`Required`)
 - [x] `GetAccountsUseCase`, `GetAccountDetailUseCase`, `GetAccountTransactionsUseCase`와 Result
 - [x] `LoadAccountPort`, `SaveAccountPort`, 거래 영속 Port, `BankTransactionPort`
-- [x] `Account` 표시 상태와 `AccountTransaction`, `AccountMonthlySummary`
+- [x] `Account` 표시 상태와 `Transaction`, `AccountMonthlySummary`
 - [x] 계좌 목록·상세·거래 조회 Application Service
 - [x] 계좌·거래·월 요약 Persistence Adapter
 - [x] CODEF 개인 수시입출 거래내역 Adapter
