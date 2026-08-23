@@ -25,6 +25,14 @@ spring:
           time_zone: UTC
         format_sql: false
         default_batch_fetch_size: 100
+  cache:
+    type: caffeine
+    cache-names:
+      - commonCodeByGroupAndCode
+      - commonCodeByGroup
+      - commonCodeExistsByGroupAndCode
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=60s
 howmuch:
   profile:
     image:
