@@ -17,6 +17,7 @@ public final class SettlementMapper {
                 entity.getCreatorId(),
                 entity.getTitle(),
                 entity.getTotalAmount(),
+                entity.getAllocationType(),
                 entity.getStatus(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
