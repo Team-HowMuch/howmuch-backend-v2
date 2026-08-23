@@ -1,7 +1,7 @@
 # Feature Plan: 정산 지출 및 금액 배분
 
 - Status: Draft
-- Last updated: 2026-08-21
+- Last updated: 2026-08-23
 - Related issue: [#29 정산 지출 입력 및 금액 배분](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/29)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
@@ -31,6 +31,14 @@
 - Toss 앱 호출과 입금 완료 판정
 - 품목별 배분에서 1/5 등 1·1/2·1/3·1/4 이외의 분할
 - SUSPENDED 상태의 재오픈 UX와 알림 발송
+
+### Current increment: 수동 정산 지출 CRUD
+
+- Scope: DRAFT 정산 생성자의 수동 지출 등록·목록 조회·수정·삭제와 누적 지출액 조회
+- Related issues: [#41 정산 지출 수정·삭제 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/41), [#42 수동 정산 지출 등록 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/42)
+- Persistence prerequisite: `V11__create_settlement_expense_schema.sql`이 `develop`에 병합되어 추가 Flyway 변경은 없다.
+- Excluded from this increment: 결제 내역·OCR 가져오기, 배분 방식 선택과 계산, 품목 선택·제출, 요청 링크 연동
+- Observable result: 생성자는 지출과 최신 `totalExpenseAmount`를 확인하며 DRAFT에서만 수동 지출을 변경할 수 있다.
 
 ## 2. Domain analysis
 
@@ -64,7 +72,7 @@
 ### State and invariants
 
 - State transitions: 지출과 배분 방식은 DRAFT에서만 생성자가 변경한다. 품목 선택은 요청 링크가 열린 REQUESTED 상태에서만 해당 참여자가 변경·제출한다. 모든 제출 후 검증 성공이면 AWAITING_DEPOSIT으로, 실패면 SUSPENDED로 전환한다.
-- Rules that must always hold: 지출 금액은 양수다. 정산 총액은 활성 지출의 합계다. 더치페이 배분액의 합은 총액과 같아야 한다. ItemSelection은 참여자와 품목의 조합마다 하나만 존재하며 허용 비율만 가진다. 한 품목의 최종 선택 비율 합은 정확히 1이어야 한다.
+- Rules that must always hold: 지출 금액은 양수다. `totalExpenseAmount`는 저장된 지출의 합계다. 요청 확정 시 `totalExpenseAmount`는 Settlement의 기준 `totalAmount`와 같아야 한다. 더치페이 배분액의 합은 총액과 같아야 한다. ItemSelection은 참여자와 품목의 조합마다 하나만 존재하며 허용 비율만 가진다. 한 품목의 최종 선택 비율 합은 정확히 1이어야 한다.
 - Invalid states: DRAFT가 아닌 상태에서 지출 수정, 선택하지 않은 참여자의 품목 제출, 허용되지 않은 비율, 전체 제출 전 Share 생성, 하나라도 비율 합이 1이 아닌 상태에서 Share 생성.
 
 ## 3. Scenarios
@@ -105,11 +113,14 @@
 ### Input Port
 
 ~~~
-ManageSettlementExpenseUseCase.create(settlementId, CreateExpenseRequest)
-  -> SettlementExpenseResponse
-ManageSettlementExpenseUseCase.update(settlementId, expenseId, UpdateExpenseRequest)
-  -> SettlementExpenseResponse
-ManageSettlementExpenseUseCase.delete(settlementId, expenseId) -> void
+CreateSettlementExpenseUseCase.create(settlementId, CreateSettlementExpenseCommand)
+  -> SettlementExpenseMutationResult
+GetSettlementExpensesUseCase.get(settlementId)
+  -> SettlementExpenseListResult
+UpdateSettlementExpenseUseCase.update(settlementId, expenseId, UpdateSettlementExpenseCommand)
+  -> SettlementExpenseMutationResult
+RemoveSettlementExpenseUseCase.remove(settlementId, expenseId)
+  -> SettlementExpenseTotalResult
 
 ImportSettlementExpenseUseCase.loadCandidates(settlementId, source, criteria)
   -> List<ExpenseCandidateResponse>
@@ -132,8 +143,9 @@ AllocationFraction은 ONE, HALF, THIRD, QUARTER만 허용한다. 품목 선택 U
 
 | Port | Purpose | Caller | Expected Adapter |
 | --- | --- | --- | --- |
-| LoadSettlementExpensePort | 지출·품목·선택·제출 상태를 조회한다. | 모든 지출·배분 UseCase | JPA Persistence Adapter |
-| SaveSettlementExpensePort | 지출·품목·선택·제출 상태를 저장한다. | 관리·배분 UseCase | JPA Persistence Adapter |
+| LoadSettlementExpensePort | 정산의 지출 목록·개별 지출·누적액·다음 표시 순서를 조회한다. | 수동 지출 관리 UseCase | JPA Persistence Adapter |
+| SaveSettlementExpensePort | 지출을 생성하거나 변경한다. | 수동 지출 생성·수정 UseCase | JPA Persistence Adapter |
+| DeleteSettlementExpensePort | 저장된 지출을 삭제한다. | 수동 지출 삭제 UseCase | JPA Persistence Adapter |
 | LoadSettlementParticipantsPort | 활성 참여자와 생성자 참여자를 조회한다. | 계산·제출 검증 UseCase | JPA Persistence Adapter |
 | LoadPaymentHistoryPort | 결제 내역 후보를 제공한다. | ImportSettlementExpenseUseCase | payment-history Adapter 또는 개발 Stub |
 | ExtractReceiptItemsPort | OCR 영수증 품목 후보를 제공한다. | ImportSettlementExpenseUseCase | receipt OCR Adapter 또는 개발 Stub |
@@ -147,6 +159,12 @@ POST /api/v2/settlements/{settlementId}/expenses
 PATCH /api/v2/settlements/{settlementId}/expenses/{expenseId}
 DELETE /api/v2/settlements/{settlementId}/expenses/{expenseId}
 Authentication: required, creator only
+
+POST Request: { description: string, amount: positive integer }
+PATCH Request: { description?: string, amount?: positive integer }
+GET Response: { expenses: SettlementExpense[], totalExpenseAmount: integer }
+POST/PATCH Response: { expense: SettlementExpense, totalExpenseAmount: integer }
+DELETE Response: { totalExpenseAmount: integer }
 
 GET /api/v2/settlements/{settlementId}/expense-candidates?source=paymentHistory|receiptOcr
 POST /api/v2/settlements/{settlementId}/expenses/import
@@ -166,7 +184,7 @@ Authentication: public link and resolved participant context required
 
 ### Persistence and external integrations
 
-- Database Entity, constraint, or query changes: settlement_expenses, settlement_items, settlement_item_selections, settlement_item_submissions를 추가한다. item selection에는 settlement_id, participant_id, item_id, fraction을 저장하고 participant_id와 item_id의 복합 Unique 제약을 둔다.
+- Database Entity, constraint, or query changes: 이번 증분은 병합된 `settlement_expenses`를 매핑하며 새 마이그레이션을 만들지 않는다. 후속 증분에서 settlement_items, settlement_item_selections, settlement_item_submissions를 추가한다. item selection에는 settlement_id, participant_id, item_id, fraction을 저장하고 participant_id와 item_id의 복합 Unique 제약을 둔다.
 - Redis key, TTL, or serialization changes: 없음.
 - External API or message changes: 결제 내역·OCR은 Port와 개발 Stub으로만 우선 연결한다. 실제 API 명세·환경 변수는 외부 공급자 확정 뒤 별도 Feature Plan으로 추가한다.
 - Environment variable or profile changes: dev profile에서 빈 후보를 반환하는 Stub을 제공한다.
@@ -208,6 +226,17 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
+### Current increment
+
+- [ ] SettlementExpense Domain과 MANUAL 원본·설명·금액·표시 순서 불변식을 구현한다.
+- [ ] Load·Save·Delete 지출 Port와 JPA Entity·Repository·Mapper·Persistence Adapter를 구현한다.
+- [ ] 생성자 소유권과 DRAFT 상태를 검증하는 생성·조회·수정·삭제 UseCase와 Service를 구현한다.
+- [ ] 지출 목록과 각 변경 뒤 최신 `totalExpenseAmount`를 반환하는 Web API·Swagger 계약을 구현한다.
+- [ ] 정산 행 잠금으로 지출 변경과 상태 확정이 겹치지 않게 하고 동시 표시 순서 충돌을 방지한다.
+- [ ] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP 검증을 수행한다.
+
+### Follow-up increments
+
 - [ ] 지출·배분 방식·품목·선택·제출 Domain 모델과 불변식을 정의한다.
 - [ ] 지출 저장, 참여자 조회, OCR·결제 내역 후보, 배분 결과 전달 Output Port를 정의한다.
 - [ ] 수기 지출 관리, 후보 가져오기, 더치페이 계산, 품목 선택·제출·최종 검증 UseCase를 구현한다.
@@ -218,10 +247,12 @@ Existing behavior that must remain unchanged:
 ### Expected commit boundaries
 
 ~~~
-docs: 정산 지출 배분 구현 명세 작성
-feat: 정산 지출과 배분 도메인 추가
-feat: 정산 지출 관리와 더치페이 API 추가
-feat: 정산 품목 선택과 합계 검증 추가
+docs: 수동 정산 지출 구현 범위 구체화
+feat: 정산 지출 도메인과 영속 구조 추가
+feat: 수동 정산 지출 관리 기능 추가
+feat: 수동 정산 지출 API 추가
+test: 수동 정산 지출 기능 검증 추가
+docs: 수동 정산 지출 구현 결과 반영
 ~~~
 
 ## 8. Verification
@@ -230,6 +261,7 @@ feat: 정산 품목 선택과 합계 검증 추가
 
 ~~~
 ./gradlew compileJava
+./gradlew test
 git diff --check
 git status --short --untracked-files=all
 ~~~
@@ -256,6 +288,7 @@ git status --short --untracked-files=all
 | Date | Completed work | Next work | Discovered risk |
 | --- | --- | --- | --- |
 | 2026-08-21 | 두 배분 방식과 전체 제출 검증 설계 기록 | 요청 링크에서 Share·송금 정보 고정 | 분수·원 단위 반올림 정책 미정 |
+| 2026-08-23 | 첫 구현 증분을 수동 지출 CRUD로 제한하고 V11 병합을 확인 | 지출 Domain·Application·Web 구현 | 기준 총액과 누적 지출액의 불일치 처리 시점 필요 |
 
 ## 10. Decision log
 
@@ -264,6 +297,8 @@ git status --short --untracked-files=all
 | 2026-08-21 | 더치페이 잔여금은 생성자에게 배분한다. | 정산 금액 합계를 원 단위로 맞춘다. | 균등 분산 정책은 제공하지 않는다. |
 | 2026-08-21 | 하나의 품목을 여러 참여자가 선택할 수 있다. | 공동 구매한 품목을 허용 비율로 나누기 위해서다. | 단일 소유자 방식은 제공하지 않는다. |
 | 2026-08-21 | 품목별 Share는 모든 제출과 합계 검증 뒤에만 고정한다. | 미완료 상태에서 송금액이 바뀌지 않도록 한다. | 중간 금액으로 송금하는 기능은 제공하지 않는다. |
+| 2026-08-23 | 지출 CRUD는 Settlement `totalAmount`를 자동 변경하지 않고 `totalExpenseAmount`를 별도로 반환한다. | 부분 입력 중 기준 총액이 의도치 않게 바뀌지 않게 한다. | 요청 확정 시 두 합계의 일치를 검증한다. |
+| 2026-08-23 | 지출 변경은 정산 행을 쓰기 잠금한 뒤 수행한다. | DRAFT 확인과 표시 순서 계산을 상태 확정·동시 등록과 직렬화한다. | 후속 요청 확정 흐름도 같은 잠금 계약을 사용해야 한다. |
 
 ## 11. Completion record
 
