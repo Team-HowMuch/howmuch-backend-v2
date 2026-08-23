@@ -27,7 +27,9 @@ public interface SettlementExpenseDocs {
                     useReturnTypeSchema = true
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "400", description = "INVALID_ARGUMENT - 설명 또는 금액 검증 실패"
+                    responseCode = "400",
+                    description = "INVALID_ARGUMENT - 설명 또는 금액 검증 실패; "
+                            + "INVALID_SETTLEMENT_EXPENSE_TOTAL - 누적액 범위 초과"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401", description = "UNAUTHORIZED - 인증 필요"
@@ -82,7 +84,9 @@ public interface SettlementExpenseDocs {
                     useReturnTypeSchema = true
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "400", description = "INVALID_ARGUMENT - 수정 필드 또는 값 검증 실패"
+                    responseCode = "400",
+                    description = "INVALID_ARGUMENT - 수정 필드 또는 값 검증 실패; "
+                            + "INVALID_SETTLEMENT_EXPENSE_TOTAL - 누적액 범위 초과"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401", description = "UNAUTHORIZED - 인증 필요"
