@@ -22,6 +22,3 @@ CREATE TABLE settlement_expenses (
     CONSTRAINT uk_settlement_expenses_settlement_display_order
         UNIQUE (settlement_id, display_order)
 );
-
-CREATE INDEX idx_settlement_expenses_settlement_display_order
-    ON settlement_expenses (settlement_id, display_order);
