@@ -257,6 +257,9 @@ public class SettlementParticipantService implements
     public List<SettlementParticipantCandidateResult> get(UUID settlementId, Long groupId) {
         Settlement settlement = loadOwnedSettlement(settlementId);
         settlement.ensureParticipantsEditable();
+        if (groupId == null || groupId <= 0) {
+            throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_GROUP_ID);
+        }
         GroupMemberRoster roster = loadGroupMembersPort.findActiveRoster(groupId)
                 .orElse(null);
         if (roster == null) {
