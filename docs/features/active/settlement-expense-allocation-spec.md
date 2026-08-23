@@ -104,6 +104,7 @@
 ### Boundary conditions
 
 - 1원 단위 금액도 더치페이 계산에 포함한다. 잔여금은 생성자에게 배분한다.
+- 지출 누적액이 Java `long` 원 단위 범위를 초과하는 등록·수정·조회는 `INVALID_SETTLEMENT_EXPENSE_TOTAL`로 거부하며 변경을 저장하지 않는다.
 - 한 품목을 선택하지 않은 참여자는 제출할 수 있다. 전체 품목을 반드시 모든 사람이 선택할 필요는 없고, 품목별 비율 합이 1이면 된다.
 - 한 참여자는 동일 품목을 하나의 비율로만 선택한다. 기존 선택을 바꾸면 행을 갱신한다.
 - 품목별 금액 계산 중 원 단위 반올림이 필요한 경우, 합계 보정 규칙은 PRD 확정 전 별도 결정으로 남긴다. MVP에서는 입력 품목 가격과 허용 분수의 조합으로 정수 합계가 보장되는 데이터만 요청 확정한다.
@@ -282,9 +283,9 @@ git status --short --untracked-files=all
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
 | 구현·컴파일 | Complete | `./gradlew compileJava` 성공 |
-| 자동 테스트 | Complete | 더미 Discord URL을 주입한 `./gradlew test` 136개 성공 |
+| 자동 테스트 | Complete | 더미 Discord URL을 주입한 `./gradlew test` 140개 성공 |
 | PostgreSQL 영속 검증 | Complete | V11 기반 저장·순서 조회·합계·수정·삭제·Cascade 통합 테스트 성공 |
-| 실제 HTTP | Complete | 로그인, 정산 생성, 지출 등록·목록·부분 수정·삭제와 빈 PATCH 400 검증 성공 |
+| 실제 HTTP | Complete | 로그인, 정산 생성, 지출 등록·목록·부분 수정·삭제, 빈 PATCH와 누적액 초과 400 검증 성공 |
 | Swagger | Complete | `/v3/api-docs`의 지출 경로와 `/swagger-ui.html` 200 응답 확인 |
 
 ## 9. Progress log
@@ -294,6 +295,7 @@ git status --short --untracked-files=all
 | 2026-08-21 | 두 배분 방식과 전체 제출 검증 설계 기록 | 요청 링크에서 Share·송금 정보 고정 | 분수·원 단위 반올림 정책 미정 |
 | 2026-08-23 | 첫 구현 증분을 수동 지출 CRUD로 제한하고 V11 병합을 확인 | 지출 Domain·Application·Web 구현 | 기준 총액과 누적 지출액의 불일치 처리 시점 필요 |
 | 2026-08-23 | 수동 지출 CRUD와 테스트·실제 HTTP·Swagger 검증 완료 | 배분 방식과 더치페이 계산 | 후속 요청 확정 흐름도 정산 행 잠금을 사용해야 함 |
+| 2026-08-23 | 리뷰에서 발견된 누적액 `long` 초과를 저장 전 400으로 변환하고 실제 HTTP 롤백 상태 검증 | 배분 방식과 더치페이 계산 | 금액 타입을 확장하면 API·DB 계약을 함께 변경해야 함 |
 
 ## 10. Decision log
 
