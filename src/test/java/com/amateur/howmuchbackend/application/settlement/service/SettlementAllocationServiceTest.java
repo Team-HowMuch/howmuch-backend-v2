@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateS
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementAllocationNextStep;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
@@ -17,6 +18,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementDutchPayAllocation;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +67,8 @@ class SettlementAllocationServiceTest {
     @Mock
     private LoadSettlementExpensePort loadSettlementExpensePort;
     @Mock
+    private LoadSettlementItemPort loadSettlementItemPort;
+    @Mock
     private SettlementDutchPayAllocationStorePort allocationStorePort;
 
     private SettlementAllocationService service;
@@ -77,6 +81,7 @@ class SettlementAllocationServiceTest {
                 saveSettlementPort,
                 loadSettlementParticipantPort,
                 loadSettlementExpensePort,
+                loadSettlementItemPort,
                 allocationStorePort,
                 new DutchPayAllocationPolicy()
         );
@@ -154,10 +159,14 @@ class SettlementAllocationServiceTest {
     }
 
     @Test
-    @DisplayName("실제 OCR 품목을 검증할 수 있을 때까지 품목별 할당 선택을 거부한다")
-    void rejectsItemAllocationUntilReceiptItemsAreAvailable() {
+    @DisplayName("저장된 OCR 품목이 없으면 품목별 할당 선택을 거부한다")
+    void rejectsItemAllocationWithoutReceiptItems() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(null, 1_000)));
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(expense(1_000)));
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
 
         assertThatThrownBy(() -> service.select(
                 SETTLEMENT_ID,
@@ -166,8 +175,56 @@ class SettlementAllocationServiceTest {
                 )
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(
-                        SettlementStatusCode.SETTLEMENT_ITEM_ALLOCATION_NOT_AVAILABLE
+                        SettlementStatusCode.SETTLEMENT_ITEM_REQUIRED
                 ));
+    }
+
+    @Test
+    @DisplayName("OCR 품목 합계가 전체 지출과 같으면 품목별 할당을 선택한다")
+    void selectsItemAllocationWithBalancedReceiptItems() {
+        Settlement settlement = settlement(null, 1_000);
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement));
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(expense(1_000)));
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(item(400, 0), item(600, 1)));
+        when(saveSettlementPort.update(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.select(
+                SETTLEMENT_ID,
+                new SelectSettlementAllocationTypeCommand(
+                        SettlementAllocationType.ITEM_ALLOCATION
+                )
+        );
+
+        assertThat(result.allocationType()).isEqualTo(SettlementAllocationType.ITEM_ALLOCATION);
+        assertThat(result.nextStep()).isEqualTo(
+                SettlementAllocationNextStep.REVIEW_ITEM_ALLOCATION
+        );
+        verify(allocationStorePort).deleteAllBySettlementId(SETTLEMENT_ID);
+    }
+
+    @Test
+    @DisplayName("OCR 품목 합계가 전체 지출보다 작으면 품목별 할당 선택을 거부한다")
+    void rejectsItemAllocationTotalMismatch() {
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(null, 1_000)));
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(expense(1_000)));
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(item(900, 0)));
+
+        assertThatThrownBy(() -> service.select(
+                SETTLEMENT_ID,
+                new SelectSettlementAllocationTypeCommand(
+                        SettlementAllocationType.ITEM_ALLOCATION
+                )
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH
+                ));
+        verify(saveSettlementPort, never()).update(any());
     }
 
     @Test
@@ -247,6 +304,18 @@ class SettlementAllocationServiceTest {
                 "지출",
                 amount,
                 0,
+                CREATED_AT
+        );
+    }
+
+    private SettlementItem item(long amount, int displayOrder) {
+        return SettlementItem.fromReceipt(
+                SETTLEMENT_ID,
+                UUID.randomUUID(),
+                "품목 " + displayOrder,
+                1,
+                amount,
+                displayOrder,
                 CREATED_AT
         );
     }

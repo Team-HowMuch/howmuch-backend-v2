@@ -102,6 +102,23 @@ class SettlementExpenseTest {
     }
 
     @Test
+    @DisplayName("OCR 영수증 지출은 원본 참조와 출처를 보존한다")
+    void createsReceiptOcrExpense() {
+        SettlementExpense expense = SettlementExpense.receiptOcr(
+                SETTLEMENT_ID,
+                "  receipt-demo  ",
+                "OCR 영수증",
+                30_000,
+                0,
+                NOW
+        );
+
+        assertThat(expense.source()).isEqualTo(SettlementExpenseSource.RECEIPT_OCR);
+        assertThat(expense.sourceReference()).isEqualTo("receipt-demo");
+        assertThat(expense.amount()).isEqualTo(30_000);
+    }
+
+    @Test
     @DisplayName("수동 지출에 외부 참조가 있거나 결제내역에 외부 참조가 없으면 거부한다")
     void validatesSourceReferenceByExpenseSource() {
         assertThatThrownBy(() -> new SettlementExpense(
