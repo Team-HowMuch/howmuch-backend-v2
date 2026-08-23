@@ -189,4 +189,5 @@ public class SettlementController implements SettlementDocs {
         removeSettlementParticipantUseCase.remove(settlementId, participantId);
         return ApiResponse.success();
     }
+
 }
