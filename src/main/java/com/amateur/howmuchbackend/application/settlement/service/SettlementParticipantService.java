@@ -95,10 +95,10 @@ public class SettlementParticipantService implements
     @Transactional
     public SettlementParticipantResult add(
             UUID settlementId,
-            AddSettlementParticipantCommand command
+        AddSettlementParticipantCommand command
     ) {
         Settlement settlement = loadOwnedEditableSettlement(settlementId);
-        ResolvedParticipant resolved = resolveParticipant(command);
+        ResolvedParticipant resolved = resolveParticipant(command, settlement.creatorId());
         int displayOrder = loadSettlementParticipantPort.nextDisplayOrder(settlement.id());
         SettlementParticipant participant = resolved.create(
                 settlement.id(),
@@ -405,19 +405,23 @@ public class SettlementParticipantService implements
         }
     }
 
-    private ResolvedParticipant resolveParticipant(AddSettlementParticipantCommand command) {
+    private ResolvedParticipant resolveParticipant(
+            AddSettlementParticipantCommand command,
+            Long creatorId
+    ) {
         if (command == null || command.source() == null) {
             throw invalidAddRequest();
         }
         return switch (command.source()) {
             case REGISTERED_USER -> resolveRegisteredUser(command);
             case CONTACT -> resolveContact(command);
-            case GROUP_MEMBER -> throw invalidAddRequest();
+            case GROUP_MEMBER -> resolveGroupMember(command, creatorId);
         };
     }
 
     private ResolvedParticipant resolveRegisteredUser(AddSettlementParticipantCommand command) {
-        if (command.publicId() == null
+        if (command.groupId() != null
+                || command.publicId() == null
                 || command.displayName() != null
                 || command.phoneNumber() != null) {
             throw invalidAddRequest();
@@ -438,7 +442,8 @@ public class SettlementParticipantService implements
     }
 
     private ResolvedParticipant resolveContact(AddSettlementParticipantCommand command) {
-        if (command.publicId() != null
+        if (command.groupId() != null
+                || command.publicId() != null
                 || command.displayName() == null
                 || command.phoneNumber() == null) {
             throw invalidAddRequest();
@@ -453,6 +458,38 @@ public class SettlementParticipantService implements
                 phoneHash,
                 command.displayName(),
                 linkedUser == null ? null : linkedUser.publicId()
+        );
+    }
+
+    private ResolvedParticipant resolveGroupMember(
+            AddSettlementParticipantCommand command,
+            Long creatorId
+    ) {
+        if (command.groupId() == null
+                || command.groupId() <= 0
+                || command.publicId() == null
+                || command.displayName() != null
+                || command.phoneNumber() != null) {
+            throw invalidAddRequest();
+        }
+        GroupMemberRoster roster = loadGroupMembersPort.findActiveRoster(command.groupId())
+                .orElseThrow(() -> ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
+                ));
+        ensureGroupMember(roster, creatorId);
+        String publicId = publicIdPolicy.normalize(command.publicId());
+        User user = loadUserPort.findByPublicId(publicId)
+                .filter(User::active)
+                .filter(candidate -> roster.contains(candidate.id()))
+                .orElseThrow(() -> ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
+                ));
+        return new ResolvedParticipant(
+                SettlementParticipantSource.GROUP_MEMBER,
+                user.id(),
+                user.identityKey(),
+                user.name(),
+                user.publicId()
         );
     }
 
@@ -509,7 +546,13 @@ public class SettlementParticipantService implements
                                 displayOrder,
                                 now
                         );
-                case GROUP_MEMBER -> throw new IllegalStateException("그룹 참여자는 별도 UseCase에서 생성합니다.");
+                case GROUP_MEMBER -> SettlementParticipant.groupMember(
+                        settlementId,
+                        linkedUserId,
+                        displayName,
+                        displayOrder,
+                        now
+                );
             };
         }
 
