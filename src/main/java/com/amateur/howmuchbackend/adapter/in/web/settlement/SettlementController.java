@@ -25,7 +25,6 @@ import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlemen
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -159,7 +158,7 @@ public class SettlementController implements SettlementDocs {
     @GetMapping("/{settlementId}/participant-candidates/groups/{groupId}/members")
     public ApiResponse<List<SettlementParticipantCandidateWebResponse>> getSettlementGroupParticipantCandidates(
             @PathVariable UUID settlementId,
-            @Positive @PathVariable Long groupId
+            @PathVariable Long groupId
     ) {
         return ApiResponse.success(getSettlementGroupParticipantCandidatesUseCase
                 .get(settlementId, groupId)
