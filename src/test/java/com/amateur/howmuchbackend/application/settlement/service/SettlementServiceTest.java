@@ -148,7 +148,7 @@ class SettlementServiceTest {
     @DisplayName("생성자만 정산 기준을 바꿀 수 있도록 다른 사용자의 수정을 저장하지 않는다")
     void rejectsUpdateByAnotherUser() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
 
         assertThatThrownBy(() -> settlementService.update(
                 SETTLEMENT_ID,
@@ -163,7 +163,7 @@ class SettlementServiceTest {
     @DisplayName("부분 수정 결과가 실제 영속 상태가 되도록 Domain 변경값을 저장 Port에 전달한다")
     void persistsDomainUpdate() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(saveSettlementPort.update(any(Settlement.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
