@@ -5,16 +5,25 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 public record AddSettlementParticipantWebRequest(
         @NotNull(message = "참여자 선택 경로는 필수입니다.")
         @Schema(
                 description = "참여자 선택 경로",
-                allowableValues = {"REGISTERED_USER", "CONTACT"},
+                allowableValues = {"REGISTERED_USER", "CONTACT", "GROUP_MEMBER"},
                 example = "REGISTERED_USER"
         )
         SettlementParticipantSource source,
+
+        @Positive(message = "그룹 ID는 양수여야 합니다.")
+        @Schema(
+                description = "그룹 구성원 선택 시 사용할 그룹 ID",
+                example = "1",
+                nullable = true
+        )
+        Long groupId,
 
         @Size(max = 20, message = "사용자 공개 ID는 20자 이하여야 합니다.")
         @Schema(
@@ -41,9 +50,15 @@ public record AddSettlementParticipantWebRequest(
                 example = "010-1234-5678",
                 nullable = true
         )
-        String phoneNumber
+    String phoneNumber
 ) {
     public AddSettlementParticipantCommand toCommand() {
-        return new AddSettlementParticipantCommand(source, publicId, displayName, phoneNumber);
+        return new AddSettlementParticipantCommand(
+                source,
+                groupId,
+                publicId,
+                displayName,
+                phoneNumber
+        );
     }
 }

@@ -118,8 +118,9 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 참여자 추가",
-            description = "현재 로그인한 생성자가 DRAFT 정산에 등록 사용자 또는 연락처 참여자를 추가합니다. "
-                    + "등록 사용자는 publicId만, 연락처는 displayName과 phoneNumber만 전달해야 합니다. "
+            description = "현재 로그인한 생성자가 DRAFT 정산에 등록 사용자, 연락처 또는 그룹 구성원 참여자를 추가합니다. "
+                    + "등록 사용자는 publicId만, 연락처는 displayName과 phoneNumber만, "
+                    + "그룹 구성원은 groupId와 publicId만 전달해야 합니다. "
                     + "연락처 원본 전화번호는 회원 매칭과 HMAC 변환 후 저장하거나 응답하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
@@ -140,7 +141,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
-                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+                    description = "SETTLEMENT_ACCESS_DENIED 또는 SETTLEMENT_GROUP_ACCESS_DENIED"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
@@ -309,6 +310,45 @@ public interface SettlementDocs {
     ApiResponse<List<SettlementContactCandidateWebResponse>> matchSettlementContacts(
             UUID settlementId,
             MatchSettlementContactsWebRequest request
+    );
+
+    @Operation(
+            summary = "정산 그룹 구성원 후보 조회",
+            description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 그룹의 활성 구성원을 조회합니다. "
+                    + "생성자도 해당 그룹의 활성 구성원이어야 하며 이미 정산에 포함된 회원은 제외합니다. "
+                    + "그룹 정보가 연결되지 않은 환경에서는 빈 목록을 반환합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 그룹 구성원 후보 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_ARGUMENT 또는 INVALID_SETTLEMENT_GROUP_ID - 그룹 ID 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED 또는 SETTLEMENT_GROUP_ACCESS_DENIED"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND - 정산 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+            )
+    })
+    ApiResponse<List<SettlementParticipantCandidateWebResponse>> getSettlementGroupParticipantCandidates(
+            UUID settlementId,
+            Long groupId
     );
 
     @Operation(
