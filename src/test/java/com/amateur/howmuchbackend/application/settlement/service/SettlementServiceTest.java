@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +60,9 @@ class SettlementServiceTest {
     @Mock
     private LoadUserPort loadUserPort;
 
+    @Mock
+    private SettlementAllocationDraftInvalidator allocationDraftInvalidator;
+
     private SettlementService settlementService;
 
     @BeforeEach
@@ -68,8 +72,11 @@ class SettlementServiceTest {
                 loadSettlementPort,
                 saveSettlementPort,
                 saveSettlementParticipantPort,
-                loadUserPort
+                loadUserPort,
+                allocationDraftInvalidator
         );
+        lenient().when(allocationDraftInvalidator.invalidate(any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -167,6 +174,7 @@ class SettlementServiceTest {
 
         ArgumentCaptor<Settlement> captor = ArgumentCaptor.forClass(Settlement.class);
         verify(saveSettlementPort).update(captor.capture());
+        verify(allocationDraftInvalidator).invalidate(any(Settlement.class), any(LocalDateTime.class));
         assertThat(captor.getValue().title()).isEqualTo("회식 정산");
         assertThat(captor.getValue().totalAmount()).isEqualTo(20_000);
         assertThat(result.title()).isEqualTo("회식 정산");
