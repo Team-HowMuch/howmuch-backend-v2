@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementExpenseJpaEntity;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -30,4 +31,10 @@ public interface SettlementExpenseJpaRepository
             where expense.settlementId = :settlementId
             """)
     long sumAmountBySettlementId(@Param("settlementId") UUID settlementId);
+
+    boolean existsBySettlementIdAndSourceAndSourceReference(
+            UUID settlementId,
+            SettlementExpenseSource source,
+            String sourceReference
+    );
 }

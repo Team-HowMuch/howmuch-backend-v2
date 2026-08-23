@@ -58,6 +58,13 @@ public class AccountTransactionPersistenceAdapter
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<Transaction> findByAccountIdAndId(Long accountId, Long transactionId) {
+        return transactionRepository.findByAccount_IdAndId(accountId, transactionId)
+                .map(this::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<AccountMonthlySummary> findSummary(Long accountId, YearMonth yearMonth) {
         return summaryRepository.findByAccount_IdAndYearMonth(accountId, yearMonth.atDay(1))
                 .map(this::toDomain);

@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface AccountTransactionJpaRepository extends JpaRepository<AccountTransactionJpaEntity, Long> {
     List<AccountTransactionJpaEntity>
@@ -18,6 +19,8 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
             LocalDateTime start,
             LocalDateTime end
     );
+
+    Optional<AccountTransactionJpaEntity> findByAccount_IdAndId(Long accountId, Long transactionId);
 
     @Query("""
             select transaction.account.id, max(transaction.transactedAt)
