@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
@@ -11,8 +12,10 @@ import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlemen
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementContactCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
@@ -85,6 +88,9 @@ class SettlementControllerTest {
     @Mock
     private MatchSettlementContactsUseCase matchSettlementContactsUseCase;
 
+    @Mock
+    private GetSettlementGroupParticipantCandidatesUseCase getSettlementGroupParticipantCandidatesUseCase;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -101,7 +107,8 @@ class SettlementControllerTest {
                 getSettlementParticipantAvatarUseCase,
                 searchSettlementParticipantUseCase,
                 getSettlementParticipantCandidateAvatarUseCase,
-                matchSettlementContactsUseCase
+                matchSettlementContactsUseCase,
+                getSettlementGroupParticipantCandidatesUseCase
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -336,6 +343,90 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0].userId").doesNotExist())
                 .andExpect(jsonPath("$.data[0].avatarFileName").doesNotExist())
                 .andExpect(jsonPath("$.data[1].avatarUrl").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("그룹 구성원 후보에 공개 정보와 보호된 아바타 URL만 반환한다")
+    void getsSettlementGroupParticipantCandidates() throws Exception {
+        when(getSettlementGroupParticipantCandidatesUseCase.get(SETTLEMENT_ID, 10L))
+                .thenReturn(List.of(
+                        new SettlementParticipantCandidateResult("group.member", "그룹 회원", true)
+                ));
+
+        mockMvc.perform(get(
+                        "/api/v2/settlements/{settlementId}/participant-candidates/groups/{groupId}/members",
+                        SETTLEMENT_ID,
+                        10L
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].publicId").value("group.member"))
+                .andExpect(jsonPath("$.data[0].displayName").value("그룹 회원"))
+                .andExpect(jsonPath("$.data[0].avatarUrl").value(
+                        "/api/v2/settlements/%s/participant-candidates/users/group.member/avatar"
+                                .formatted(SETTLEMENT_ID)
+                ))
+                .andExpect(jsonPath("$.data[0].userId").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("그룹 ID와 공개 ID를 그룹 참여자 추가 Command로 변환한다")
+    void addsSettlementGroupParticipant() throws Exception {
+        UUID participantId = UUID.fromString("3b9da522-552a-4168-b052-794be9dbbe53");
+        when(addSettlementParticipantUseCase.add(
+                SETTLEMENT_ID,
+                new AddSettlementParticipantCommand(
+                        SettlementParticipantSource.GROUP_MEMBER,
+                        10L,
+                        "group.member",
+                        null,
+                        null
+                )
+        )).thenReturn(new SettlementParticipantResult(
+                participantId,
+                SettlementParticipantSource.GROUP_MEMBER,
+                "group.member",
+                "그룹 회원",
+                2
+        ));
+
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participants",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "source": "GROUP_MEMBER",
+                          "groupId": 10,
+                          "publicId": "group.member"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.participantId").value(participantId.toString()))
+                .andExpect(jsonPath("$.data.source").value("GROUP_MEMBER"))
+                .andExpect(jsonPath("$.data.publicId").value("group.member"))
+                .andExpect(jsonPath("$.data.displayName").value("그룹 회원"));
+    }
+
+    @Test
+    @DisplayName("양수가 아닌 그룹 ID는 UseCase 호출 없이 거부한다")
+    void rejectsNonPositiveGroupIdForParticipantAdd() throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/participants",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {
+                          "source": "GROUP_MEMBER",
+                          "groupId": 0,
+                          "publicId": "group.member"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+
+        verifyNoInteractions(addSettlementParticipantUseCase);
     }
 
     @Test
