@@ -12,11 +12,24 @@ public record Settlement(
         Long creatorId,
         String title,
         long totalAmount,
+        SettlementAllocationType allocationType,
         SettlementStatus status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
     public static final int MAX_TITLE_LENGTH = 100;
+
+    public Settlement(
+            UUID id,
+            Long creatorId,
+            String title,
+            long totalAmount,
+            SettlementStatus status,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {
+        this(id, creatorId, title, totalAmount, null, status, createdAt, updatedAt);
+    }
 
     public Settlement {
         Objects.requireNonNull(id, "정산 ID는 필수입니다.");
@@ -33,6 +46,7 @@ public record Settlement(
                 creatorId,
                 title,
                 totalAmount,
+                null,
                 SettlementStatus.DRAFT,
                 now,
                 now
@@ -48,11 +62,13 @@ public record Settlement(
         if (newTitle == null && newTotalAmount == null) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_UPDATE);
         }
+        boolean amountChanged = newTotalAmount != null && newTotalAmount != totalAmount;
         return new Settlement(
                 id,
                 creatorId,
                 newTitle == null ? title : newTitle,
                 newTotalAmount == null ? totalAmount : newTotalAmount,
+                amountChanged ? null : allocationType,
                 status,
                 createdAt,
                 Objects.requireNonNull(now, "정산 수정 시각은 필수입니다.")
@@ -65,6 +81,47 @@ public record Settlement(
 
     public void ensureExpensesEditable() {
         requireDraft();
+    }
+
+    public void ensureAllocationEditable() {
+        requireDraft();
+    }
+
+    public Settlement selectAllocationType(
+            SettlementAllocationType selectedType,
+            LocalDateTime now
+    ) {
+        requireDraft();
+        if (selectedType == null) {
+            throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_ALLOCATION_TYPE);
+        }
+        return new Settlement(
+                id,
+                creatorId,
+                title,
+                totalAmount,
+                selectedType,
+                status,
+                createdAt,
+                Objects.requireNonNull(now, "정산 배분 유형 변경 시각은 필수입니다.")
+        );
+    }
+
+    public Settlement clearAllocation(LocalDateTime now) {
+        requireDraft();
+        if (allocationType == null) {
+            return this;
+        }
+        return new Settlement(
+                id,
+                creatorId,
+                title,
+                totalAmount,
+                null,
+                status,
+                createdAt,
+                Objects.requireNonNull(now, "정산 배분 초기화 시각은 필수입니다.")
+        );
     }
 
     public Settlement request(LocalDateTime now) {
@@ -92,6 +149,7 @@ public record Settlement(
                 creatorId,
                 title,
                 totalAmount,
+                allocationType,
                 next,
                 createdAt,
                 Objects.requireNonNull(now, "정산 상태 변경 시각은 필수입니다.")
