@@ -31,6 +31,13 @@ public class SettlementExpenseJpaEntity extends BaseTimeJpaEntity {
     @Column(nullable = false, updatable = false, length = 30)
     private SettlementExpenseSource source;
 
+    @Column(
+            name = "source_reference",
+            updatable = false,
+            length = SettlementExpense.MAX_SOURCE_REFERENCE_LENGTH
+    )
+    private String sourceReference;
+
     @Column(nullable = false, length = SettlementExpense.MAX_DESCRIPTION_LENGTH)
     private String description;
 
@@ -44,6 +51,7 @@ public class SettlementExpenseJpaEntity extends BaseTimeJpaEntity {
         this.id = expense.id();
         this.settlementId = expense.settlementId();
         this.source = expense.source();
+        this.sourceReference = expense.sourceReference();
         this.displayOrder = expense.displayOrder();
         updateFrom(expense);
     }
