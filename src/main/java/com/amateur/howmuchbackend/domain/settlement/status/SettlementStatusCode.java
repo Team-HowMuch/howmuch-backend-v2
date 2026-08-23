@@ -18,6 +18,7 @@ public enum SettlementStatusCode implements StatusCode {
     INVALID_SETTLEMENT_GROUP_ID("그룹 ID는 양수여야 합니다.", 400),
     INVALID_SETTLEMENT_EXPENSE_DESCRIPTION("정산 지출 설명은 1자 이상 500자 이하여야 합니다.", 400),
     INVALID_SETTLEMENT_EXPENSE_AMOUNT("정산 지출 금액은 1원 이상이어야 합니다.", 400),
+    INVALID_SETTLEMENT_EXPENSE_TOTAL("정산 지출 누적액이 허용 범위를 초과했습니다.", 400),
     INVALID_SETTLEMENT_EXPENSE_ORDER("정산 지출 표시 순서는 0 이상이어야 합니다.", 400),
     INVALID_SETTLEMENT_EXPENSE_UPDATE("수정할 정산 지출 설명 또는 금액이 필요합니다.", 400),
     SETTLEMENT_NOT_FOUND("정산을 찾을 수 없습니다.", 404),

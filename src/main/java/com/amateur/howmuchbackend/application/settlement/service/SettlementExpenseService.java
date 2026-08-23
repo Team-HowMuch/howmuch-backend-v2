@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -55,10 +56,14 @@ public class SettlementExpenseService implements
                 loadSettlementExpensePort.nextDisplayOrder(settlementId),
                 now()
         );
+        long totalExpenseAmount = addToTotal(
+                loadSettlementExpensePort.totalAmount(settlementId),
+                expense.amount()
+        );
         SettlementExpense saved = saveSettlementExpensePort.save(expense);
         return SettlementExpenseMutationResult.of(
                 saved,
-                loadSettlementExpensePort.totalAmount(settlementId)
+                totalExpenseAmount
         );
     }
 
@@ -66,8 +71,11 @@ public class SettlementExpenseService implements
     @Transactional(readOnly = true)
     public SettlementExpenseListResult get(UUID settlementId) {
         loadOwnedSettlement(settlementId);
+        List<SettlementExpense> expenses = loadSettlementExpensePort
+                .findAllBySettlementId(settlementId);
         return SettlementExpenseListResult.from(
-                loadSettlementExpensePort.findAllBySettlementId(settlementId)
+                expenses,
+                calculateTotal(expenses)
         );
     }
 
@@ -86,10 +94,15 @@ public class SettlementExpenseService implements
                 command.amount(),
                 now()
         );
+        long totalExpenseAmount = replaceInTotal(
+                loadSettlementExpensePort.totalAmount(settlementId),
+                expense.amount(),
+                updated.amount()
+        );
         SettlementExpense saved = saveSettlementExpensePort.update(updated);
         return SettlementExpenseMutationResult.of(
                 saved,
-                loadSettlementExpensePort.totalAmount(settlementId)
+                totalExpenseAmount
         );
     }
 
@@ -100,10 +113,12 @@ public class SettlementExpenseService implements
         settlement.ensureExpensesEditable();
         SettlementExpense expense = loadExpense(settlementId, expenseId);
         expense.ensureRemovable();
-        deleteSettlementExpensePort.delete(expense);
-        return new SettlementExpenseTotalResult(
-                loadSettlementExpensePort.totalAmount(settlementId)
+        long totalExpenseAmount = removeFromTotal(
+                loadSettlementExpensePort.totalAmount(settlementId),
+                expense.amount()
         );
+        deleteSettlementExpensePort.delete(expense);
+        return new SettlementExpenseTotalResult(totalExpenseAmount);
     }
 
     private Settlement loadOwnedSettlement(UUID settlementId) {
@@ -133,6 +148,48 @@ public class SettlementExpenseService implements
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_EXPENSE_NOT_FOUND
                 ));
+    }
+
+    private long calculateTotal(List<SettlementExpense> expenses) {
+        long total = 0L;
+        for (SettlementExpense expense : expenses) {
+            total = addToTotal(total, expense.amount());
+        }
+        return total;
+    }
+
+    private long addToTotal(long currentTotal, long amount) {
+        try {
+            return Math.addExact(currentTotal, amount);
+        } catch (ArithmeticException exception) {
+            throw invalidExpenseTotal(exception);
+        }
+    }
+
+    private long replaceInTotal(long currentTotal, long previousAmount, long newAmount) {
+        return addToTotal(removeFromTotal(currentTotal, previousAmount), newAmount);
+    }
+
+    private long removeFromTotal(long currentTotal, long amount) {
+        long remaining;
+        try {
+            remaining = Math.subtractExact(currentTotal, amount);
+        } catch (ArithmeticException exception) {
+            throw invalidExpenseTotal(exception);
+        }
+        if (remaining < 0) {
+            throw invalidExpenseTotal(null);
+        }
+        return remaining;
+    }
+
+    private ApplicationException invalidExpenseTotal(Throwable cause) {
+        return cause == null
+                ? ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL)
+                : ApplicationException.of(
+                        SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL,
+                        cause
+                );
     }
 
     private LocalDateTime now() {

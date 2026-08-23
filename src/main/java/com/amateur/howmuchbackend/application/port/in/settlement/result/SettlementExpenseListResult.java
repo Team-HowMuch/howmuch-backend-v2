@@ -8,13 +8,15 @@ public record SettlementExpenseListResult(
         List<SettlementExpenseResult> expenses,
         long totalExpenseAmount
 ) {
-    public static SettlementExpenseListResult from(List<SettlementExpense> expenses) {
-        List<SettlementExpenseResult> results = expenses.stream()
-                .map(SettlementExpenseResult::from)
-                .toList();
-        long totalAmount = expenses.stream()
-                .mapToLong(SettlementExpense::amount)
-                .reduce(0L, Math::addExact);
-        return new SettlementExpenseListResult(results, totalAmount);
+    public static SettlementExpenseListResult from(
+            List<SettlementExpense> expenses,
+            long totalExpenseAmount
+    ) {
+        return new SettlementExpenseListResult(
+                expenses.stream()
+                        .map(SettlementExpenseResult::from)
+                        .toList(),
+                totalExpenseAmount
+        );
     }
 }
