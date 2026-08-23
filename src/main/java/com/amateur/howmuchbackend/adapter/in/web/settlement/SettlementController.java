@@ -4,25 +4,34 @@ import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.docs.SettlementDocs;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementExpenseWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.MatchSettlementContactsWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SearchSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementExpenseWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementContactCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementExpenseListWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementExpenseMutationWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementExpenseTotalWebResponse;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementExpenseUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementExpensesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementExpenseUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementExpenseUseCase;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +66,10 @@ public class SettlementController implements SettlementDocs {
     private final GetSettlementParticipantCandidateAvatarUseCase getSettlementParticipantCandidateAvatarUseCase;
     private final MatchSettlementContactsUseCase matchSettlementContactsUseCase;
     private final GetSettlementGroupParticipantCandidatesUseCase getSettlementGroupParticipantCandidatesUseCase;
+    private final CreateSettlementExpenseUseCase createSettlementExpenseUseCase;
+    private final GetSettlementExpensesUseCase getSettlementExpensesUseCase;
+    private final UpdateSettlementExpenseUseCase updateSettlementExpenseUseCase;
+    private final RemoveSettlementExpenseUseCase removeSettlementExpenseUseCase;
 
     @Override
     @PostMapping
@@ -188,5 +201,53 @@ public class SettlementController implements SettlementDocs {
     ) {
         removeSettlementParticipantUseCase.remove(settlementId, participantId);
         return ApiResponse.success();
+    }
+
+    @Override
+    @PostMapping("/{settlementId}/expenses")
+    public ApiResponse<SettlementExpenseMutationWebResponse> createSettlementExpense(
+            @PathVariable UUID settlementId,
+            @Valid @RequestBody CreateSettlementExpenseWebRequest request
+    ) {
+        return ApiResponse.success(SettlementExpenseMutationWebResponse.from(
+                createSettlementExpenseUseCase.create(settlementId, request.toCommand())
+        ));
+    }
+
+    @Override
+    @GetMapping("/{settlementId}/expenses")
+    public ApiResponse<SettlementExpenseListWebResponse> getSettlementExpenses(
+            @PathVariable UUID settlementId
+    ) {
+        return ApiResponse.success(SettlementExpenseListWebResponse.from(
+                getSettlementExpensesUseCase.get(settlementId)
+        ));
+    }
+
+    @Override
+    @PatchMapping("/{settlementId}/expenses/{expenseId}")
+    public ApiResponse<SettlementExpenseMutationWebResponse> updateSettlementExpense(
+            @PathVariable UUID settlementId,
+            @PathVariable UUID expenseId,
+            @Valid @RequestBody UpdateSettlementExpenseWebRequest request
+    ) {
+        return ApiResponse.success(SettlementExpenseMutationWebResponse.from(
+                updateSettlementExpenseUseCase.update(
+                        settlementId,
+                        expenseId,
+                        request.toCommand()
+                )
+        ));
+    }
+
+    @Override
+    @DeleteMapping("/{settlementId}/expenses/{expenseId}")
+    public ApiResponse<SettlementExpenseTotalWebResponse> removeSettlementExpense(
+            @PathVariable UUID settlementId,
+            @PathVariable UUID expenseId
+    ) {
+        return ApiResponse.success(SettlementExpenseTotalWebResponse.from(
+                removeSettlementExpenseUseCase.remove(settlementId, expenseId)
+        ));
     }
 }
