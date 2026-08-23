@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 
 import java.time.YearMonth;
 import java.util.List;
@@ -55,7 +57,7 @@ public interface SettlementPaymentExpenseDocs {
     })
     ApiResponse<List<SettlementPaymentExpenseCandidateWebResponse>> getPaymentExpenseCandidates(
             @Parameter(description = "정산 ID") UUID settlementId,
-            @Parameter(description = "연결 계좌 ID") Long accountId,
+            @Parameter(description = "연결 계좌 ID") @Positive Long accountId,
             @Parameter(description = "조회 월(YYYY-MM), 생략 시 현재 월") YearMonth yearMonth
     );
 
@@ -96,6 +98,6 @@ public interface SettlementPaymentExpenseDocs {
     })
     ApiResponse<SettlementExpenseMutationWebResponse> importPaymentExpense(
             @Parameter(description = "정산 ID") UUID settlementId,
-            ImportSettlementPaymentExpenseWebRequest request
+            @Valid ImportSettlementPaymentExpenseWebRequest request
     );
 }
