@@ -37,6 +37,7 @@ public class SettlementService implements
     private final SaveSettlementPort saveSettlementPort;
     private final SaveSettlementParticipantPort saveSettlementParticipantPort;
     private final LoadUserPort loadUserPort;
+    private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
     @Override
     @Transactional
@@ -74,10 +75,15 @@ public class SettlementService implements
     public SettlementResult update(UUID settlementId, UpdateSettlementDraftCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
-        Settlement updated = settlement.updateDraft(
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        Settlement updateBase = command.totalAmount() != null
+                && command.totalAmount() != settlement.totalAmount()
+                ? allocationDraftInvalidator.invalidate(settlement, now)
+                : settlement;
+        Settlement updated = updateBase.updateDraft(
                 command.title(),
                 command.totalAmount(),
-                LocalDateTime.now(ZoneOffset.UTC)
+                now
         );
         return SettlementResult.from(saveSettlementPort.update(updated));
     }

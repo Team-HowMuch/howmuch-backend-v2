@@ -15,6 +15,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettleme
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementExpensePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
@@ -40,6 +41,8 @@ public class SettlementExpenseService implements
     private final LoadSettlementExpensePort loadSettlementExpensePort;
     private final SaveSettlementExpensePort saveSettlementExpensePort;
     private final DeleteSettlementExpensePort deleteSettlementExpensePort;
+    private final SaveSettlementPort saveSettlementPort;
+    private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
     @Override
     @Transactional
@@ -60,6 +63,7 @@ public class SettlementExpenseService implements
                 loadSettlementExpensePort.totalAmount(settlementId),
                 expense.amount()
         );
+        invalidateAllocation(settlement);
         SettlementExpense saved = saveSettlementExpensePort.save(expense);
         return SettlementExpenseMutationResult.of(
                 saved,
@@ -99,6 +103,7 @@ public class SettlementExpenseService implements
                 expense.amount(),
                 updated.amount()
         );
+        invalidateAllocation(settlement);
         SettlementExpense saved = saveSettlementExpensePort.update(updated);
         return SettlementExpenseMutationResult.of(
                 saved,
@@ -117,6 +122,7 @@ public class SettlementExpenseService implements
                 loadSettlementExpensePort.totalAmount(settlementId),
                 expense.amount()
         );
+        invalidateAllocation(settlement);
         deleteSettlementExpensePort.delete(expense);
         return new SettlementExpenseTotalResult(totalExpenseAmount);
     }
@@ -194,5 +200,12 @@ public class SettlementExpenseService implements
 
     private LocalDateTime now() {
         return LocalDateTime.now(ZoneOffset.UTC);
+    }
+
+    private void invalidateAllocation(Settlement settlement) {
+        Settlement invalidated = allocationDraftInvalidator.invalidate(settlement, now());
+        if (invalidated != settlement) {
+            saveSettlementPort.update(invalidated);
+        }
     }
 }
