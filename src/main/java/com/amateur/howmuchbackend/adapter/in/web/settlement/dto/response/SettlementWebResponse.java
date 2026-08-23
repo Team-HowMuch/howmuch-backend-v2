@@ -13,6 +13,7 @@ public record SettlementWebResponse(
         String title,
         long totalAmount,
         SettlementAllocationType allocationType,
+        Long receivingAccountId,
         SettlementStatus status,
         LocalDateTime createdAt
 ) {
@@ -23,6 +24,7 @@ public record SettlementWebResponse(
                 result.title(),
                 result.totalAmount(),
                 result.allocationType(),
+                result.receivingAccountId(),
                 result.status(),
                 result.createdAt()
         );
