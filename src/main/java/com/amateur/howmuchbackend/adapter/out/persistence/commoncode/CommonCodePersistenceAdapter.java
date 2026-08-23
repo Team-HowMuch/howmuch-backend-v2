@@ -16,6 +16,8 @@ import com.amateur.howmuchbackend.domain.commoncode.CommonCodeGroupSummary;
 import com.amateur.howmuchbackend.domain.commoncode.status.CommonCodeStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
@@ -34,12 +36,14 @@ public class CommonCodePersistenceAdapter
     private final CommonCodeJpaRepository commonCodeRepository;
 
     @Override
+    @Cacheable(cacheNames = "commonCodeByGroupAndCode", sync = true)
     public Optional<CommonCode> findActiveByGroupCodeAndCode(String groupCode, String code) {
         return commonCodeRepository.findActiveByGroupCodeAndCode(groupCode, code)
                 .map(CommonCodeMapper::toDomain);
     }
 
     @Override
+    @Cacheable(cacheNames = "commonCodeByGroup", sync = true)
     public List<CommonCode> findActiveByGroupCode(String groupCode) {
         return commonCodeRepository.findActiveByGroupCode(groupCode).stream()
                 .map(CommonCodeMapper::toDomain)
@@ -47,6 +51,7 @@ public class CommonCodePersistenceAdapter
     }
 
     @Override
+    @Cacheable(cacheNames = "commonCodeExistsByGroupAndCode", sync = true)
     public boolean existsActiveByGroupCodeAndCode(String groupCode, String code) {
         return commonCodeRepository.existsActiveByGroupCodeAndCode(groupCode, code);
     }
@@ -71,6 +76,14 @@ public class CommonCodePersistenceAdapter
     }
 
     @Override
+    @CacheEvict(
+            cacheNames = {
+                    "commonCodeByGroupAndCode",
+                    "commonCodeByGroup",
+                    "commonCodeExistsByGroupAndCode"
+            },
+            allEntries = true
+    )
     public CommonCodeGroup save(CommonCodeGroup group) {
         CommonCodeGroupJpaEntity groupEntity = commonCodeGroupRepository.findById(group.groupCode())
                 .map(existing -> {
