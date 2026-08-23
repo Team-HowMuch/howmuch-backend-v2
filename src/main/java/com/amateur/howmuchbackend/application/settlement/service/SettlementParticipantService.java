@@ -25,6 +25,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettleme
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.TrackSettlementContactMatchUsagePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.MatchContactUsersPort;
@@ -90,6 +91,8 @@ public class SettlementParticipantService implements
     private final IdentityPolicy identityPolicy;
     private final SettlementParticipantModificationPolicy modificationPolicy;
     private final SettlementContactMatchQuotaPolicy contactMatchQuotaPolicy;
+    private final SaveSettlementPort saveSettlementPort;
+    private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
     @Override
     @Transactional
@@ -107,6 +110,7 @@ public class SettlementParticipantService implements
         );
         modificationPolicy.validateAddition(participantAlreadyExists(settlement.id(), resolved));
         SettlementParticipant saved = saveSettlementParticipantPort.save(participant);
+        invalidateAllocation(settlement);
         return SettlementParticipantResult.of(saved, resolved.publicId());
     }
 
@@ -121,6 +125,7 @@ public class SettlementParticipantService implements
                 ));
         modificationPolicy.validateRemoval(settlement, participant);
         deleteSettlementParticipantPort.delete(participant);
+        invalidateAllocation(settlement);
     }
 
     @Override
@@ -405,6 +410,16 @@ public class SettlementParticipantService implements
     private void ensureOwnedBy(Settlement settlement, Long userId) {
         if (!settlement.isCreatedBy(userId)) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
+        }
+    }
+
+    private void invalidateAllocation(Settlement settlement) {
+        Settlement invalidated = allocationDraftInvalidator.invalidate(
+                settlement,
+                LocalDateTime.now(ZoneOffset.UTC)
+        );
+        if (invalidated != settlement) {
+            saveSettlementPort.update(invalidated);
         }
     }
 
