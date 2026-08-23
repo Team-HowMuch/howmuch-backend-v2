@@ -18,7 +18,8 @@ public interface SettlementAllocationDocs {
     @Operation(
             summary = "정산 배분 유형 선택",
             description = "DRAFT 정산의 생성자가 배분 유형을 선택합니다. 기준 총액과 지출 합계가 같아야 하며, "
-                    + "DUTCH_PAY는 기본 N빵을 생성하고 ITEM_ALLOCATION은 OCR 영수증 지출이 필요합니다. "
+                    + "DUTCH_PAY는 기본 N빵을 생성합니다. ITEM_ALLOCATION은 실제 OCR 품목을 검증할 수 있는 "
+                    + "저장 기능이 구현되기 전까지 SETTLEMENT_ITEM_ALLOCATION_NOT_AVAILABLE을 반환합니다. "
                     + "같은 유형을 다시 선택하면 기존 더치페이 수정 금액을 유지합니다. "
                     + "지출 없음은 SETTLEMENT_EXPENSE_REQUIRED, 합계 불일치는 "
                     + "SETTLEMENT_EXPENSE_TOTAL_MISMATCH, 참여자 부족은 "
@@ -52,7 +53,7 @@ public interface SettlementAllocationDocs {
                     description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_EXPENSE_REQUIRED, "
                             + "SETTLEMENT_EXPENSE_TOTAL_MISMATCH, "
                             + "SETTLEMENT_PARTICIPANTS_INSUFFICIENT 또는 "
-                            + "SETTLEMENT_RECEIPT_EXPENSE_REQUIRED"
+                            + "SETTLEMENT_ITEM_ALLOCATION_NOT_AVAILABLE"
             )
     })
     ApiResponse<SettlementAllocationTypeWebResponse> selectAllocationType(

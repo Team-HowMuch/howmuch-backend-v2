@@ -42,11 +42,11 @@
 
 ### Current increment: 배분 유형 선택과 더치페이 초안
 
-- Scope: DRAFT 정산의 배분 유형 선택, 기본 N빵 계산, 참여자별 금액 수정, 현재 합계 검증
+- Scope: DRAFT 정산의 더치페이 유형 선택, 기본 N빵 계산, 참여자별 금액 수정, 현재 합계 검증. ITEM_ALLOCATION enum과 다음 단계 계약은 예약하되 실제 OCR 품목 저장 전까지 선택을 거부한다.
 - Related issues: [#45 정산 유형 선택 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/45), [#46 더치페이 참여자별 금액 수정 및 합계 검증 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/46), [#47 더치페이 기본 N빵 계산 정책 구현](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/47)
 - Persistence prerequisite: `V12__create_settlement_dutch_pay_schema.sql`이 `develop`에 병합되어 추가 Flyway 변경은 없다.
 - Excluded from this increment: OCR 품목 저장·선택, 요청 확정, Share 생성, 수령 계좌와 공통 링크
-- Observable result: 생성자는 지출 합계와 기준 총액이 일치하는 정산의 배분 유형을 선택하고, 더치페이 기본 금액을 확인·수정하면서 현재 합계와 차액을 확인할 수 있다.
+- Observable result: 생성자는 지출 합계와 기준 총액이 일치하는 정산의 더치페이를 선택하고, 기본 금액을 확인·수정하면서 현재 합계와 차액을 확인할 수 있다. 품목별 할당은 출처값만으로 성공시키지 않고 실제 OCR 품목 저장 기능이 완료될 때까지 명시적으로 거부한다.
 
 ## 2. Domain analysis
 
@@ -182,6 +182,7 @@ Authentication: required, creator only
 PUT /api/v2/settlements/{settlementId}/allocation-type
 Request: { allocationType: DUTCH_PAY|ITEM_ALLOCATION }
 Authentication: required, creator only
+ITEM_ALLOCATION: OCR 품목 저장 기능 완료 전 SETTLEMENT_ITEM_ALLOCATION_NOT_AVAILABLE
 
 GET /api/v2/settlements/{settlementId}/dutch-pay-allocations
 Authentication: required, creator only
@@ -333,7 +334,7 @@ git status --short --untracked-files=all
 | 2026-08-23 | 수동 지출 CRUD와 테스트·실제 HTTP·Swagger 검증 완료 | 배분 방식과 더치페이 계산 | 후속 요청 확정 흐름도 정산 행 잠금을 사용해야 함 |
 | 2026-08-23 | 리뷰에서 발견된 누적액 `long` 초과를 저장 전 400으로 변환하고 실제 HTTP 롤백 상태 검증 | 배분 방식과 더치페이 계산 | 금액 타입을 확장하면 API·DB 계약을 함께 변경해야 함 |
 | 2026-08-23 | V12 병합 뒤 배분 유형·더치페이 초안 구현 범위와 API 계약 확정 | Domain·영속·Application·Web 구현 | 입력 변경 뒤 기존 계산이 남지 않도록 무효화가 필요함 |
-| 2026-08-23 | 배분 유형 선택·기본 N빵·금액 수정·합계 응답과 입력 변경 무효화를 구현하고 159개 테스트·실제 HTTP·Swagger 검증 완료 | 외부 지출 후보 또는 품목별 할당 구현 | ITEM_ALLOCATION 선택은 OCR 지출이 있어야 실제로 진입 가능함 |
+| 2026-08-23 | 배분 유형 선택·기본 N빵·금액 수정·합계 응답과 입력 변경 무효화를 구현하고 159개 테스트·실제 HTTP·Swagger 검증 완료 | 외부 지출 후보 또는 품목별 할당 구현 | ITEM_ALLOCATION은 실제 OCR 품목을 검증할 저장 기능이 완료될 때까지 선택을 거부함 |
 
 ## 10. Decision log
 
