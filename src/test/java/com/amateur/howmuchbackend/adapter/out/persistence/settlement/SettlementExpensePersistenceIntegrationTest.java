@@ -3,9 +3,11 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementExpenseJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
@@ -144,6 +147,42 @@ class SettlementExpensePersistenceIntegrationTest {
         jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", settlementId);
 
         assertThat(settlementExpenseJpaRepository.existsById(saved.id())).isFalse();
+    }
+
+    @Test
+    @DisplayName("V13 외부 참조를 저장하고 같은 정산의 동일 결제내역 중복을 409로 변환한다")
+    void savesSourceReferenceAndRejectsDuplicateImport() {
+        SettlementExpense imported = SettlementExpense.paymentHistory(
+                settlementId,
+                "a".repeat(64),
+                "카드 결제",
+                42_000,
+                0,
+                CREATED_AT
+        );
+
+        SettlementExpense saved = settlementExpensePersistenceAdapter.save(imported);
+
+        assertThat(saved.sourceReference()).isEqualTo("a".repeat(64));
+        assertThat(settlementExpensePersistenceAdapter
+                .existsBySettlementIdAndSourceAndSourceReference(
+                        settlementId,
+                        saved.source(),
+                        saved.sourceReference()
+                )).isTrue();
+        assertThatThrownBy(() -> settlementExpensePersistenceAdapter.save(
+                SettlementExpense.paymentHistory(
+                        settlementId,
+                        "a".repeat(64),
+                        "같은 카드 결제",
+                        42_000,
+                        1,
+                        CREATED_AT
+                )
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.SETTLEMENT_EXPENSE_ALREADY_IMPORTED
+                ));
     }
 
     private SettlementExpense manualExpense(String description, long amount, int displayOrder) {
