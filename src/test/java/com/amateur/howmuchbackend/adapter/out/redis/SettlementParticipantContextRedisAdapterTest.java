@@ -10,6 +10,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 import tools.jackson.databind.ObjectMapper;
 
@@ -33,6 +34,7 @@ class SettlementParticipantContextRedisAdapterTest {
     private static final String LINK_TOKEN_HASH = "a".repeat(64);
 
     @Mock private StringRedisTemplate redis;
+    @Mock private ValueOperations<String, String> valueOperations;
     @Mock private ObjectMapper objectMapper;
 
     private SettlementParticipantContextRedisAdapter adapter;
@@ -96,5 +98,47 @@ class SettlementParticipantContextRedisAdapterTest {
                 "stored-context",
                 SettlementParticipantContext.class
         );
+    }
+
+    @Test
+    @DisplayName("문맥 토큰으로 저장된 참여 문맥을 조회한다")
+    void loadsContextByToken() throws Exception {
+        UUID contextToken = UUID.randomUUID();
+        var storedContext = new SettlementParticipantContext(
+                contextToken,
+                LINK_TOKEN_HASH,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                NOW,
+                NOW.plus(TTL)
+        );
+        when(redis.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(
+                SettlementParticipantContextRedisAdapter.KEY_PREFIX + contextToken
+        )).thenReturn("stored-context");
+        when(objectMapper.readValue(
+                "stored-context",
+                SettlementParticipantContext.class
+        )).thenReturn(storedContext);
+
+        var context = adapter.findByToken(contextToken);
+
+        assertThat(context).contains(storedContext);
+        verify(valueOperations).get(
+                SettlementParticipantContextRedisAdapter.KEY_PREFIX + contextToken
+        );
+    }
+
+    @Test
+    @DisplayName("문맥 토큰이 없거나 만료되어 Redis에 없으면 빈 결과를 반환한다")
+    void returnsEmptyWhenContextDoesNotExist() {
+        UUID contextToken = UUID.randomUUID();
+        when(redis.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(
+                SettlementParticipantContextRedisAdapter.KEY_PREFIX + contextToken
+        )).thenReturn(null);
+
+        assertThat(adapter.findByToken(null)).isEmpty();
+        assertThat(adapter.findByToken(contextToken)).isEmpty();
     }
 }
