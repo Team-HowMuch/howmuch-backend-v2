@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.redis;
 
 import com.amateur.howmuchbackend.application.port.out.settlement.IssueSettlementParticipantContextPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantContextPort;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantContext;
 import com.amateur.howmuchbackend.infra.settlement.config.SettlementParticipantContextProperties;
 import lombok.RequiredArgsConstructor;
@@ -12,12 +13,14 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
 public class SettlementParticipantContextRedisAdapter
-        implements IssueSettlementParticipantContextPort {
+        implements IssueSettlementParticipantContextPort,
+        LoadSettlementParticipantContextPort {
     static final String KEY_PREFIX = "settlement:link-participant-context:";
     static final String INDEX_KEY_PREFIX = "settlement:link-participant-context-index:";
     private static final RedisScript<String> ISSUE_CONTEXT_SCRIPT = RedisScript.of("""
@@ -66,6 +69,28 @@ public class SettlementParticipantContextRedisAdapter
         } catch (JacksonException exception) {
             throw new IllegalStateException(
                     "Unable to serialize or deserialize settlement participant context.",
+                    exception
+            );
+        }
+    }
+
+    @Override
+    public Optional<SettlementParticipantContext> findByToken(UUID contextToken) {
+        if (contextToken == null) {
+            return Optional.empty();
+        }
+        String value = redis.opsForValue().get(key(contextToken.toString()));
+        if (value == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(objectMapper.readValue(
+                    value,
+                    SettlementParticipantContext.class
+            ));
+        } catch (JacksonException exception) {
+            throw new IllegalStateException(
+                    "Unable to deserialize settlement participant context.",
                     exception
             );
         }
