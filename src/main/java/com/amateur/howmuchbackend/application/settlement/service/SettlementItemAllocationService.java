@@ -236,6 +236,13 @@ public class SettlementItemAllocationService implements
                     SettlementStatusCode.SETTLEMENT_ITEM_ALLOCATION_REQUIRED
             );
         }
+        if (settlement.status() != SettlementStatus.REQUESTED
+                && settlement.status() != SettlementStatus.AWAITING_DEPOSIT
+                && settlement.status() != SettlementStatus.SUSPENDED) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND
+            );
+        }
         SettlementParticipant participant = loadSettlementParticipantPort
                 .findBySettlementIdAndId(settlement.id(), participantId)
                 .orElseThrow(() -> ApplicationException.of(
