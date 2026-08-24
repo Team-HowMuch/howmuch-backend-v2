@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementItemAllocationUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementItemSelectionUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SaveSettlementItemSelectionUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.SubmitSettlementItemAllocationUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SaveSettlementItemSelectionCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementItemAllocationItemResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementItemAllocationPhase;
@@ -13,6 +14,8 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantContextPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementItemAllocationPolicy;
@@ -45,14 +48,17 @@ import java.util.UUID;
 public class SettlementItemAllocationService implements
         GetSettlementItemAllocationUseCase,
         SaveSettlementItemSelectionUseCase,
-        RemoveSettlementItemSelectionUseCase {
+        RemoveSettlementItemSelectionUseCase,
+        SubmitSettlementItemAllocationUseCase {
     private final SettlementLinkTokenPort linkTokenPort;
     private final LoadSettlementLinkPort loadSettlementLinkPort;
     private final LoadSettlementParticipantContextPort loadParticipantContextPort;
     private final LoadSettlementPort loadSettlementPort;
+    private final SaveSettlementPort saveSettlementPort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementItemPort loadSettlementItemPort;
     private final SettlementItemAllocationStorePort allocationStorePort;
+    private final SaveSettlementSharePort saveSettlementSharePort;
     private final SettlementItemAllocationPolicy allocationPolicy;
 
     @Override
@@ -144,6 +150,57 @@ public class SettlementItemAllocationService implements
                 ));
         allocationStorePort.deleteSelection(selection);
         return toResult(access, List.of());
+    }
+
+    @Override
+    @Transactional
+    public SettlementItemAllocationResult submit(
+            String rawLinkToken,
+            UUID participantContextToken,
+            UUID participantId
+    ) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        Access access = loadAccess(
+                rawLinkToken,
+                participantContextToken,
+                participantId,
+                now,
+                true
+        );
+        ensureSelectionEditable(access);
+        allocationStorePort.saveSubmission(SettlementItemSubmission.submit(
+                access.settlement().id(),
+                access.participant().id(),
+                now
+        ));
+
+        List<SettlementParticipant> participants = loadSettlementParticipantPort
+                .findAllBySettlementId(access.settlement().id());
+        List<SettlementItemSubmission> submissions = allocationStorePort
+                .findAllSubmissions(access.settlement().id());
+        if (submissions.size() < participants.size()) {
+            return toResult(access, List.of());
+        }
+
+        var finalization = allocationPolicy.finalizeAllocation(
+                access.settlement().id(),
+                access.settlement().totalAmount(),
+                participants,
+                access.items(),
+                allocationStorePort.findAllSelections(access.settlement().id()),
+                now
+        );
+        Settlement updated;
+        if (finalization.valid()) {
+            saveSettlementSharePort.saveAll(finalization.shares());
+            updated = saveSettlementPort.update(access.settlement().awaitDeposit(now));
+        } else {
+            updated = saveSettlementPort.update(access.settlement().suspend(now));
+        }
+        return toResult(
+                new Access(updated, access.participant(), access.items()),
+                finalization.invalidItemIds()
+        );
     }
 
     private Access loadAccess(
