@@ -271,12 +271,12 @@ Existing behavior that must remain unchanged:
 
 ### Current public link entry increment
 
-- [ ] 원본 token 검증·hash와 활성 링크·정산 조회 Port·Adapter를 구현한다.
-- [ ] 선택적 현재 사용자 조회와 linkedUserId 자동 매칭을 구현한다.
-- [ ] 브라우저 참여자 목록 조회와 신뢰 기반 참여자 선택을 구현한다.
-- [ ] LinkParticipantContext Domain·Redis 저장 Port·Adapter와 TTL 설정을 구현한다.
-- [ ] `GET /api/v2/settlement-links/{token}`과 참여자 선택 API·Swagger·public security 계약을 구현한다.
-- [ ] Domain·Application·Persistence·Redis·Web 테스트와 실제 PostgreSQL·Redis HTTP 검증을 수행한다.
+- [x] 원본 token 검증·hash와 활성 링크·정산 조회 Port·Adapter를 구현한다.
+- [x] 선택적 현재 사용자 조회와 linkedUserId 자동 매칭을 구현한다.
+- [x] 브라우저 참여자 목록 조회와 신뢰 기반 참여자 선택을 구현한다.
+- [x] LinkParticipantContext Domain·Redis 저장 Port·Adapter와 TTL 설정을 구현한다.
+- [x] `GET /api/v2/settlement-links/{token}`과 참여자 선택 API·Swagger·public security 계약을 구현한다.
+- [x] Domain·Application·Persistence·Redis·Web 테스트와 실제 PostgreSQL·Redis HTTP 검증을 수행한다.
 
 ### Expected commit boundaries
 
@@ -329,6 +329,11 @@ git status --short --untracked-files=all
 | 실제 HTTP 흐름 | Pass | 정산 생성부터 요청 발급까지 200, 재요청 409, 최종 상태 `AWAITING_DEPOSIT` |
 | 링크·민감정보 | Pass | 응답 토큰의 SHA-256과 DB hash 일치, 계좌번호 ciphertext 저장 확인 |
 | Swagger | Pass | `/swagger-ui.html` 200, 요청 발급 operation과 200·400·401·403·404·409·422 응답 계약 확인 |
+| 공개 링크 자동 테스트 | Pass | 격리 PostgreSQL 스키마에서 전체 254 tests, 0 failures |
+| 브라우저 링크 진입 | Pass | 무인증·유효하지 않은 세션 모두 `BROWSER_SELECTION`, 참여자 2명 반환 |
+| 앱 회원 자동 매칭 | Pass | 연결 회원 Bearer 요청에서 `APP_DIRECT`와 일치 participant 반환 |
+| 참여자 선택 문맥 | Pass | 무인증 이름 선택 200, Redis에 settlementId·participantId 결합 및 TTL 1,800초 확인 |
+| 공개 링크 Swagger | Pass | 링크 GET·참여자 선택 POST operation과 Swagger UI 200 확인 |
 
 ## 9. Progress log
 
@@ -336,6 +341,7 @@ git status --short --untracked-files=all
 | --- | --- | --- | --- |
 | 2026-08-21 | 공통 링크·앱 자동 매칭·브라우저 fallback·Share 고정 설계 기록 | 수금 계좌와 public link 실제 구현 | App/Universal Link 배포 검증과 payment-method 계약 미정 |
 | 2026-08-23 | V15 수령 계좌 참조 스키마와 실제 Account 조회 경계 확정 | 수령 계좌 조회·선택 후 public link 구현 | App/Universal Link 배포 검증 미정 |
+| 2026-08-24 | 공개 링크 조회, 회원 자동 매칭, 신뢰 기반 이름 선택, Redis 참여 문맥 구현·검증 | 참여 문맥 기반 송금 안내 또는 공개 품목 선택 | 운영 public base URL과 App/Universal Link 배포는 클라이언트·인프라 확인 필요 |
 
 ## 10. Decision log
 
