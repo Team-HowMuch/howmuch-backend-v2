@@ -48,7 +48,7 @@
 - 선택적 Bearer 인증이 유효하고 같은 정산의 `linkedUserId`와 일치하면 `APP_DIRECT`로 참여자를 자동 선택한다.
 - 인증이 없거나 연결된 참여자가 없으면 `BROWSER_SELECTION`과 표시 순서대로 정렬된 참여자 이름 목록을 반환한다.
 - 브라우저 사용자는 자신의 이름이라고 판단한 participant를 직접 선택한다. 오선택·고의 선택 방지는 신뢰 기반 MVP의 제외 범위로 유지한다.
-- 자동 매칭과 직접 선택 모두 Redis에 링크 hash·settlementId·participantId가 결합된 짧은 참여 문맥을 저장하고, 후속 송금·품목 API가 사용할 불투명 context token을 반환한다.
+- 자동 매칭과 직접 선택 모두 Redis에 링크 hash·settlementId·participantId가 결합된 짧은 참여 문맥을 저장하고, 후속 송금·품목 API가 사용할 불투명 context token을 반환한다. 같은 링크·참여자의 유효한 문맥은 원자적으로 재사용한다.
 - 공개 링크 조회·선택 API, 선택적 인증, Redis 참여 문맥, Swagger를 한 PR에서 구현한다. 송금 안내와 공개 품목 선택은 후속 increment에서 구현한다.
 - V16 테이블과 기존 참여자 구조를 조회하고 Redis만 사용하므로 추가 Flyway migration은 필요하지 않다.
 
@@ -296,6 +296,9 @@ feat: 정산 링크 참여자 식별 서비스 추가
 feat: 공개 정산 링크 진입 API 추가
 test: 공개 정산 링크 진입 시나리오 검증
 docs: 공개 정산 링크 진입 구현 결과 반영
+fix: 정산 링크 참여 문맥 중복 발급 방지
+test: 정산 링크 참여 문맥 재사용 검증
+docs: 정산 링크 참여 문맥 발급 제한 반영
 ~~~
 
 ## 8. Verification
@@ -333,6 +336,7 @@ git status --short --untracked-files=all
 | 브라우저 링크 진입 | Pass | 무인증·유효하지 않은 세션 모두 `BROWSER_SELECTION`, 참여자 2명 반환 |
 | 앱 회원 자동 매칭 | Pass | 연결 회원 Bearer 요청에서 `APP_DIRECT`와 일치 participant 반환 |
 | 참여자 선택 문맥 | Pass | 무인증 이름 선택 200, Redis에 settlementId·participantId 결합 및 TTL 1,800초 확인 |
+| 참여 문맥 중복 발급 방지 | Pass | 같은 링크·참여자의 Redis 동시 요청 20건이 하나의 context token을 재사용함 |
 | 공개 링크 Swagger | Pass | 링크 GET·참여자 선택 POST operation과 Swagger UI 200 확인 |
 
 ## 9. Progress log
@@ -342,6 +346,7 @@ git status --short --untracked-files=all
 | 2026-08-21 | 공통 링크·앱 자동 매칭·브라우저 fallback·Share 고정 설계 기록 | 수금 계좌와 public link 실제 구현 | App/Universal Link 배포 검증과 payment-method 계약 미정 |
 | 2026-08-23 | V15 수령 계좌 참조 스키마와 실제 Account 조회 경계 확정 | 수령 계좌 조회·선택 후 public link 구현 | App/Universal Link 배포 검증 미정 |
 | 2026-08-24 | 공개 링크 조회, 회원 자동 매칭, 신뢰 기반 이름 선택, Redis 참여 문맥 구현·검증 | 참여 문맥 기반 송금 안내 또는 공개 품목 선택 | 운영 public base URL과 App/Universal Link 배포는 클라이언트·인프라 확인 필요 |
+| 2026-08-24 | 같은 링크·참여자의 유효한 문맥을 Redis Lua로 원자 재사용 | 참여 문맥 기반 송금 안내 또는 공개 품목 선택 | 유효 링크 보유자의 반복 호출이 Redis 키를 무제한 생성하던 위험 해소 |
 
 ## 10. Decision log
 
@@ -354,11 +359,12 @@ git status --short --untracked-files=all
 | 2026-08-23 | 수금 계좌 후보는 기존 `LoadAccountPort`를 재사용한다. | CODEF 연결 계좌가 이미 실제 Account 도메인과 Adapter로 제공된다. | 별도 payment-method Port와 개발 Stub을 만들지 않는다. |
 | 2026-08-24 | 브라우저 참여자 선택은 표시 이름 기반 신뢰 방식으로 유지한다. | 링크를 받은 사용자의 오선택·고의 선택 방지는 MVP 제외 범위다. | 선택된 participant에 대한 단기 context만 발급한다. |
 | 2026-08-24 | 송금 안내에서 프로필 이름을 실제 예금주로 노출하지 않는다. | 실제 예금주는 Toss가 계좌번호로 확인한다. | 서버 응답은 은행 코드·계좌번호·금액 중심으로 구성한다. |
+| 2026-08-24 | 링크 hash·participantId별 유효한 context token을 최대 하나만 유지한다. | 공개 선택 API 반복 호출로 30분 TTL Redis 키가 무제한 증가하는 것을 막는다. | 최초 발급과 동시 요청을 Lua script로 직렬화하고 남은 TTL을 연장하지 않는다. |
 
 ## 11. Completion record
 
 - Completed on: Pending
 - Final behavior: Pending
 - Unverified items: 전체 구현 전
-- Remaining risks: App/Universal Link 운영 배포와 LinkParticipantContext TTL·폐기 정책을 구현 전에 확정해야 한다.
+- Remaining risks: App/Universal Link 운영 배포와 후속 API의 LinkParticipantContext 유효성·링크 상태 재검증을 구현해야 한다.
 - Follow-up work: 입금 현황과 CODEF 거래 대조 기능을 별도 Feature Plan으로 정의한다.
