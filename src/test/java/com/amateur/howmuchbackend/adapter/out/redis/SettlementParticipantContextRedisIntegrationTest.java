@@ -11,7 +11,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -24,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {
         "spring.flyway.enabled=false",
         "spring.jpa.hibernate.ddl-auto=none",
+        "spring.data.redis.database=15",
         "howmuch.auth.sms.discord.webhook-url=http://localhost"
 })
 @ActiveProfiles("local")
@@ -46,6 +49,8 @@ class SettlementParticipantContextRedisIntegrationTest {
         String indexKey = SettlementParticipantContextRedisAdapter.INDEX_KEY_PREFIX
                 + LINK_TOKEN_HASH + ":" + participantId;
         List<SettlementParticipantContext> contexts = new ArrayList<>();
+        Set<String> contextKeysBefore = contextKeys();
+        Set<String> createdContextKeys = new HashSet<>();
 
         try {
             contexts.addAll(issueConcurrently(settlementId, participantId, now));
@@ -57,18 +62,23 @@ class SettlementParticipantContextRedisIntegrationTest {
             assertThat(contextIds).hasSize(1);
             String contextKey = SettlementParticipantContextRedisAdapter.KEY_PREFIX
                     + contextIds.getFirst();
+            createdContextKeys.addAll(contextKeys());
+            createdContextKeys.removeAll(contextKeysBefore);
+            assertThat(createdContextKeys).containsExactly(contextKey);
             assertThat(redis.hasKey(indexKey)).isTrue();
             assertThat(redis.hasKey(contextKey)).isTrue();
             assertThat(redis.getExpire(indexKey, TimeUnit.MILLISECONDS)).isPositive();
             assertThat(redis.getExpire(contextKey, TimeUnit.MILLISECONDS)).isPositive();
         } finally {
             redis.delete(indexKey);
-            contexts.stream()
-                    .map(SettlementParticipantContext::token)
-                    .distinct()
-                    .map(SettlementParticipantContextRedisAdapter.KEY_PREFIX::concat)
-                    .forEach(redis::delete);
+            createdContextKeys.addAll(contextKeys());
+            createdContextKeys.removeAll(contextKeysBefore);
+            redis.delete(createdContextKeys);
         }
+    }
+
+    private Set<String> contextKeys() {
+        return redis.keys(SettlementParticipantContextRedisAdapter.KEY_PREFIX + "*");
     }
 
     private List<SettlementParticipantContext> issueConcurrently(
