@@ -53,4 +53,9 @@ public record SettlementParticipantContext(
     public String token() {
         return id.toString();
     }
+
+    public boolean isUsableAt(LocalDateTime now) {
+        Objects.requireNonNull(now, "참여 문맥 확인 시각은 필수입니다.");
+        return now.isBefore(expiresAt);
+    }
 }

@@ -1,7 +1,7 @@
 # Feature Plan: 정산 지출 및 금액 배분
 
 - Status: Draft
-- Last updated: 2026-08-23
+- Last updated: 2026-08-24
 - Related issue: [#29 정산 지출 입력 및 금액 배분](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/29)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
@@ -63,6 +63,14 @@
 - Persistence prerequisite: `V14__create_settlement_item_allocation_schema.sql`이 `develop`에 병합되어 추가 Flyway 변경은 없다.
 - Excluded from this increment: 영수증 이미지 업로드·OCR 엔진, 운영 OCR Adapter, 참여자의 품목 선택·제출, 품목 수정, 요청 링크 연동
 - Observable result: 생성자는 로컬·개발 OCR Stub 결과를 `RECEIPT_OCR` 지출과 순서가 보존된 품목으로 가져오고 목록을 조회하며, 품목 합계가 전체 지출 합계와 일치할 때 ITEM_ALLOCATION을 선택할 수 있다.
+
+### Current increment: 공개 품목 선택·제출과 Share 확정
+
+- Scope: 공통 링크에서 확정된 참여 문맥으로 자기 품목 비율을 조회·선택·취소하고 제출한다. 마지막 참여자 제출 시 전체 배분을 검증해 Share를 고정하거나 정산을 `SUSPENDED`로 전환한다.
+- Related issues: [#48 품목별 할당 고정 비율 정책](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/48), [#49 품목 선택 영속 모델](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/49), [#50 할당 미달 시 정산 중단](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/50), [#52 참여자별 품목 선택·금액 계산](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/52)
+- Persistence prerequisite: `V14__create_settlement_item_allocation_schema.sql`의 `settlement_item_selections`, `settlement_item_submissions`와 `V16__create_settlement_request_schema.sql`의 `settlement_shares`를 그대로 사용하며 추가 Flyway migration은 필요하지 않다.
+- Excluded from this increment: 일반 반올림·잔여금 보정, 제출 취소, `SUSPENDED` 재개, Toss 송금 안내, CODEF 입금 확인
+- Observable result: 각 참여자는 자신의 선택과 현재 예정 금액을 확인하고 제출한다. 전체 품목이 정확히 배분되면 `AWAITING_DEPOSIT`과 불변 Share가 생성되고, 미달이면 Share 없이 `SUSPENDED`가 된다.
 
 ## 2. Domain analysis
 
@@ -170,6 +178,9 @@ CalculateDutchPayUseCase.calculate(settlementId) -> AllocationResult
 SaveItemSelectionUseCase.save(
   settlementId, participantId, itemId, AllocationFraction
 ) -> ItemSelectionResponse
+RemoveItemSelectionUseCase.remove(
+  settlementId, participantId, itemId
+) -> ItemAllocationStatusResponse
 SubmitItemAllocationUseCase.submit(settlementId, participantId) -> ItemAllocationStatusResponse
 FinalizeAllocationUseCase.finalizeWhenComplete(settlementId) -> AllocationResult
 ~~~
@@ -246,9 +257,18 @@ Dutch pay response: {
   participants: [{ participantId, displayName, amount, creator }]
 }
 
+GET /api/v2/settlement-links/{token}/participants/{participantId}/items
+Header: Link-Participant-Context
+
 PUT /api/v2/settlement-links/{token}/participants/{participantId}/items/{itemId}
 Request: { fraction: ONE|HALF|THIRD|QUARTER }
+Header: Link-Participant-Context
+
+DELETE /api/v2/settlement-links/{token}/participants/{participantId}/items/{itemId}
+Header: Link-Participant-Context
+
 POST /api/v2/settlement-links/{token}/participants/{participantId}/item-submission
+Header: Link-Participant-Context
 Authentication: public link and resolved participant context required
 ~~~
 
@@ -256,8 +276,8 @@ Authentication: public link and resolved participant context required
 
 ### Persistence and external integrations
 
-- Database Entity, constraint, or query changes: 병합된 V14의 `settlement_items`를 JPA에 매핑한다. 선택·제출 테이블 매핑은 실제 호출자가 생기는 후속 증분까지 만들지 않는다. 새 마이그레이션은 없다.
-- Redis key, TTL, or serialization changes: 없음.
+- Database Entity, constraint, or query changes: 병합된 V14의 `settlement_item_selections`·`settlement_item_submissions`를 JPA에 매핑하고 V16 `settlement_shares`에 검증된 참여자별 금액을 저장한다. 추가 마이그레이션은 없다.
+- Redis key, TTL, or serialization changes: 기존 `settlement:link-participant-context:{contextId}`를 조회하는 기능을 추가하고 키·직렬화·TTL 형식은 바꾸지 않는다.
 - External API or message changes: `ExtractReceiptItemsPort` 계약만 추가하고 실제 OCR 엔진·이미지 처리는 구현하지 않는다. `receiptReference`는 외부 OCR 기능이 발급한 불투명 참조로 취급한다.
 - Environment variable or profile changes: local·dev는 결정적인 OCR Stub을 사용하고, prod는 실제 Adapter가 연결되기 전 503 오류를 반환한다.
 
@@ -276,6 +296,7 @@ Authentication: public link and resolved participant context required
 - Reason for selection: 외부 기능이 개발 Stub이어도 배분 핵심 규칙과 API 계약을 먼저 검증할 수 있다.
 - Alternatives considered: OCR·결제 내역 기능이 완성될 때까지 지출 등록 전체를 보류하는 방식은 최소 정산 흐름을 막으므로 제외한다.
 - Trade-offs and limits: MVP의 제한된 분수에서 발생하는 원 단위 나눗셈 문제는 요청 확정 시 검증 오류로 노출한다. 일반적인 반올림·잔여금 배분 정책은 후속 결정이 필요하다.
+- Exact-won rule: 품목 금액을 선택 비율의 분모로 나눈 결과가 정수 원이 아니면 해당 선택을 저장하지 않는다. 서버가 임의 반올림하지 않아 표시 금액과 최종 Share가 달라지지 않게 한다.
 
 ### OCR 가져오기 트랜잭션 경계
 
@@ -294,7 +315,7 @@ Authentication: public link and resolved participant context required
 | Application | 지출·배분 UseCase, OCR·결제내역·결과 전달 Port | application.settlement |
 | Domain | Expense, Item, ItemSelection, AllocationResult 규칙 | domain.settlement |
 | Persistence | 지출·품목·선택·제출 테이블과 제약 | adapter.out.persistence.settlement |
-| Redis | 없음 | N/A |
+| Redis | 공통 링크에서 발급된 참여 문맥 조회 | SettlementParticipantContextRedisAdapter |
 | Security | 생성자 수정 권한과 링크 참여자 문맥 확인 | Security Adapter, request-link |
 | Configuration | OCR·결제내역 개발 Stub | dev profile |
 | Documentation | 공통 링크와 Share 고정 순서 | PRD, request-link Spec |
@@ -344,6 +365,16 @@ Existing behavior that must remain unchanged:
 - [x] 품목 존재와 전체 지출 합계 일치를 검증해 ITEM_ALLOCATION 선택을 활성화한다.
 - [x] Domain·Application·Web·Persistence 테스트와 PostgreSQL 기반 실제 HTTP·Swagger 검증을 수행한다.
 
+### Current public item allocation increment
+
+- [x] AllocationFraction·ItemSelection·ItemAllocationSubmission Domain과 정수 원·비율 합계 규칙을 구현한다.
+- [x] V14 선택·제출 Entity·Repository·Mapper·Store Adapter를 구현한다.
+- [x] Redis 참여 문맥을 조회하고 링크 hash·정산·참여자를 교차 검증한다.
+- [x] 참여자의 품목 상태 조회·선택·취소 UseCase를 구현한다.
+- [x] 제출을 저장하고 마지막 제출에서 Share 확정 또는 `SUSPENDED` 전환을 하나의 트랜잭션으로 처리한다.
+- [x] 공개 품목 배분 API·Swagger·Security 계약을 구현한다.
+- [x] Domain·Application·Web·Persistence·Redis 테스트와 실제 PostgreSQL·Redis HTTP 흐름을 검증한다.
+
 ### Follow-up increments
 
 - [ ] 지출·배분 방식·품목·선택·제출 Domain 모델과 불변식을 정의한다.
@@ -382,6 +413,15 @@ feat: OCR 영수증 가져오기와 품목 조회 API 추가
 feat: 품목별 할당 유형 선택 활성화
 test: OCR 영수증 가져오기 기능 검증 추가
 docs: OCR 영수증 가져오기 구현 결과 반영
+docs: 공개 품목 선택 구현 범위 구체화
+feat: 품목 선택 비율과 제출 도메인 추가
+feat: 품목 선택과 제출 영속 기능 추가
+feat: 정산 링크 참여 문맥 조회 기능 추가
+feat: 공개 품목 선택과 취소 기능 추가
+feat: 품목 선택 제출과 Share 확정 기능 추가
+feat: 공개 품목 배분 API 추가
+test: 공개 품목 배분 시나리오 검증
+docs: 공개 품목 배분 구현 결과 반영
 ~~~
 
 ## 8. Verification
@@ -406,11 +446,11 @@ git status --short --untracked-files=all
 - [x] DRAFT 생성자는 OCR 결과를 지출·품목으로 원자 저장하고 같은 참조의 중복 가져오기를 거부한다.
 - [x] 저장된 품목은 부모 지출·품목 표시 순서를 보존하며 지출 삭제 시 함께 삭제된다.
 - [x] 저장 품목 합계와 전체 지출 합계가 일치할 때 ITEM_ALLOCATION을 선택할 수 있다.
-- [ ] DRAFT 생성자만 수기 지출과 배분 방식을 변경한다.
-- [ ] 더치페이 계산 결과의 합은 항상 지출 총액과 일치하고 나머지는 생성자 몫이다.
-- [ ] 같은 품목을 여러 참여자가 허용 비율로 선택할 수 있고, 같은 참여자의 중복 행은 생기지 않는다.
-- [ ] 전체 제출 후 품목별 비율과 총액이 일치하면 Share 고정에 필요한 결과가 생성된다.
-- [ ] 전체 제출 뒤 불일치하면 정산은 SUSPENDED이고 Share는 생성되지 않는다.
+- [x] DRAFT 생성자만 수기 지출과 배분 방식을 변경한다.
+- [x] 더치페이 계산 결과의 합은 항상 지출 총액과 일치하고 나머지는 생성자 몫이다.
+- [x] 같은 품목을 여러 참여자가 허용 비율로 선택할 수 있고, 같은 참여자의 중복 행은 생기지 않는다.
+- [x] 전체 제출 후 품목별 비율과 총액이 일치하면 Share 고정에 필요한 결과가 생성된다.
+- [x] 전체 제출 뒤 불일치하면 정산은 SUSPENDED이고 Share는 생성되지 않는다.
 
 ### Results
 
@@ -430,6 +470,9 @@ git status --short --untracked-files=all
 | OCR 영수증 가져오기 PostgreSQL 영속 검증 | Complete | 지출·품목 저장, 부모 지출·품목 순서 조회, 중복 참조 409 변환, 지출 삭제 Cascade 확인 |
 | OCR 영수증 가져오기 실제 HTTP | Complete | DRAFT 생성, Stub 영수증 30,000원 가져오기, 품목 2개·합계 조회, ITEM_ALLOCATION 선택, 중복 409 확인 |
 | OCR 영수증 가져오기 Swagger | Complete | `/v3/api-docs`의 영수증 가져오기·품목 조회 경로와 `/swagger-ui.html` 200 응답 확인 |
+| 공개 품목 배분 자동 테스트 | Complete | Domain·Policy·Application·Web·Redis와 V14 영속 통합을 포함한 실제 PostgreSQL·Redis 연결 전체 테스트 성공 |
+| 공개 품목 배분 실제 HTTP | Complete | 무인증 링크 진입·본인 선택·문맥 발급, 1/2 선택 500원, 취소 0원, 전체 선택 1,000원, 제출 후 `WAITING_FOR_OTHERS`, 제출 뒤 수정 409 확인 |
+| 공개 품목 배분 Swagger | Complete | `/swagger-ui.html` 리다이렉트와 `/v3/api-docs`의 조회·선택·취소·제출 네 경로 및 `Link-Participant-Context` 헤더 확인 |
 
 ## 9. Progress log
 
@@ -444,6 +487,8 @@ git status --short --untracked-files=all
 | 2026-08-23 | V13 병합과 account 거래 조회 구현을 확인하고 결제내역 가져오기 계약 확정 | Domain·Application·Web 구현 | 예전 #43의 Stub 설계 대신 중복 Port 없이 현재 account 경계를 재사용해야 함 |
 | 2026-08-23 | 결제내역 후보 조회·가져오기·삭제와 중복 방지를 구현하고 자동 테스트·실제 HTTP·Swagger 검증 완료 | OCR 영수증 지출 가져오기 | 실제 HTTP에서 발견한 Validator 인터페이스 계약 충돌을 제약 상속 방식으로 수정함 |
 | 2026-08-23 | V14 품목 매핑, OCR Stub·가져오기·조회, ITEM_ALLOCATION 선택을 구현하고 205개 테스트·실제 HTTP·Swagger 검증 완료 | 공용 링크 참여자 문맥에서 품목 선택·제출 | 운영 OCR Adapter와 링크 참여자 식별이 아직 필요함 |
+| 2026-08-24 | 공개 링크 참여 문맥과 V14 선택·제출 스키마를 확인하고 한 PR 구현 범위 확정 | Domain·Persistence·Application·Web 구현 | 반올림 정책이 없으므로 정수 원이 되지 않는 비율 선택은 저장 전 거부해야 함 |
+| 2026-08-24 | 공개 링크 참여자의 품목 조회·비율 선택·취소·제출과 마지막 제출의 Share 확정·중단 전환을 구현하고 실제 PostgreSQL·Redis HTTP·Swagger 검증 완료 | 송금 안내 또는 `SUSPENDED` 재개 정책 | 1/3처럼 정수 원이 되지 않는 선택은 반올림 정책 확정 전까지 거부함 |
 
 ## 10. Decision log
 
@@ -462,11 +507,13 @@ git status --short --untracked-files=all
 | 2026-08-23 | OCR 호출은 쓰기 트랜잭션 밖에서 수행하고 저장 시 정산 행을 다시 잠근다. | 느린 외부 호출이 DB 연결·잠금을 점유하지 않으면서 상태 변경과 중복 저장을 직렬화한다. | 외부 호출 전 읽기 검증과 잠금 뒤 쓰기 검증을 모두 수행한다. |
 | 2026-08-23 | OCR Adapter에 요청자 ID와 결과 참조를 함께 전달한다. | 운영 연동이 결과 소유권을 검증하고 다른 사용자의 결과 참조 사용을 막을 수 있어야 한다. | 로컬·개발 Stub은 요청자 존재만 확인하고 고정 결과를 제공한다. |
 | 2026-08-23 | 품목별 할당 선택 시 전체 지출 합계와 저장 품목 합계를 비교한다. | 수기·결제내역처럼 품목이 없는 지출까지 포함된 금액을 품목 선택으로 누락하지 않게 한다. | 합계가 다르면 생성자가 지출 구성을 수정해야 한다. |
+| 2026-08-24 | 품목 금액이 선택 비율로 정확히 나누어지지 않으면 선택을 거부한다. | 합의된 반올림·잔여금 배분 정책이 없어 서버가 표시 금액을 임의로 변경하지 않아야 한다. | 예: 1,000원 품목은 `THIRD`로 선택할 수 없고 후속 정책 확정 시 확장한다. |
+| 2026-08-24 | 같은 품목의 선택 비율 합은 저장 시 1을 초과할 수 없고, 모든 제출 후 1에 미달하면 정산을 중단한다. | 과배분을 즉시 막고 미배분은 전체 제출 전까지 허용해 참여자가 독립적으로 선택할 수 있게 한다. | 성공 시만 Share를 생성하고 실패 시 `SUSPENDED`로 전환한다. |
 
 ## 11. Completion record
 
 - Completed on: Pending
 - Final behavior: Pending
 - Unverified items: 전체 구현 전
-- Remaining risks: OCR·결제 내역 공급자 계약, 품목 분수의 원 단위 반올림 정책이 확정돼야 운영 연동을 완료할 수 있다.
-- Follow-up work: 요청 링크·수금 계좌·Share 고정 Spec을 구현한다.
+- Remaining risks: 운영 OCR 공급자 계약, 품목 분수의 원 단위 반올림 정책, `SUSPENDED` 재개 UX가 확정돼야 전체 운영 흐름을 완료할 수 있다.
+- Follow-up work: 확정 Share의 송금 안내와 `SUSPENDED` 수정·재요청 정책을 구현한다.
