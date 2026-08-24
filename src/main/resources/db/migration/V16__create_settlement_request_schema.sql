@@ -40,7 +40,7 @@ CREATE TABLE settlement_shares (
     CONSTRAINT fk_settlement_shares_payer_participant
         FOREIGN KEY (settlement_id, payer_participant_id)
             REFERENCES settlement_participants (settlement_id, id)
-            ON DELETE CASCADE,
+            DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT ck_settlement_shares_amount_positive
         CHECK (amount > 0),
     CONSTRAINT uk_settlement_shares_settlement_payer
