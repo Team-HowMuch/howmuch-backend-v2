@@ -1,7 +1,7 @@
 # Feature Plan: 정산 요청 링크 및 Share 확정
 
-- Status: Draft
-- Last updated: 2026-08-23
+- Status: In progress
+- Last updated: 2026-08-24
 - Related issue: [#26 정산 요청 링크 및 수금 계좌 설정](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/26)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
@@ -20,7 +20,7 @@
 
 ### Success criteria
 
-- [ ] 생성자는 DRAFT 정산에서 하나의 수금 계좌를 선택하고 공통 HTTPS 정산 링크를 발급한다.
+- [x] 생성자는 DRAFT 정산에서 하나의 수금 계좌를 선택하고 공통 HTTPS 정산 링크를 발급한다.
 - [ ] 검증된 App/Universal Link가 앱을 열고 유효 로그인 세션의 userId가 참여자와 일치하면, 이름 선택 없이 해당 참여자의 송금 또는 품목 선택 화면 정보를 반환한다.
 - [ ] 앱 미설치·링크 미검증·세션 없음·정산 참여자 불일치의 경우에는 브라우저의 표시 이름 선택 흐름으로 처리한다.
 - [ ] 더치페이는 링크 발급 시 Share와 수금 계좌 스냅샷을 확정하고, 품목별 배분은 모든 참여자 선택이 검증된 뒤에만 Share를 확정한다.
@@ -241,23 +241,23 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] 공통 링크·수금 계좌 스냅샷·불변 Share·참여 문맥 Domain 모델과 상태 규칙을 정의한다.
+- [ ] 공통 링크·수금 계좌 스냅샷·불변 Share·참여 문맥 Domain 모델과 상태 규칙을 정의한다. 링크·스냅샷·Share는 완료했고 참여 문맥은 공개 링크 increment에서 구현한다.
 - [ ] 링크·Share·계좌·참여자·배분 결과·Redis 문맥 Output Port를 정의한다.
 - [x] 수금 계좌 조회·선택 UseCase와 API를 구현한다.
-- [ ] 링크 발급, 앱 자동 매칭, 브라우저 참여 선택, Share 확정, Toss 안내 UseCase를 구현한다.
-- [ ] JPA Entity·Repository·Mapper·Persistence Adapter와 Redis 참여 문맥 Adapter를 구현한다.
-- [ ] 생성자 API와 public link API, Swagger, 선택적 인증 처리, OS 링크 설정 배포 문서를 구현한다.
+- [ ] 링크 발급, 앱 자동 매칭, 브라우저 참여 선택, Share 확정, Toss 안내 UseCase를 구현한다. 생성자 링크 발급과 더치페이 Share 확정은 완료했다.
+- [ ] JPA Entity·Repository·Mapper·Persistence Adapter와 Redis 참여 문맥 Adapter를 구현한다. V16 기반 JPA 저장 구조는 완료했다.
+- [ ] 생성자 API와 public link API, Swagger, 선택적 인증 처리, OS 링크 설정 배포 문서를 구현한다. 생성자 요청 발급 API와 Swagger 계약은 완료했다.
 - [ ] 더치페이와 품목별 배분 각각의 Share 확정 시점·잠금·입금 현황 연계를 통합 검증한다.
 
 ### Current request issuance increment
 
-- [ ] SettlementLink, SettlementShare, SettlementReceivingAccountSnapshot Domain과 생성 불변식을 구현한다.
-- [ ] 정산 요청 사전조건과 더치페이 Share 합계를 검증하는 Application Policy를 구현한다.
-- [ ] V16 Entity·Repository·Mapper와 정산 요청 저장 Port·Persistence Adapter를 구현한다.
-- [ ] 환경별 링크 base URL·TTL과 원본 토큰 발급·hash Adapter를 구현한다.
-- [ ] 생성자 요청 확정 UseCase·Result·Service를 구현한다.
-- [ ] `POST /api/v2/settlements/{settlementId}/request`와 Swagger 계약을 구현한다.
-- [ ] Domain·Policy·Application·Persistence·Web 테스트와 실제 PostgreSQL HTTP 검증을 수행한다.
+- [x] SettlementLink, SettlementShare, SettlementReceivingAccountSnapshot Domain과 생성 불변식을 구현한다.
+- [x] 정산 요청 사전조건과 더치페이 Share 합계를 검증하는 Application Policy를 구현한다.
+- [x] V16 Entity·Repository·Mapper와 정산 요청 저장 Port·Persistence Adapter를 구현한다.
+- [x] 환경별 링크 base URL·TTL과 원본 토큰 발급·hash Adapter를 구현한다.
+- [x] 생성자 요청 확정 UseCase·Result·Service를 구현한다.
+- [x] `POST /api/v2/settlements/{settlementId}/request`와 Swagger 계약을 구현한다.
+- [x] Domain·Policy·Application·Persistence·Web 테스트와 실제 PostgreSQL HTTP 검증을 수행한다.
 
 ### Expected commit boundaries
 
@@ -297,7 +297,12 @@ git status --short --untracked-files=all
 | Item | Result | Evidence |
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
-| 구현·컴파일 | Pending | 구현 전 |
+| 구현·컴파일 | Pass | `./gradlew compileJava` |
+| 자동 테스트 | Pass | 격리 PostgreSQL 스키마에서 `./gradlew test`, 238 tests, 0 failures |
+| 영속 통합 검증 | Pass | 계좌 스냅샷 1건, Share 2건·합계 10,000원, 링크 hash 64자 저장 |
+| 실제 HTTP 흐름 | Pass | 정산 생성부터 요청 발급까지 200, 재요청 409, 최종 상태 `AWAITING_DEPOSIT` |
+| 링크·민감정보 | Pass | 응답 토큰의 SHA-256과 DB hash 일치, 계좌번호 ciphertext 저장 확인 |
+| Swagger | Pass | `/swagger-ui.html` 200, 요청 발급 operation과 200·400·401·403·404·409·422 응답 계약 확인 |
 
 ## 9. Progress log
 
