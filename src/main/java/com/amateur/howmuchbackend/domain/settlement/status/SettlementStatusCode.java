@@ -33,6 +33,7 @@ public enum SettlementStatusCode implements StatusCode {
     INVALID_SETTLEMENT_RECEIVING_ACCOUNT_SNAPSHOT("정산 수령 계좌 정보가 올바르지 않습니다.", 400),
     INVALID_SETTLEMENT_LINK_TOKEN_HASH("정산 링크 토큰 hash가 올바르지 않습니다.", 400),
     INVALID_SETTLEMENT_LINK_EXPIRATION("정산 링크 만료 시각이 올바르지 않습니다.", 400),
+    INVALID_SETTLEMENT_PARTICIPANT_CONTEXT("정산 링크 참여 문맥이 올바르지 않습니다.", 400),
     INVALID_SETTLEMENT_SHARE_AMOUNT("정산 Share 금액은 1원 이상이어야 합니다.", 400),
     INVALID_DUTCH_PAY_AMOUNT("더치페이 참여자 금액은 0원 이상이어야 합니다.", 400),
     SETTLEMENT_NOT_FOUND("정산을 찾을 수 없습니다.", 404),
