@@ -67,6 +67,7 @@ public enum SettlementStatusCode implements StatusCode {
     SETTLEMENT_ITEM_TOTAL_MISMATCH("OCR 품목 합계와 전체 지출 합계가 일치하지 않습니다.", 409),
     SETTLEMENT_ITEM_SELECTION_NOT_FOUND("정산 품목 선택을 찾을 수 없습니다.", 404),
     SETTLEMENT_ITEM_ALLOCATION_AMOUNT_NOT_EXACT("품목 금액을 선택한 비율로 정수 원 단위로 나눌 수 없습니다.", 409),
+    SETTLEMENT_ITEM_SUBMISSION_ALREADY_EXISTS("이미 품목 선택을 제출했습니다.", 409),
     SETTLEMENT_RECEIVING_ACCOUNT_NOT_SUPPORTED("송금 수령을 지원하는 원화 입출금 계좌만 선택할 수 있습니다.", 422),
     SETTLEMENT_REQUEST_RECEIVING_ACCOUNT_REQUIRED("정산 요청 전에 수령 계좌를 선택해야 합니다.", 409),
     SETTLEMENT_SHARE_AMOUNT_REQUIRED("모든 정산 Share 금액은 1원 이상이어야 합니다.", 409),
