@@ -34,6 +34,10 @@ spring:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=60s
 howmuch:
+  settlement:
+    link:
+      base-url: ${SETTLEMENT_LINK_BASE_URL:http://localhost:8080/api/v2/settlement-links}
+      ttl: ${SETTLEMENT_LINK_TTL:720h}
   profile:
     image:
       storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}
