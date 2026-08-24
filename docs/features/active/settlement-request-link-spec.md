@@ -42,6 +42,16 @@
 - 공개 링크 해석, 앱 회원 자동 매칭, 브라우저 참여자 선택, Toss 송금 안내, CODEF 입금 확인은 이 increment에서 제외한다.
 - Persistence design은 V16의 `settlement_receiving_account_snapshots`, `settlement_shares`, `settlement_links`를 그대로 사용하므로 추가 Flyway migration이 필요하지 않다.
 
+### Current increment: 공개 링크 진입과 참여자 선택
+
+- 원본 URL token을 SHA-256 hash로 바꿔 활성 `SettlementLink`를 조회하고, 만료·비활성·지원하지 않는 정산 상태는 공개 정보 없이 동일한 링크 없음 응답으로 처리한다.
+- 선택적 Bearer 인증이 유효하고 같은 정산의 `linkedUserId`와 일치하면 `APP_DIRECT`로 참여자를 자동 선택한다.
+- 인증이 없거나 연결된 참여자가 없으면 `BROWSER_SELECTION`과 표시 순서대로 정렬된 참여자 이름 목록을 반환한다.
+- 브라우저 사용자는 자신의 이름이라고 판단한 participant를 직접 선택한다. 오선택·고의 선택 방지는 신뢰 기반 MVP의 제외 범위로 유지한다.
+- 자동 매칭과 직접 선택 모두 Redis에 링크 hash·settlementId·participantId가 결합된 짧은 참여 문맥을 저장하고, 후속 송금·품목 API가 사용할 불투명 context token을 반환한다.
+- 공개 링크 조회·선택 API, 선택적 인증, Redis 참여 문맥, Swagger를 한 PR에서 구현한다. 송금 안내와 공개 품목 선택은 후속 increment에서 구현한다.
+- V16 테이블과 기존 참여자 구조를 조회하고 Redis만 사용하므로 추가 Flyway migration은 필요하지 않다.
+
 ## 2. Domain analysis
 
 ### Domain boundary
@@ -107,7 +117,7 @@
 1. DUTCH_PAY는 요청 확정 시 AllocationResult를 받아 모든 참여자 Share를 생성하고 Settlement를 AWAITING_DEPOSIT으로 전환한다.
 2. ITEM_ALLOCATION은 공통 링크를 먼저 열어 참여자의 품목 선택을 받는다. 참여자·지출·배분 방식·수금 계좌는 이 시점에 잠근다.
 3. 마지막 제출 후 배분 기능이 검증된 AllocationResult를 전달하면 Share와 수금 계좌 스냅샷을 한 트랜잭션에서 저장하고 AWAITING_DEPOSIT으로 전환한다.
-4. LoadTransferInstructionUseCase는 payer의 확정 Share에서 금액·은행 코드·계좌번호·예금주·shareId를 반환한다.
+4. LoadTransferInstructionUseCase는 payer의 확정 Share에서 금액·은행 코드·계좌번호·shareId를 반환한다. 실제 예금주는 Toss가 계좌번호를 기준으로 확인하며 서버의 프로필 이름을 은행 검증 정보로 노출하지 않는다.
 5. 앱 또는 브라우저 클라이언트가 Toss 송금 화면을 연다. 서버는 송금을 직접 실행하거나 성공을 완료 처리하지 않는다.
 
 ### Failure flow
@@ -191,7 +201,7 @@ Authentication: not required
 
 GET /api/v2/settlement-links/{token}/transfer-instruction
 Header: Link-Participant-Context
-Response: { shareId, amount, recipientBankCode, recipientAccountNumber, recipientName }
+Response: { shareId, amount, recipientBankCode, recipientAccountNumber }
 Authentication: public link and LinkParticipantContext required
 ~~~
 
@@ -259,6 +269,15 @@ Existing behavior that must remain unchanged:
 - [x] `POST /api/v2/settlements/{settlementId}/request`와 Swagger 계약을 구현한다.
 - [x] Domain·Policy·Application·Persistence·Web 테스트와 실제 PostgreSQL HTTP 검증을 수행한다.
 
+### Current public link entry increment
+
+- [ ] 원본 token 검증·hash와 활성 링크·정산 조회 Port·Adapter를 구현한다.
+- [ ] 선택적 현재 사용자 조회와 linkedUserId 자동 매칭을 구현한다.
+- [ ] 브라우저 참여자 목록 조회와 신뢰 기반 참여자 선택을 구현한다.
+- [ ] LinkParticipantContext Domain·Redis 저장 Port·Adapter와 TTL 설정을 구현한다.
+- [ ] `GET /api/v2/settlement-links/{token}`과 참여자 선택 API·Swagger·public security 계약을 구현한다.
+- [ ] Domain·Application·Persistence·Redis·Web 테스트와 실제 PostgreSQL·Redis HTTP 검증을 수행한다.
+
 ### Expected commit boundaries
 
 ~~~
@@ -270,6 +289,13 @@ feat: 정산 요청 확정 서비스 추가
 feat: 정산 요청 발급 API 추가
 test: 정산 요청 확정 시나리오 검증
 docs: 정산 요청 발급 구현 결과 반영
+docs: 공개 정산 링크 진입 구현 범위 구체화
+feat: 공개 정산 링크 조회 기능 추가
+feat: 정산 링크 참여 문맥 저장 기능 추가
+feat: 정산 링크 참여자 식별 서비스 추가
+feat: 공개 정산 링크 진입 API 추가
+test: 공개 정산 링크 진입 시나리오 검증
+docs: 공개 정산 링크 진입 구현 결과 반영
 ~~~
 
 ## 8. Verification
@@ -320,6 +346,8 @@ git status --short --untracked-files=all
 | 2026-08-21 | 품목별 Share는 전체 선택 검증 뒤에만 고정한다. | 선택 중 송금액 변경을 막는다. | 중간 Share·부분 송금은 제공하지 않는다. |
 | 2026-08-21 | Toss 이동과 입금 완료 판정을 분리한다. | 앱 호출은 송금 성공 증명이 아니기 때문이다. | CODEF 거래 검증이 완료 상태를 결정한다. |
 | 2026-08-23 | 수금 계좌 후보는 기존 `LoadAccountPort`를 재사용한다. | CODEF 연결 계좌가 이미 실제 Account 도메인과 Adapter로 제공된다. | 별도 payment-method Port와 개발 Stub을 만들지 않는다. |
+| 2026-08-24 | 브라우저 참여자 선택은 표시 이름 기반 신뢰 방식으로 유지한다. | 링크를 받은 사용자의 오선택·고의 선택 방지는 MVP 제외 범위다. | 선택된 participant에 대한 단기 context만 발급한다. |
+| 2026-08-24 | 송금 안내에서 프로필 이름을 실제 예금주로 노출하지 않는다. | 실제 예금주는 Toss가 계좌번호로 확인한다. | 서버 응답은 은행 코드·계좌번호·금액 중심으로 구성한다. |
 
 ## 11. Completion record
 
