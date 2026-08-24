@@ -135,6 +135,34 @@ class SettlementItemAllocationServiceTest {
     }
 
     @Test
+    @DisplayName("중단된 정산을 다시 조회해도 미배분 품목을 반환한다")
+    void returnsInvalidItemsWhenSuspendedSettlementIsReloaded() {
+        arrangeLink();
+        when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
+                context(FIRST_PARTICIPANT_ID)
+        ));
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.SUSPENDED)));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(
+                SETTLEMENT_ID, FIRST_PARTICIPANT_ID
+        )).thenReturn(Optional.of(participants().getFirst()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(item()));
+        when(allocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of(
+                selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF)
+        ));
+        when(allocationStorePort.findAllSubmissions(SETTLEMENT_ID))
+                .thenReturn(allSubmissions());
+
+        var result = service.get(RAW_TOKEN, CONTEXT_ID, FIRST_PARTICIPANT_ID);
+
+        assertThat(result.phase().name()).isEqualTo("SUSPENDED");
+        assertThat(result.invalidItemIds()).containsExactly(ITEM_ID);
+    }
+
+    @Test
     @DisplayName("헤더 문맥의 참여자와 path 참여자가 다르면 정산을 조회하지 않는다")
     void rejectsMismatchedParticipantContext() {
         arrangeLink();
