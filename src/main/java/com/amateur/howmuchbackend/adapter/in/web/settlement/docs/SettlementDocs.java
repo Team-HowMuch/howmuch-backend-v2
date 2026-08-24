@@ -5,11 +5,13 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettl
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.MatchSettlementContactsWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SearchSettlementParticipantWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SettlementListWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementContactCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -74,6 +76,32 @@ public interface SettlementDocs {
             )
     })
     ApiResponse<SettlementWebResponse> getSettlement(UUID settlementId);
+
+    @Operation(
+            summary = "정산 목록 조회",
+            description = "현재 로그인 사용자가 생성했거나 등록 참여자로 연결된 정산을 탭·상태별로 조회합니다. "
+                    + "응답의 status는 실제 정산 상태이며, 화면에서 진행중·완료 그룹으로 매핑할 수 있습니다. "
+                    + "금액과 인원은 문장이 아닌 숫자 필드로 반환합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 목록 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_ARGUMENT - tab 또는 status 값이 올바르지 않음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            )
+    })
+    ApiResponse<List<SettlementListItemWebResponse>> getSettlements(
+            @ParameterObject SettlementListWebRequest request
+    );
 
     @Operation(
             summary = "정산 초안 수정",
