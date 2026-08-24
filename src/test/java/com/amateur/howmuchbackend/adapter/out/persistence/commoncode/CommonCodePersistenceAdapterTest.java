@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.sql.SQLException;
@@ -31,10 +32,13 @@ class CommonCodePersistenceAdapterTest {
     @Mock
     private CommonCodeJpaRepository detailRepository;
 
+    @Mock
+    private CacheManager cacheManager;
+
     @Test
     @DisplayName("동시 그룹 생성으로 발생한 primary key 충돌을 409로 변환한다")
     void translatesConcurrentGroupCreation() {
-        var adapter = new CommonCodePersistenceAdapter(groupRepository, detailRepository);
+        var adapter = new CommonCodePersistenceAdapter(groupRepository, detailRepository, cacheManager);
         when(groupRepository.findById("TEST")).thenReturn(Optional.empty());
         when(groupRepository.saveAndFlush(any(CommonCodeGroupJpaEntity.class))).thenThrow(
                 new DataIntegrityViolationException(
