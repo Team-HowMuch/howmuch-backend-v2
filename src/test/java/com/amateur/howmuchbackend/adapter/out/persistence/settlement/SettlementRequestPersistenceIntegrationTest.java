@@ -89,7 +89,8 @@ class SettlementRequestPersistenceIntegrationTest {
                 settlementId
         );
         assertThat(ciphertext).isNotEqualTo(ACCOUNT_NUMBER);
-        assertThat(cipher.decryptAccountKey(creatorId, connectionId, ciphertext))
+        assertThat(cipher.isSettlementAccountNumberCiphertext(ciphertext)).isTrue();
+        assertThat(cipher.decryptSettlementAccountNumber(settlementId, ciphertext))
                 .isEqualTo(ACCOUNT_NUMBER);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM settlement_shares WHERE settlement_id = ?",
