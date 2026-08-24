@@ -1,12 +1,12 @@
 # Feature Plan: 정산 요청 링크 및 Share 확정
 
-- Status: In progress
+- Status: Completed
 - Last updated: 2026-08-24
 - Related issue: [#26 정산 요청 링크 및 수금 계좌 설정](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/26)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
-- Prerequisites: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](settlement-participants-spec.md), [정산 지출 및 금액 배분 Spec](settlement-expense-allocation-spec.md)
-- Completed increment: [정산 수령 계좌 조회와 선택](../completed/settlement-receiving-account.md)
+- Prerequisites: [정산 초안 및 기본 정보 Spec](settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](../active/settlement-participants-spec.md), [정산 지출 및 금액 배분 Spec](../active/settlement-expense-allocation-spec.md)
+- Completed increment: [정산 수령 계좌 조회와 선택](settlement-receiving-account.md)
 
 ## 1. Purpose
 
@@ -21,10 +21,10 @@
 ### Success criteria
 
 - [x] 생성자는 DRAFT 정산에서 하나의 수금 계좌를 선택하고 공통 HTTPS 정산 링크를 발급한다.
-- [ ] 검증된 App/Universal Link가 앱을 열고 유효 로그인 세션의 userId가 참여자와 일치하면, 이름 선택 없이 해당 참여자의 송금 또는 품목 선택 화면 정보를 반환한다.
-- [ ] 앱 미설치·링크 미검증·세션 없음·정산 참여자 불일치의 경우에는 브라우저의 표시 이름 선택 흐름으로 처리한다.
-- [ ] 더치페이는 링크 발급 시 Share와 수금 계좌 스냅샷을 확정하고, 품목별 배분은 모든 참여자 선택이 검증된 뒤에만 Share를 확정한다.
-- [ ] 확정된 Share는 바꿀 수 없고, 클라이언트에는 Toss로 이동하는 데 필요한 송금 안내만 제공한다.
+- [x] App/Universal Link로 앱에 전달된 유효 로그인 세션의 userId가 참여자와 일치하면, 이름 선택 없이 해당 참여자의 송금 또는 품목 선택 화면 정보를 반환한다.
+- [x] 앱 미설치·링크 미검증·세션 없음·정산 참여자 불일치의 경우에는 같은 URL의 브라우저 표시 이름 선택 흐름으로 처리한다.
+- [x] 더치페이는 링크 발급 시 Share와 수금 계좌 스냅샷을 확정하고, 품목별 배분은 모든 참여자 선택이 검증된 뒤에만 Share를 확정한다.
+- [x] 확정된 Share는 바꿀 수 없고, 클라이언트에는 Toss로 이동하는 데 필요한 송금 안내만 제공한다.
 
 ### Out of scope
 
@@ -51,6 +51,16 @@
 - 자동 매칭과 직접 선택 모두 Redis에 링크 hash·settlementId·participantId가 결합된 짧은 참여 문맥을 저장하고, 후속 송금·품목 API가 사용할 불투명 context token을 반환한다. 같은 링크·참여자의 유효한 문맥은 원자적으로 재사용한다.
 - 공개 링크 조회·선택 API, 선택적 인증, Redis 참여 문맥, Swagger를 한 PR에서 구현한다. 공개 품목 선택은 배분 Spec의 후속 increment에서 완료했고 송금 안내는 별도 후속 increment로 남긴다.
 - V16 테이블과 기존 참여자 구조를 조회하고 Redis만 사용하므로 추가 Flyway migration은 필요하지 않다.
+
+### Current increment: 확정 Share 송금 안내
+
+- Scope: 공통 링크와 `Link-Participant-Context`로 선택된 참여자의 확정 Share 금액과 수금 계좌를 조회한다.
+- Related issue: [#127 확정 정산 송금 안내 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/127)
+- `AWAITING_DEPOSIT` 상태에서만 `shareId`, `amount`, `recipientBankCode`, `recipientAccountNumber`를 반환한다.
+- 신규 수금 계좌 스냅샷 암호문은 settlement ID에 결합해 활성 Account 삭제 뒤에도 독립적으로 복호화할 수 있게 한다.
+- 기존 Account userId·connectionId 결합 암호문은 활성 Account가 남아 있는 동안 호환 조회한다.
+- 기존 V16 컬럼 안의 암호문 형식만 버전 확장하므로 추가 Flyway migration은 필요하지 않다.
+- Excluded: Toss 호출 URL 생성·송금 실행·성공 콜백, CODEF 입금 확인, 기존 암호문의 계좌 삭제 전 일괄 재암호화.
 
 ## 2. Domain analysis
 
@@ -80,7 +90,7 @@
 | 로그인 앱 회원 | 이름 선택 없이 자기 송금 또는 품목 선택 단계로 간다. | ResolveSettlementLinkUseCase |
 | 브라우저 참여자 | 표시 이름을 고르고 자기 송금 또는 품목 선택 단계로 간다. | SelectLinkParticipantUseCase |
 | 품목 배분 기능 | 검증된 배분 결과로 Share를 고정한다. | FinalizeSettlementSharesUseCase |
-| 클라이언트 | 확정 Share의 금액·수금 정보로 Toss를 연다. | LoadTransferInstructionUseCase |
+| 클라이언트 | 확정 Share의 금액·수금 정보로 Toss를 연다. | GetSettlementTransferInstructionUseCase |
 
 ### State and invariants
 
@@ -117,7 +127,7 @@
 1. DUTCH_PAY는 요청 확정 시 AllocationResult를 받아 모든 참여자 Share를 생성하고 Settlement를 AWAITING_DEPOSIT으로 전환한다.
 2. ITEM_ALLOCATION은 공통 링크를 먼저 열어 참여자의 품목 선택을 받는다. 참여자·지출·배분 방식·수금 계좌는 이 시점에 잠근다.
 3. 마지막 제출 후 배분 기능이 검증된 AllocationResult를 전달하면 Share와 수금 계좌 스냅샷을 한 트랜잭션에서 저장하고 AWAITING_DEPOSIT으로 전환한다.
-4. LoadTransferInstructionUseCase는 payer의 확정 Share에서 금액·은행 코드·계좌번호·shareId를 반환한다. 실제 예금주는 Toss가 계좌번호를 기준으로 확인하며 서버의 프로필 이름을 은행 검증 정보로 노출하지 않는다.
+4. GetSettlementTransferInstructionUseCase는 payer의 확정 Share에서 금액·은행 코드·계좌번호·shareId를 반환한다. 실제 예금주는 Toss가 계좌번호를 기준으로 확인하며 서버의 프로필 이름을 은행 검증 정보로 노출하지 않는다.
 5. 앱 또는 브라우저 클라이언트가 Toss 송금 화면을 연다. 서버는 송금을 직접 실행하거나 성공을 완료 처리하지 않는다.
 
 ### Failure flow
@@ -158,9 +168,9 @@ FinalizeSettlementSharesUseCase.finalize(
   settlementId, AllocationResult
 ) -> List<SettlementShareResponse>
 
-LoadTransferInstructionUseCase.load(
-  rawToken, LinkParticipantContext
-) -> TransferInstructionResponse
+GetSettlementTransferInstructionUseCase.get(
+  rawToken, participantContextToken
+) -> SettlementTransferInstructionResult
 ~~~
 
 SettlementLinkEntryResponse는 entryMode, settlementTitle, allocationPhase, participantId optional, participant 후보 optional, payment instruction optional, item selection data optional을 반환한다. APP_DIRECT는 등록 회원 자동 매칭이 성공한 경우만 participantId를 포함한다.
@@ -174,6 +184,7 @@ SettlementLinkEntryResponse는 entryMode, settlementTitle, allocationPhase, part
 | LoadAccountPort | 생성자가 선택할 수금 계좌 후보와 소유권을 조회한다. | 계좌 설정 UseCase | 기존 AccountPersistenceAdapter |
 | SaveSettlementSharePort | 불변 Share와 계좌 스냅샷을 저장한다. | Share 확정 UseCase | JPA Persistence Adapter |
 | LoadSettlementSharePort | 참여자의 확정 Share를 조회한다. | 송금 안내 UseCase, 입금 현황 | JPA Persistence Adapter |
+| LoadSettlementReceivingAccountSnapshotPort | 확정 정산의 복호화된 수금 계좌 스냅샷을 조회한다. | 송금 안내 UseCase | JPA Persistence Adapter |
 | LoadSettlementParticipantByUserPort | 앱 userId의 등록 참여자를 조회한다. | 링크 해석 UseCase | participant Persistence Adapter |
 | IssueSettlementParticipantContextPort | 동일한 링크·참여자의 유효한 단기 문맥을 발급하거나 재사용한다. | 앱 자동 매칭·브라우저 선택 UseCase | Redis Adapter |
 | LoadAllocationResultPort | 더치페이 또는 전체 검증된 품목 배분 결과를 조회한다. | 요청·Share 확정 UseCase | allocation Application Adapter |
@@ -205,17 +216,18 @@ Response: { shareId, amount, recipientBankCode, recipientAccountNumber }
 Authentication: public link and LinkParticipantContext required
 ~~~
 
-공개 품목 선택 API는 [정산 지출 및 금액 배분 Spec](settlement-expense-allocation-spec.md)의 endpoint를 사용하며, 동일한 Link-Participant-Context를 요구한다. 앱 자동 매칭 성공 시에도 서버가 해당 참여자용 문맥을 발급해 공개 후속 API 권한을 일관되게 처리한다.
+공개 품목 선택 API는 [정산 지출 및 금액 배분 Spec](../active/settlement-expense-allocation-spec.md)의 endpoint를 사용하며, 동일한 Link-Participant-Context를 요구한다. 앱 자동 매칭 성공 시에도 서버가 해당 참여자용 문맥을 발급해 공개 후속 API 권한을 일관되게 처리한다.
 
 ### Persistence and external integrations
 
-- Database Entity, constraint, or query changes: settlement_links에 settlement_id, token_hash unique, status, expires_at을 저장한다. settlement_receiving_account_snapshots에 settlement_id unique, source_account_id, bank_code, account_number, account_holder를 저장한다. settlement_shares에 settlement_id, payer_participant_id, amount, 계좌 스냅샷 참조, 확정 시각을 저장하고 정산과 payer 범위 Unique 제약을 둔다.
+- Database Entity, constraint, or query changes: V16 구조는 바꾸지 않는다. `settlement_shares`를 settlementId·payerParticipantId로 조회하고 `settlement_receiving_account_snapshots`를 settlementId로 조회한다. 신규 snapshot 암호문은 기존 컬럼에 settlement 결합 버전으로 저장한다.
 - Redis key, TTL, or serialization changes:
   - `settlement:link-participant-context-index:{linkTokenHash}:{participantId}`에 직렬화한 전체 `SettlementParticipantContext`를 저장해 같은 링크·참여자의 유효한 context token을 재사용한다.
   - `settlement:link-participant-context:{contextId}`에도 같은 전체 문맥을 저장해 후속 API가 불투명 context token으로 조회할 수 있게 한다.
   - 전체 문맥은 `id`, `linkTokenHash`, `settlementId`, `participantId`, `createdAt`, `expiresAt`을 포함한다. 두 키는 Lua script로 원자 생성하고 모두 구성된 TTL(기본 30분)을 적용하며, 재사용 시 TTL을 연장하지 않는다. 만료 후에는 다시 링크를 해석한다.
 - External API or message changes: 계좌 후보는 기존 CODEF 연결 계좌의 Account 저장 데이터를 사용한다. 단일 HTTPS 링크의 앱 라우팅은 iOS Associated Domains와 Android Digital Asset Links 설정을 배포 단계에서 연결한다.
 - Environment variable or profile changes: link base URL과 참여 문맥 TTL을 Properties로 관리한다. 수금 계좌 후보용 개발 Stub은 추가하지 않는다.
+- Flyway migration required: `No`. 암호문 버전은 기존 `VARCHAR(1024)` 안에서 구분한다.
 
 ## 5. Design decisions
 
@@ -254,13 +266,13 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] 공통 링크·수금 계좌 스냅샷·불변 Share·참여 문맥 Domain 모델과 상태 규칙을 정의한다. 링크·스냅샷·Share는 완료했고 참여 문맥은 공개 링크 increment에서 구현한다.
-- [ ] 링크·Share·계좌·참여자·배분 결과·Redis 문맥 Output Port를 정의한다.
+- [x] 공통 링크·수금 계좌 스냅샷·불변 Share·참여 문맥 Domain 모델과 상태 규칙을 정의한다.
+- [x] 링크·Share·계좌·참여자·배분 결과·Redis 문맥 Output Port를 정의한다.
 - [x] 수금 계좌 조회·선택 UseCase와 API를 구현한다.
-- [ ] 링크 발급, 앱 자동 매칭, 브라우저 참여 선택, Share 확정, Toss 안내 UseCase를 구현한다. 생성자 링크 발급과 더치페이 Share 확정은 완료했다.
-- [ ] JPA Entity·Repository·Mapper·Persistence Adapter와 Redis 참여 문맥 Adapter를 구현한다. V16 기반 JPA 저장 구조는 완료했다.
-- [ ] 생성자 API와 public link API, Swagger, 선택적 인증 처리, OS 링크 설정 배포 문서를 구현한다. 생성자 요청 발급 API와 Swagger 계약은 완료했다.
-- [ ] 더치페이와 품목별 배분 각각의 Share 확정 시점·잠금·입금 현황 연계를 통합 검증한다.
+- [x] 링크 발급, 앱 자동 매칭, 브라우저 참여 선택, Share 확정, Toss 안내 UseCase를 구현한다.
+- [x] JPA Entity·Repository·Mapper·Persistence Adapter와 Redis 참여 문맥 Adapter를 구현한다.
+- [x] 생성자 API와 public link API, Swagger, 선택적 인증 처리를 구현한다. OS 링크 설정 파일 배포는 클라이언트·인프라 범위로 제외한다.
+- [x] 더치페이와 품목별 배분 각각의 Share 확정 시점·잠금을 통합 검증한다. 실제 입금 대조는 후속 CODEF 범위로 유지한다.
 
 ### Current request issuance increment
 
@@ -288,6 +300,14 @@ Existing behavior that must remain unchanged:
 - [x] 참여자별 선택·취소·제출에 동일한 문맥 헤더를 적용한다.
 - [x] 실제 PostgreSQL·Redis HTTP와 OpenAPI에서 후속 공개 API 연결을 검증한다.
 
+### Current transfer instruction increment
+
+- [x] 신규 계좌 스냅샷을 settlement ID에 결합해 암호화하고 기존 Account 결합 암호문의 호환 복호화를 유지한다.
+- [x] 확정 Share와 복호화된 수금 계좌 스냅샷 Load Port·Persistence Adapter를 구현한다.
+- [x] 링크·참여 문맥·정산 상태·Share 범위를 교차 검증하는 송금 안내 UseCase와 Service를 구현한다.
+- [x] `GET /api/v2/settlement-links/{token}/transfer-instruction`과 Web Response·Swagger 계약을 구현한다.
+- [x] 암호화·Application·Persistence·Web 테스트와 실제 PostgreSQL·Redis HTTP·Swagger 흐름을 검증한다.
+
 ### Expected commit boundaries
 
 ~~~
@@ -310,6 +330,12 @@ fix: 정산 링크 참여 문맥 중복 발급 방지
 test: 정산 링크 참여 문맥 재사용 검증
 docs: 정산 링크 참여 문맥 발급 제한 반영
 docs: 정산 링크 참여 문맥 저장 구조 정정
+docs: 확정 송금 안내 구현 범위 구체화
+feat: 정산 계좌 스냅샷 독립 암호화 추가
+feat: 확정 Share와 수금 계좌 조회 기능 추가
+feat: 공개 정산 송금 안내 API 추가
+test: 확정 정산 송금 안내 시나리오 검증
+docs: 확정 정산 송금 안내 구현 결과 반영
 ~~~
 
 ## 8. Verification
@@ -326,11 +352,11 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] 생성자는 DRAFT에서만 수금 계좌를 고르고 하나의 공통 URL을 발급한다.
-- [ ] 유효 로그인 앱 회원이 참여자에 매칭되면 이름 선택 없이 송금 또는 품목 선택 단계로 간다.
-- [ ] 앱 조건이 충족되지 않으면 브라우저에서 표시 이름 선택과 단기 참여 문맥 발급으로 진행한다.
-- [ ] 더치페이는 요청 시, 품목별 배분은 전체 선택 검증 후에만 Share와 계좌 스냅샷을 불변으로 저장한다.
-- [ ] 송금 안내는 Toss 이동 정보만 반환하며 Toss 성공만으로 Settlement가 COMPLETED가 되지 않는다.
+- [x] 생성자는 DRAFT에서만 수금 계좌를 고르고 하나의 공통 URL을 발급한다.
+- [x] 유효 로그인 앱 회원이 참여자에 매칭되면 이름 선택 없이 송금 또는 품목 선택 단계로 간다.
+- [x] 앱 조건이 충족되지 않으면 브라우저에서 표시 이름 선택과 단기 참여 문맥 발급으로 진행한다.
+- [x] 더치페이는 요청 시, 품목별 배분은 전체 선택 검증 후에만 Share와 계좌 스냅샷을 불변으로 저장한다.
+- [x] 송금 안내는 Toss 이동 정보만 반환하며 Toss 성공만으로 Settlement가 COMPLETED가 되지 않는다.
 
 ### Results
 
@@ -338,7 +364,7 @@ git status --short --untracked-files=all
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
 | 구현·컴파일 | Pass | `./gradlew compileJava` |
-| 자동 테스트 | Pass | 격리 PostgreSQL 스키마에서 `./gradlew test`, 238 tests, 0 failures |
+| 자동 테스트 | Pass | 격리 PostgreSQL 스키마·Redis DB에서 `./gradlew test`, 285 tests, 0 failures |
 | 영속 통합 검증 | Pass | 계좌 스냅샷 1건, Share 2건·합계 10,000원, 링크 hash 64자 저장 |
 | 실제 HTTP 흐름 | Pass | 정산 생성부터 요청 발급까지 200, 재요청 409, 최종 상태 `AWAITING_DEPOSIT` |
 | 링크·민감정보 | Pass | 응답 토큰의 SHA-256과 DB hash 일치, 계좌번호 ciphertext 저장 확인 |
@@ -351,6 +377,10 @@ git status --short --untracked-files=all
 | 공개 링크 Swagger | Pass | 링크 GET·참여자 선택 POST operation과 Swagger UI 200 확인 |
 | 공개 품목 API 문맥 연계 | Pass | 링크 선택으로 발급한 Redis 문맥으로 품목 조회·선택·취소·제출 성공, 제출 뒤 수정 409 확인 |
 | 공개 품목 API Swagger | Pass | 조회·선택·취소·제출 네 경로와 `Link-Participant-Context` 헤더 노출 확인 |
+| 송금 안내 자동 테스트 | Pass | 링크·문맥·상태·Share 범위와 신규 v2·기존 v1 계좌 스냅샷 복호화 검증 |
+| 송금 안내 실제 HTTP | Pass | 브라우저 이름 선택, Redis 문맥 발급, 6,000원·은행 코드·계좌번호 조회 200, 미발급 문맥 404 |
+| 송금 안내 Swagger | Pass | `/swagger-ui.html` 302와 OpenAPI의 GET operation, 필수 `Link-Participant-Context`, 200·404 계약 확인 |
+| 계좌 삭제 독립성 | Pass | 시작 시 원본 Account가 비활성화된 뒤에도 settlement ID 결합 v2 스냅샷을 복호화해 HTTP 200 반환 |
 
 ## 9. Progress log
 
@@ -361,6 +391,8 @@ git status --short --untracked-files=all
 | 2026-08-24 | 공개 링크 조회, 회원 자동 매칭, 신뢰 기반 이름 선택, Redis 참여 문맥 구현·검증 | 참여 문맥 기반 송금 안내 또는 공개 품목 선택 | 운영 public base URL과 App/Universal Link 배포는 클라이언트·인프라 확인 필요 |
 | 2026-08-24 | 같은 링크·참여자의 유효한 문맥을 Redis Lua로 원자 재사용 | 참여 문맥 기반 송금 안내 또는 공개 품목 선택 | 유효 링크 보유자의 반복 호출이 Redis 키를 무제한 생성하던 위험 해소 |
 | 2026-08-24 | Redis 참여 문맥 조회를 공개 품목 선택·제출 API에 연결하고 실제 HTTP·Swagger 검증 완료 | 확정 Share 송금 안내 | 문맥은 본인 인증이 아니라 사용자가 고른 참여자를 후속 요청에 고정하는 신뢰 기반 장치임 |
+| 2026-08-24 | #127을 #26의 서브 이슈로 연결하고 확정 Share 송금 안내 범위·암호화 호환 계약 확정 | Application·Persistence·Web 구현 | 기존 snapshot 암호문은 활성 Account 삭제 전에 settlement 결합 형식으로 전환해야 함 |
+| 2026-08-24 | 확정 Share 송금 안내 API와 settlement 결합 계좌 스냅샷 암호화·호환 조회를 구현하고 실제 HTTP·Swagger 검증 완료 | PR 검토와 병합 | 기존 v1 snapshot은 Account 삭제 구현에서 사전 재암호화해야 함 |
 
 ## 10. Decision log
 
@@ -374,11 +406,12 @@ git status --short --untracked-files=all
 | 2026-08-24 | 브라우저 참여자 선택은 표시 이름 기반 신뢰 방식으로 유지한다. | 링크를 받은 사용자의 오선택·고의 선택 방지는 MVP 제외 범위다. | 선택된 participant에 대한 단기 context만 발급한다. |
 | 2026-08-24 | 송금 안내에서 프로필 이름을 실제 예금주로 노출하지 않는다. | 실제 예금주는 Toss가 계좌번호로 확인한다. | 서버 응답은 은행 코드·계좌번호·금액 중심으로 구성한다. |
 | 2026-08-24 | 링크 hash·participantId별 유효한 context token을 최대 하나만 유지한다. | 공개 선택 API 반복 호출로 30분 TTL Redis 키가 무제한 증가하는 것을 막는다. | 최초 발급과 동시 요청을 Lua script로 직렬화하고 남은 TTL을 연장하지 않는다. |
+| 2026-08-24 | 신규 수금 계좌 snapshot 암호문은 settlement ID를 AAD로 사용한다. | 확정 정산은 활성 Account보다 오래 유지되고 계좌 삭제 뒤에도 송금 안내·입금 대조가 가능해야 한다. | 기존 Account 결합 암호문은 호환 조회하고 계좌 삭제 구현에서 재암호화한다. |
 
 ## 11. Completion record
 
-- Completed on: Pending
-- Final behavior: Pending
-- Unverified items: 전체 구현 전
-- Remaining risks: App/Universal Link 운영 배포와 확정 Share 송금 안내를 구현해야 한다.
+- Completed on: 2026-08-24
+- Final behavior: 생성자는 공통 정산 링크를 공유하고, 앱 회원은 자동 매칭으로, 브라우저 사용자는 이름 선택으로 참여 문맥을 받은 뒤 확정 Share 금액과 수금 계좌를 조회한다. 서버는 Toss 송금을 실행하거나 송금 완료를 확정하지 않는다.
+- Unverified items: iOS Universal Link·Android App Link 운영 도메인 검증과 실제 Toss 앱 딥링크 조립은 클라이언트·인프라 범위로 남아 있다.
+- Remaining risks: Account 삭제 전에 기존 v1 계좌 스냅샷을 settlement 결합 v2 형식으로 재암호화해야 한다.
 - Follow-up work: 입금 현황과 CODEF 거래 대조 기능을 별도 Feature Plan으로 정의한다.

@@ -31,6 +31,7 @@ class SettlementRequestPersistenceIntegrationTest {
     private static final String ACCOUNT_NUMBER = "1002123456789";
 
     @Autowired private SettlementRequestPersistenceAdapter adapter;
+    @Autowired private SettlementTransferInstructionPersistenceAdapter transferInstructionAdapter;
     @Autowired private CodefSecretCipher cipher;
     @Autowired private JdbcTemplate jdbcTemplate;
 
@@ -89,7 +90,8 @@ class SettlementRequestPersistenceIntegrationTest {
                 settlementId
         );
         assertThat(ciphertext).isNotEqualTo(ACCOUNT_NUMBER);
-        assertThat(cipher.decryptAccountKey(creatorId, connectionId, ciphertext))
+        assertThat(cipher.isSettlementAccountNumberCiphertext(ciphertext)).isTrue();
+        assertThat(cipher.decryptSettlementAccountNumber(settlementId, ciphertext))
                 .isEqualTo(ACCOUNT_NUMBER);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM settlement_shares WHERE settlement_id = ?",
@@ -101,6 +103,45 @@ class SettlementRequestPersistenceIntegrationTest {
                 String.class,
                 settlementId
         )).isEqualTo("a".repeat(64));
+
+        assertThat(transferInstructionAdapter.findBySettlementId(settlementId))
+                .get()
+                .extracting(
+                        SettlementReceivingAccountSnapshot::organization,
+                        SettlementReceivingAccountSnapshot::accountNumber
+                )
+                .containsExactly("0020", ACCOUNT_NUMBER);
+        assertThat(transferInstructionAdapter.findBySettlementIdAndPayerParticipantId(
+                settlementId,
+                payerParticipantId
+        )).get().extracting(SettlementShare::amount).isEqualTo(6_000L);
+    }
+
+    @Test
+    @DisplayName("기존 Account 기준으로 암호화된 계좌 스냅샷도 호환 조회한다")
+    void loadsLegacyAccountBoundSnapshot() {
+        String legacyCiphertext = cipher.encryptAccountKey(
+                creatorId,
+                connectionId,
+                ACCOUNT_NUMBER
+        );
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_receiving_account_snapshots (
+                            settlement_id, source_account_id, organization,
+                            account_number_ciphertext, account_holder, created_at
+                        )
+                        VALUES (?, ?, '0020', ?, '최수아', ?)
+                        """,
+                settlementId,
+                accountId,
+                legacyCiphertext,
+                NOW
+        );
+
+        assertThat(transferInstructionAdapter.findBySettlementId(settlementId))
+                .get()
+                .extracting(SettlementReceivingAccountSnapshot::accountNumber)
+                .isEqualTo(ACCOUNT_NUMBER);
     }
 
     private Long insertUser(String uniqueKey) {

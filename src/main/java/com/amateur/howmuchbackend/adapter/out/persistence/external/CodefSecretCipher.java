@@ -14,11 +14,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
 public class CodefSecretCipher {
-    private static final String VERSION = "v1:";
+    private static final String LEGACY_VERSION = "v1:";
+    private static final String SETTLEMENT_SNAPSHOT_VERSION = "v2:";
     private static final int NONCE_BYTES = 12;
     private static final int TAG_BITS = 128;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -30,29 +32,64 @@ public class CodefSecretCipher {
     }
 
     public String encryptConnectedId(Long userId, String connectedId) {
-        return encrypt("connected:" + userId, connectedId);
+        return encrypt(LEGACY_VERSION, "connected:" + userId, connectedId);
     }
 
     public String decryptConnectedId(Long userId, String ciphertext) {
-        return decrypt("connected:" + userId, ciphertext);
+        return decrypt(LEGACY_VERSION, "connected:" + userId, ciphertext);
     }
 
     public String encryptAccountKey(Long userId, Long connectionId, String accountKey) {
-        return encrypt("account:" + userId + ":" + connectionId, accountKey);
+        return encrypt(
+                LEGACY_VERSION,
+                "account:" + userId + ":" + connectionId,
+                accountKey
+        );
     }
 
     public String decryptAccountKey(Long userId, Long connectionId, String ciphertext) {
-        return decrypt("account:" + userId + ":" + connectionId, ciphertext);
+        return decrypt(
+                LEGACY_VERSION,
+                "account:" + userId + ":" + connectionId,
+                ciphertext
+        );
     }
 
-    private String encrypt(String aad, String plaintext) {
+    public String encryptSettlementAccountNumber(
+            UUID settlementId,
+            String accountNumber
+    ) {
+        return encrypt(
+                SETTLEMENT_SNAPSHOT_VERSION,
+                "settlement-account:" + settlementId,
+                accountNumber
+        );
+    }
+
+    public String decryptSettlementAccountNumber(
+            UUID settlementId,
+            String ciphertext
+    ) {
+        return decrypt(
+                SETTLEMENT_SNAPSHOT_VERSION,
+                "settlement-account:" + settlementId,
+                ciphertext
+        );
+    }
+
+    public boolean isSettlementAccountNumberCiphertext(String ciphertext) {
+        return ciphertext != null
+                && ciphertext.startsWith(SETTLEMENT_SNAPSHOT_VERSION);
+    }
+
+    private String encrypt(String version, String aad, String plaintext) {
         byte[] nonce = new byte[NONCE_BYTES];
         SECURE_RANDOM.nextBytes(nonce);
         try {
             byte[] encrypted = cipher(Cipher.ENCRYPT_MODE, nonce, aad).doFinal(
                     plaintext.getBytes(StandardCharsets.UTF_8)
             );
-            return VERSION + Base64.getEncoder().encodeToString(
+            return version + Base64.getEncoder().encodeToString(
                     ByteBuffer.allocate(nonce.length + encrypted.length).put(nonce).put(encrypted).array()
             );
         } catch (GeneralSecurityException | IllegalArgumentException exception) {
@@ -60,12 +97,12 @@ public class CodefSecretCipher {
         }
     }
 
-    private String decrypt(String aad, String ciphertext) {
+    private String decrypt(String version, String aad, String ciphertext) {
         try {
-            if (ciphertext == null || !ciphertext.startsWith(VERSION)) {
+            if (ciphertext == null || !ciphertext.startsWith(version)) {
                 throw new IllegalArgumentException("Unsupported CODEF ciphertext.");
             }
-            byte[] value = Base64.getDecoder().decode(ciphertext.substring(VERSION.length()));
+            byte[] value = Base64.getDecoder().decode(ciphertext.substring(version.length()));
             if (value.length <= NONCE_BYTES) {
                 throw new IllegalArgumentException("Invalid CODEF ciphertext.");
             }

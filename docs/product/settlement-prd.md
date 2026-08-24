@@ -130,4 +130,4 @@ CODEF 입금 현황은 `PENDING`, `NEEDS_CONFIRMATION`, `COMPLETED` 같은 입�
 - `docs/features/completed/settlement-core-spec.md`
 - `docs/features/active/settlement-participants-spec.md`
 - `docs/features/active/settlement-expense-allocation-spec.md`
-- `docs/features/active/settlement-request-link-spec.md`
+- `docs/features/completed/settlement-request-link-spec.md`
