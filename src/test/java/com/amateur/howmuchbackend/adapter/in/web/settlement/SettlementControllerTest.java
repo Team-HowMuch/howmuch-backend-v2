@@ -7,18 +7,23 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSettlementsCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantListItemResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementContactCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
@@ -65,6 +70,9 @@ class SettlementControllerTest {
     private GetSettlementUseCase getSettlementUseCase;
 
     @Mock
+    private GetSettlementsUseCase getSettlementsUseCase;
+
+    @Mock
     private UpdateSettlementDraftUseCase updateSettlementDraftUseCase;
 
     @Mock
@@ -98,9 +106,10 @@ class SettlementControllerTest {
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         SettlementController controller = new SettlementController(
-                createSettlementUseCase,
-                getSettlementUseCase,
-                updateSettlementDraftUseCase,
+            createSettlementUseCase,
+            getSettlementUseCase,
+            getSettlementsUseCase,
+            updateSettlementDraftUseCase,
                 addSettlementParticipantUseCase,
                 removeSettlementParticipantUseCase,
                 getSettlementParticipantsUseCase,
@@ -163,6 +172,35 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.creatorId").value(1))
                 .andExpect(jsonPath("$.data.createdAt").value("2026-08-21T09:00:00"));
+    }
+
+    @Test
+    @DisplayName("목록 화면에 원본 상태와 숫자형 요약 필드를 반환한다")
+    void getsSettlementList() throws Exception {
+        when(getSettlementsUseCase.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS
+        ))).thenReturn(List.of(new SettlementListItemResult(
+                SETTLEMENT_ID,
+                SettlementStatus.AWAITING_DEPOSIT,
+                CREATED_AT,
+                600L,
+                3,
+                null,
+                null,
+                null
+        )));
+
+        mockMvc.perform(get("/api/v2/settlements")
+                        .queryParam("tab", "RECEIVE")
+                        .queryParam("status", "IN_PROGRESS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].settlementId").value(SETTLEMENT_ID.toString()))
+                .andExpect(jsonPath("$.data[0].status").value("AWAITING_DEPOSIT"))
+                .andExpect(jsonPath("$.data[0].totalAmount").value(600))
+                .andExpect(jsonPath("$.data[0].participantCount").value(3))
+                .andExpect(jsonPath("$.data[0].completedParticipantCount").doesNotExist());
     }
 
     @Test
