@@ -4,10 +4,18 @@ import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemAllocationFraction;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
+import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Component
@@ -63,5 +71,100 @@ public class SettlementItemAllocationPolicy {
             );
         }
         return total;
+    }
+
+    public Finalization finalizeAllocation(
+            UUID settlementId,
+            long settlementTotalAmount,
+            List<SettlementParticipant> participants,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            LocalDateTime now
+    ) {
+        Map<UUID, SettlementItem> itemById = new HashMap<>();
+        items.forEach(item -> itemById.put(item.id(), item));
+        Set<UUID> participantIds = new HashSet<>();
+        participants.forEach(participant -> participantIds.add(participant.id()));
+
+        Map<UUID, Integer> allocatedUnitsByItem = new HashMap<>();
+        Map<UUID, Long> amountByParticipant = new HashMap<>();
+        boolean invalidReferenceOrAmount = false;
+        try {
+            for (SettlementItemSelection selection : selections) {
+                SettlementItem item = itemById.get(selection.itemId());
+                if (item == null
+                        || !settlementId.equals(selection.settlementId())
+                        || !participantIds.contains(selection.participantId())) {
+                    invalidReferenceOrAmount = true;
+                    continue;
+                }
+                allocatedUnitsByItem.merge(
+                        item.id(), selection.fraction().units(), Math::addExact
+                );
+                amountByParticipant.merge(
+                        selection.participantId(),
+                        selection.amountFor(item),
+                        Math::addExact
+                );
+            }
+        } catch (ApplicationException | ArithmeticException exception) {
+            invalidReferenceOrAmount = true;
+        }
+
+        List<UUID> invalidItemIds = items.stream()
+                .filter(item -> allocatedUnitsByItem.getOrDefault(item.id(), 0)
+                        != SettlementItemAllocationFraction.WHOLE_UNITS)
+                .map(SettlementItem::id)
+                .toList();
+        if (invalidReferenceOrAmount || !invalidItemIds.isEmpty()) {
+            return Finalization.invalid(
+                    invalidItemIds.isEmpty()
+                            ? items.stream().map(SettlementItem::id).toList()
+                            : invalidItemIds
+            );
+        }
+
+        List<SettlementShare> shares = new ArrayList<>();
+        long shareTotal = 0L;
+        try {
+            for (SettlementParticipant participant : participants) {
+                long amount = amountByParticipant.getOrDefault(participant.id(), 0L);
+                if (amount == 0L) {
+                    continue;
+                }
+                shareTotal = Math.addExact(shareTotal, amount);
+                shares.add(SettlementShare.create(
+                        settlementId,
+                        participant.id(),
+                        amount,
+                        now
+                ));
+            }
+        } catch (ArithmeticException exception) {
+            return Finalization.invalid(items.stream().map(SettlementItem::id).toList());
+        }
+        if (shareTotal != settlementTotalAmount || shares.isEmpty()) {
+            return Finalization.invalid(items.stream().map(SettlementItem::id).toList());
+        }
+        return Finalization.valid(shares);
+    }
+
+    public record Finalization(
+            boolean valid,
+            List<SettlementShare> shares,
+            List<UUID> invalidItemIds
+    ) {
+        public Finalization {
+            shares = List.copyOf(shares);
+            invalidItemIds = List.copyOf(invalidItemIds);
+        }
+
+        public static Finalization valid(List<SettlementShare> shares) {
+            return new Finalization(true, shares, List.of());
+        }
+
+        public static Finalization invalid(List<UUID> invalidItemIds) {
+            return new Finalization(false, List.of(), invalidItemIds);
+        }
     }
 }
