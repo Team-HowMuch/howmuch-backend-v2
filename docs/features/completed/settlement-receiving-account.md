@@ -121,4 +121,4 @@ Authentication: required, creator only, DRAFT only
 - Final behavior: 정산 생성자는 자신의 활성 원화 입출금 계좌만 기본 계좌 우선으로 조회하고, DRAFT 정산의 수령 계좌를 선택·교체할 수 있다. 정산 조회 응답은 선택된 `receivingAccountId`를 반환한다.
 - Verification: `./gradlew compileJava`, 관련 25개 테스트, PostgreSQL·Redis를 사용하는 전체 219개 테스트, 실제 JWT HTTP와 Swagger 검증을 완료했다.
 - Remaining risks: 요청 확정 시 계좌 표시·원본 정보를 불변 스냅샷으로 고정하는 작업은 후속 요청 링크 PR 범위다.
-- Follow-up: [정산 요청 링크 및 Share 확정 Plan](../active/settlement-request-link-spec.md)
+- Follow-up: [정산 요청 링크 및 Share 확정 Plan](settlement-request-link-spec.md)

@@ -1,6 +1,5 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
-import com.amateur.howmuchbackend.adapter.out.persistence.account.entity.AccountJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.account.repository.AccountJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.SettlementRequestMapper;
@@ -33,12 +32,10 @@ public class SettlementRequestPersistenceAdapter implements SaveSettlementReques
             List<SettlementShare> shares,
             SettlementLink link
     ) {
-        AccountJpaEntity sourceAccount = accountRepository
-                .findById(accountSnapshot.sourceAccountId())
+        accountRepository.findById(accountSnapshot.sourceAccountId())
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
-        String ciphertext = cipher.encryptAccountKey(
-                sourceAccount.getUser().getId(),
-                sourceAccount.getExternalConnection().getId(),
+        String ciphertext = cipher.encryptSettlementAccountNumber(
+                accountSnapshot.settlementId(),
                 accountSnapshot.accountNumber()
         );
         snapshotRepository.saveAndFlush(
