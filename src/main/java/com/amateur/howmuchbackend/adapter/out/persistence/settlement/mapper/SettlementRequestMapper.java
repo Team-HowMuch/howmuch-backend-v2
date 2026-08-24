@@ -25,6 +25,20 @@ public final class SettlementRequestMapper {
         );
     }
 
+    public static SettlementReceivingAccountSnapshot toDomain(
+            SettlementReceivingAccountSnapshotJpaEntity entity,
+            String accountNumber
+    ) {
+        return new SettlementReceivingAccountSnapshot(
+                entity.getSettlementId(),
+                entity.getSourceAccountId(),
+                entity.getOrganization(),
+                accountNumber,
+                entity.getAccountHolder(),
+                entity.getCreatedAt()
+        );
+    }
+
     public static SettlementShareJpaEntity toEntity(SettlementShare share) {
         return new SettlementShareJpaEntity(
                 share.id(),
@@ -32,6 +46,16 @@ public final class SettlementRequestMapper {
                 share.payerParticipantId(),
                 share.amount(),
                 share.createdAt()
+        );
+    }
+
+    public static SettlementShare toDomain(SettlementShareJpaEntity entity) {
+        return new SettlementShare(
+                entity.getId(),
+                entity.getSettlementId(),
+                entity.getPayerParticipantId(),
+                entity.getAmount(),
+                entity.getCreatedAt()
         );
     }
 
