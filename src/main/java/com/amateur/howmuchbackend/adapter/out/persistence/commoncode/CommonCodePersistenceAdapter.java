@@ -16,10 +16,13 @@ import com.amateur.howmuchbackend.domain.commoncode.CommonCodeGroupSummary;
 import com.amateur.howmuchbackend.domain.commoncode.status.CommonCodeStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -32,8 +35,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CommonCodePersistenceAdapter
         implements LoadCommonCodePort, LoadCommonCodeGroupPort, SaveCommonCodeGroupPort {
+    private static final List<String> CACHE_NAMES = List.of(
+            "commonCodeByGroupAndCode",
+            "commonCodeByGroup",
+            "commonCodeExistsByGroupAndCode"
+    );
+
     private final CommonCodeGroupJpaRepository commonCodeGroupRepository;
     private final CommonCodeJpaRepository commonCodeRepository;
+    private final CacheManager cacheManager;
 
     @Override
     @Cacheable(cacheNames = "commonCodeByGroupAndCode", sync = true)
@@ -76,14 +86,6 @@ public class CommonCodePersistenceAdapter
     }
 
     @Override
-    @CacheEvict(
-            cacheNames = {
-                    "commonCodeByGroupAndCode",
-                    "commonCodeByGroup",
-                    "commonCodeExistsByGroupAndCode"
-            },
-            allEntries = true
-    )
     public CommonCodeGroup save(CommonCodeGroup group) {
         CommonCodeGroupJpaEntity groupEntity = commonCodeGroupRepository.findById(group.groupCode())
                 .map(existing -> {
@@ -114,7 +116,9 @@ public class CommonCodePersistenceAdapter
         deactivateRemovedDetails(group, existingDetails);
         commonCodeRepository.saveAllAndFlush(detailsToSave.values());
 
-        return CommonCodeGroupMapper.toDomain(savedGroup, findDetails(group.groupCode()));
+        CommonCodeGroup result = CommonCodeGroupMapper.toDomain(savedGroup, findDetails(group.groupCode()));
+        evictCachesAfterCommit();
+        return result;
     }
 
     private CommonCodeJpaEntity updateOrCreateDetail(
@@ -147,6 +151,27 @@ public class CommonCodePersistenceAdapter
         return commonCodeRepository.findAllByGroupCode(groupCode).stream()
                 .map(CommonCodeMapper::toDomain)
                 .toList();
+    }
+
+    private void evictCachesAfterCommit() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    evictCaches();
+                }
+            });
+            return;
+        }
+        evictCaches();
+    }
+
+    private void evictCaches() {
+        CACHE_NAMES.stream()
+                .map(cacheManager::getCache)
+                .filter(cache -> cache != null)
+                .forEach(Cache::clear);
     }
 
     private RuntimeException translateGroupConstraintViolation(DataIntegrityViolationException exception) {
