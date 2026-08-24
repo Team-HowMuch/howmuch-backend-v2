@@ -315,7 +315,7 @@ Authentication: public link and resolved participant context required
 | Application | 지출·배분 UseCase, OCR·결제내역·결과 전달 Port | application.settlement |
 | Domain | Expense, Item, ItemSelection, AllocationResult 규칙 | domain.settlement |
 | Persistence | 지출·품목·선택·제출 테이블과 제약 | adapter.out.persistence.settlement |
-| Redis | 없음 | N/A |
+| Redis | 공통 링크에서 발급된 참여 문맥 조회 | SettlementParticipantContextRedisAdapter |
 | Security | 생성자 수정 권한과 링크 참여자 문맥 확인 | Security Adapter, request-link |
 | Configuration | OCR·결제내역 개발 Stub | dev profile |
 | Documentation | 공통 링크와 Share 고정 순서 | PRD, request-link Spec |
@@ -367,13 +367,13 @@ Existing behavior that must remain unchanged:
 
 ### Current public item allocation increment
 
-- [ ] AllocationFraction·ItemSelection·ItemAllocationSubmission Domain과 정수 원·비율 합계 규칙을 구현한다.
-- [ ] V14 선택·제출 Entity·Repository·Mapper·Store Adapter를 구현한다.
-- [ ] Redis 참여 문맥을 조회하고 링크 hash·정산·참여자를 교차 검증한다.
-- [ ] 참여자의 품목 상태 조회·선택·취소 UseCase를 구현한다.
-- [ ] 제출을 저장하고 마지막 제출에서 Share 확정 또는 `SUSPENDED` 전환을 하나의 트랜잭션으로 처리한다.
-- [ ] 공개 품목 배분 API·Swagger·Security 계약을 구현한다.
-- [ ] Domain·Application·Web·Persistence·Redis 테스트와 실제 PostgreSQL·Redis HTTP 흐름을 검증한다.
+- [x] AllocationFraction·ItemSelection·ItemAllocationSubmission Domain과 정수 원·비율 합계 규칙을 구현한다.
+- [x] V14 선택·제출 Entity·Repository·Mapper·Store Adapter를 구현한다.
+- [x] Redis 참여 문맥을 조회하고 링크 hash·정산·참여자를 교차 검증한다.
+- [x] 참여자의 품목 상태 조회·선택·취소 UseCase를 구현한다.
+- [x] 제출을 저장하고 마지막 제출에서 Share 확정 또는 `SUSPENDED` 전환을 하나의 트랜잭션으로 처리한다.
+- [x] 공개 품목 배분 API·Swagger·Security 계약을 구현한다.
+- [x] Domain·Application·Web·Persistence·Redis 테스트와 실제 PostgreSQL·Redis HTTP 흐름을 검증한다.
 
 ### Follow-up increments
 
@@ -446,11 +446,11 @@ git status --short --untracked-files=all
 - [x] DRAFT 생성자는 OCR 결과를 지출·품목으로 원자 저장하고 같은 참조의 중복 가져오기를 거부한다.
 - [x] 저장된 품목은 부모 지출·품목 표시 순서를 보존하며 지출 삭제 시 함께 삭제된다.
 - [x] 저장 품목 합계와 전체 지출 합계가 일치할 때 ITEM_ALLOCATION을 선택할 수 있다.
-- [ ] DRAFT 생성자만 수기 지출과 배분 방식을 변경한다.
-- [ ] 더치페이 계산 결과의 합은 항상 지출 총액과 일치하고 나머지는 생성자 몫이다.
-- [ ] 같은 품목을 여러 참여자가 허용 비율로 선택할 수 있고, 같은 참여자의 중복 행은 생기지 않는다.
-- [ ] 전체 제출 후 품목별 비율과 총액이 일치하면 Share 고정에 필요한 결과가 생성된다.
-- [ ] 전체 제출 뒤 불일치하면 정산은 SUSPENDED이고 Share는 생성되지 않는다.
+- [x] DRAFT 생성자만 수기 지출과 배분 방식을 변경한다.
+- [x] 더치페이 계산 결과의 합은 항상 지출 총액과 일치하고 나머지는 생성자 몫이다.
+- [x] 같은 품목을 여러 참여자가 허용 비율로 선택할 수 있고, 같은 참여자의 중복 행은 생기지 않는다.
+- [x] 전체 제출 후 품목별 비율과 총액이 일치하면 Share 고정에 필요한 결과가 생성된다.
+- [x] 전체 제출 뒤 불일치하면 정산은 SUSPENDED이고 Share는 생성되지 않는다.
 
 ### Results
 
@@ -470,6 +470,9 @@ git status --short --untracked-files=all
 | OCR 영수증 가져오기 PostgreSQL 영속 검증 | Complete | 지출·품목 저장, 부모 지출·품목 순서 조회, 중복 참조 409 변환, 지출 삭제 Cascade 확인 |
 | OCR 영수증 가져오기 실제 HTTP | Complete | DRAFT 생성, Stub 영수증 30,000원 가져오기, 품목 2개·합계 조회, ITEM_ALLOCATION 선택, 중복 409 확인 |
 | OCR 영수증 가져오기 Swagger | Complete | `/v3/api-docs`의 영수증 가져오기·품목 조회 경로와 `/swagger-ui.html` 200 응답 확인 |
+| 공개 품목 배분 자동 테스트 | Complete | Domain·Policy·Application·Web·Redis와 V14 영속 통합을 포함한 실제 PostgreSQL·Redis 연결 전체 테스트 성공 |
+| 공개 품목 배분 실제 HTTP | Complete | 무인증 링크 진입·본인 선택·문맥 발급, 1/2 선택 500원, 취소 0원, 전체 선택 1,000원, 제출 후 `WAITING_FOR_OTHERS`, 제출 뒤 수정 409 확인 |
+| 공개 품목 배분 Swagger | Complete | `/swagger-ui.html` 리다이렉트와 `/v3/api-docs`의 조회·선택·취소·제출 네 경로 및 `Link-Participant-Context` 헤더 확인 |
 
 ## 9. Progress log
 
@@ -485,6 +488,7 @@ git status --short --untracked-files=all
 | 2026-08-23 | 결제내역 후보 조회·가져오기·삭제와 중복 방지를 구현하고 자동 테스트·실제 HTTP·Swagger 검증 완료 | OCR 영수증 지출 가져오기 | 실제 HTTP에서 발견한 Validator 인터페이스 계약 충돌을 제약 상속 방식으로 수정함 |
 | 2026-08-23 | V14 품목 매핑, OCR Stub·가져오기·조회, ITEM_ALLOCATION 선택을 구현하고 205개 테스트·실제 HTTP·Swagger 검증 완료 | 공용 링크 참여자 문맥에서 품목 선택·제출 | 운영 OCR Adapter와 링크 참여자 식별이 아직 필요함 |
 | 2026-08-24 | 공개 링크 참여 문맥과 V14 선택·제출 스키마를 확인하고 한 PR 구현 범위 확정 | Domain·Persistence·Application·Web 구현 | 반올림 정책이 없으므로 정수 원이 되지 않는 비율 선택은 저장 전 거부해야 함 |
+| 2026-08-24 | 공개 링크 참여자의 품목 조회·비율 선택·취소·제출과 마지막 제출의 Share 확정·중단 전환을 구현하고 실제 PostgreSQL·Redis HTTP·Swagger 검증 완료 | 송금 안내 또는 `SUSPENDED` 재개 정책 | 1/3처럼 정수 원이 되지 않는 선택은 반올림 정책 확정 전까지 거부함 |
 
 ## 10. Decision log
 
@@ -511,5 +515,5 @@ git status --short --untracked-files=all
 - Completed on: Pending
 - Final behavior: Pending
 - Unverified items: 전체 구현 전
-- Remaining risks: OCR·결제 내역 공급자 계약, 품목 분수의 원 단위 반올림 정책이 확정돼야 운영 연동을 완료할 수 있다.
-- Follow-up work: 요청 링크·수금 계좌·Share 고정 Spec을 구현한다.
+- Remaining risks: 운영 OCR 공급자 계약, 품목 분수의 원 단위 반올림 정책, `SUSPENDED` 재개 UX가 확정돼야 전체 운영 흐름을 완료할 수 있다.
+- Follow-up work: 확정 Share의 송금 안내와 `SUSPENDED` 수정·재요청 정책을 구현한다.
