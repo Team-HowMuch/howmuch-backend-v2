@@ -4,7 +4,7 @@
 - 최종 수정일: 2026-08-24
 - 관련 이슈: [#97 계좌 삭제와 CODEF 재연결 정책 결정](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/97)
 - 관련 ADR: [ADR-0004 Active Account와 Account Record 수명주기 분리](../../adr/0004-separate-active-account-and-account-record-lifecycles.md)
-- 관련 문서: [CODEF 은행 연결과 결제계좌 연동](codef-bank-account-connection.md), [계좌 조회와 거래 동기화](account-query-and-transactions.md), [정산 수령 계좌](../completed/settlement-receiving-account.md), [정산 요청 링크](settlement-request-link-spec.md)
+- 관련 문서: [CODEF 은행 연결과 결제계좌 연동](codef-bank-account-connection.md), [계좌 조회와 거래 동기화](account-query-and-transactions.md), [정산 수령 계좌](../completed/settlement-receiving-account.md), [정산 요청 링크](../completed/settlement-request-link-spec.md)
 
 ## 1. 목적
 
