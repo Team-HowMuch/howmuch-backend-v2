@@ -10,6 +10,7 @@ import com.amateur.howmuchbackend.domain.commoncode.CommonCode;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCodeGroup;
 import com.amateur.howmuchbackend.infra.cache.config.CommonCodeCacheConfig;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Ticker;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,10 +21,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -53,10 +57,14 @@ class CommonCodePersistenceAdapterCacheTest {
     @Autowired
     private CacheManager cacheManager;
 
+    @Autowired
+    private MutableTicker ticker;
+
     @BeforeEach
     void setUp() {
         cacheManager.getCacheNames().forEach(name -> cacheManager.getCache(name).clear());
         reset(commonCodeRepository, commonCodeGroupRepository);
+        ticker.reset();
     }
 
     @Test
@@ -87,14 +95,78 @@ class CommonCodePersistenceAdapterCacheTest {
     }
 
     @Test
-    @DisplayName("그룹 저장 성공 후 활성 CommonCode 캐시를 비운다")
-    void evictsCachesAfterSave() {
+    @DisplayName("TTL 만료 후 활성 CommonCode를 다시 조회한다")
+    void reloadsAfterTtl() {
+        CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
+                new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
+        );
+        when(commonCodeRepository.findActiveByGroupCode("BANK"))
+                .thenReturn(List.of(detail));
+
+        loadCommonCodePort.findActiveByGroupCode("BANK");
+        ticker.advance(Duration.ofSeconds(59));
+        loadCommonCodePort.findActiveByGroupCode("BANK");
+        ticker.advance(Duration.ofSeconds(1));
+        loadCommonCodePort.findActiveByGroupCode("BANK");
+
+        verify(commonCodeRepository, times(2)).findActiveByGroupCode("BANK");
+    }
+
+    @Test
+    @DisplayName("그룹 저장 성공 후 트랜잭션 커밋 시 활성 CommonCode 캐시를 비운다")
+    void evictsCachesAfterCommit() {
         CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
                 new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
         );
         when(commonCodeRepository.findActiveByGroupCode("BANK"))
                 .thenReturn(List.of(detail));
         loadCommonCodePort.findActiveByGroupCode("BANK");
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            saveGroup();
+            loadCommonCodePort.findActiveByGroupCode("BANK");
+            verify(commonCodeRepository, times(1)).findActiveByGroupCode("BANK");
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            loadCommonCodePort.findActiveByGroupCode("BANK");
+
+            verify(commonCodeRepository, times(2)).findActiveByGroupCode("BANK");
+            verify(commonCodeRepository, times(2)).findAllByGroupCode("BANK");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+    }
+
+    @Test
+    @DisplayName("그룹 저장 트랜잭션 롤백 시 기존 활성 CommonCode 캐시를 유지한다")
+    void keepsCachesAfterRollback() {
+        CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
+                new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
+        );
+        when(commonCodeRepository.findActiveByGroupCode("BANK"))
+                .thenReturn(List.of(detail));
+        loadCommonCodePort.findActiveByGroupCode("BANK");
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            saveGroup();
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+            loadCommonCodePort.findActiveByGroupCode("BANK");
+
+            verify(commonCodeRepository, times(1)).findActiveByGroupCode("BANK");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+    }
+
+    private void saveGroup() {
 
         when(commonCodeGroupRepository.findById("BANK")).thenReturn(Optional.empty());
         when(commonCodeGroupRepository.saveAndFlush(any(CommonCodeGroupJpaEntity.class)))
@@ -108,14 +180,15 @@ class CommonCodePersistenceAdapterCacheTest {
         saveCommonCodeGroupPort.save(
                 CommonCodeGroup.create("BANK", "은행 코드", null, null, null, null, true)
         );
-        loadCommonCodePort.findActiveByGroupCode("BANK");
-
-        verify(commonCodeRepository, times(2)).findActiveByGroupCode("BANK");
-        verify(commonCodeRepository, times(2)).findAllByGroupCode("BANK");
     }
 
     @Configuration
     static class CacheTestConfiguration {
+        @Bean
+        MutableTicker ticker() {
+            return new MutableTicker();
+        }
+
         @Bean
         CommonCodeGroupJpaRepository commonCodeGroupRepository() {
             return mock(CommonCodeGroupJpaRepository.class);
@@ -127,7 +200,7 @@ class CommonCodePersistenceAdapterCacheTest {
         }
 
         @Bean
-        CacheManager cacheManager() {
+        CacheManager cacheManager(MutableTicker ticker) {
             CaffeineCacheManager cacheManager = new CaffeineCacheManager(
                     "commonCodeByGroupAndCode",
                     "commonCodeByGroup",
@@ -135,16 +208,35 @@ class CommonCodePersistenceAdapterCacheTest {
             );
             cacheManager.setCaffeine(Caffeine.newBuilder()
                     .maximumSize(1000)
-                    .expireAfterWrite(Duration.ofMinutes(1)));
+                    .expireAfterWrite(Duration.ofMinutes(1))
+                    .ticker(ticker));
             return cacheManager;
         }
 
         @Bean
         CommonCodePersistenceAdapter commonCodePersistenceAdapter(
                 CommonCodeGroupJpaRepository commonCodeGroupRepository,
-                CommonCodeJpaRepository commonCodeRepository
+                CommonCodeJpaRepository commonCodeRepository,
+                CacheManager cacheManager
         ) {
-            return new CommonCodePersistenceAdapter(commonCodeGroupRepository, commonCodeRepository);
+            return new CommonCodePersistenceAdapter(commonCodeGroupRepository, commonCodeRepository, cacheManager);
+        }
+    }
+
+    static class MutableTicker implements Ticker {
+        private final AtomicLong nanos = new AtomicLong();
+
+        @Override
+        public long read() {
+            return nanos.get();
+        }
+
+        void advance(Duration duration) {
+            nanos.addAndGet(duration.toNanos());
+        }
+
+        void reset() {
+            nanos.set(0L);
         }
     }
 }

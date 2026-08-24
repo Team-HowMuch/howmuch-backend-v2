@@ -54,7 +54,7 @@ CommonCode 사용처가 `CommonCodeService`와 `BankCatalog`로 늘어났고, �
 
 ### State and invariants
 
-- State transitions: 캐시는 조회 시 생성되고 TTL 만료 또는 CommonCode 저장 성공 시 제거된다.
+- State transitions: 캐시는 조회 시 생성되고 TTL 만료 또는 CommonCode 저장 트랜잭션의 커밋 이후 제거된다.
 - Rules that must always hold:
   - 캐시된 값은 활성 CommonCode 조회 결과와 동일한 형태여야 한다.
   - CommonCode 저장이 성공한 뒤 다음 조회는 저장 결과를 다시 읽을 수 있어야 한다.
@@ -78,7 +78,7 @@ CommonCode 사용처가 `CommonCodeService`와 `BankCatalog`로 늘어났고, �
 
 - 1분 경과: Caffeine 항목이 만료되고 다음 조회에서 DB를 다시 읽는다.
 - 동시 미적중: `sync = true`로 같은 키에 대한 중복 로딩을 줄인다.
-- 관리자 저장: 세 조회 캐시를 전체 제거해 코드·목록·존재 여부 간 불일치를 피한다.
+- 관리자 저장: 트랜잭션 커밋 이후 세 조회 캐시를 전체 제거해 커밋 전 stale 재캐싱과 롤백 시 불필요한 제거를 피한다.
 
 ## 4. Contracts
 
@@ -143,7 +143,7 @@ Authentication: 기존 bearerAuth 유지
 ### Technology and patterns
 
 - Constraint to solve: 반복적인 CommonCode DB 조회를 줄이되 호출자별 캐시 중복 구현을 피한다.
-- Selected approach: `CommonCodePersistenceAdapter`의 활성 조회 메서드에 `@Cacheable`, 저장 메서드에 `@CacheEvict`를 적용하고 Spring Boot의 Caffeine Cache Manager를 사용한다.
+- Selected approach: `CommonCodePersistenceAdapter`의 활성 조회 메서드에 `@Cacheable`을 적용하고, 저장 성공 시 `TransactionSynchronization`의 `afterCommit`에서 Spring Cache 항목을 제거한다. Cache Manager는 Spring Boot의 Caffeine 자동 설정을 사용한다.
 - Reason for selection: 외부 Port를 변경하지 않고 `CommonCodeService`와 `BankCatalog`의 모든 호출을 한 Adapter 경계에서 커버할 수 있다.
 - Alternatives considered:
   - 호출자별 `CommonCodeService`·`BankCatalog` 캐시: 같은 정책이 분산되고 직접 Port 호출을 놓칠 수 있다.
@@ -214,17 +214,19 @@ git status --short --untracked-files=all
 | Item | Result | Evidence |
 |---|---|---|
 | 활성 조회 캐시 적중 | Passed | `CommonCodePersistenceAdapterCacheTest.cachesAllActiveReadPaths` |
-| 저장 후 캐시 무효화 | Passed | `CommonCodePersistenceAdapterCacheTest.evictsCachesAfterSave` |
-| 1분 TTL | Passed | `application.yaml`의 `expireAfterWrite=60s`와 Caffeine 설정 |
-| 전체 Gradle 테스트 | Passed | `.env` 환경에서 `./gradlew test` |
-| 애플리케이션 캐시 프록시 활성화 | Passed | `CommonCodeCacheConfig`를 로드하는 `CommonCodePersistenceAdapterCacheTest` |
+| 커밋 후 캐시 무효화 | Passed | `CommonCodePersistenceAdapterCacheTest.evictsCachesAfterCommit` |
+| 롤백 시 캐시 유지 | Passed | `CommonCodePersistenceAdapterCacheTest.keepsCachesAfterRollback` |
+| 1분 TTL 및 만료 후 재조회 | Passed | `CommonCodePersistenceAdapterCacheTest.reloadsAfterTtl` |
+| 전체 Gradle 테스트 | Partial | `.env` 환경에서 `./gradlew test`: 187개 중 185개 통과, 2개 실패. `AccountTransactionPersistenceIntegrationTest`의 `account_transactions`, `account_monthly_summaries` PostgreSQL 권한 오류 |
+| 애플리케이션 캐시 프록시·자동 설정 | Passed | `CommonCodeCacheApplicationContextTest` |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-08-23 | Issue #67 범위와 Spring Cache + Caffeine 방향 확정 | 코드 구현 | 다중 인스턴스 간 캐시 공유는 범위 밖 |
-| 2026-08-23 | 세 활성 조회 경로 캐시, 저장 후 무효화, 관련 테스트 구현 및 전체 테스트 통과 | 문서 완료 처리 | 다중 인스턴스 간 캐시 공유는 범위 밖 |
+| 2026-08-23 | 세 활성 조회 경로 캐시, 저장 후 무효화, 관련 테스트 구현 | 문서 완료 처리 | 다중 인스턴스 간 캐시 공유는 범위 밖 |
+| 2026-08-24 | 저장 캐시 무효화를 트랜잭션 `afterCommit`으로 변경하고 Boot context·TTL 테스트 추가 | PR 리뷰 반영 | 전체 테스트는 기존 PostgreSQL 권한 오류로 Partial |
 
 ## 10. Decision log
 
@@ -232,11 +234,12 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-08-23 | CommonCodePersistenceAdapter에 캐시 적용 | `CommonCodeService`와 `BankCatalog`의 공통 경계에서 한 번에 커버 | 호출자별 캐시 구현을 만들지 않음 |
 | 2026-08-23 | Caffeine `expireAfterWrite=60s` 사용 | Spring Cache 추상화와 로컬 TTL을 가장 작게 구성 | Redis 분산 캐시는 후속 과제 |
+| 2026-08-24 | 저장 후 캐시 제거는 트랜잭션 `afterCommit`에서 실행 | 커밋 전 stale 재캐싱과 롤백 시 조기 제거 방지 | 트랜잭션이 없으면 Adapter 반환 후 즉시 제거 |
 
 ## 11. Completion record
 
 - Completed on: 2026-08-23
-- Final behavior: 활성 CommonCode 단건·목록·존재 여부 조회를 Caffeine에 1분간 캐시하고 CommonCode 저장 성공 후 전체 캐시를 비운다.
-- Unverified items: 실제 1분 경과를 기다리는 장시간 TTL 테스트는 실행하지 않음. 설정값과 캐시 동작 테스트로 확인했다.
+- Final behavior: 활성 CommonCode 단건·목록·존재 여부 조회를 Caffeine에 1분간 캐시하고 CommonCode 저장 성공 후 외부 트랜잭션 커밋 시 전체 캐시를 비운다.
+- Unverified items: 실제 운영 PostgreSQL 권한 환경에서 전체 테스트 2건을 확인하지 못함. CommonCode 테스트와 캐시 설정·TTL은 통과했다.
 - Remaining risks: 다중 인스턴스별 캐시가 서로 다른 값을 최대 TTL 동안 보유할 수 있음
 - Follow-up work: 운영에서 다중 인스턴스 즉시 일관성이 요구되면 Redis Cache 검토
