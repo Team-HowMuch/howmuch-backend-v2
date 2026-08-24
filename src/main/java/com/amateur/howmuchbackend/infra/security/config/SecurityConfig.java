@@ -53,6 +53,7 @@ public class SecurityConfig {
                                 "/api/v2/auth/login",
                                 "/api/v2/auth/token/refresh"
                         ).permitAll()
+                        .requestMatchers("/api/v2/settlement-links/**").permitAll()
                         .requestMatchers(
                                 "/admin/common-codes",
                                 "/admin/common-codes/**",
