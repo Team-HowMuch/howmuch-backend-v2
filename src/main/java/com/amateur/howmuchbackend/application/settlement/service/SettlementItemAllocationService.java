@@ -76,7 +76,7 @@ public class SettlementItemAllocationService implements
                 now,
                 false
         );
-        return toResult(access, List.of());
+        return toResult(access);
     }
 
     @Override
@@ -122,7 +122,7 @@ public class SettlementItemAllocationService implements
                         now
                 ));
         allocationStorePort.saveSelection(selection);
-        return toResult(access, List.of());
+        return toResult(access);
     }
 
     @Override
@@ -149,7 +149,7 @@ public class SettlementItemAllocationService implements
                         SettlementStatusCode.SETTLEMENT_ITEM_SELECTION_NOT_FOUND
                 ));
         allocationStorePort.deleteSelection(selection);
-        return toResult(access, List.of());
+        return toResult(access);
     }
 
     @Override
@@ -179,7 +179,7 @@ public class SettlementItemAllocationService implements
         List<SettlementItemSubmission> submissions = allocationStorePort
                 .findAllSubmissions(access.settlement().id());
         if (submissions.size() < participants.size()) {
-            return toResult(access, List.of());
+            return toResult(access);
         }
 
         var finalization = allocationPolicy.finalizeAllocation(
@@ -197,10 +197,7 @@ public class SettlementItemAllocationService implements
         } else {
             updated = saveSettlementPort.update(access.settlement().suspend(now));
         }
-        return toResult(
-                new Access(updated, access.participant(), access.items()),
-                finalization.invalidItemIds()
-        );
+        return toResult(new Access(updated, access.participant(), access.items()));
     }
 
     private Access loadAccess(
@@ -284,10 +281,7 @@ public class SettlementItemAllocationService implements
                 ));
     }
 
-    private SettlementItemAllocationResult toResult(
-            Access access,
-            List<UUID> invalidItemIds
-    ) {
+    private SettlementItemAllocationResult toResult(Access access) {
         List<SettlementParticipant> participants = loadSettlementParticipantPort
                 .findAllBySettlementId(access.settlement().id());
         Map<UUID, SettlementParticipant> participantById = new HashMap<>();
@@ -298,6 +292,16 @@ public class SettlementItemAllocationService implements
                 .findAllSelections(access.settlement().id());
         List<SettlementItemSubmission> submissions = allocationStorePort
                 .findAllSubmissions(access.settlement().id());
+        List<UUID> invalidItemIds = access.settlement().status()
+                == SettlementStatus.SUSPENDED
+                ? allocationPolicy.findInvalidItemIds(
+                        access.settlement().id(),
+                        access.settlement().totalAmount(),
+                        participants,
+                        access.items(),
+                        selections
+                )
+                : List.of();
         SettlementItemAllocationPhase phase = resolvePhase(
                 access.settlement(),
                 submissions,

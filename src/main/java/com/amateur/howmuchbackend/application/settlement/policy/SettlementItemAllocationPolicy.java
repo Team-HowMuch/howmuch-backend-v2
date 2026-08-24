@@ -10,7 +10,6 @@ import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -81,6 +80,53 @@ public class SettlementItemAllocationPolicy {
             List<SettlementItemSelection> selections,
             LocalDateTime now
     ) {
+        AllocationEvaluation evaluation = evaluateAllocation(
+                settlementId,
+                settlementTotalAmount,
+                participants,
+                items,
+                selections
+        );
+        if (!evaluation.valid()) {
+            return Finalization.invalid(evaluation.invalidItemIds());
+        }
+
+        List<SettlementShare> shares = participants.stream()
+                .filter(participant -> evaluation.amountByParticipant()
+                        .getOrDefault(participant.id(), 0L) > 0L)
+                .map(participant -> SettlementShare.create(
+                        settlementId,
+                        participant.id(),
+                        evaluation.amountByParticipant().get(participant.id()),
+                        now
+                ))
+                .toList();
+        return Finalization.valid(shares);
+    }
+
+    public List<UUID> findInvalidItemIds(
+            UUID settlementId,
+            long settlementTotalAmount,
+            List<SettlementParticipant> participants,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections
+    ) {
+        return evaluateAllocation(
+                settlementId,
+                settlementTotalAmount,
+                participants,
+                items,
+                selections
+        ).invalidItemIds();
+    }
+
+    private AllocationEvaluation evaluateAllocation(
+            UUID settlementId,
+            long settlementTotalAmount,
+            List<SettlementParticipant> participants,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections
+    ) {
         Map<UUID, SettlementItem> itemById = new HashMap<>();
         items.forEach(item -> itemById.put(item.id(), item));
         Set<UUID> participantIds = new HashSet<>();
@@ -117,36 +163,56 @@ public class SettlementItemAllocationPolicy {
                 .map(SettlementItem::id)
                 .toList();
         if (invalidReferenceOrAmount || !invalidItemIds.isEmpty()) {
-            return Finalization.invalid(
+            return AllocationEvaluation.invalid(
                     invalidItemIds.isEmpty()
                             ? items.stream().map(SettlementItem::id).toList()
                             : invalidItemIds
             );
         }
 
-        List<SettlementShare> shares = new ArrayList<>();
         long shareTotal = 0L;
+        boolean hasPositiveShare = false;
         try {
             for (SettlementParticipant participant : participants) {
                 long amount = amountByParticipant.getOrDefault(participant.id(), 0L);
                 if (amount == 0L) {
                     continue;
                 }
+                hasPositiveShare = true;
                 shareTotal = Math.addExact(shareTotal, amount);
-                shares.add(SettlementShare.create(
-                        settlementId,
-                        participant.id(),
-                        amount,
-                        now
-                ));
             }
         } catch (ArithmeticException exception) {
-            return Finalization.invalid(items.stream().map(SettlementItem::id).toList());
+            return AllocationEvaluation.invalid(
+                    items.stream().map(SettlementItem::id).toList()
+            );
         }
-        if (shareTotal != settlementTotalAmount || shares.isEmpty()) {
-            return Finalization.invalid(items.stream().map(SettlementItem::id).toList());
+        if (shareTotal != settlementTotalAmount || !hasPositiveShare) {
+            return AllocationEvaluation.invalid(
+                    items.stream().map(SettlementItem::id).toList()
+            );
         }
-        return Finalization.valid(shares);
+        return AllocationEvaluation.valid(amountByParticipant);
+    }
+
+    private record AllocationEvaluation(
+            boolean valid,
+            Map<UUID, Long> amountByParticipant,
+            List<UUID> invalidItemIds
+    ) {
+        private AllocationEvaluation {
+            amountByParticipant = Map.copyOf(amountByParticipant);
+            invalidItemIds = List.copyOf(invalidItemIds);
+        }
+
+        private static AllocationEvaluation valid(
+                Map<UUID, Long> amountByParticipant
+        ) {
+            return new AllocationEvaluation(true, amountByParticipant, List.of());
+        }
+
+        private static AllocationEvaluation invalid(List<UUID> invalidItemIds) {
+            return new AllocationEvaluation(false, Map.of(), invalidItemIds);
+        }
     }
 
     public record Finalization(
