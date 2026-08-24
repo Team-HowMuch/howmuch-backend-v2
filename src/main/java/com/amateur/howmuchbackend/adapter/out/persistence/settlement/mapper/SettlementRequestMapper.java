@@ -44,4 +44,16 @@ public final class SettlementRequestMapper {
                 link.expiresAt()
         );
     }
+
+    public static SettlementLink toDomain(SettlementLinkJpaEntity entity) {
+        return new SettlementLink(
+                entity.getId(),
+                entity.getSettlementId(),
+                entity.getTokenHash(),
+                entity.getStatus(),
+                entity.getExpiresAt(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt()
+        );
+    }
 }

@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.security.settlement;
 
 import com.amateur.howmuchbackend.infra.settlement.config.SettlementLinkProperties;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.HexFormat;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("보안 정산 링크 토큰 발급")
 class SecureSettlementLinkTokenAdapterTest {
@@ -33,5 +35,16 @@ class SecureSettlementLinkTokenAdapterTest {
         assertThat(issued.tokenHash()).isEqualTo(expectedHash);
         assertThat(issued.url()).startsWith("https://howmuch.example/settlements/");
         assertThat(issued.expiresAt()).isEqualTo(NOW.plusDays(7));
+    }
+
+    @Test
+    @DisplayName("43자 URL-safe 형식이 아닌 공개 token은 링크 없음으로 거부한다")
+    void rejectsMalformedRawToken() {
+        SecureSettlementLinkTokenAdapter adapter = new SecureSettlementLinkTokenAdapter(
+                new SettlementLinkProperties("https://howmuch.example/settlements", Duration.ofDays(7))
+        );
+
+        assertThatThrownBy(() -> adapter.hash("too-short"))
+                .isInstanceOf(ApplicationException.class);
     }
 }

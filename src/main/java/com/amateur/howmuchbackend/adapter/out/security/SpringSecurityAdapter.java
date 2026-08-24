@@ -10,11 +10,19 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Component
 public class SpringSecurityAdapter implements CurrentActorPort {
 
     @Override
     public CurrentActor getCurrentActor() {
+        return findCurrentActor()
+                .orElseThrow(() -> new ApplicationException(CommonStatusCode.UNAUTHORIZED));
+    }
+
+    @Override
+    public Optional<CurrentActor> findCurrentActor() {
         Authentication authentication =
                 SecurityContextHolder
                         .getContext()
@@ -24,7 +32,7 @@ public class SpringSecurityAdapter implements CurrentActorPort {
                 || !authentication.isAuthenticated()
                 || authentication
                 instanceof AnonymousAuthenticationToken) {
-            throw new ApplicationException(CommonStatusCode.UNAUTHORIZED);
+            return Optional.empty();
         }
 
         Object principal = authentication.getPrincipal();
@@ -36,6 +44,6 @@ public class SpringSecurityAdapter implements CurrentActorPort {
             );
         }
 
-        return new CurrentActor(jwtPrincipal.userId());
+        return Optional.of(new CurrentActor(jwtPrincipal.userId()));
     }
 }
