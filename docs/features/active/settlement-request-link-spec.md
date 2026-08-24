@@ -33,6 +33,15 @@
 - 비회원의 이름 선택을 OTP·신분 확인으로 강화하는 기능
 - 모바일 운영체제의 App/Universal Link 도메인 검증 파일 배포
 
+### Current increment: 정산 요청 발급
+
+- 생성자 인증, 정산 잠금, 요청 사전조건 검증, 계좌 스냅샷과 공통 링크 발급을 한 트랜잭션으로 처리한다.
+- DUTCH_PAY는 저장된 참여자별 배분이 참여자 구성과 정확히 일치하고 합계가 정산 총액과 같을 때만 불변 Share를 생성하고 `AWAITING_DEPOSIT`으로 전환한다.
+- ITEM_ALLOCATION은 품목과 지출 합계가 정산 총액과 일치할 때 링크와 계좌 스냅샷을 고정하고 `REQUESTED`로 전환한다. 참여자의 품목 선택·제출과 Share 확정은 후속 increment에서 구현한다.
+- 생성 응답은 원본 토큰을 직접 노출하지 않고 설정된 base URL로 만든 공통 URL, 만료 시각, 다음 배분 단계를 반환한다. DB에는 SHA-256 token hash만 저장한다.
+- 공개 링크 해석, 앱 회원 자동 매칭, 브라우저 참여자 선택, Toss 송금 안내, CODEF 입금 확인은 이 increment에서 제외한다.
+- Persistence design은 V16의 `settlement_receiving_account_snapshots`, `settlement_shares`, `settlement_links`를 그대로 사용하므로 추가 Flyway migration이 필요하지 않다.
+
 ## 2. Domain analysis
 
 ### Domain boundary
@@ -240,13 +249,27 @@ Existing behavior that must remain unchanged:
 - [ ] 생성자 API와 public link API, Swagger, 선택적 인증 처리, OS 링크 설정 배포 문서를 구현한다.
 - [ ] 더치페이와 품목별 배분 각각의 Share 확정 시점·잠금·입금 현황 연계를 통합 검증한다.
 
+### Current request issuance increment
+
+- [ ] SettlementLink, SettlementShare, SettlementReceivingAccountSnapshot Domain과 생성 불변식을 구현한다.
+- [ ] 정산 요청 사전조건과 더치페이 Share 합계를 검증하는 Application Policy를 구현한다.
+- [ ] V16 Entity·Repository·Mapper와 정산 요청 저장 Port·Persistence Adapter를 구현한다.
+- [ ] 환경별 링크 base URL·TTL과 원본 토큰 발급·hash Adapter를 구현한다.
+- [ ] 생성자 요청 확정 UseCase·Result·Service를 구현한다.
+- [ ] `POST /api/v2/settlements/{settlementId}/request`와 Swagger 계약을 구현한다.
+- [ ] Domain·Policy·Application·Persistence·Web 테스트와 실제 PostgreSQL HTTP 검증을 수행한다.
+
 ### Expected commit boundaries
 
 ~~~
-docs: 정산 요청 링크 구현 명세 작성
-feat: 정산 요청 링크와 Share 저장 구조 추가
-feat: 정산 수금 계좌와 요청 발급 API 추가
-feat: 정산 링크 자동 매칭과 송금 안내 API 추가
+docs: 정산 요청 발급 구현 범위 구체화
+feat: 정산 링크와 Share 도메인 규칙 추가
+feat: 정산 요청 영속 어댑터 추가
+feat: 정산 요청 토큰 발급 구성 추가
+feat: 정산 요청 확정 서비스 추가
+feat: 정산 요청 발급 API 추가
+test: 정산 요청 확정 시나리오 검증
+docs: 정산 요청 발급 구현 결과 반영
 ~~~
 
 ## 8. Verification
