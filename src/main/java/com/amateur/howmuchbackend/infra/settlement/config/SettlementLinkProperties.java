@@ -4,6 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Locale;
 
 @ConfigurationProperties(prefix = "howmuch.settlement.link")
 public record SettlementLinkProperties(
@@ -29,12 +30,25 @@ public record SettlementLinkProperties(
         String scheme = uri.getScheme();
         if (!uri.isAbsolute()
                 || uri.getHost() == null
-                || !("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))) {
-            throw new IllegalArgumentException("Settlement link base URL must be an absolute HTTP URL.");
+                || !("https".equalsIgnoreCase(scheme)
+                || ("http".equalsIgnoreCase(scheme) && isLoopbackHost(uri.getHost())))) {
+            throw new IllegalArgumentException(
+                    "Settlement link base URL must use HTTPS except for a loopback development host."
+            );
         }
         while (normalized.endsWith("/")) {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
+    }
+
+    private static boolean isLoopbackHost(String host) {
+        String normalized = host.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("[") && normalized.endsWith("]")) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        return "localhost".equals(normalized)
+                || "127.0.0.1".equals(normalized)
+                || "::1".equals(normalized);
     }
 }
