@@ -175,7 +175,7 @@ SettlementLinkEntryResponse는 entryMode, settlementTitle, allocationPhase, part
 | SaveSettlementSharePort | 불변 Share와 계좌 스냅샷을 저장한다. | Share 확정 UseCase | JPA Persistence Adapter |
 | LoadSettlementSharePort | 참여자의 확정 Share를 조회한다. | 송금 안내 UseCase, 입금 현황 | JPA Persistence Adapter |
 | LoadSettlementParticipantByUserPort | 앱 userId의 등록 참여자를 조회한다. | 링크 해석 UseCase | participant Persistence Adapter |
-| SaveLinkParticipantContextPort | 단기 참여 문맥을 저장·검증한다. | 브라우저 선택·공개 요청 UseCase | Redis Adapter |
+| IssueSettlementParticipantContextPort | 동일한 링크·참여자의 유효한 단기 문맥을 발급하거나 재사용한다. | 앱 자동 매칭·브라우저 선택 UseCase | Redis Adapter |
 | LoadAllocationResultPort | 더치페이 또는 전체 검증된 품목 배분 결과를 조회한다. | 요청·Share 확정 UseCase | allocation Application Adapter |
 
 ### Web API
@@ -210,7 +210,10 @@ Authentication: public link and LinkParticipantContext required
 ### Persistence and external integrations
 
 - Database Entity, constraint, or query changes: settlement_links에 settlement_id, token_hash unique, status, expires_at을 저장한다. settlement_receiving_account_snapshots에 settlement_id unique, source_account_id, bank_code, account_number, account_holder를 저장한다. settlement_shares에 settlement_id, payer_participant_id, amount, 계좌 스냅샷 참조, 확정 시각을 저장하고 정산과 payer 범위 Unique 제약을 둔다.
-- Redis key, TTL, or serialization changes: settlement-link-participant:{contextId}에 tokenHash와 participantId를 저장한다. TTL은 보안·UX 정책 확정 전 구성값으로 두며, 만료 후 다시 링크를 해석한다.
+- Redis key, TTL, or serialization changes:
+  - `settlement:link-participant-context-index:{linkTokenHash}:{participantId}`에 직렬화한 전체 `SettlementParticipantContext`를 저장해 같은 링크·참여자의 유효한 context token을 재사용한다.
+  - `settlement:link-participant-context:{contextId}`에도 같은 전체 문맥을 저장해 후속 API가 불투명 context token으로 조회할 수 있게 한다.
+  - 전체 문맥은 `id`, `linkTokenHash`, `settlementId`, `participantId`, `createdAt`, `expiresAt`을 포함한다. 두 키는 Lua script로 원자 생성하고 모두 구성된 TTL(기본 30분)을 적용하며, 재사용 시 TTL을 연장하지 않는다. 만료 후에는 다시 링크를 해석한다.
 - External API or message changes: 계좌 후보는 기존 CODEF 연결 계좌의 Account 저장 데이터를 사용한다. 단일 HTTPS 링크의 앱 라우팅은 iOS Associated Domains와 Android Digital Asset Links 설정을 배포 단계에서 연결한다.
 - Environment variable or profile changes: link base URL과 참여 문맥 TTL을 Properties로 관리한다. 수금 계좌 후보용 개발 Stub은 추가하지 않는다.
 
@@ -238,7 +241,7 @@ Authentication: public link and LinkParticipantContext required
 | Application | 링크, Share, 계좌 스냅샷, 참여 문맥 UseCase·Port | application.settlement |
 | Domain | SettlementLink, ReceivingAccountSnapshot, SettlementShare 불변식 | domain.settlement |
 | Persistence | 링크·계좌 스냅샷·Share JPA 저장 구조 | adapter.out.persistence.settlement |
-| Redis | LinkParticipantContext와 TTL | adapter.out.redis.settlement |
+| Redis | LinkParticipantContext 원자 발급·재사용과 TTL | adapter.out.redis |
 | Security | 생성자 권한, 앱 optional auth, public link context | Security Adapter |
 | Configuration | link base URL, context TTL | infra.settlement |
 | Documentation | 앱 직접 진입·브라우저 fallback·Toss 역할 분리 | PRD, allocation Spec |
@@ -299,6 +302,7 @@ docs: 공개 정산 링크 진입 구현 결과 반영
 fix: 정산 링크 참여 문맥 중복 발급 방지
 test: 정산 링크 참여 문맥 재사용 검증
 docs: 정산 링크 참여 문맥 발급 제한 반영
+docs: 정산 링크 참여 문맥 저장 구조 정정
 ~~~
 
 ## 8. Verification
