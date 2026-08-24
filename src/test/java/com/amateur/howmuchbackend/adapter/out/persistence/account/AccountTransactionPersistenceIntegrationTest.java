@@ -105,6 +105,7 @@ class AccountTransactionPersistenceIntegrationTest {
         jdbcTemplate.update("DELETE FROM account_monthly_summaries WHERE account_id = ?", accountId);
         jdbcTemplate.update("DELETE FROM account_transactions WHERE account_id = ?", accountId);
         jdbcTemplate.update("DELETE FROM accounts WHERE id = ?", accountId);
+        jdbcTemplate.update("DELETE FROM account_records WHERE id = ?", accountId);
         jdbcTemplate.update("DELETE FROM external_connections WHERE id = ?", connectionId);
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
     }
@@ -144,6 +145,39 @@ class AccountTransactionPersistenceIntegrationTest {
             assertThat(summary.expenseCount()).isZero();
             assertThat(summary.lastUsedAt()).isNull();
         });
+    }
+
+    @Test
+    @DisplayName("활성 Account 삭제 뒤에도 Account Record FK로 거래와 월 요약을 조회한다")
+    void loadsHistoryAfterActiveAccountDeletion() {
+        Transaction expense = transaction(
+                "d".repeat(64), AccountTransactionType.EXPENSE, "12500",
+                LocalDateTime.of(2026, 8, 20, 0, 15)
+        );
+        adapter.saveAllIgnoringDuplicates(List.of(expense));
+        adapter.saveSummaryIfAbsent(adapter.calculateSummary(accountId, AUGUST));
+
+        jdbcTemplate.update("DELETE FROM accounts WHERE id = ?", accountId);
+
+        assertThat(adapter.findByAccountIdAndYearMonth(accountId, AUGUST)).singleElement()
+                .satisfies(transaction -> assertThat(transaction.accountId()).isEqualTo(accountId));
+        assertThat(adapter.findSummary(accountId, AUGUST)).hasValueSatisfying(summary ->
+                assertThat(summary.accountId()).isEqualTo(accountId));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM account_records WHERE id = ? AND deleted_at IS NOT NULL",
+                Long.class,
+                accountId
+        )).isOne();
+        assertThat(jdbcTemplate.queryForList("""
+                        SELECT confrelid::regclass::text
+                          FROM pg_constraint
+                         WHERE conname IN (
+                             'fk_account_transactions_account_record',
+                             'fk_account_monthly_summaries_account_record'
+                         )
+                         ORDER BY conname
+                        """, String.class))
+                .containsExactly("account_records", "account_records");
     }
 
     @Test
