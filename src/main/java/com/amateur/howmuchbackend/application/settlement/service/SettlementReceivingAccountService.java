@@ -66,7 +66,7 @@ public class SettlementReceivingAccountService implements
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
         settlement.ensureReceivingAccountEditable();
-        Account account = loadAccountPort.findActiveByIdAndUserId(
+        Account account = loadAccountPort.findActiveByIdAndUserIdForUpdate(
                         command.receivingAccountId(), actor.userId()
                 )
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));

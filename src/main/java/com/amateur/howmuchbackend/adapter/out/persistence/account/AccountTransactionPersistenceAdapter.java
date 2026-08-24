@@ -49,7 +49,7 @@ public class AccountTransactionPersistenceAdapter
     public List<Transaction> findByAccountIdAndYearMonth(Long accountId, YearMonth yearMonth) {
         LocalDateTime start = monthStartUtc(yearMonth);
         return transactionRepository
-                .findByAccount_IdAndTransactedAtGreaterThanEqualAndTransactedAtLessThanOrderByTransactedAtDescIdDesc(
+                .findByAccountIdAndTransactedAtGreaterThanEqualAndTransactedAtLessThanOrderByTransactedAtDescIdDesc(
                         accountId, start, monthStartUtc(yearMonth.plusMonths(1))
                 ).stream()
                 .map(this::toDomain)
@@ -59,14 +59,14 @@ public class AccountTransactionPersistenceAdapter
     @Override
     @Transactional(readOnly = true)
     public Optional<Transaction> findByAccountIdAndId(Long accountId, Long transactionId) {
-        return transactionRepository.findByAccount_IdAndId(accountId, transactionId)
+        return transactionRepository.findByAccountIdAndId(accountId, transactionId)
                 .map(this::toDomain);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<AccountMonthlySummary> findSummary(Long accountId, YearMonth yearMonth) {
-        return summaryRepository.findByAccount_IdAndYearMonth(accountId, yearMonth.atDay(1))
+        return summaryRepository.findByAccountIdAndYearMonth(accountId, yearMonth.atDay(1))
                 .map(this::toDomain);
     }
 
@@ -106,7 +106,7 @@ public class AccountTransactionPersistenceAdapter
 
     private Transaction toDomain(AccountTransactionJpaEntity entity) {
         return new Transaction(
-                entity.getId(), entity.getAccount().getId(), entity.getExternalTransactionKey(), entity.getType(),
+                entity.getId(), entity.getAccountId(), entity.getExternalTransactionKey(), entity.getType(),
                 entity.getAmount(), entity.getTransactedAt(), entity.getDescription(), entity.getAfterBalance()
         );
     }
@@ -114,7 +114,7 @@ public class AccountTransactionPersistenceAdapter
     private AccountMonthlySummary toDomain(AccountMonthlySummaryJpaEntity entity) {
         LocalDate month = entity.getYearMonth();
         return new AccountMonthlySummary(
-                entity.getId(), entity.getAccount().getId(), YearMonth.from(month),
+                entity.getId(), entity.getAccountId(), YearMonth.from(month),
                 entity.getMonthlyExpenseAmount(), entity.getExpenseCount(), entity.getLastUsedAt()
         );
     }
