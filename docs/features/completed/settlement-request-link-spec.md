@@ -364,7 +364,7 @@ git status --short --untracked-files=all
 | --- | --- | --- |
 | 문서 작성 | Complete | 이 Spec |
 | 구현·컴파일 | Pass | `./gradlew compileJava` |
-| 자동 테스트 | Pass | 격리 PostgreSQL 스키마·Redis DB에서 `./gradlew test`, 282 tests, 0 failures |
+| 자동 테스트 | Pass | 격리 PostgreSQL 스키마·Redis DB에서 `./gradlew test`, 285 tests, 0 failures |
 | 영속 통합 검증 | Pass | 계좌 스냅샷 1건, Share 2건·합계 10,000원, 링크 hash 64자 저장 |
 | 실제 HTTP 흐름 | Pass | 정산 생성부터 요청 발급까지 200, 재요청 409, 최종 상태 `AWAITING_DEPOSIT` |
 | 링크·민감정보 | Pass | 응답 토큰의 SHA-256과 DB hash 일치, 계좌번호 ciphertext 저장 확인 |
