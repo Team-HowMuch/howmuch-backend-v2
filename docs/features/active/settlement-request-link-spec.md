@@ -49,7 +49,7 @@
 - 인증이 없거나 연결된 참여자가 없으면 `BROWSER_SELECTION`과 표시 순서대로 정렬된 참여자 이름 목록을 반환한다.
 - 브라우저 사용자는 자신의 이름이라고 판단한 participant를 직접 선택한다. 오선택·고의 선택 방지는 신뢰 기반 MVP의 제외 범위로 유지한다.
 - 자동 매칭과 직접 선택 모두 Redis에 링크 hash·settlementId·participantId가 결합된 짧은 참여 문맥을 저장하고, 후속 송금·품목 API가 사용할 불투명 context token을 반환한다. 같은 링크·참여자의 유효한 문맥은 원자적으로 재사용한다.
-- 공개 링크 조회·선택 API, 선택적 인증, Redis 참여 문맥, Swagger를 한 PR에서 구현한다. 송금 안내와 공개 품목 선택은 후속 increment에서 구현한다.
+- 공개 링크 조회·선택 API, 선택적 인증, Redis 참여 문맥, Swagger를 한 PR에서 구현한다. 공개 품목 선택은 배분 Spec의 후속 increment에서 완료했고 송금 안내는 별도 후속 increment로 남긴다.
 - V16 테이블과 기존 참여자 구조를 조회하고 Redis만 사용하므로 추가 Flyway migration은 필요하지 않다.
 
 ## 2. Domain analysis
@@ -281,6 +281,13 @@ Existing behavior that must remain unchanged:
 - [x] `GET /api/v2/settlement-links/{token}`과 참여자 선택 API·Swagger·public security 계약을 구현한다.
 - [x] Domain·Application·Persistence·Redis·Web 테스트와 실제 PostgreSQL·Redis HTTP 검증을 수행한다.
 
+### Current public item allocation integration
+
+- [x] 발급된 `Link-Participant-Context`를 Redis에서 조회하는 Output Port를 제공한다.
+- [x] 공개 품목 API가 링크 hash·정산·participant를 문맥과 교차 검증한다.
+- [x] 참여자별 선택·취소·제출에 동일한 문맥 헤더를 적용한다.
+- [x] 실제 PostgreSQL·Redis HTTP와 OpenAPI에서 후속 공개 API 연결을 검증한다.
+
 ### Expected commit boundaries
 
 ~~~
@@ -342,6 +349,8 @@ git status --short --untracked-files=all
 | 참여자 선택 문맥 | Pass | 무인증 이름 선택 200, Redis에 settlementId·participantId 결합 및 TTL 1,800초 확인 |
 | 참여 문맥 중복 발급 방지 | Pass | 같은 링크·참여자의 Redis 동시 요청 20건이 하나의 context token을 재사용함 |
 | 공개 링크 Swagger | Pass | 링크 GET·참여자 선택 POST operation과 Swagger UI 200 확인 |
+| 공개 품목 API 문맥 연계 | Pass | 링크 선택으로 발급한 Redis 문맥으로 품목 조회·선택·취소·제출 성공, 제출 뒤 수정 409 확인 |
+| 공개 품목 API Swagger | Pass | 조회·선택·취소·제출 네 경로와 `Link-Participant-Context` 헤더 노출 확인 |
 
 ## 9. Progress log
 
@@ -351,6 +360,7 @@ git status --short --untracked-files=all
 | 2026-08-23 | V15 수령 계좌 참조 스키마와 실제 Account 조회 경계 확정 | 수령 계좌 조회·선택 후 public link 구현 | App/Universal Link 배포 검증 미정 |
 | 2026-08-24 | 공개 링크 조회, 회원 자동 매칭, 신뢰 기반 이름 선택, Redis 참여 문맥 구현·검증 | 참여 문맥 기반 송금 안내 또는 공개 품목 선택 | 운영 public base URL과 App/Universal Link 배포는 클라이언트·인프라 확인 필요 |
 | 2026-08-24 | 같은 링크·참여자의 유효한 문맥을 Redis Lua로 원자 재사용 | 참여 문맥 기반 송금 안내 또는 공개 품목 선택 | 유효 링크 보유자의 반복 호출이 Redis 키를 무제한 생성하던 위험 해소 |
+| 2026-08-24 | Redis 참여 문맥 조회를 공개 품목 선택·제출 API에 연결하고 실제 HTTP·Swagger 검증 완료 | 확정 Share 송금 안내 | 문맥은 본인 인증이 아니라 사용자가 고른 참여자를 후속 요청에 고정하는 신뢰 기반 장치임 |
 
 ## 10. Decision log
 
@@ -370,5 +380,5 @@ git status --short --untracked-files=all
 - Completed on: Pending
 - Final behavior: Pending
 - Unverified items: 전체 구현 전
-- Remaining risks: App/Universal Link 운영 배포와 후속 API의 LinkParticipantContext 유효성·링크 상태 재검증을 구현해야 한다.
+- Remaining risks: App/Universal Link 운영 배포와 확정 Share 송금 안내를 구현해야 한다.
 - Follow-up work: 입금 현황과 CODEF 거래 대조 기능을 별도 Feature Plan으로 정의한다.
