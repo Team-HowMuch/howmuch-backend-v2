@@ -153,6 +153,28 @@ class SettlementItemAllocationServiceTest {
         verify(loadSettlementPort, never()).findById(any());
     }
 
+    @Test
+    @DisplayName("완료된 정산은 남아 있는 참여 문맥으로 품목 화면을 다시 열 수 없다")
+    void rejectsCompletedSettlementAccess() {
+        arrangeLink();
+        when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
+                context(FIRST_PARTICIPANT_ID)
+        ));
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.COMPLETED)));
+
+        assertThatThrownBy(() -> service.get(
+                RAW_TOKEN,
+                CONTEXT_ID,
+                FIRST_PARTICIPANT_ID
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND
+                ));
+        verify(loadSettlementParticipantPort, never())
+                .findBySettlementIdAndId(any(), any());
+    }
+
     private void arrangeRequestedAccess() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
