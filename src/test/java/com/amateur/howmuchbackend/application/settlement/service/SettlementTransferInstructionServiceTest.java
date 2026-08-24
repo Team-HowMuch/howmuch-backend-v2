@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -116,12 +118,16 @@ class SettlementTransferInstructionServiceTest {
         verify(loadSettlementPort, never()).findById(SETTLEMENT_ID);
     }
 
-    @Test
+    @ParameterizedTest(name = "{0} 상태")
+    @EnumSource(
+            value = SettlementStatus.class,
+            names = {"DRAFT", "REQUESTED", "SUSPENDED", "COMPLETED"}
+    )
     @DisplayName("입금 대기 상태가 아니면 확정 송금 정보를 노출하지 않는다")
-    void rejectsSettlementBeforeTransferReady() {
+    void rejectsSettlementBeforeTransferReady(SettlementStatus status) {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
-                .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
+                .thenReturn(Optional.of(settlement(status)));
 
         assertThatThrownBy(() -> service.get(RAW_TOKEN, CONTEXT_ID))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
