@@ -436,7 +436,7 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-08-24 | 현재 단건 조회·Settlement/Participant/Share 저장 구조와 #128~#131 범위를 대조하고 목록 계약 초안을 작성함 | UI 최소 필드와 완료 참여자 수 출처 확정 | `requestedAt`과 `completedParticipantCount`가 현재 저장 구조에 없음 |
 | 2026-08-25 | 첨부 UI 기준으로 받을/낼 탭, 진행중/완료 상태, 화면용 요약 필드로 범위를 축소하고 목록 API를 구현함 | PostgreSQL 통합 데이터와 Swagger 런타임 확인 | 그룹 선택 UI를 지원할 `Settlement`-그룹 관계가 없음; 정확한 요청일은 `createdAt`으로 대체 |
-| 2026-08-25 | 실제 PostgreSQL에서 RECEIVE/PAY 목록 범위·상태 필터·Share 금액을 검증하고, 실행 애플리케이션의 `/v3/api-docs`에서 Query 계약을 확인함 | PostgreSQL `EXPLAIN`과 전체 테스트의 기존 실패 원인 정리 | 전체 287개 테스트 중 계좌·품목 관련 기존 테스트 5개 실패 |
+| 2026-08-25 | 실제 PostgreSQL에서 RECEIVE/PAY 목록 범위·상태 필터·Share 금액을 검증하고, 실행 애플리케이션의 `/v3/api-docs`에서 Query 계약을 확인함 | PostgreSQL `EXPLAIN`과 전체 테스트의 기존 실패 원인 정리 | 전체 289개 테스트 중 계좌·품목·JSON 역직렬화 관련 기존 테스트 5개 실패 |
 
 ## 10. Decision log
 
@@ -454,5 +454,5 @@ git status --short --untracked-files=all
 - Completed on: 2026-08-25
 - Final behavior: `GET /api/v2/settlements`가 `RECEIVE`·`PAY` 탭과 원본 정산 상태 필터를 지원하고, 화면 문장이 아닌 숫자·날짜·상태 필드를 반환한다.
 - Unverified items: SQL 실행 계획(`EXPLAIN`)
-- Remaining risks: `requestedAt`은 `createdAt` 대체값이며, 개별 입금 완료 수가 필요하면 결제 상태 저장소 연계가 추가로 필요하다. 참여자 규모가 커질 경우 `linked_user_id` 조회 인덱스를 검토한다. 전체 테스트의 계좌·품목 관련 기존 실패 5건은 별도 확인이 필요하다.
+- Remaining risks: `requestedAt`은 `createdAt` 대체값이며, 개별 입금 완료 수가 필요하면 결제 상태 저장소 연계가 추가로 필요하다. 참여자 규모가 커질 경우 `linked_user_id` 조회 인덱스를 검토한다. 전체 289개 테스트 중 계좌·품목·JSON 역직렬화 관련 기존 실패 5건은 별도 확인이 필요하다.
 - Follow-up work: 실제 PostgreSQL 데이터로 사용자 범위·Share 집계·실행 계획을 검증하고, 제품에서 정확한 요청일이 필요하다고 결정하면 별도 migration을 진행한다.
