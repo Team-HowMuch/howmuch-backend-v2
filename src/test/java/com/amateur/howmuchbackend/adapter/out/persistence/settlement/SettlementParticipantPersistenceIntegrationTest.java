@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
@@ -243,36 +244,43 @@ class SettlementParticipantPersistenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("전환 기간의 GROUP_MEMBER 출처 null 행은 등록 사용자로 안전하게 읽는다")
-    void readsLegacyGroupMemberAsRegisteredUser() {
-        UUID participantId = UUID.randomUUID();
+    @DisplayName("V21 제약은 참여자 출처와 그룹 ID가 일치하지 않는 신규 행을 거부한다")
+    void rejectsInvalidSourceGroupCombinations() {
+        assertThatThrownBy(() -> insertParticipant(
+                SettlementParticipantSource.GROUP_MEMBER,
+                null
+        )).hasMessageContaining("ck_settlement_participants_source_group");
+
+        assertThatThrownBy(() -> insertParticipant(
+                SettlementParticipantSource.REGISTERED_USER,
+                groupId
+        )).hasMessageContaining("ck_settlement_participants_source_group");
+    }
+
+    private void insertParticipant(SettlementParticipantSource source, Long sourceGroupId) {
         jdbcTemplate.update("""
                         INSERT INTO settlement_participants (
                             id,
                             settlement_id,
                             source,
                             linked_user_id,
+                            source_group_id,
                             display_name,
                             display_order,
                             created_at,
                             updated_at
                         )
-                        VALUES (?, ?, 'GROUP_MEMBER', ?, ?, 0, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
                         """,
-                participantId,
+                UUID.randomUUID(),
                 settlementId,
+                source.name(),
                 creatorId,
-                "legacy 그룹 참여자",
+                sourceGroupId,
+                "잘못된 출처 조합",
                 CREATED_AT,
                 CREATED_AT
         );
-
-        SettlementParticipant loaded = settlementParticipantPersistenceAdapter
-                .findBySettlementIdAndId(settlementId, participantId)
-                .orElseThrow();
-
-        assertThat(loaded.source()).isEqualTo(SettlementParticipantSource.REGISTERED_USER);
-        assertThat(loaded.sourceGroupId()).isNull();
     }
 
     private SettlementParticipant unlinkedContact(String phoneHash, String displayName, int displayOrder) {
