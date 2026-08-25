@@ -62,6 +62,21 @@ class GroupMemberTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    @Test
+    @DisplayName("활성 OWNER와 MEMBER의 역할을 소유권 이전 상태로 변경한다")
+    void changesOwnershipRoles() {
+        GroupMember owner = GroupMember.owner(10L, 1L, JOINED_AT);
+        GroupMember member = GroupMember.member(10L, 2L, JOINED_AT);
+
+        GroupMember demoted = owner.demoteOwner(REACTIVATED_AT);
+        GroupMember promoted = member.promoteToOwner(REACTIVATED_AT);
+
+        assertThat(demoted.role()).isEqualTo(GroupMemberRole.MEMBER);
+        assertThat(promoted.role()).isEqualTo(GroupMemberRole.OWNER);
+        assertThat(demoted.updatedAt()).isEqualTo(REACTIVATED_AT);
+        assertThat(promoted.updatedAt()).isEqualTo(REACTIVATED_AT);
+    }
+
     private GroupMember endedMember(GroupMemberStatus status) {
         return new GroupMember(
                 20L,

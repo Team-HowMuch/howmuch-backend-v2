@@ -14,6 +14,8 @@ import java.util.Optional;
 public interface GroupMemberJpaRepository extends JpaRepository<GroupMemberJpaEntity, Long> {
     Optional<GroupMemberJpaEntity> findByGroupIdAndUserId(Long groupId, Long userId);
 
+    Optional<GroupMemberJpaEntity> findByGroupIdAndId(Long groupId, Long id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select member

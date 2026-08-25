@@ -68,6 +68,18 @@ class GroupTest {
     }
 
     @Test
+    @DisplayName("소유권을 이전하면 OWNER와 수정 시각을 함께 변경한다")
+    void transfersOwnership() {
+        Group group = Group.create("여행", null, null, 1L, "AB12CD34", NOW);
+
+        Group transferred = group.transferOwnership(2L, NOW.plusHours(1));
+
+        assertThat(transferred.ownerId()).isEqualTo(2L);
+        assertThat(transferred.updatedAt()).isEqualTo(NOW.plusHours(1));
+        assertThat(transferred.creatorId()).isEqualTo(1L);
+    }
+
+    @Test
     @DisplayName("생성자는 활성 OWNER 멤버십이 된다")
     void createsOwnerMembership() {
         GroupMember owner = GroupMember.owner(10L, 1L, NOW);

@@ -38,6 +38,12 @@ public class GroupMemberPersistenceAdapter implements LoadGroupMemberPort, LoadG
     }
 
     @Override
+    public Optional<GroupMember> findByGroupIdAndId(Long groupId, Long memberId) {
+        return groupMemberJpaRepository.findByGroupIdAndId(groupId, memberId)
+                .map(GroupMemberMapper::toDomain);
+    }
+
+    @Override
     public List<GroupMember> findActiveByGroupId(Long groupId) {
         return groupMemberJpaRepository.findAllByGroupIdAndStatus(groupId, GroupMemberStatus.ACTIVE)
                 .stream()
