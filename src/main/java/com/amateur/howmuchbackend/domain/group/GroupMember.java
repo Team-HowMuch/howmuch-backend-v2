@@ -114,6 +114,14 @@ public record GroupMember(
         return changeRole(GroupMemberRole.OWNER, now);
     }
 
+    public GroupMember leave(LocalDateTime now) {
+        return endMembership(GroupMemberStatus.LEFT, now);
+    }
+
+    public GroupMember remove(LocalDateTime now) {
+        return endMembership(GroupMemberStatus.REMOVED, now);
+    }
+
     public boolean isActive() {
         return status == GroupMemberStatus.ACTIVE;
     }
@@ -133,6 +141,24 @@ public record GroupMember(
                 leftAt,
                 createdAt,
                 Objects.requireNonNull(now, "그룹멤버 역할 변경 시각은 필수입니다.")
+        );
+    }
+
+    private GroupMember endMembership(GroupMemberStatus endedStatus, LocalDateTime now) {
+        if (!isActive() || isOwner()) {
+            throw new IllegalStateException("활성 MEMBER만 그룹을 종료할 수 있습니다.");
+        }
+        LocalDateTime endedAt = Objects.requireNonNull(now, "그룹멤버 종료 시각은 필수입니다.");
+        return new GroupMember(
+                id,
+                groupId,
+                userId,
+                role,
+                endedStatus,
+                joinedAt,
+                endedAt,
+                createdAt,
+                endedAt
         );
     }
 

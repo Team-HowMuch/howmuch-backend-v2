@@ -21,7 +21,9 @@ public enum GroupStatusCode implements StatusCode {
     GROUP_MEMBER_ALREADY_ACTIVE("이미 활성 그룹멤버입니다.", 409),
     GROUP_MEMBER_REMOVED("그룹에서 제거된 사용자는 초대 코드로 재가입할 수 없습니다.", 409),
     GROUP_MEMBER_LEFT_REQUIRES_INVITE("자발적으로 탈퇴한 사용자는 초대 코드로 재가입해야 합니다.", 409),
+    GROUP_OWNER_TRANSFER_REQUIRED("OWNER는 소유권을 이전한 뒤 그룹을 나갈 수 있습니다.", 409),
     GROUP_OWNER_TRANSFER_TARGET_INVALID("소유권을 이전할 수 없는 그룹멤버입니다.", 409),
+    GROUP_MEMBER_EXIT_BLOCKED_BY_SETTLEMENT("진행 중인 정산이 있어 그룹멤버를 종료할 수 없습니다.", 409),
     GROUP_INVITE_CODE_GENERATION_FAILED("그룹 초대 코드 생성에 실패했습니다.", 500);
 
     private final String message;
