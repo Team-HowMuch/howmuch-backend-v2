@@ -1,10 +1,13 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.group;
 
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementPersistenceAdapter;
 import com.amateur.howmuchbackend.domain.group.Group;
 import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.GroupMemberRole;
 import com.amateur.howmuchbackend.domain.group.GroupMemberStatus;
 import com.amateur.howmuchbackend.domain.group.GroupStatus;
+import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.group.service.GroupAccessService;
 import com.amateur.howmuchbackend.application.group.service.GroupOwnershipService;
@@ -44,12 +47,14 @@ class GroupPersistenceIntegrationTest {
     @Autowired private GroupPersistenceAdapter groupPersistenceAdapter;
     @Autowired private GroupMemberPersistenceAdapter groupMemberPersistenceAdapter;
     @Autowired private GroupOwnershipPersistenceAdapter groupOwnershipPersistenceAdapter;
+    @Autowired private SettlementPersistenceAdapter settlementPersistenceAdapter;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private PlatformTransactionManager transactionManager;
 
     private Long userId;
     private Long groupId;
     private final List<Long> userIds = new ArrayList<>();
+    private final List<UUID> settlementIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
@@ -58,6 +63,8 @@ class GroupPersistenceIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        settlementIds.forEach(id -> jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", id));
+        settlementIds.clear();
         if (groupId != null) {
             jdbcTemplate.update("DELETE FROM group_members WHERE group_id = ?", groupId);
             jdbcTemplate.update("DELETE FROM groups WHERE id = ?", groupId);
@@ -290,6 +297,63 @@ class GroupPersistenceIntegrationTest {
         assertThat(ownerCount).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("멤버 탈퇴가 먼저 group row를 잠그면 정산 요청 재검증은 탈퇴 결과를 읽는다")
+    void revalidatesGroupRosterAfterConcurrentMemberExit() throws Exception {
+        Long memberUserId = insertUser("탈퇴 멤버");
+        Group savedGroup = saveGroup();
+        groupMemberPersistenceAdapter.save(GroupMember.owner(
+                savedGroup.id(), userId, CREATED_AT
+        ));
+        GroupMember member = groupMemberPersistenceAdapter.save(GroupMember.member(
+                savedGroup.id(), memberUserId, CREATED_AT.plusMinutes(1)
+        ));
+        UUID settlementId = UUID.randomUUID();
+        settlementIds.add(settlementId);
+        settlementPersistenceAdapter.save(new Settlement(
+                settlementId,
+                userId,
+                "그룹멤버 동시성 정산",
+                10_000,
+                SettlementStatus.DRAFT,
+                CREATED_AT,
+                CREATED_AT
+        ));
+
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        CountDownLatch groupLocked = new CountDownLatch(1);
+        CountDownLatch settlementLocked = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<?> exit = executor.submit(() -> transactionTemplate.executeWithoutResult(ignored -> {
+                groupPersistenceAdapter.findByIdForUpdate(savedGroup.id()).orElseThrow();
+                groupLocked.countDown();
+                await(settlementLocked);
+                groupMemberPersistenceAdapter.update(member.leave(CREATED_AT.plusHours(1)));
+            }));
+            Future<Boolean> request = executor.submit(() -> {
+                await(groupLocked);
+                return transactionTemplate.execute(ignored -> {
+                    settlementPersistenceAdapter.findByIdForUpdate(settlementId).orElseThrow();
+                    settlementLocked.countDown();
+                    return groupMemberPersistenceAdapter.lockAndLoad(savedGroup.id())
+                            .orElseThrow()
+                            .contains(memberUserId);
+                });
+            });
+
+            exit.get();
+            assertThat(request.get()).isFalse();
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(groupMemberPersistenceAdapter.findByGroupIdAndUserId(
+                savedGroup.id(), memberUserId
+        )).get().extracting(GroupMember::status).isEqualTo(GroupMemberStatus.LEFT);
+    }
+
     private Group saveGroup() {
         Group saved = groupPersistenceAdapter.save(Group.create(
                 "여행 모임",
@@ -301,5 +365,14 @@ class GroupPersistenceIntegrationTest {
         ));
         groupId = saved.id();
         return saved;
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("동시성 테스트 대기가 중단되었습니다.", exception);
+        }
     }
 }
