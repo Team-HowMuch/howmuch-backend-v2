@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
 @DisplayName("정산 목록 영속 조회")
 class SettlementListPersistenceIntegrationTest {
-    private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 25, 12, 0);
+    private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 13, 12, 0);
 
     @Autowired
     private SettlementPersistenceAdapter settlementPersistenceAdapter;
@@ -205,6 +205,12 @@ class SettlementListPersistenceIntegrationTest {
                 """);
         jdbcTemplate.update("""
                 DELETE FROM accounts
+                 WHERE user_id IN (
+                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
+                 )
+                """);
+        jdbcTemplate.update("""
+                DELETE FROM account_records
                  WHERE user_id IN (
                      SELECT id FROM users WHERE identity_key LIKE 'list-%'
                  )
