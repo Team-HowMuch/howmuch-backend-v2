@@ -30,6 +30,12 @@ public class SettlementTransferInstructionPersistenceAdapter implements
 
     @Override
     @Transactional(readOnly = true)
+    public boolean existsBySettlementId(UUID settlementId) {
+        return shareRepository.existsBySettlementId(settlementId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<SettlementShare> findBySettlementIdAndPayerParticipantId(
             UUID settlementId,
             UUID payerParticipantId

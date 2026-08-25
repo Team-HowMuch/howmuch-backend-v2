@@ -69,7 +69,7 @@
 - Scope: 공통 링크에서 확정된 참여 문맥으로 자기 품목 비율을 조회·선택·취소하고 제출한다. 마지막 참여자 제출 시 전체 배분을 검증해 Share를 고정하거나 정산을 `SUSPENDED`로 전환한다.
 - Related issues: [#48 품목별 할당 고정 비율 정책](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/48), [#49 품목 선택 영속 모델](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/49), [#50 할당 미달 시 정산 중단](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/50), [#52 참여자별 품목 선택·금액 계산](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/52)
 - Persistence prerequisite: `V14__create_settlement_item_allocation_schema.sql`의 `settlement_item_selections`, `settlement_item_submissions`와 `V16__create_settlement_request_schema.sql`의 `settlement_shares`를 그대로 사용하며 추가 Flyway migration은 필요하지 않다.
-- Excluded from this increment: 일반 반올림·잔여금 보정, 제출 취소, `SUSPENDED` 재개, Toss 송금 안내, CODEF 입금 확인
+- Excluded from this increment: 일반 반올림·잔여금 보정, 제출 취소, Toss 송금 안내, CODEF 입금 확인
 - Observable result: 각 참여자는 자신의 선택과 현재 예정 금액을 확인하고 제출한다. 전체 품목이 정확히 배분되면 `AWAITING_DEPOSIT`과 불변 Share가 생성되고, 미달이면 Share 없이 `SUSPENDED`가 된다.
 
 ## 2. Domain analysis
@@ -104,7 +104,7 @@
 
 ### State and invariants
 
-- State transitions: 지출과 배분 방식은 DRAFT에서만 생성자가 변경한다. 품목 선택은 요청 링크가 열린 REQUESTED 상태에서만 해당 참여자가 변경·제출한다. 모든 제출 후 검증 성공이면 AWAITING_DEPOSIT으로, 실패면 SUSPENDED로 전환한다.
+- State transitions: 지출과 배분 방식은 DRAFT에서만 생성자가 변경한다. 품목 선택은 요청 링크가 열린 REQUESTED 상태에서만 해당 참여자가 변경·제출한다. 모든 제출 후 검증 성공이면 AWAITING_DEPOSIT으로, 실패면 SUSPENDED로 전환한다. 생성자는 SUSPENDED 정산을 REQUESTED로 재개할 수 있다.
 - Rules that must always hold: 지출 금액은 양수다. `totalExpenseAmount`는 저장된 지출의 합계다. 요청 확정 시 `totalExpenseAmount`는 Settlement의 기준 `totalAmount`와 같아야 한다. 더치페이 배분액의 합은 총액과 같아야 한다. ItemSelection은 참여자와 품목의 조합마다 하나만 존재하며 허용 비율만 가진다. 한 품목의 최종 선택 비율 합은 정확히 1이어야 한다.
 - Invalid states: DRAFT가 아닌 상태에서 지출 수정, 선택하지 않은 참여자의 품목 제출, 허용되지 않은 비율, 전체 제출 전 Share 생성, 하나라도 비율 합이 1이 아닌 상태에서 Share 생성.
 
@@ -131,7 +131,7 @@
 - 지출이 없거나 참여자가 2명 미만이다: 요청 확정을 거부한다.
 - OCR 결과에 품목이 없는데 ITEM_ALLOCATION을 선택한다: 품목별 배분 요청을 거부한다.
 - 모든 참여자가 제출했지만 어떤 품목의 비율 합이 1이 아니다: Settlement를 SUSPENDED로 전환하고 미배분·과배분 품목을 생성자에게 반환한다.
-- 제출 전 또는 SUSPENDED 이후 참여자가 선택을 변경한다: 선택 변경을 거부한다.
+- 제출 전 또는 재개 전 SUSPENDED 상태에서 참여자가 선택을 변경한다: 선택 변경을 거부한다.
 - OCR·결제 내역 Port가 개발 Stub에서 결과를 주지 못한다: 외부 후보 없음으로 처리하며 수기 지출 흐름은 계속 제공한다.
 - 다른 사용자의 계좌·거래를 조회하거나 가져온다: 계좌 또는 거래를 찾을 수 없는 것으로 처리한다.
 - 입금 거래, 소수 원 금액, 이미 가져온 거래를 선택한다: 정산 지출로 저장하지 않고 명시적인 오류를 반환한다.
@@ -488,7 +488,7 @@ git status --short --untracked-files=all
 | 2026-08-23 | 결제내역 후보 조회·가져오기·삭제와 중복 방지를 구현하고 자동 테스트·실제 HTTP·Swagger 검증 완료 | OCR 영수증 지출 가져오기 | 실제 HTTP에서 발견한 Validator 인터페이스 계약 충돌을 제약 상속 방식으로 수정함 |
 | 2026-08-23 | V14 품목 매핑, OCR Stub·가져오기·조회, ITEM_ALLOCATION 선택을 구현하고 205개 테스트·실제 HTTP·Swagger 검증 완료 | 공용 링크 참여자 문맥에서 품목 선택·제출 | 운영 OCR Adapter와 링크 참여자 식별이 아직 필요함 |
 | 2026-08-24 | 공개 링크 참여 문맥과 V14 선택·제출 스키마를 확인하고 한 PR 구현 범위 확정 | Domain·Persistence·Application·Web 구현 | 반올림 정책이 없으므로 정수 원이 되지 않는 비율 선택은 저장 전 거부해야 함 |
-| 2026-08-24 | 공개 링크 참여자의 품목 조회·비율 선택·취소·제출과 마지막 제출의 Share 확정·중단 전환을 구현하고 실제 PostgreSQL·Redis HTTP·Swagger 검증 완료 | 송금 안내 또는 `SUSPENDED` 재개 정책 | 1/3처럼 정수 원이 되지 않는 선택은 반올림 정책 확정 전까지 거부함 |
+| 2026-08-24 | 공개 링크 참여자의 품목 조회·비율 선택·취소·제출과 마지막 제출의 Share 확정·중단 전환을 구현하고 실제 PostgreSQL·Redis HTTP·Swagger 검증 완료 | 송금 안내 | `SUSPENDED` 재개는 #158에서 `REQUESTED` 복귀·제출 초기화·선택 보존으로 확정함 |
 
 ## 10. Decision log
 
@@ -515,5 +515,5 @@ git status --short --untracked-files=all
 - Completed on: Pending
 - Final behavior: Pending
 - Unverified items: 전체 구현 전
-- Remaining risks: 운영 OCR 공급자 계약, 품목 분수의 원 단위 반올림 정책, `SUSPENDED` 재개 UX가 확정돼야 전체 운영 흐름을 완료할 수 있다.
-- Follow-up work: 확정 Share의 송금 안내와 `SUSPENDED` 수정·재요청 정책을 구현한다.
+- Remaining risks: 운영 OCR 공급자 계약과 품목 분수의 원 단위 반올림 정책이 남아 있다.
+- Follow-up work: 확정 Share의 송금 안내를 구현하고 #159 삭제 정책과 #160 통합 검증을 진행한다.

@@ -16,6 +16,7 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.Settlem
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.DeleteSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
@@ -24,7 +25,9 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.ResumeSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.SuspendSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import jakarta.validation.Valid;
@@ -50,11 +53,14 @@ import java.util.UUID;
 @RequestMapping("/api/v2/settlements")
 public class SettlementController implements SettlementDocs {
     private final CreateSettlementUseCase createSettlementUseCase;
+    private final DeleteSettlementUseCase deleteSettlementUseCase;
     private final GetSettlementUseCase getSettlementUseCase;
     private final GetSettlementsUseCase getSettlementsUseCase;
     private final UpdateSettlementDraftUseCase updateSettlementDraftUseCase;
     private final AddSettlementParticipantUseCase addSettlementParticipantUseCase;
     private final RemoveSettlementParticipantUseCase removeSettlementParticipantUseCase;
+    private final SuspendSettlementUseCase suspendSettlementUseCase;
+    private final ResumeSettlementUseCase resumeSettlementUseCase;
     private final GetSettlementParticipantsUseCase getSettlementParticipantsUseCase;
     private final GetSettlementParticipantAvatarUseCase getSettlementParticipantAvatarUseCase;
     private final SearchSettlementParticipantUseCase searchSettlementParticipantUseCase;
@@ -70,6 +76,15 @@ public class SettlementController implements SettlementDocs {
         return ApiResponse.success(SettlementWebResponse.from(
                 createSettlementUseCase.create(request.toCommand())
         ));
+    }
+
+    @Override
+    @DeleteMapping("/{settlementId}")
+    public ApiResponse<Void> deleteSettlement(
+            @PathVariable UUID settlementId
+    ) {
+        deleteSettlementUseCase.delete(settlementId);
+        return ApiResponse.success();
     }
 
     @Override
@@ -101,6 +116,26 @@ public class SettlementController implements SettlementDocs {
     ) {
         return ApiResponse.success(SettlementWebResponse.from(
                 updateSettlementDraftUseCase.update(settlementId, request.toCommand())
+        ));
+    }
+
+    @Override
+    @PostMapping("/{settlementId}/suspend")
+    public ApiResponse<SettlementWebResponse> suspendSettlement(
+            @PathVariable UUID settlementId
+    ) {
+        return ApiResponse.success(SettlementWebResponse.from(
+                suspendSettlementUseCase.suspend(settlementId)
+        ));
+    }
+
+    @Override
+    @PostMapping("/{settlementId}/resume")
+    public ApiResponse<SettlementWebResponse> resumeSettlement(
+            @PathVariable UUID settlementId
+    ) {
+        return ApiResponse.success(SettlementWebResponse.from(
+                resumeSettlementUseCase.resume(settlementId)
         ));
     }
 

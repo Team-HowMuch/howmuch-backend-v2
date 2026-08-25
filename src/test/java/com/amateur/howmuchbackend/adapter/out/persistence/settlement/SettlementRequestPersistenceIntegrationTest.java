@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
@@ -31,6 +32,8 @@ class SettlementRequestPersistenceIntegrationTest {
     private static final String ACCOUNT_NUMBER = "1002123456789";
 
     @Autowired private SettlementRequestPersistenceAdapter adapter;
+    @Autowired private SettlementPersistenceAdapter settlementPersistenceAdapter;
+    @Autowired private SettlementJpaRepository settlementJpaRepository;
     @Autowired private SettlementTransferInstructionPersistenceAdapter transferInstructionAdapter;
     @Autowired private CodefSecretCipher cipher;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -142,6 +145,52 @@ class SettlementRequestPersistenceIntegrationTest {
                 .get()
                 .extracting(SettlementReceivingAccountSnapshot::accountNumber)
                 .isEqualTo(ACCOUNT_NUMBER);
+    }
+
+    @Test
+    @DisplayName("정산 root 삭제가 Share·수령 계좌 스냅샷·링크를 함께 cascade한다")
+    void deletesRequestChildrenWithSettlement() {
+        SettlementReceivingAccountSnapshot snapshot = SettlementReceivingAccountSnapshot.create(
+                settlementId,
+                accountId,
+                "0020",
+                ACCOUNT_NUMBER,
+                "최수아",
+                NOW
+        );
+        List<SettlementShare> shares = List.of(
+                SettlementShare.create(settlementId, creatorParticipantId, 4_000, NOW),
+                SettlementShare.create(settlementId, payerParticipantId, 6_000, NOW)
+        );
+        SettlementLink link = SettlementLink.active(
+                settlementId,
+                "c".repeat(64),
+                NOW.plusDays(30),
+                NOW
+        );
+        adapter.save(snapshot, shares, link);
+
+        settlementPersistenceAdapter.delete(settlementId);
+        settlementJpaRepository.flush();
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM settlements WHERE id = ?", Integer.class, settlementId
+        )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM settlement_receiving_account_snapshots WHERE settlement_id = ?",
+                Integer.class,
+                settlementId
+        )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM settlement_shares WHERE settlement_id = ?",
+                Integer.class,
+                settlementId
+        )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM settlement_links WHERE settlement_id = ?",
+                Integer.class,
+                settlementId
+        )).isZero();
     }
 
     private Long insertUser(String uniqueKey) {
