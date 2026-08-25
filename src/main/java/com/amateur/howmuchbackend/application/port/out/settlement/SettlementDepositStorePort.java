@@ -11,10 +11,19 @@ import java.util.UUID;
 public interface SettlementDepositStorePort {
     List<SettlementDeposit> findAllBySettlementId(UUID settlementId);
 
-    Set<Long> findMatchedTransactionIds(Collection<Long> transactionIds);
+    Set<String> findMatchedExternalTransactionKeysByReceivingAccount(
+            Long creatorId,
+            Long sourceAccountId,
+            String organization,
+            String accountNumber,
+            Collection<String> externalTransactionKeys
+    );
 
-    List<PayableDepositCandidate> findUnfinishedPayableCandidatesBySourceAccountId(
-            Long sourceAccountId
+    List<PayableDepositCandidate> findUnfinishedPayableCandidatesByReceivingAccount(
+            Long creatorId,
+            Long sourceAccountId,
+            String organization,
+            String accountNumber
     );
 
     void saveAll(List<SettlementDeposit> deposits);

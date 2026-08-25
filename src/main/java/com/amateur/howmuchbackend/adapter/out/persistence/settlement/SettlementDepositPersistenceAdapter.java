@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
+import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementDepositJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementDepositJpaRepository;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SettlementDepositPersistenceAdapter implements SettlementDepositStorePort {
     private final SettlementDepositJpaRepository repository;
+    private final CodefSecretCipher cipher;
 
     @Override
     @Transactional(readOnly = true)
@@ -31,23 +33,53 @@ public class SettlementDepositPersistenceAdapter implements SettlementDepositSto
 
     @Override
     @Transactional(readOnly = true)
-    public Set<Long> findMatchedTransactionIds(Collection<Long> transactionIds) {
-        if (transactionIds.isEmpty()) {
+    public Set<String> findMatchedExternalTransactionKeysByReceivingAccount(
+            Long creatorId,
+            Long sourceAccountId,
+            String organization,
+            String accountNumber,
+            Collection<String> externalTransactionKeys
+    ) {
+        if (externalTransactionKeys.isEmpty()) {
             return Set.of();
         }
-        return repository.findAllByAccountTransactionIdIn(transactionIds)
+        return repository.findMatchedTransactionsByCreatorIdAndOrganization(
+                        creatorId,
+                        organization,
+                        externalTransactionKeys
+                )
                 .stream()
-                .map(SettlementDepositJpaEntity::getAccountTransactionId)
+                .filter(candidate -> sameReceivingAccount(
+                        sourceAccountId,
+                        accountNumber,
+                        candidate.getSettlementId(),
+                        candidate.getSourceAccountId(),
+                        candidate.getAccountNumberCiphertext()
+                ))
+                .map(SettlementDepositJpaRepository.MatchedTransactionProjection::getExternalTransactionKey)
                 .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<PayableDepositCandidate> findUnfinishedPayableCandidatesBySourceAccountId(
-            Long sourceAccountId
+    public List<PayableDepositCandidate> findUnfinishedPayableCandidatesByReceivingAccount(
+            Long creatorId,
+            Long sourceAccountId,
+            String organization,
+            String accountNumber
     ) {
-        return repository.findUnfinishedPayableCandidatesBySourceAccountId(sourceAccountId)
+        return repository.findUnfinishedPayableCandidatesByCreatorIdAndOrganization(
+                        creatorId,
+                        organization
+                )
                 .stream()
+                .filter(candidate -> sameReceivingAccount(
+                        sourceAccountId,
+                        accountNumber,
+                        candidate.getSettlementId(),
+                        candidate.getSourceAccountId(),
+                        candidate.getAccountNumberCiphertext()
+                ))
                 .map(candidate -> new PayableDepositCandidate(
                         candidate.getSettlementId(),
                         candidate.getShareId(),
@@ -58,6 +90,23 @@ public class SettlementDepositPersistenceAdapter implements SettlementDepositSto
                                 .toLocalDateTime()
                 ))
                 .toList();
+    }
+
+    private boolean sameReceivingAccount(
+            Long sourceAccountId,
+            String accountNumber,
+            UUID candidateSettlementId,
+            Long candidateSourceAccountId,
+            String candidateAccountNumberCiphertext
+    ) {
+        if (sourceAccountId.equals(candidateSourceAccountId)) {
+            return true;
+        }
+        return cipher.isSettlementAccountNumberCiphertext(candidateAccountNumberCiphertext)
+                && accountNumber.equals(cipher.decryptSettlementAccountNumber(
+                        candidateSettlementId,
+                        candidateAccountNumberCiphertext
+                ));
     }
 
     @Override

@@ -17,8 +17,27 @@ public interface SettlementDepositJpaRepository
             UUID settlementId
     );
 
-    List<SettlementDepositJpaEntity> findAllByAccountTransactionIdIn(
-            Collection<Long> transactionIds
+    @Query(value = """
+            SELECT account_transaction.external_transaction_key AS externalTransactionKey,
+                   snapshot.settlement_id AS settlementId,
+                   snapshot.source_account_id AS sourceAccountId,
+                   snapshot.account_number_ciphertext AS accountNumberCiphertext
+              FROM settlement_deposits deposit
+              JOIN account_transactions account_transaction
+                ON account_transaction.id = deposit.account_transaction_id
+              JOIN settlement_receiving_account_snapshots snapshot
+                ON snapshot.settlement_id = deposit.settlement_id
+               AND snapshot.source_account_id = deposit.source_account_id
+              JOIN settlements settlement
+                ON settlement.id = deposit.settlement_id
+             WHERE settlement.creator_id = :creatorId
+               AND snapshot.organization = :organization
+               AND account_transaction.external_transaction_key IN (:externalTransactionKeys)
+            """, nativeQuery = true)
+    List<MatchedTransactionProjection> findMatchedTransactionsByCreatorIdAndOrganization(
+            @Param("creatorId") Long creatorId,
+            @Param("organization") String organization,
+            @Param("externalTransactionKeys") Collection<String> externalTransactionKeys
     );
 
     @Query(value = """
@@ -26,7 +45,9 @@ public interface SettlementDepositJpaRepository
                    share.id AS shareId,
                    participant.display_name AS payerName,
                    share.amount - COALESCE(SUM(account_transaction.amount), 0) AS remainingAmount,
-                   snapshot.created_at AT TIME ZONE 'UTC' AS snapshotCreatedAt
+                   snapshot.created_at AT TIME ZONE 'UTC' AS snapshotCreatedAt,
+                   snapshot.source_account_id AS sourceAccountId,
+                   snapshot.account_number_ciphertext AS accountNumberCiphertext
               FROM settlement_shares share
               JOIN settlements settlement
                 ON settlement.id = share.settlement_id
@@ -40,18 +61,31 @@ public interface SettlementDepositJpaRepository
                AND deposit.share_id = share.id
          LEFT JOIN account_transactions account_transaction
                 ON account_transaction.id = deposit.account_transaction_id
-             WHERE snapshot.source_account_id = :sourceAccountId
+             WHERE settlement.creator_id = :creatorId
+               AND snapshot.organization = :organization
                AND settlement.status = 'AWAITING_DEPOSIT'
                AND (participant.linked_user_id IS NULL
                     OR participant.linked_user_id <> settlement.creator_id)
              GROUP BY share.settlement_id, share.id, participant.display_name, share.amount,
-                      snapshot.created_at
+                      snapshot.created_at, snapshot.source_account_id,
+                      snapshot.account_number_ciphertext
             HAVING share.amount > COALESCE(SUM(account_transaction.amount), 0)
              ORDER BY share.settlement_id, share.id
             """, nativeQuery = true)
-    List<PayableDepositCandidateProjection> findUnfinishedPayableCandidatesBySourceAccountId(
-            @Param("sourceAccountId") Long sourceAccountId
+    List<PayableDepositCandidateProjection> findUnfinishedPayableCandidatesByCreatorIdAndOrganization(
+            @Param("creatorId") Long creatorId,
+            @Param("organization") String organization
     );
+
+    interface MatchedTransactionProjection {
+        String getExternalTransactionKey();
+
+        UUID getSettlementId();
+
+        Long getSourceAccountId();
+
+        String getAccountNumberCiphertext();
+    }
 
     interface PayableDepositCandidateProjection {
         UUID getSettlementId();
@@ -63,5 +97,9 @@ public interface SettlementDepositJpaRepository
         BigDecimal getRemainingAmount();
 
         Instant getSnapshotCreatedAt();
+
+        Long getSourceAccountId();
+
+        String getAccountNumberCiphertext();
     }
 }

@@ -70,7 +70,7 @@
 - Settlement 대조 시작 상태는 `AWAITING_DEPOSIT`뿐이다.
 - `COMPLETED` 조회는 허용하되 CODEF를 재호출하거나 상태를 다시 변경하지 않는다.
 - `DRAFT`, `REQUESTED`, `SUSPENDED`에서는 입금 대조를 실행하지 않는다.
-- 하나의 `account_transaction_id`는 하나의 `SettlementDeposit`에만 연결된다.
+- 하나의 실제 외부 거래를 나타내는 `externalTransactionKey`는 계좌 삭제·재연결 전후를 포함해 하나의 `SettlementDeposit`에만 연결된다.
 - `SettlementDeposit.settlementId`는 Share와 수금 계좌 snapshot의 Settlement와 모두 일치해야 한다.
 - 연결 거래의 `accountId`는 수금 계좌 snapshot의 `sourceAccountId`와 일치해야 한다.
 - 연결 거래는 `INCOME`이고 snapshot 생성 시각 이후 거래여야 한다.
@@ -98,7 +98,7 @@
 1. 거래는 snapshot의 `sourceAccountId`에 저장된 `INCOME`이고 `transactedAt >= snapshot.createdAt`이다.
 2. 거래 설명을 Unicode NFKC, 소문자, 공백 제거 형태로 정규화했을 때 미완료 참여자의 정규화된 `displayName` 하나만 포함한다.
 3. 거래 금액은 해당 Share의 남은 금액 이하이며 KRW 정수 금액이다.
-4. 같은 거래가 기존 `SettlementDeposit`에 연결되지 않았다.
+4. 같은 수금 계좌의 어느 생명주기에서도 동일 `externalTransactionKey` 거래가 기존 `SettlementDeposit`에 연결되지 않았다.
 
 이름이 없거나 둘 이상의 참여자 이름과 일치하거나 금액이 남은 금액을 초과하면 거래를 연결하지 않는다. 이 보수적 실패는 잘못된 납부자를 완료 처리하는 것보다 우선한다.
 
@@ -117,7 +117,8 @@
 - 동일 시각·금액·설명 거래는 기존 account transaction key와 계좌별 unique 제약을 재사용한다.
 - 같은 대조 요청이 동시에 들어오면 활성 Account row를 먼저 잠그고 Settlement row를 잠가 직렬화하며, 잠금 뒤 상태와 기존 연결을 다시 확인한다.
 - 신규 거래 저장은 계좌 월 요약 재생성·계좌 삭제와 같은 `Account -> Settlement` 잠금 순서로 직렬화한다.
-- 같은 `sourceAccountId`를 쓰는 다른 `AWAITING_DEPOSIT` 정산 중 거래 발생 전에 snapshot이 생성된 미완료 Share도 후보에 포함하고, 둘 이상과 일치하는 거래는 어느 정산에도 자동 연결하지 않는다.
+- 생성자·금융기관·복호화 계좌번호가 같은 다른 `AWAITING_DEPOSIT` 정산 중 거래 발생 전에 snapshot이 생성된 미완료 Share도 Account 생명주기 ID와 무관하게 후보에 포함하고, 둘 이상과 일치하는 거래는 어느 정산에도 자동 연결하지 않는다.
+- 재연결 전후에 같은 외부 거래가 서로 다른 `account_transaction_id`로 저장되어도 안정적인 `externalTransactionKey`가 이미 정산에 연결되었다면 다시 연결하지 않는다.
 - 활성 Account가 삭제되어도 snapshot의 복호화된 계좌번호와 사용자당 하나인 활성 ExternalConnection으로 조회한다. ExternalConnection 자체가 비활성화되면 자동 대조하지 않는다.
 
 ## 4. Contracts
@@ -284,7 +285,7 @@ Migration PR 단계에서 V1~V20 신규 적용, 기존 V19 데이터 위 V20 적
 | Migration PR | Complete | #172 merged, V20 applied before V21 |
 | Java·HTTP 구현 | Complete | #156 범위의 대조·조회 UseCase, JPA Adapter, API와 Swagger 구현 |
 | 핵심 단위 검증 | Complete | 정상 완료, 부분 입금, 모호·초과·소수 금액 거부, 완료 후 멱등 재조회 |
-| 전체 회귀 검증 | Complete | 임시 PostgreSQL 18.3·Redis 7에서 402개 테스트 전체 통과 후 컨테이너 제거 |
+| 전체 회귀 검증 | Complete | 임시 PostgreSQL 18.3·Redis 7에서 404개 테스트 전체 통과 후 컨테이너 제거 |
 | 전용 HTTP·Persistence 통합 시나리오 | Pending | #157에서 실제 행 저장, OpenAPI 경로와 오류 응답 고정 |
 
 ## 9. Progress log
@@ -298,6 +299,7 @@ Migration PR 단계에서 V1~V20 신규 적용, 기존 V19 데이터 위 V20 적
 | 2026-08-25 | PR #175 추가 리뷰 반영: 거래 발생 뒤 생성된 정산 snapshot은 해당 거래의 경쟁 후보에서 제외, 401개 테스트 통과 | 리뷰 재확인 | 같은 이름·금액의 동시 진행 정산은 먼저 발생한 거래부터 순서대로 대조해야 함 |
 | 2026-08-26 | PR #175 추가 리뷰 반영: 신규 거래 저장과 월 요약 재생성을 같은 활성 Account row lock으로 직렬화, 401개 테스트 통과 | 리뷰 재확인 | 삭제된 계좌는 상세·요약 재생성 대상이 아니므로 기존 snapshot 대조를 계속 허용함 |
 | 2026-08-26 | 계좌 삭제와 입금 대조의 잠금 순서를 `Account -> Settlement`로 통일하고 잠금 뒤 상태 재검증, 402개 테스트 통과 | 리뷰 재확인 | CODEF 조회는 잠금 전에 수행하므로 같은 요청에서 최신 거래를 다시 저장·조회함 |
+| 2026-08-26 | 재연결 전후 동일 수금 계좌 후보를 snapshot 계좌번호로 통합하고 이미 사용한 외부 거래 Key를 차단, 404개 테스트 통과 | 리뷰 재확인 | 거래 원장은 생명주기별로 유지하되 정산 입금 소비만 실제 외부 거래 단위로 제한함 |
 
 ## 10. Decision log
 
@@ -313,6 +315,7 @@ Migration PR 단계에서 V1~V20 신규 적용, 기존 V19 데이터 위 V20 적
 | 2026-08-25 | 거래 발생 시각 이전에 생성된 snapshot의 Share만 자동 대조 후보로 취급한다. | 아직 시작되지 않은 정산이 과거 입금을 모호하게 만들어 정상 매칭을 막지 않게 한다. | snapshot 생성 시각은 후보 조회에서 함께 반환해 Policy가 판단한다. |
 | 2026-08-26 | 정산 대조의 신규 거래 저장 전 활성 Account row를 잠근다. | 월 요약 재생성과 거래 저장·요약 삭제가 교차해 오래된 요약을 다시 만들지 않게 한다. | 삭제된 계좌에는 잠글 활성 행과 요약 조회 경로가 없으므로 대조를 중단하지 않는다. |
 | 2026-08-26 | 입금 대조는 CODEF 조회 후 `Account -> Settlement` 순서로 잠그고 상태를 재검증한다. | 계좌 삭제의 `Account -> Settlement` 순서와 반대 잠금으로 생길 수 있는 PostgreSQL 교착을 제거한다. | 외부 조회는 잠금 전에 수행해 DB row lock 보유 시간을 늘리지 않는다. |
+| 2026-08-26 | 동일 생성자·금융기관·복호화 계좌번호 snapshot을 하나의 정산 매칭 경계로 보고 `externalTransactionKey` 사용 여부를 생명주기 전체에서 확인한다. | Account 재연결로 내부 ID가 바뀌어도 하나의 실제 입금이 두 정산을 완료하지 못하게 한다. | 거래·요약 원장은 ADR-0004에 따라 생명주기별로 유지하며 별도 fingerprint column은 추가하지 않는다. |
 
 ## 11. Completion record
 

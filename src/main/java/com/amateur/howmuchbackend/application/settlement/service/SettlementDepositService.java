@@ -113,19 +113,30 @@ public class SettlementDepositService implements
         List<SettlementDeposit> existingDeposits =
                 depositStorePort.findAllBySettlementId(lockedSettlement.id());
         Map<UUID, Long> confirmedAmounts = confirmedAmounts(existingDeposits, transactionById);
-        Set<Long> matchedTransactionIds = new HashSet<>(depositStorePort.findMatchedTransactionIds(
-                transactionById.keySet()
-        ));
         Map<UUID, PayableShare> currentPayableByShareId = data.payableShares().stream()
                 .collect(Collectors.toMap(payable -> payable.share().id(), Function.identity()));
         List<SettlementDepositStorePort.PayableDepositCandidate> accountCandidates =
-                depositStorePort.findUnfinishedPayableCandidatesBySourceAccountId(
-                        data.snapshot().sourceAccountId()
+                depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
+                        actor.userId(),
+                        data.snapshot().sourceAccountId(),
+                        data.snapshot().organization(),
+                        data.snapshot().accountNumber()
                 );
+        Set<String> matchedTransactionKeys = new HashSet<>(
+                depositStorePort.findMatchedExternalTransactionKeysByReceivingAccount(
+                        actor.userId(),
+                        data.snapshot().sourceAccountId(),
+                        data.snapshot().organization(),
+                        data.snapshot().accountNumber(),
+                        transactions.stream()
+                                .map(Transaction::externalTransactionKey)
+                                .collect(Collectors.toSet())
+                )
+        );
         List<SettlementDeposit> newDeposits = new ArrayList<>();
 
         for (Transaction transaction : transactions) {
-            if (matchedTransactionIds.contains(transaction.id())) {
+            if (matchedTransactionKeys.contains(transaction.externalTransactionKey())) {
                 continue;
             }
             List<SettlementDepositMatchingPolicy.PayableShare> candidates = accountCandidates
@@ -148,7 +159,7 @@ public class SettlementDepositService implements
                                 now
                         );
                         newDeposits.add(deposit);
-                        matchedTransactionIds.add(transaction.id());
+                        matchedTransactionKeys.add(transaction.externalTransactionKey());
                         confirmedAmounts.merge(
                                 shareId,
                                 transaction.amount().longValueExact(),

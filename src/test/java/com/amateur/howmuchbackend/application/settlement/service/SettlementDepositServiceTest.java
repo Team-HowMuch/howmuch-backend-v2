@@ -134,6 +134,22 @@ class SettlementDepositServiceTest {
                 .findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID);
         accountUpdateOrder.verify(loadSettlementPort).findByIdForUpdate(SETTLEMENT_ID);
         accountUpdateOrder.verify(saveTransactionPort).saveAllIgnoringDuplicates(anyList());
+        InOrder duplicateGuardOrder = inOrder(depositStorePort);
+        duplicateGuardOrder.verify(depositStorePort)
+                .findUnfinishedPayableCandidatesByReceivingAccount(
+                        CREATOR_ID,
+                        7L,
+                        "0020",
+                        "1002123456789"
+                );
+        duplicateGuardOrder.verify(depositStorePort)
+                .findMatchedExternalTransactionKeysByReceivingAccount(
+                        CREATOR_ID,
+                        7L,
+                        "0020",
+                        "1002123456789",
+                        Set.of(savedTransaction.externalTransactionKey())
+                );
     }
 
     @Test
@@ -156,11 +172,38 @@ class SettlementDepositServiceTest {
     void rejectsTransactionAmbiguousAcrossSettlements() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("6000"));
-        when(depositStorePort.findUnfinishedPayableCandidatesBySourceAccountId(7L))
+        when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
+                CREATOR_ID,
+                7L,
+                "0020",
+                "1002123456789"
+        ))
                 .thenReturn(List.of(
                         payableCandidate(SETTLEMENT_ID, PAYER_SHARE_ID),
                         payableCandidate(OTHER_SETTLEMENT_ID, OTHER_SHARE_ID)
                 ));
+
+        var result = service.reconcile(SETTLEMENT_ID);
+
+        assertThat(result.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        assertThat(result.confirmedAmount()).isZero();
+        verify(depositStorePort).saveAll(List.of());
+        verify(saveSettlementPort, never()).update(any(Settlement.class));
+    }
+
+    @Test
+    @DisplayName("재연결 전 계좌 생명주기에서 이미 연결한 거래는 다시 연결하지 않는다")
+    void rejectsTransactionMatchedBeforeAccountReconnection() {
+        arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
+        Transaction savedTransaction = transaction("6000");
+        arrangeFetchedTransaction(savedTransaction);
+        when(depositStorePort.findMatchedExternalTransactionKeysByReceivingAccount(
+                CREATOR_ID,
+                7L,
+                "0020",
+                "1002123456789",
+                Set.of(savedTransaction.externalTransactionKey())
+        )).thenReturn(Set.of(savedTransaction.externalTransactionKey()));
 
         var result = service.reconcile(SETTLEMENT_ID);
 
@@ -252,10 +295,20 @@ class SettlementDepositServiceTest {
         when(loadTransactionPort.findIncomeByAccountIdBetween(eq(7L), eq(CREATED_AT), any()))
                 .thenReturn(List.of(), List.of(savedTransaction));
         when(depositStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
-        when(depositStorePort.findMatchedTransactionIds(Set.of(savedTransaction.id())))
-                .thenReturn(Set.of());
-        when(depositStorePort.findUnfinishedPayableCandidatesBySourceAccountId(7L))
+        when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
+                CREATOR_ID,
+                7L,
+                "0020",
+                "1002123456789"
+        ))
                 .thenReturn(List.of(payableCandidate(SETTLEMENT_ID, PAYER_SHARE_ID)));
+        when(depositStorePort.findMatchedExternalTransactionKeysByReceivingAccount(
+                CREATOR_ID,
+                7L,
+                "0020",
+                "1002123456789",
+                Set.of(savedTransaction.externalTransactionKey())
+        )).thenReturn(Set.of());
         when(connectionStorePort.findActiveByUserId(CREATOR_ID))
                 .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
         when(bankTransactionPort.fetch(
