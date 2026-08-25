@@ -5,6 +5,12 @@ import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.GroupMemberRole;
 import com.amateur.howmuchbackend.domain.group.GroupMemberStatus;
 import com.amateur.howmuchbackend.domain.group.GroupStatus;
+import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.group.service.GroupAccessService;
+import com.amateur.howmuchbackend.application.group.service.GroupOwnershipService;
+import com.amateur.howmuchbackend.application.port.in.group.command.TransferGroupOwnershipCommand;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,11 +20,18 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,7 +43,9 @@ class GroupPersistenceIntegrationTest {
 
     @Autowired private GroupPersistenceAdapter groupPersistenceAdapter;
     @Autowired private GroupMemberPersistenceAdapter groupMemberPersistenceAdapter;
+    @Autowired private GroupOwnershipPersistenceAdapter groupOwnershipPersistenceAdapter;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private PlatformTransactionManager transactionManager;
 
     private Long userId;
     private Long groupId;
@@ -195,6 +210,84 @@ class GroupPersistenceIntegrationTest {
         var roster = groupMemberPersistenceAdapter.findActiveRoster(savedGroup.id()).orElseThrow();
         assertThat(roster.activeUserIds())
                 .containsExactly(userId, earlierMemberUserId, laterMemberUserId);
+    }
+
+    @Test
+    @DisplayName("동시 소유권 이전 요청은 직렬화되어 활성 OWNER를 한 명만 유지한다")
+    void serializesConcurrentOwnershipTransfers() throws Exception {
+        Long targetUserId = insertUser("새 OWNER");
+        Group savedGroup = saveGroup();
+        groupMemberPersistenceAdapter.save(GroupMember.owner(
+                savedGroup.id(), userId, CREATED_AT
+        ));
+        GroupMember target = groupMemberPersistenceAdapter.save(GroupMember.member(
+                savedGroup.id(), targetUserId, CREATED_AT.plusMinutes(1)
+        ));
+        GroupOwnershipService ownershipService = new GroupOwnershipService(
+                new CurrentActorPort() {
+                    @Override
+                    public CurrentActor getCurrentActor() {
+                        return new CurrentActor(userId);
+                    }
+
+                    @Override
+                    public Optional<CurrentActor> findCurrentActor() {
+                        return Optional.of(getCurrentActor());
+                    }
+                },
+                new GroupAccessService(groupPersistenceAdapter, groupMemberPersistenceAdapter),
+                groupMemberPersistenceAdapter,
+                groupOwnershipPersistenceAdapter
+        );
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            var task = (java.util.concurrent.Callable<Boolean>) () -> {
+                ready.countDown();
+                start.await();
+                try {
+                    transactionTemplate.executeWithoutResult(ignored -> ownershipService.transfer(
+                            savedGroup.id(),
+                            new TransferGroupOwnershipCommand(target.id())
+                    ));
+                    return true;
+                } catch (ApplicationException exception) {
+                    return false;
+                }
+            };
+            Future<Boolean> first = executor.submit(task);
+            Future<Boolean> second = executor.submit(task);
+            ready.await();
+            start.countDown();
+
+            assertThat(List.of(first.get(), second.get()))
+                    .containsExactlyInAnyOrder(true, false);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        Group loadedGroup = groupPersistenceAdapter.findById(savedGroup.id()).orElseThrow();
+        List<GroupMember> activeMembers = groupMemberPersistenceAdapter
+                .findActiveByGroupId(savedGroup.id());
+        assertThat(loadedGroup.ownerId()).isEqualTo(targetUserId);
+        assertThat(activeMembers).filteredOn(GroupMember::isOwner)
+                .singleElement()
+                .extracting(GroupMember::userId)
+                .isEqualTo(targetUserId);
+        Integer ownerCount = jdbcTemplate.queryForObject("""
+                        SELECT COUNT(*)
+                          FROM group_members
+                         WHERE group_id = ?
+                           AND role = 'OWNER'
+                           AND status = 'ACTIVE'
+                        """,
+                Integer.class,
+                savedGroup.id()
+        );
+        assertThat(ownerCount).isEqualTo(1);
     }
 
     private Group saveGroup() {
