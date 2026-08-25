@@ -114,4 +114,26 @@ public interface GroupDocs {
             )
     })
     ApiResponse<GroupDetailWebResponse> updateGroup(Long groupId, UpdateGroupWebRequest request);
+
+    @Operation(
+            summary = "그룹 삭제",
+            description = "OWNER가 그룹을 소프트 삭제합니다. 기존 멤버십과 정산 데이터는 보존합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "그룹 삭제 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "GROUP_ACCESS_DENIED 또는 GROUP_OWNER_REQUIRED"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "GROUP_NOT_FOUND - 그룹이 없거나 이미 삭제됨"
+            )
+    })
+    ApiResponse<Void> deleteGroup(Long groupId);
 }
