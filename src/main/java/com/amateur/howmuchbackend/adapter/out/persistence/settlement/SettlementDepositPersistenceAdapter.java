@@ -41,6 +41,22 @@ public class SettlementDepositPersistenceAdapter implements SettlementDepositSto
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<PayableDepositCandidate> findUnfinishedPayableCandidatesBySourceAccountId(
+            Long sourceAccountId
+    ) {
+        return repository.findUnfinishedPayableCandidatesBySourceAccountId(sourceAccountId)
+                .stream()
+                .map(candidate -> new PayableDepositCandidate(
+                        candidate.getSettlementId(),
+                        candidate.getShareId(),
+                        candidate.getPayerName(),
+                        candidate.getRemainingAmount().longValueExact()
+                ))
+                .toList();
+    }
+
+    @Override
     @Transactional
     public void saveAll(List<SettlementDeposit> deposits) {
         repository.saveAll(deposits.stream().map(this::toEntity).toList());

@@ -102,34 +102,45 @@ public class SettlementDepositService implements
         Set<Long> matchedTransactionIds = new HashSet<>(depositStorePort.findMatchedTransactionIds(
                 transactionById.keySet()
         ));
+        Map<UUID, PayableShare> currentPayableByShareId = data.payableShares().stream()
+                .collect(Collectors.toMap(payable -> payable.share().id(), Function.identity()));
+        List<SettlementDepositStorePort.PayableDepositCandidate> accountCandidates =
+                depositStorePort.findUnfinishedPayableCandidatesBySourceAccountId(
+                        data.snapshot().sourceAccountId()
+                );
         List<SettlementDeposit> newDeposits = new ArrayList<>();
 
         for (Transaction transaction : transactions) {
             if (matchedTransactionIds.contains(transaction.id())) {
                 continue;
             }
-            List<SettlementDepositMatchingPolicy.PayableShare> candidates = data.payableShares()
+            List<SettlementDepositMatchingPolicy.PayableShare> candidates = accountCandidates
                     .stream()
-                    .map(payable -> new SettlementDepositMatchingPolicy.PayableShare(
-                            payable.share().id(),
-                            payable.payerName(),
-                            Math.max(0L, payable.share().amount()
-                                    - confirmedAmounts.getOrDefault(payable.share().id(), 0L))
+                    .map(candidate -> toMatchingCandidate(
+                            candidate,
+                            currentPayableByShareId.get(candidate.shareId()),
+                            confirmedAmounts
                     ))
                     .filter(candidate -> candidate.remainingAmount() > 0)
                     .toList();
-            matchingPolicy.match(transaction, candidates).ifPresent(shareId -> {
-                SettlementDeposit deposit = SettlementDeposit.create(
-                        settlement.id(),
-                        shareId,
-                        data.snapshot().sourceAccountId(),
-                        transaction.id(),
-                        now
-                );
-                newDeposits.add(deposit);
-                matchedTransactionIds.add(transaction.id());
-                confirmedAmounts.merge(shareId, transaction.amount().longValueExact(), Math::addExact);
-            });
+            matchingPolicy.match(transaction, candidates)
+                    .filter(currentPayableByShareId::containsKey)
+                    .ifPresent(shareId -> {
+                        SettlementDeposit deposit = SettlementDeposit.create(
+                                settlement.id(),
+                                shareId,
+                                data.snapshot().sourceAccountId(),
+                                transaction.id(),
+                                now
+                        );
+                        newDeposits.add(deposit);
+                        matchedTransactionIds.add(transaction.id());
+                        confirmedAmounts.merge(
+                                shareId,
+                                transaction.amount().longValueExact(),
+                                Math::addExact
+                        );
+                    });
         }
         depositStorePort.saveAll(newDeposits);
 
@@ -235,6 +246,22 @@ public class SettlementDepositService implements
                 })
                 .filter(payable -> !settlement.creatorId().equals(payable.linkedUserId()))
                 .toList();
+    }
+
+    private SettlementDepositMatchingPolicy.PayableShare toMatchingCandidate(
+            SettlementDepositStorePort.PayableDepositCandidate candidate,
+            PayableShare currentPayable,
+            Map<UUID, Long> confirmedAmounts
+    ) {
+        long remainingAmount = currentPayable == null
+                ? candidate.remainingAmount()
+                : Math.max(0L, currentPayable.share().amount()
+                        - confirmedAmounts.getOrDefault(candidate.shareId(), 0L));
+        return new SettlementDepositMatchingPolicy.PayableShare(
+                candidate.shareId(),
+                candidate.payerName(),
+                remainingAmount
+        );
     }
 
     private Map<UUID, Long> confirmedAmounts(

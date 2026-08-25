@@ -12,5 +12,17 @@ public interface SettlementDepositStorePort {
 
     Set<Long> findMatchedTransactionIds(Collection<Long> transactionIds);
 
+    List<PayableDepositCandidate> findUnfinishedPayableCandidatesBySourceAccountId(
+            Long sourceAccountId
+    );
+
     void saveAll(List<SettlementDeposit> deposits);
+
+    record PayableDepositCandidate(
+            UUID settlementId,
+            UUID shareId,
+            String payerName,
+            long remainingAmount
+    ) {
+    }
 }

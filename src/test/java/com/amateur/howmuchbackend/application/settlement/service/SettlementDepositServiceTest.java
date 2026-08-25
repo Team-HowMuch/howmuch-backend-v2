@@ -54,10 +54,12 @@ import static org.mockito.Mockito.when;
 class SettlementDepositServiceTest {
     private static final Long CREATOR_ID = 1L;
     private static final UUID SETTLEMENT_ID = UUID.fromString("7c33b1fb-82f1-4a45-a834-a015a26b2ba6");
+    private static final UUID OTHER_SETTLEMENT_ID = UUID.fromString("56d2237c-714e-46b0-a036-e5f44f8f509a");
     private static final UUID CREATOR_PARTICIPANT_ID = UUID.fromString("bb97ee76-3a82-4ccc-b324-4a9974c8e1af");
     private static final UUID PAYER_PARTICIPANT_ID = UUID.fromString("e4049b4f-1c0a-4c63-b88e-3bdaee853679");
     private static final UUID CREATOR_SHARE_ID = UUID.fromString("9de946eb-bf2e-4fbb-b5e2-61d76098669c");
     private static final UUID PAYER_SHARE_ID = UUID.fromString("0d90a9cd-c9d6-49d0-9217-4c105b9fb3da");
+    private static final UUID OTHER_SHARE_ID = UUID.fromString("14bdff25-6157-4fac-bbf5-cb4605704aae");
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 20, 0, 0);
 
     @Mock private CurrentActorPort currentActorPort;
@@ -137,6 +139,25 @@ class SettlementDepositServiceTest {
     }
 
     @Test
+    @DisplayName("같은 계좌의 다른 정산 Share에도 맞는 거래는 어느 정산에도 자동 연결하지 않는다")
+    void rejectsTransactionAmbiguousAcrossSettlements() {
+        arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
+        arrangeFetchedTransaction(transaction("6000"));
+        when(depositStorePort.findUnfinishedPayableCandidatesBySourceAccountId(7L))
+                .thenReturn(List.of(
+                        payableCandidate(SETTLEMENT_ID, PAYER_SHARE_ID),
+                        payableCandidate(OTHER_SETTLEMENT_ID, OTHER_SHARE_ID)
+                ));
+
+        var result = service.reconcile(SETTLEMENT_ID);
+
+        assertThat(result.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        assertThat(result.confirmedAmount()).isZero();
+        verify(depositStorePort).saveAll(List.of());
+        verify(saveSettlementPort, never()).update(any(Settlement.class));
+    }
+
+    @Test
     @DisplayName("완료된 정산의 재대조는 CODEF를 재호출하거나 입금을 중복 저장하지 않는다")
     void returnsCompletedSummaryIdempotently() {
         arrangeSettlement(SettlementStatus.COMPLETED);
@@ -179,6 +200,8 @@ class SettlementDepositServiceTest {
         when(depositStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
         when(depositStorePort.findMatchedTransactionIds(Set.of(savedTransaction.id())))
                 .thenReturn(Set.of());
+        when(depositStorePort.findUnfinishedPayableCandidatesBySourceAccountId(7L))
+                .thenReturn(List.of(payableCandidate(SETTLEMENT_ID, PAYER_SHARE_ID)));
         when(connectionStorePort.findActiveByUserId(CREATOR_ID))
                 .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
         when(bankTransactionPort.fetch(
@@ -194,6 +217,18 @@ class SettlementDepositServiceTest {
                 "민선영 입금",
                 new BigDecimal("106000")
         )));
+    }
+
+    private SettlementDepositStorePort.PayableDepositCandidate payableCandidate(
+            UUID settlementId,
+            UUID shareId
+    ) {
+        return new SettlementDepositStorePort.PayableDepositCandidate(
+                settlementId,
+                shareId,
+                "민선영",
+                6_000
+        );
     }
 
     private Settlement settlement(SettlementStatus status) {
