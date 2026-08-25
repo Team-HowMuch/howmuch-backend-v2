@@ -23,7 +23,8 @@ class SettlementDepositMatchingPolicyTest {
         var payable = new SettlementDepositMatchingPolicy.PayableShare(
                 SHARE_ID,
                 "민선영",
-                6_000
+                6_000,
+                LocalDateTime.of(2026, 8, 24, 0, 0)
         );
 
         assertThat(policy.match(transaction("민 선 영 입금", "6000"), List.of(payable)))
@@ -38,11 +39,37 @@ class SettlementDepositMatchingPolicyTest {
     @DisplayName("거래 설명이 둘 이상의 참여자 이름과 일치하면 자동 연결하지 않는다")
     void rejectsAmbiguousNames() {
         var shares = List.of(
-                new SettlementDepositMatchingPolicy.PayableShare(SHARE_ID, "민선영", 6_000),
-                new SettlementDepositMatchingPolicy.PayableShare(UUID.randomUUID(), "선영", 6_000)
+                payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0)),
+                payable(UUID.randomUUID(), "선영", LocalDateTime.of(2026, 8, 24, 0, 0))
         );
 
         assertThat(policy.match(transaction("민선영 입금", "6000"), shares)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("거래 발생 후 시작된 정산 Share는 매칭 후보에서 제외한다")
+    void excludesSettlementStartedAfterTransaction() {
+        UUID laterShareId = UUID.randomUUID();
+        var shares = List.of(
+                payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0)),
+                payable(laterShareId, "민선영", LocalDateTime.of(2026, 8, 24, 2, 0))
+        );
+
+        assertThat(policy.match(transaction("민선영 입금", "6000"), shares))
+                .contains(SHARE_ID);
+    }
+
+    private SettlementDepositMatchingPolicy.PayableShare payable(
+            UUID shareId,
+            String payerName,
+            LocalDateTime snapshotCreatedAt
+    ) {
+        return new SettlementDepositMatchingPolicy.PayableShare(
+                shareId,
+                payerName,
+                6_000,
+                snapshotCreatedAt
+        );
     }
 
     private Transaction transaction(String description, String amount) {

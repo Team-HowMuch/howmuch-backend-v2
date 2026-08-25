@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.domain.account.Transaction;
 import org.springframework.stereotype.Component;
 
 import java.text.Normalizer;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -33,6 +34,7 @@ public class SettlementDepositMatchingPolicy {
 
         String description = normalize(transaction.description());
         List<UUID> matches = payableShares.stream()
+                .filter(share -> !transaction.transactedAt().isBefore(share.snapshotCreatedAt()))
                 .filter(share -> share.remainingAmount() >= amount)
                 .filter(share -> description.contains(normalize(share.payerName())))
                 .map(PayableShare::shareId)
@@ -50,7 +52,8 @@ public class SettlementDepositMatchingPolicy {
     public record PayableShare(
             UUID shareId,
             String payerName,
-            long remainingAmount
+            long remainingAmount,
+            LocalDateTime snapshotCreatedAt
     ) {
     }
 }

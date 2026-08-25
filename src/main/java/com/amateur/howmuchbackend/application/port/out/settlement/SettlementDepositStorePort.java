@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.port.out.settlement;
 
 import com.amateur.howmuchbackend.domain.settlement.SettlementDeposit;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -22,7 +23,8 @@ public interface SettlementDepositStorePort {
             UUID settlementId,
             UUID shareId,
             String payerName,
-            long remainingAmount
+            long remainingAmount,
+            LocalDateTime snapshotCreatedAt
     ) {
     }
 }

@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -51,7 +52,10 @@ public class SettlementDepositPersistenceAdapter implements SettlementDepositSto
                         candidate.getSettlementId(),
                         candidate.getShareId(),
                         candidate.getPayerName(),
-                        candidate.getRemainingAmount().longValueExact()
+                        candidate.getRemainingAmount().longValueExact(),
+                        candidate.getSnapshotCreatedAt()
+                                .atOffset(ZoneOffset.UTC)
+                                .toLocalDateTime()
                 ))
                 .toList();
     }
