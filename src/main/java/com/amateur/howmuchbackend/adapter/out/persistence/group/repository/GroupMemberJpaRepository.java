@@ -26,6 +26,11 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMemberJpaEn
             @Param("userId") Long userId
     );
 
+    List<GroupMemberJpaEntity> findAllByGroupIdAndStatus(
+            Long groupId,
+            GroupMemberStatus status
+    );
+
     long countByGroupIdAndStatus(Long groupId, GroupMemberStatus status);
 
     @Query(value = """

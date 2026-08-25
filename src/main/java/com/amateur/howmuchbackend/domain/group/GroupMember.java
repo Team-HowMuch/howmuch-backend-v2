@@ -82,6 +82,24 @@ public record GroupMember(
         );
     }
 
+    public GroupMember restore(LocalDateTime now) {
+        if (status != GroupMemberStatus.REMOVED || role != GroupMemberRole.MEMBER) {
+            throw new IllegalStateException("REMOVED MEMBER만 OWNER가 복구할 수 있습니다.");
+        }
+        LocalDateTime restoredAt = Objects.requireNonNull(now, "그룹멤버 복구 시각은 필수입니다.");
+        return new GroupMember(
+                id,
+                groupId,
+                userId,
+                role,
+                GroupMemberStatus.ACTIVE,
+                restoredAt,
+                null,
+                createdAt,
+                restoredAt
+        );
+    }
+
     public boolean isActive() {
         return status == GroupMemberStatus.ACTIVE;
     }

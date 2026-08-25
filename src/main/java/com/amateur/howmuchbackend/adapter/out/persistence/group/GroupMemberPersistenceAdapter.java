@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Comparator;
 
 @Component
 @RequiredArgsConstructor
@@ -32,6 +33,18 @@ public class GroupMemberPersistenceAdapter implements LoadGroupMemberPort, SaveG
     public Optional<GroupMember> findByGroupIdAndUserIdForUpdate(Long groupId, Long userId) {
         return groupMemberJpaRepository.findByGroupIdAndUserIdForUpdate(groupId, userId)
                 .map(GroupMemberMapper::toDomain);
+    }
+
+    @Override
+    public List<GroupMember> findActiveByGroupId(Long groupId) {
+        return groupMemberJpaRepository.findAllByGroupIdAndStatus(groupId, GroupMemberStatus.ACTIVE)
+                .stream()
+                .map(GroupMemberMapper::toDomain)
+                .sorted(Comparator
+                        .comparing((GroupMember member) -> !member.isOwner())
+                        .thenComparing(GroupMember::joinedAt)
+                        .thenComparing(GroupMember::id))
+                .toList();
     }
 
     @Override
