@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -122,6 +123,7 @@ class GroupPersistenceIntegrationTest {
     }
 
     @Test
+    @Transactional
     @DisplayName("초대 코드로 그룹을 조회하고 LEFT 멤버를 재가입 상태로 갱신한다")
     void findsByInviteCodeAndRejoinsLeftMember() {
         Group savedGroup = saveGroup();
@@ -141,14 +143,19 @@ class GroupPersistenceIntegrationTest {
                 leftMember.rejoin(CREATED_AT.plusHours(2))
         );
 
-        assertThat(groupPersistenceAdapter.findByInviteCode(savedGroup.inviteCode()))
+        assertThat(groupPersistenceAdapter.findByInviteCodeForUpdate(savedGroup.inviteCode()))
                 .contains(savedGroup);
         assertThat(rejoined.status()).isEqualTo(GroupMemberStatus.ACTIVE);
         assertThat(rejoined.joinedAt()).isEqualTo(CREATED_AT.plusHours(2));
-        assertThat(groupMemberPersistenceAdapter.findByGroupIdAndUserId(
-                savedGroup.id(),
-                userId
-        )).contains(rejoined);
+        GroupMember loaded = groupMemberPersistenceAdapter.findByGroupIdAndUserId(
+                        savedGroup.id(),
+                        userId
+                )
+                .orElseThrow();
+        assertThat(loaded.id()).isEqualTo(rejoined.id());
+        assertThat(loaded.status()).isEqualTo(GroupMemberStatus.ACTIVE);
+        assertThat(loaded.joinedAt()).isEqualTo(CREATED_AT.plusHours(2));
+        assertThat(loaded.leftAt()).isNull();
     }
 
     @Test
