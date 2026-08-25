@@ -11,7 +11,9 @@ RUN chmod +x gradlew \
 
 FROM eclipse-temurin:21-jre-jammy
 
-RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin appuser
+RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin appuser \
+    && mkdir -p /app/uploads/group-images \
+    && chown -R appuser:appuser /app/uploads
 
 WORKDIR /app
 COPY --from=build /app.jar /app/app.jar
