@@ -8,6 +8,8 @@ import java.util.Optional;
 public interface LoadGroupMemberPort {
     Optional<GroupMember> findByGroupIdAndUserId(Long groupId, Long userId);
 
+    Optional<GroupMember> findByGroupIdAndUserIdForUpdate(Long groupId, Long userId);
+
     int countActiveByGroupId(Long groupId);
 
     List<GroupSummaryReadModel> findActiveGroupSummariesByUserId(Long userId);

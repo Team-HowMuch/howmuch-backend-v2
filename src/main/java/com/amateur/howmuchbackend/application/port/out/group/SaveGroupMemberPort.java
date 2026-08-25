@@ -4,4 +4,6 @@ import com.amateur.howmuchbackend.domain.group.GroupMember;
 
 public interface SaveGroupMemberPort {
     GroupMember save(GroupMember member);
+
+    GroupMember update(GroupMember member);
 }

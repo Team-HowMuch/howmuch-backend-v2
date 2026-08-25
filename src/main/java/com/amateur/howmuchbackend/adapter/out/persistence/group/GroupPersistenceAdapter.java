@@ -28,6 +28,11 @@ public class GroupPersistenceAdapter implements LoadGroupPort, SaveGroupPort {
     }
 
     @Override
+    public Optional<Group> findByInviteCode(String inviteCode) {
+        return groupJpaRepository.findByInviteCode(inviteCode).map(GroupMapper::toDomain);
+    }
+
+    @Override
     public boolean existsByInviteCode(String inviteCode) {
         return groupJpaRepository.existsByInviteCode(inviteCode);
     }

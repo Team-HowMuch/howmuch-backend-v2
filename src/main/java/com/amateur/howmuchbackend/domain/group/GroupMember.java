@@ -49,6 +49,39 @@ public record GroupMember(
         );
     }
 
+    public static GroupMember member(Long groupId, Long userId, LocalDateTime now) {
+        Objects.requireNonNull(now, "그룹멤버 생성 시각은 필수입니다.");
+        return new GroupMember(
+                null,
+                groupId,
+                userId,
+                GroupMemberRole.MEMBER,
+                GroupMemberStatus.ACTIVE,
+                now,
+                null,
+                now,
+                now
+        );
+    }
+
+    public GroupMember rejoin(LocalDateTime now) {
+        if (status != GroupMemberStatus.LEFT || role != GroupMemberRole.MEMBER) {
+            throw new IllegalStateException("LEFT MEMBER만 그룹에 재가입할 수 있습니다.");
+        }
+        LocalDateTime rejoinedAt = Objects.requireNonNull(now, "그룹 재가입 시각은 필수입니다.");
+        return new GroupMember(
+                id,
+                groupId,
+                userId,
+                role,
+                GroupMemberStatus.ACTIVE,
+                rejoinedAt,
+                null,
+                createdAt,
+                rejoinedAt
+        );
+    }
+
     public boolean isActive() {
         return status == GroupMemberStatus.ACTIVE;
     }
