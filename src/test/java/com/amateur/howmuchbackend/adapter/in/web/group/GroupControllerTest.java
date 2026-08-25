@@ -16,7 +16,10 @@ import com.amateur.howmuchbackend.application.port.in.group.command.JoinGroupCom
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupDetailResult;
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupSummaryResult;
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupMemberResult;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
 import com.amateur.howmuchbackend.domain.group.GroupMemberRole;
+import com.amateur.howmuchbackend.domain.group.status.GroupStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -73,7 +76,7 @@ class GroupControllerTest {
                 joinGroupUseCase,
                 getGroupMembersUseCase,
                 addGroupMemberUseCase
-        )).build();
+        )).setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
     @Test
@@ -163,6 +166,23 @@ class GroupControllerTest {
         ArgumentCaptor<JoinGroupCommand> captor = ArgumentCaptor.forClass(JoinGroupCommand.class);
         verify(joinGroupUseCase).join(captor.capture());
         assertThat(captor.getValue().inviteCode()).isEqualTo("ab12cd34");
+    }
+
+    @Test
+    @DisplayName("빈 초대 코드는 INVALID_GROUP_INVITE_CODE로 반환한다")
+    void rejectsBlankInviteCodeWithFeatureError() throws Exception {
+        when(joinGroupUseCase.join(any())).thenThrow(
+                ApplicationException.of(GroupStatusCode.INVALID_GROUP_INVITE_CODE)
+        );
+
+        mockMvc.perform(post("/api/v2/groups/join")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inviteCode\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_GROUP_INVITE_CODE"));
+
+        verify(joinGroupUseCase).join(any(JoinGroupCommand.class));
     }
 
     @Test

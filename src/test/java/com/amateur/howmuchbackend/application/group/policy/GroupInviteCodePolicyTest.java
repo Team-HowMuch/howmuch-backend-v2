@@ -28,8 +28,22 @@ class GroupInviteCodePolicyTest {
     }
 
     @Test
+    @DisplayName("null과 공백 초대 코드를 같은 기능 오류로 거절한다")
+    void rejectsMissingInviteCode() {
+        assertInvalidInviteCode(null);
+        assertInvalidInviteCode("   ");
+    }
+
+    @Test
     @DisplayName("생성한 초대 코드는 8자리 대문자 영숫자다")
     void generatesInviteCode() {
         assertThat(policy.generate()).matches("^[A-Z0-9]{8}$");
+    }
+
+    private void assertInvalidInviteCode(String inviteCode) {
+        assertThatThrownBy(() -> policy.normalize(inviteCode))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(GroupStatusCode.INVALID_GROUP_INVITE_CODE));
     }
 }
