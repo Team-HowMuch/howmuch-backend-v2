@@ -341,7 +341,7 @@ Existing behavior that must remain unchanged:
 - [x] `completedParticipantCount`는 `COMPLETED` 시 참여자 수, 그 외 `null`로 결정
 - [x] `SettlementListWebRequest`, `SettlementListItemWebResponse`, Controller, Swagger 구현
 - [x] Service 단위 테스트 및 HTTP 목록 응답 테스트 추가
-- [ ] Persistence 통합 테스트: 생성자·연결 참여자·비참여자·연락처·Share·참여자 수 조합
+- [x] Persistence 통합 테스트: 생성자·연결 참여자·비참여자·연락처·Share·참여자 수 조합
 - [ ] Controller/HTTP 테스트: 인증, 잘못된 필터, 기본값, 빈 배열, 탭별 응답 필드
 - [ ] PostgreSQL `EXPLAIN`으로 사용자별 참여 정산 조회 계획 확인
 - [x] Swagger와 Feature Plan의 실제 계약·검증 결과 갱신
@@ -427,8 +427,8 @@ git status --short --untracked-files=all
 | 구현 | Complete (initial scope) | `GetSettlementsUseCase`, `SettlementListService`, `SettlementPersistenceAdapter`, `SettlementController` |
 | 컴파일 | Complete | `./gradlew compileJava` |
 | 관련 테스트 | Complete | `SettlementListServiceTest`, `SettlementControllerTest` |
-| PostgreSQL·Redis 통합 검증 | Pending | 격리 인스턴스 준비 후 실행 |
-| Swagger | Implemented, runtime verification pending | `SettlementDocs`, `GET /api/v2/settlements` |
+| PostgreSQL 정산 목록 통합 검증 | Complete | `SettlementListPersistenceIntegrationTest`에서 RECEIVE/PAY 범위·상태·Share 금액 확인 |
+| Swagger | Complete | 실행 중인 애플리케이션의 `/v3/api-docs`와 `/swagger-ui.html` 확인 |
 
 ## 9. Progress log
 
@@ -436,6 +436,7 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-08-24 | 현재 단건 조회·Settlement/Participant/Share 저장 구조와 #128~#131 범위를 대조하고 목록 계약 초안을 작성함 | UI 최소 필드와 완료 참여자 수 출처 확정 | `requestedAt`과 `completedParticipantCount`가 현재 저장 구조에 없음 |
 | 2026-08-25 | 첨부 UI 기준으로 받을/낼 탭, 진행중/완료 상태, 화면용 요약 필드로 범위를 축소하고 목록 API를 구현함 | PostgreSQL 통합 데이터와 Swagger 런타임 확인 | 그룹 선택 UI를 지원할 `Settlement`-그룹 관계가 없음; 정확한 요청일은 `createdAt`으로 대체 |
+| 2026-08-25 | 실제 PostgreSQL에서 RECEIVE/PAY 목록 범위·상태 필터·Share 금액을 검증하고, 실행 애플리케이션의 `/v3/api-docs`에서 Query 계약을 확인함 | PostgreSQL `EXPLAIN`과 전체 테스트의 기존 실패 원인 정리 | 전체 287개 테스트 중 계좌·품목 관련 기존 테스트 5개 실패 |
 
 ## 10. Decision log
 
@@ -452,6 +453,6 @@ git status --short --untracked-files=all
 
 - Completed on: 2026-08-25
 - Final behavior: `GET /api/v2/settlements`가 `RECEIVE`·`PAY` 탭과 원본 정산 상태 필터를 지원하고, 화면 문장이 아닌 숫자·날짜·상태 필드를 반환한다.
-- Unverified items: PostgreSQL 실제 데이터 통합 테스트, SQL 실행 계획, 실제 Swagger 문서 노출
-- Remaining risks: `requestedAt`은 `createdAt` 대체값이며, 개별 입금 완료 수가 필요하면 결제 상태 저장소 연계가 추가로 필요하다. 참여자 규모가 커질 경우 `linked_user_id` 조회 인덱스를 검토한다.
+- Unverified items: SQL 실행 계획(`EXPLAIN`)
+- Remaining risks: `requestedAt`은 `createdAt` 대체값이며, 개별 입금 완료 수가 필요하면 결제 상태 저장소 연계가 추가로 필요하다. 참여자 규모가 커질 경우 `linked_user_id` 조회 인덱스를 검토한다. 전체 테스트의 계좌·품목 관련 기존 실패 5건은 별도 확인이 필요하다.
 - Follow-up work: 실제 PostgreSQL 데이터로 사용자 범위·Share 집계·실행 계획을 검증하고, 제품에서 정확한 요청일이 필요하다고 결정하면 별도 migration을 진행한다.
