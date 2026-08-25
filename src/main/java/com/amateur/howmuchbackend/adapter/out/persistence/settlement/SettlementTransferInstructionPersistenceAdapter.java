@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,6 +33,15 @@ public class SettlementTransferInstructionPersistenceAdapter implements
     @Transactional(readOnly = true)
     public boolean existsBySettlementId(UUID settlementId) {
         return shareRepository.existsBySettlementId(settlementId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SettlementShare> findAllBySettlementId(UUID settlementId) {
+        return shareRepository.findAllBySettlementIdOrderByCreatedAtAscIdAsc(settlementId)
+                .stream()
+                .map(SettlementRequestMapper::toDomain)
+                .toList();
     }
 
     @Override

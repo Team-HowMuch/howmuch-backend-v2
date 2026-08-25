@@ -65,7 +65,7 @@ Use option 3. `accounts` represents only currently usable payment methods and is
 
 Every active Account has one Account Record. PostgreSQL triggers maintain that record across migration-first deployment and mark it deleted in the same database transaction as Account deletion. Transactions, monthly summaries, and finalized settlement snapshots reference the Account Record. A reconnected external account creates a new Account and Account Record. Its transaction synchronization uses the full period requested by the user and does not use the Account creation or linked time as a lower bound.
 
-Fetching an earlier period after reconnection may store the same external transaction under both the deleted and reconnected Account lifecycle IDs. This is intentional: no existing transaction row is moved, re-parented, or merged, and each Account keeps its own deduplication boundary.
+Fetching an earlier period after reconnection may store the same external transaction under both the deleted and reconnected Account lifecycle IDs. This is intentional: no existing transaction row is moved, re-parented, or merged, and each Account keeps its own ledger deduplication boundary. Settlement deposit reconciliation is stricter: snapshots with the same owner, institution, and decrypted account number share one matching boundary, and the stable external transaction key prevents one real deposit from completing settlements across multiple Account lifecycle IDs.
 
 Transaction and monthly-summary JPA entities store `account_id` as a scalar lifecycle ID rather than an `AccountJpaEntity` association. PostgreSQL still enforces `NOT NULL` foreign keys from those columns to `account_records(id)`, so removing the JPA association does not remove referential integrity.
 
