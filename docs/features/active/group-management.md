@@ -236,6 +236,7 @@ Existing behavior that must remain unchanged:
 - Flyway migration required: No. V18 already provides the role/status columns, active OWNER partial unique index, and nullable `settlement_participants.source_group_id` required by this scope.
 - Ownership transfer persistence: demote the current OWNER and flush before promoting the target MEMBER, then update `groups.owner_id` through one `TransferGroupOwnershipPort` call inside the Application transaction. The group row lock serializes concurrent transfers.
 - Member exit persistence: both self-leave and OWNER removal load settlement statuses through `LoadGroupMemberSettlementStatePort` and pass the same facts to `GroupMemberExitPolicy`; the Domain then records `LEFT` or `REMOVED` respectively.
+- Settlement issuance boundary: `SettlementRequestService` locks referenced group rows in ascending ID order and revalidates active GROUP_MEMBER participants, serializing `DRAFT -> REQUESTED` with member exits.
 - Compatibility boundary: settlement participant API responses and existing settlement state transitions remain unchanged.
 
 - [x] 1차 migration-only pull request to `develop` (#165)
@@ -383,6 +384,7 @@ git status --short --untracked-files=all
 | 2026-08-25 | #167 병합; 초대 코드 가입·재가입, 멤버 목록과 OWNER 직접 추가·복구 구현 및 계층별 테스트 완료 | #149 PR 리뷰 후 #150 | 동시 신규 가입은 unique 제약 충돌을 중복 활성 오류로 변환 |
 | 2026-08-25 | #168 병합; profile Stub 제거, 실제 활성 roster와 정산 참여자 `sourceGroupId` 저장·legacy 호환 구현 | #150 PR 리뷰 후 #151 | strict 제약 전까지 구버전 writer의 GROUP_MEMBER/null을 호환 읽기해야 함 |
 | 2026-08-25 | #169 병합; 원자적 소유권 이전, 공통 정산 종료 Policy, 자기 탈퇴·OWNER 제거 API와 PostgreSQL 동시성 검증 완료 | #151 PR 리뷰 후 #152 배포 호환 확인 | OWNER 역할 교체는 반드시 전용 persistence capability의 강등 선-flush 순서를 유지해야 함 |
+| 2026-08-25 | #171 P1 리뷰 반영; 정산 요청의 group row lock·활성 멤버 재검증과 실제 탈퇴 경합 통합 테스트 추가 | CI·재리뷰 확인 | settlement row 다음 group row 순서와 그룹 ID 오름차순 잠금을 유지해야 함 |
 
 ## 10. Decision log
 
