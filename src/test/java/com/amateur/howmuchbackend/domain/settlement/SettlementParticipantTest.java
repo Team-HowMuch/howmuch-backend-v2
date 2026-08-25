@@ -33,6 +33,7 @@ class SettlementParticipantTest {
         );
         SettlementParticipant groupMember = SettlementParticipant.groupMember(
                 SETTLEMENT_ID,
+                10L,
                 2L,
                 "문채원",
                 1,
@@ -45,6 +46,7 @@ class SettlementParticipantTest {
         assertThat(registered.displayName()).isEqualTo("최수아");
         assertThat(registered.isLinkedTo(1L)).isTrue();
         assertThat(groupMember.source()).isEqualTo(SettlementParticipantSource.GROUP_MEMBER);
+        assertThat(groupMember.sourceGroupId()).isEqualTo(10L);
         assertThat(groupMember.isLinkedTo(2L)).isTrue();
     }
 
@@ -114,6 +116,22 @@ class SettlementParticipantTest {
                 SETTLEMENT_ID,
                 linkedUserId,
                 "등록 참여자",
+                0,
+                CREATED_AT
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_PARTICIPANT_IDENTITY));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1})
+    @DisplayName("그룹 참여자는 양수 출처 그룹 ID가 있어야 한다")
+    void rejectsInvalidSourceGroupId(long sourceGroupId) {
+        assertThatThrownBy(() -> SettlementParticipant.groupMember(
+                SETTLEMENT_ID,
+                sourceGroupId,
+                2L,
+                "그룹 참여자",
                 0,
                 CREATED_AT
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->

@@ -291,6 +291,7 @@ class SettlementAllocationServiceTest {
                 com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource.REGISTERED_USER,
                 userId,
                 null,
+                null,
                 name,
                 order,
                 CREATED_AT,

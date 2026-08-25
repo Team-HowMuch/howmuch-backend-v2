@@ -36,6 +36,23 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMemberJpaEn
     @Query(value = """
             SELECT
                 target_group.id AS groupId,
+                member.user_id AS userId
+              FROM groups target_group
+              LEFT JOIN group_members member
+                ON member.group_id = target_group.id
+               AND member.status = 'ACTIVE'
+             WHERE target_group.id = :groupId
+               AND target_group.status = 'ACTIVE'
+             ORDER BY
+                CASE WHEN member.role = 'OWNER' THEN 0 ELSE 1 END,
+                member.joined_at ASC,
+                member.id ASC
+            """, nativeQuery = true)
+    List<GroupRosterProjection> findActiveRoster(@Param("groupId") Long groupId);
+
+    @Query(value = """
+            SELECT
+                target_group.id AS groupId,
                 target_group.name AS name,
                 target_group.image_file_name AS imageFileName
               FROM group_members member
@@ -54,5 +71,11 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMemberJpaEn
         String getName();
 
         String getImageFileName();
+    }
+
+    interface GroupRosterProjection {
+        Long getGroupId();
+
+        Long getUserId();
     }
 }
