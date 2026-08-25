@@ -11,6 +11,8 @@ import com.amateur.howmuchbackend.application.port.in.group.GetGroupMembersUseCa
 import com.amateur.howmuchbackend.application.port.in.group.JoinGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.UpdateGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.TransferGroupOwnershipUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.LeaveGroupUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.RemoveGroupMemberUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.command.UpdateGroupCommand;
 import com.amateur.howmuchbackend.application.port.in.group.command.AddGroupMemberCommand;
 import com.amateur.howmuchbackend.application.port.in.group.command.JoinGroupCommand;
@@ -65,6 +67,8 @@ class GroupControllerTest {
     @Mock private GetGroupMembersUseCase getGroupMembersUseCase;
     @Mock private AddGroupMemberUseCase addGroupMemberUseCase;
     @Mock private TransferGroupOwnershipUseCase transferGroupOwnershipUseCase;
+    @Mock private LeaveGroupUseCase leaveGroupUseCase;
+    @Mock private RemoveGroupMemberUseCase removeGroupMemberUseCase;
 
     private MockMvc mockMvc;
 
@@ -80,7 +84,9 @@ class GroupControllerTest {
                 joinGroupUseCase,
                 getGroupMembersUseCase,
                 addGroupMemberUseCase,
-                transferGroupOwnershipUseCase
+                transferGroupOwnershipUseCase,
+                leaveGroupUseCase,
+                removeGroupMemberUseCase
         )).setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -235,6 +241,30 @@ class GroupControllerTest {
                 captor.capture()
         );
         assertThat(captor.getValue().targetMemberId()).isEqualTo(20L);
+    }
+
+    @Test
+    @DisplayName("그룹 자기 탈퇴 성공은 빈 200 응답을 반환한다")
+    void leavesGroup() throws Exception {
+        mockMvc.perform(delete("/api/v2/groups/{groupId}/members/me", 10L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(leaveGroupUseCase).leave(10L);
+    }
+
+    @Test
+    @DisplayName("OWNER 멤버 제거 성공은 빈 200 응답을 반환한다")
+    void removesGroupMember() throws Exception {
+        mockMvc.perform(delete(
+                        "/api/v2/groups/{groupId}/members/{memberId}",
+                        10L,
+                        20L
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(removeGroupMemberUseCase).remove(10L, 20L);
     }
 
     private GroupDetailResult detail(String name, String memo, String imageUrl) {

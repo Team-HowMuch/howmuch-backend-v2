@@ -21,6 +21,8 @@ import com.amateur.howmuchbackend.application.port.in.group.GetGroupMembersUseCa
 import com.amateur.howmuchbackend.application.port.in.group.JoinGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.UpdateGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.TransferGroupOwnershipUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.LeaveGroupUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.RemoveGroupMemberUseCase;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
@@ -53,6 +55,8 @@ public class GroupController implements GroupDocs {
     private final GetGroupMembersUseCase getGroupMembersUseCase;
     private final AddGroupMemberUseCase addGroupMemberUseCase;
     private final TransferGroupOwnershipUseCase transferGroupOwnershipUseCase;
+    private final LeaveGroupUseCase leaveGroupUseCase;
+    private final RemoveGroupMemberUseCase removeGroupMemberUseCase;
 
     @Override
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -144,6 +148,23 @@ public class GroupController implements GroupDocs {
             @Valid @RequestBody TransferGroupOwnershipWebRequest request
     ) {
         transferGroupOwnershipUseCase.transfer(groupId, request.toCommand());
+        return ApiResponse.success();
+    }
+
+    @Override
+    @DeleteMapping("/{groupId}/members/me")
+    public ApiResponse<Void> leaveGroup(@PathVariable Long groupId) {
+        leaveGroupUseCase.leave(groupId);
+        return ApiResponse.success();
+    }
+
+    @Override
+    @DeleteMapping("/{groupId}/members/{memberId}")
+    public ApiResponse<Void> removeGroupMember(
+            @PathVariable Long groupId,
+            @PathVariable Long memberId
+    ) {
+        removeGroupMemberUseCase.remove(groupId, memberId);
         return ApiResponse.success();
     }
 }
