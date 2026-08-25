@@ -260,7 +260,8 @@ public class SettlementDepositService implements
         return new SettlementDepositMatchingPolicy.PayableShare(
                 candidate.shareId(),
                 candidate.payerName(),
-                remainingAmount
+                remainingAmount,
+                candidate.snapshotCreatedAt()
         );
     }
 

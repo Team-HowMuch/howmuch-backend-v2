@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -24,7 +25,8 @@ public interface SettlementDepositJpaRepository
             SELECT share.settlement_id AS settlementId,
                    share.id AS shareId,
                    participant.display_name AS payerName,
-                   share.amount - COALESCE(SUM(account_transaction.amount), 0) AS remainingAmount
+                   share.amount - COALESCE(SUM(account_transaction.amount), 0) AS remainingAmount,
+                   snapshot.created_at AT TIME ZONE 'UTC' AS snapshotCreatedAt
               FROM settlement_shares share
               JOIN settlements settlement
                 ON settlement.id = share.settlement_id
@@ -42,7 +44,8 @@ public interface SettlementDepositJpaRepository
                AND settlement.status = 'AWAITING_DEPOSIT'
                AND (participant.linked_user_id IS NULL
                     OR participant.linked_user_id <> settlement.creator_id)
-             GROUP BY share.settlement_id, share.id, participant.display_name, share.amount
+             GROUP BY share.settlement_id, share.id, participant.display_name, share.amount,
+                      snapshot.created_at
             HAVING share.amount > COALESCE(SUM(account_transaction.amount), 0)
              ORDER BY share.settlement_id, share.id
             """, nativeQuery = true)
@@ -58,5 +61,7 @@ public interface SettlementDepositJpaRepository
         String getPayerName();
 
         BigDecimal getRemainingAmount();
+
+        Instant getSnapshotCreatedAt();
     }
 }

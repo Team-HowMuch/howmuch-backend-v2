@@ -76,6 +76,7 @@ class SettlementDepositPersistenceIntegrationTest {
         assertThat(candidates).allSatisfy(candidate -> {
             assertThat(candidate.payerName()).isEqualTo("민선영");
             assertThat(candidate.remainingAmount()).isEqualTo(6_000);
+            assertThat(candidate.snapshotCreatedAt()).isEqualTo(NOW);
         });
     }
 

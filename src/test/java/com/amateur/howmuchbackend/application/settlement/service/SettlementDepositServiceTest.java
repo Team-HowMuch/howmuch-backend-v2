@@ -227,7 +227,8 @@ class SettlementDepositServiceTest {
                 settlementId,
                 shareId,
                 "민선영",
-                6_000
+                6_000,
+                CREATED_AT
         );
     }
 
