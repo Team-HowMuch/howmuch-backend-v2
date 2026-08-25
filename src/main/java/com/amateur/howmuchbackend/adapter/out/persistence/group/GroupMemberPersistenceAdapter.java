@@ -7,11 +7,16 @@ import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.GroupMemberStatus;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.group.status.GroupStatusCode;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Comparator;
 
 @Component
 @RequiredArgsConstructor
@@ -22,6 +27,24 @@ public class GroupMemberPersistenceAdapter implements LoadGroupMemberPort, SaveG
     public Optional<GroupMember> findByGroupIdAndUserId(Long groupId, Long userId) {
         return groupMemberJpaRepository.findByGroupIdAndUserId(groupId, userId)
                 .map(GroupMemberMapper::toDomain);
+    }
+
+    @Override
+    public Optional<GroupMember> findByGroupIdAndUserIdForUpdate(Long groupId, Long userId) {
+        return groupMemberJpaRepository.findByGroupIdAndUserIdForUpdate(groupId, userId)
+                .map(GroupMemberMapper::toDomain);
+    }
+
+    @Override
+    public List<GroupMember> findActiveByGroupId(Long groupId) {
+        return groupMemberJpaRepository.findAllByGroupIdAndStatus(groupId, GroupMemberStatus.ACTIVE)
+                .stream()
+                .map(GroupMemberMapper::toDomain)
+                .sorted(Comparator
+                        .comparing((GroupMember member) -> !member.isOwner())
+                        .thenComparing(GroupMember::joinedAt)
+                        .thenComparing(GroupMember::id))
+                .toList();
     }
 
     @Override
@@ -46,8 +69,38 @@ public class GroupMemberPersistenceAdapter implements LoadGroupMemberPort, SaveG
 
     @Override
     public GroupMember save(GroupMember member) {
-        return GroupMemberMapper.toDomain(
-                groupMemberJpaRepository.save(GroupMemberMapper.toEntity(member))
-        );
+        try {
+            return GroupMemberMapper.toDomain(
+                    groupMemberJpaRepository.saveAndFlush(GroupMemberMapper.toEntity(member))
+            );
+        } catch (DataIntegrityViolationException exception) {
+            if (hasConstraint(exception, "uk_group_members_group_user")) {
+                throw ApplicationException.of(GroupStatusCode.GROUP_MEMBER_ALREADY_ACTIVE, exception);
+            }
+            throw exception;
+        }
+    }
+
+    @Override
+    public GroupMember update(GroupMember member) {
+        var entity = groupMemberJpaRepository.findById(member.id())
+                .orElseThrow(() -> new IllegalStateException("Group member not found: " + member.id()));
+        entity.updateFrom(member);
+        return GroupMemberMapper.toDomain(groupMemberJpaRepository.save(entity));
+    }
+
+    private boolean hasConstraint(Throwable throwable, String constraintName) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraintViolation
+                    && constraintName.equals(constraintViolation.getConstraintName())) {
+                return true;
+            }
+            if (current.getMessage() != null && current.getMessage().contains(constraintName)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

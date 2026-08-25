@@ -13,6 +13,14 @@ public interface GroupJpaRepository extends JpaRepository<GroupJpaEntity, Long> 
     boolean existsByInviteCode(String inviteCode);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select targetGroup
+              from GroupJpaEntity targetGroup
+             where targetGroup.inviteCode = :inviteCode
+            """)
+    Optional<GroupJpaEntity> findByInviteCodeForUpdate(@Param("inviteCode") String inviteCode);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select targetGroup from GroupJpaEntity targetGroup where targetGroup.id = :groupId")
     Optional<GroupJpaEntity> findByIdForUpdate(@Param("groupId") Long groupId);
 }
