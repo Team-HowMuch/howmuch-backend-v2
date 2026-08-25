@@ -300,4 +300,6 @@ JpaEntity(source=GROUP_MEMBER, sourceGroupId=null)
 - JPA Entity·Mapper가 그룹 출처를 저장·복원하며 legacy `GROUP_MEMBER/source_group_id NULL`은 `REGISTERED_USER/null`로 안전하게 읽는다.
 - 기존 REGISTERED_USER·CONTACT와 공개 Web 응답 계약은 변경하지 않았다.
 - Domain·Application 단위 테스트와 실제 그룹 roster, 그룹 출처 저장, legacy 호환 PostgreSQL 통합 테스트를 추가했다.
-- 멤버 종료용 정산 상태 조회는 #151, strict source/group 제약은 배포 호환 확인 후 #152에서 구현한다.
+- #151에서 settlement Persistence Adapter가 `LoadGroupMemberSettlementStatePort`를 구현해 그룹·사용자·`GROUP_MEMBER` 출처 기준 distinct `SettlementStatus`를 조회한다.
+- 자기 탈퇴와 OWNER 제거가 이 같은 조회 결과를 `GroupMemberExitPolicy`에 전달하며, 실제 PostgreSQL에서 `DRAFT`와 `REQUESTED` 상태 복원을 통합 검증했다.
+- strict source/group 제약은 배포 호환 확인 후 #152에서 구현한다.
