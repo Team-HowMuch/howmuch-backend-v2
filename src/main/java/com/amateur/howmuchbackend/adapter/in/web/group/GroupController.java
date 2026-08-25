@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupDetailW
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupSummaryWebResponse;
 import com.amateur.howmuchbackend.application.group.model.GroupImage;
 import com.amateur.howmuchbackend.application.port.in.group.CreateGroupUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.DeleteGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupImageUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetMyGroupsUseCase;
@@ -17,6 +18,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,6 +37,7 @@ public class GroupController implements GroupDocs {
     private final GetGroupUseCase getGroupUseCase;
     private final GetGroupImageUseCase getGroupImageUseCase;
     private final UpdateGroupUseCase updateGroupUseCase;
+    private final DeleteGroupUseCase deleteGroupUseCase;
 
     @Override
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -80,5 +83,12 @@ public class GroupController implements GroupDocs {
         return ApiResponse.success(GroupDetailWebResponse.from(
                 updateGroupUseCase.update(groupId, request.toCommand())
         ));
+    }
+
+    @Override
+    @DeleteMapping("/{groupId}")
+    public ApiResponse<Void> deleteGroup(@PathVariable Long groupId) {
+        deleteGroupUseCase.delete(groupId);
+        return ApiResponse.success();
     }
 }
