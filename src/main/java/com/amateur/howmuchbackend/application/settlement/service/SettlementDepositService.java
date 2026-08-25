@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementDe
 import com.amateur.howmuchbackend.application.port.in.settlement.ReconcileSettlementDepositsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDepositSummaryResult;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
+import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
@@ -61,6 +62,7 @@ public class SettlementDepositService implements
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
     private final SettlementDepositStorePort depositStorePort;
+    private final LoadAccountPort loadAccountPort;
     private final LoadAccountTransactionPort loadTransactionPort;
     private final SaveAccountTransactionPort saveTransactionPort;
     private final ExternalConnectionStorePort connectionStorePort;
@@ -83,11 +85,16 @@ public class SettlementDepositService implements
                 .orElseThrow(() -> ApplicationException.of(
                         ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND
                 ));
-        saveTransactionPort.saveAllIgnoringDuplicates(fetchTransactions(
+        List<Transaction> fetchedTransactions = fetchTransactions(
                 connection,
                 data.snapshot(),
                 now
-        ));
+        );
+        loadAccountPort.findActiveByIdAndUserIdForUpdate(
+                data.snapshot().sourceAccountId(),
+                actor.userId()
+        );
+        saveTransactionPort.saveAllIgnoringDuplicates(fetchedTransactions);
 
         List<Transaction> transactions = loadTransactionPort.findIncomeByAccountIdBetween(
                 data.snapshot().sourceAccountId(),
