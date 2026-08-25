@@ -148,6 +148,29 @@ class AccountTransactionPersistenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("새 거래가 실제 저장된 월만 기존 월 요약을 무효화한다")
+    void invalidatesOnlyChangedMonthlySummary() {
+        Transaction first = transaction(
+                "e".repeat(64), AccountTransactionType.EXPENSE, "1000",
+                LocalDateTime.of(2026, 8, 20, 0, 15)
+        );
+        Transaction second = transaction(
+                "f".repeat(64), AccountTransactionType.EXPENSE, "2000",
+                LocalDateTime.of(2026, 8, 21, 0, 15)
+        );
+        adapter.saveAllIgnoringDuplicates(List.of(first));
+        adapter.saveSummaryIfAbsent(adapter.calculateSummary(accountId, AUGUST));
+
+        adapter.saveAllIgnoringDuplicates(List.of(first));
+        assertThat(adapter.findSummary(accountId, AUGUST)).isPresent();
+
+        adapter.saveAllIgnoringDuplicates(List.of(second));
+        assertThat(adapter.findSummary(accountId, AUGUST)).isEmpty();
+        assertThat(adapter.calculateSummary(accountId, AUGUST).monthlyExpenseAmount())
+                .isEqualByComparingTo("3000");
+    }
+
+    @Test
     @DisplayName("활성 Account 삭제 뒤에도 Account Record FK로 거래와 월 요약을 조회한다")
     void loadsHistoryAfterActiveAccountDeletion() {
         Transaction expense = transaction(

@@ -15,6 +15,17 @@ public interface AccountMonthlySummaryJpaRepository
         extends JpaRepository<AccountMonthlySummaryJpaEntity, Long> {
     Optional<AccountMonthlySummaryJpaEntity> findByAccountIdAndYearMonth(Long accountId, LocalDate yearMonth);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            delete from AccountMonthlySummaryJpaEntity summary
+             where summary.accountId = :accountId
+               and summary.yearMonth = :yearMonth
+            """)
+    int deleteByAccountIdAndYearMonth(
+            @Param("accountId") Long accountId,
+            @Param("yearMonth") LocalDate yearMonth
+    );
+
     @Modifying
     @Query(value = """
             INSERT INTO account_monthly_summaries (
