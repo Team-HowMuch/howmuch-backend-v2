@@ -1,12 +1,16 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.group;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.group.mapper.GroupMemberMapper;
+import com.amateur.howmuchbackend.adapter.out.persistence.group.repository.GroupJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.group.repository.GroupMemberJpaRepository;
+import com.amateur.howmuchbackend.application.group.model.GroupMemberRoster;
 import com.amateur.howmuchbackend.application.port.out.group.GroupSummaryReadModel;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
+import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMembersPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.GroupMemberStatus;
+import com.amateur.howmuchbackend.domain.group.GroupStatus;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.group.status.GroupStatusCode;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +24,8 @@ import java.util.Comparator;
 
 @Component
 @RequiredArgsConstructor
-public class GroupMemberPersistenceAdapter implements LoadGroupMemberPort, SaveGroupMemberPort {
+public class GroupMemberPersistenceAdapter implements LoadGroupMemberPort, LoadGroupMembersPort, SaveGroupMemberPort {
+    private final GroupJpaRepository groupJpaRepository;
     private final GroupMemberJpaRepository groupMemberJpaRepository;
 
     @Override
@@ -45,6 +50,19 @@ public class GroupMemberPersistenceAdapter implements LoadGroupMemberPort, SaveG
                         .thenComparing(GroupMember::joinedAt)
                         .thenComparing(GroupMember::id))
                 .toList();
+    }
+
+    @Override
+    public Optional<GroupMemberRoster> findActiveRoster(Long groupId) {
+        if (groupId == null
+                || groupId <= 0
+                || !groupJpaRepository.existsByIdAndStatus(groupId, GroupStatus.ACTIVE)) {
+            return Optional.empty();
+        }
+        return Optional.of(new GroupMemberRoster(
+                groupId,
+                findActiveByGroupId(groupId).stream().map(GroupMember::userId).toList()
+        ));
     }
 
     @Override
