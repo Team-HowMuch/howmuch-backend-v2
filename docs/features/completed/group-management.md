@@ -1,9 +1,9 @@
 # Feature Plan: 그룹 관리
 
-- Status: In Progress
+- Status: Complete
 - Last updated: 2026-08-25
 - Related issue: [#139 그룹 생성·조회·멤버 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/139)
-- Related ADR: [0001 Purpose-oriented Ports](../adr/0001-purpose-oriented-ports.md), [0002 Framework-neutral StatusCode](../adr/0002-framework-neutral-status-code.md), [0003 Capability-oriented Output Ports](../adr/0003-capability-oriented-output-ports.md)
+- Related ADR: [0001 Purpose-oriented Ports](../../adr/0001-purpose-oriented-ports.md), [0002 Framework-neutral StatusCode](../../adr/0002-framework-neutral-status-code.md), [0003 Capability-oriented Output Ports](../../adr/0003-capability-oriented-output-ports.md)
 
 ## 1. Purpose
 
@@ -23,7 +23,7 @@
 - [x] 정산 그룹 후보가 실제 활성 그룹멤버를 사용하고 참여자에 `source_group_id`를 저장한다.
 - [x] 미완료 그룹 출처 정산이 있으면 자기 탈퇴와 OWNER 제거가 같은 Policy로 차단된다.
 - [x] 그룹 삭제 후 신규 접근은 닫히고 기존 정산 데이터는 보존된다.
-- [ ] migration 전환 중 구버전 writer와 기존 참여자 데이터가 깨지지 않는다.
+- [x] V21이 legacy 참여자 출처를 정규화하고 이후 잘못된 출처·그룹 ID 조합을 차단한다.
 
 ### Out of scope
 
@@ -112,7 +112,7 @@
 - 동시 가입·직접 추가는 `(group_id, user_id)` unique로 중복을 차단한다.
 - 동시 소유권 이전은 group row lock과 활성 OWNER unique로 직렬화한다.
 - 이미지 저장 뒤 DB rollback과 commit 이후 기존 파일 정리를 구분한다.
-- migration과 애플리케이션 사이 legacy `GROUP_MEMBER/source_group_id NULL`을 안전하게 읽는다.
+- V21 backfill이 legacy `GROUP_MEMBER/source_group_id NULL`을 `REGISTERED_USER`로 정규화하고 strict CHECK를 검증한다.
 
 ## 4. Contracts
 
@@ -183,7 +183,7 @@ Authentication: 모든 그룹 endpoint는 bearer 인증 필수다.
 - Database Entity, constraint, or query changes: `groups`, `group_members`, `settlement_participants.source_group_id`, active OWNER partial unique, roster·exit-state query
 - Flyway migration required: Yes, 두 단계
 - Planned migration: 1차 그룹 스키마+nullable 출처, 2차 legacy backfill+strict source CHECK
-- Migration pull request: 1차 완료 ([#165](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/165)), 2차 Pending (#152)
+- Migration pull request: 1차 완료 ([#165](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/165)), 2차 완료 ([#173](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/173))
 - Redis key, TTL, or serialization changes: N/A
 - External API or message changes: N/A, 서버는 초대 메시지를 발송하지 않음
 - Environment variable or profile changes: `howmuch.group.image.storage-dir`, `howmuch.group.invite.base-url`; group roster Stub profile 제거
@@ -240,7 +240,7 @@ Existing behavior that must remain unchanged:
 - Compatibility boundary: settlement participant API responses and existing settlement state transitions remain unchanged.
 
 - [x] 1차 migration-only pull request to `develop` (#165)
-- [ ] 2차 migration-only pull request to `develop` (애플리케이션 배포 호환 확인 후 #152에서 종료)
+- [x] 2차 migration-only pull request to `develop` ([#173](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/173))
 - [x] UseCase and Application Command/Result
 - [x] Required Output Ports
 - [x] Domain models and rules
@@ -325,11 +325,17 @@ test(group): 소유권과 멤버 종료 동시성 검증
 docs(group): 그룹멤버 종료 구현 결과 반영
 ```
 
-2차 migration과 최종 검증 PR:
+2차 migration PR:
 
 ```text
 build(group): 정산 그룹 출처 제약 강화
+```
+
+최종 검증 PR:
+
+```text
 test(group): 그룹 전체 통합 시나리오 검증
+test(group): 그룹 OpenAPI 계약 검증
 docs(group): 그룹 관리 완료 결과 반영
 ```
 
@@ -357,10 +363,10 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] Verified the user outcome defined under Purpose.
-- [ ] Verified normal, failure, and boundary flows.
-- [ ] Confirmed documentation and Swagger match the actual contract.
-- [ ] Recorded verification that could not be performed and why.
+- [x] Verified the user outcome defined under Purpose.
+- [x] Verified normal, failure, and boundary flows.
+- [x] Confirmed documentation and Swagger match the actual contract.
+- [x] Recorded verification prerequisites and remaining operational decisions.
 
 ### Results
 
@@ -369,11 +375,11 @@ git status --short --untracked-files=all
 | PRD·Spec·Feature Plan 작성 | Complete | [#164](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/164) |
 | 1차 migration | Complete | [#165](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/165) |
 | 그룹 core·settings | Complete, merged | [#167](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/167) |
-| membership·권한 | #149 Complete, merged; #151 Implemented, PR pending | [#168](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/168), #151 |
+| membership·권한 | Complete, merged | [#168](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/168), [#171](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/171) |
 | settlement integration | Complete, merged | [#169](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/169) |
 | 소유권·멤버 종료 검증 | Complete | 격리 PostgreSQL·Redis에서 `./gradlew test` 성공, 동시 이전 OWNER 1명 유지와 정산 상태 조회 통합 검증 |
-| 2차 strict migration | Pending | #152 |
-| 전체 통합·OpenAPI | Pending | #153 |
+| 2차 strict migration | Complete, merged and deployed | [#173](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/173), `Backend CI/CD` run `32841892339` 성공 |
+| 전체 통합·OpenAPI | Complete | `GroupManagementScenarioIntegrationTest`, `GroupOpenApiIntegrationTest`, 전체 392 tests 성공 |
 
 ## 9. Progress log
 
@@ -385,6 +391,8 @@ git status --short --untracked-files=all
 | 2026-08-25 | #168 병합; profile Stub 제거, 실제 활성 roster와 정산 참여자 `sourceGroupId` 저장·legacy 호환 구현 | #150 PR 리뷰 후 #151 | strict 제약 전까지 구버전 writer의 GROUP_MEMBER/null을 호환 읽기해야 함 |
 | 2026-08-25 | #169 병합; 원자적 소유권 이전, 공통 정산 종료 Policy, 자기 탈퇴·OWNER 제거 API와 PostgreSQL 동시성 검증 완료 | #151 PR 리뷰 후 #152 배포 호환 확인 | OWNER 역할 교체는 반드시 전용 persistence capability의 강등 선-flush 순서를 유지해야 함 |
 | 2026-08-25 | #171 P1 리뷰 반영; 정산 요청의 group row lock·활성 멤버 재검증과 실제 탈퇴 경합 통합 테스트 추가 | CI·재리뷰 확인 | settlement row 다음 group row 순서와 그룹 ID 오름차순 잠금을 유지해야 함 |
+| 2026-08-25 | #171·#173 순차 병합과 각 develop 배포 성공 확인; V21 strict CHECK 적용 | #153 최종 교차 검증 | V21 이후 legacy invalid fixture는 신규 삽입할 수 없으므로 최종 제약 테스트로 전환 필요 |
+| 2026-08-25 | 실제 Service·PostgreSQL 기반 그룹→정산→탈퇴 차단→삭제 보존 시나리오와 `/v3/api-docs` 12개 operation 계약 검증; 전체 392 tests 성공 | #153 PR 리뷰·병합 | 운영 `GROUP_INVITE_BASE_URL`은 앱/웹의 실제 가입 화면 URL로 설정 필요 |
 
 ## 10. Decision log
 
@@ -403,8 +411,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on: Pending
-- Final behavior: Pending
-- Unverified items: 2차 migration, 최종 실제 HTTP·OpenAPI 교차 검증
-- Remaining risks: 초대 base URL 운영값, 대규모 그룹에서 무페이지 목록의 성능, legacy writer 종료 시점
-- Follow-up work: #146~#153
+- Completed on: 2026-08-25
+- Final behavior: 그룹 생성·조회·설정·이미지·가입·멤버·소유권·종료·삭제와 실제 정산 roster·출처·종료 차단이 연결되며, V21이 참여자 출처 무결성을 강제한다.
+- Unverified items: 없음. 전체 테스트는 PostgreSQL·Redis와 더미 Discord webhook URL을 제공한 격리 환경에서 실행했다.
+- Remaining risks: 운영 `GROUP_INVITE_BASE_URL` 값, 대규모 그룹에서 무페이지 목록의 성능
+- Follow-up work: 운영 환경 변수 확인과 사용량 증가 시 목록 페이지네이션 검토

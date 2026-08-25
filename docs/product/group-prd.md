@@ -209,9 +209,9 @@ ACTIVE MEMBER -> OWNER   (소유권 이전)
 
 ## 8. 구현 문서 연결
 
-- [그룹 핵심 기능 Spec](../features/active/group-core-spec.md)
-- [그룹 멤버십·권한 Spec](../features/active/group-membership-spec.md)
-- [그룹-정산 연동 Spec](../features/active/group-settlement-integration-spec.md)
-- [그룹 관리 Feature Plan](../features/active/group-management.md)
+- [그룹 핵심 기능 Spec](../features/completed/group-core-spec.md)
+- [그룹 멤버십·권한 Spec](../features/completed/group-membership-spec.md)
+- [그룹-정산 연동 Spec](../features/completed/group-settlement-integration-spec.md)
+- [그룹 관리 Feature Plan](../features/completed/group-management.md)
 - 상위 이슈: [#139 그룹 생성·조회·멤버 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/139)
 - 문서 이슈: [#141 그룹 PRD 작성](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/141)
