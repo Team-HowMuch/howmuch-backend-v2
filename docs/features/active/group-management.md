@@ -19,7 +19,7 @@
 
 - [x] 로그인 사용자가 그룹을 생성하고 자신의 활성 그룹 목록·상세·이미지를 조회할 수 있다.
 - [ ] OWNER가 설정·멤버·소유권을 관리하고 MEMBER는 허용된 조회·탈퇴만 수행한다.
-- [ ] 초대 코드 가입, `LEFT` 재가입과 `REMOVED` OWNER 복구가 정의된 상태 전이를 따른다.
+- [x] 초대 코드 가입, `LEFT` 재가입과 `REMOVED` OWNER 복구가 정의된 상태 전이를 따른다.
 - [ ] 정산 그룹 후보가 실제 활성 그룹멤버를 사용하고 참여자에 `source_group_id`를 저장한다.
 - [ ] 미완료 그룹 출처 정산이 있으면 자기 탈퇴와 OWNER 제거가 같은 Policy로 차단된다.
 - [x] 그룹 삭제 후 신규 접근은 닫히고 기존 정산 데이터는 보존된다.
@@ -359,8 +359,8 @@ git status --short --untracked-files=all
 | --- | --- | --- |
 | PRD·Spec·Feature Plan 작성 | Complete | [#164](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/164) |
 | 1차 migration | Complete | [#165](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/165) |
-| 그룹 core·settings | Implemented, PR pending | #147, #148 |
-| membership·권한 | Pending | #149, #151 |
+| 그룹 core·settings | Complete, merged | [#167](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/167) |
+| membership·권한 | #149 Implemented, PR pending; #151 Pending | #149, #151 |
 | settlement integration | Pending | #150 |
 | 2차 strict migration | Pending | #152 |
 | 전체 통합·OpenAPI | Pending | #153 |
@@ -371,6 +371,7 @@ git status --short --untracked-files=all
 | --- | --- | --- | --- |
 | 2026-08-25 | 기능명세서, `develop`, 기존 PR·문서 형식 분석; PRD·Spec 3종·Feature Plan 초안 작성 | 문서 리뷰 후 #146 migration gate 실행 | GROUP_MEMBER legacy 행과 구버전 writer 사이 배포 호환 필요 |
 | 2026-08-25 | #164·#165 병합; 그룹 생성·조회·이미지·설정·소프트 삭제와 계층별 테스트 구현 | #147·#148 PR 리뷰 후 #149 | 무페이지 목록은 규모 증가 시 재검토 필요 |
+| 2026-08-25 | #167 병합; 초대 코드 가입·재가입, 멤버 목록과 OWNER 직접 추가·복구 구현 및 계층별 테스트 완료 | #149 PR 리뷰 후 #150 | 동시 신규 가입은 unique 제약 충돌을 중복 활성 오류로 변환 |
 
 ## 10. Decision log
 
@@ -391,6 +392,6 @@ git status --short --untracked-files=all
 
 - Completed on: Pending
 - Final behavior: Pending
-- Unverified items: migration, Java 구현, PostgreSQL·Redis·HTTP·OpenAPI 검증
+- Unverified items: #150·#151 Java 구현, 2차 migration, 최종 HTTP·OpenAPI 교차 검증
 - Remaining risks: 초대 base URL 운영값, 대규모 그룹에서 무페이지 목록의 성능, legacy writer 종료 시점
 - Follow-up work: #146~#153

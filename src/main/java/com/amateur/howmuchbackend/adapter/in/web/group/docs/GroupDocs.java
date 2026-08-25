@@ -2,9 +2,12 @@ package com.amateur.howmuchbackend.adapter.in.web.group.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.CreateGroupWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.AddGroupMemberWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.JoinGroupWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.UpdateGroupWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupDetailWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupSummaryWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupMemberWebResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -136,4 +139,81 @@ public interface GroupDocs {
             )
     })
     ApiResponse<Void> deleteGroup(Long groupId);
+
+    @Operation(
+            summary = "그룹 가입",
+            description = "초대 코드로 그룹에 가입하거나 LEFT 멤버십을 재활성화합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "그룹 가입 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_GROUP_INVITE_CODE"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "GROUP_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "GROUP_MEMBER_ALREADY_ACTIVE 또는 GROUP_MEMBER_REMOVED"
+            )
+    })
+    ApiResponse<GroupDetailWebResponse> joinGroup(JoinGroupWebRequest request);
+
+    @Operation(
+            summary = "그룹 멤버 목록 조회",
+            description = "활성 멤버가 그룹의 활성 구성원 전체를 조회합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "그룹 멤버 목록 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "GROUP_ACCESS_DENIED"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "GROUP_NOT_FOUND"
+            )
+    })
+    ApiResponse<List<GroupMemberWebResponse>> getGroupMembers(Long groupId);
+
+    @Operation(
+            summary = "그룹 멤버 직접 추가",
+            description = "OWNER가 공개 ID로 새 멤버를 추가하거나 REMOVED 멤버십을 복구합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "201",
+                    description = "그룹 멤버 추가 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "GROUP_ACCESS_DENIED 또는 GROUP_OWNER_REQUIRED"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "GROUP_NOT_FOUND 또는 GROUP_MEMBER_CANDIDATE_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "GROUP_MEMBER_ALREADY_ACTIVE 또는 GROUP_MEMBER_LEFT_REQUIRES_INVITE"
+            )
+    })
+    ApiResponse<GroupMemberWebResponse> addGroupMember(
+            Long groupId,
+            AddGroupMemberWebRequest request
+    );
 }
