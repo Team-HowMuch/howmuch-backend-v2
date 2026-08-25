@@ -13,7 +13,7 @@ import java.util.Optional;
 
 public interface AccountMonthlySummaryJpaRepository
         extends JpaRepository<AccountMonthlySummaryJpaEntity, Long> {
-    Optional<AccountMonthlySummaryJpaEntity> findByAccount_IdAndYearMonth(Long accountId, LocalDate yearMonth);
+    Optional<AccountMonthlySummaryJpaEntity> findByAccountIdAndYearMonth(Long accountId, LocalDate yearMonth);
 
     @Modifying
     @Query(value = """

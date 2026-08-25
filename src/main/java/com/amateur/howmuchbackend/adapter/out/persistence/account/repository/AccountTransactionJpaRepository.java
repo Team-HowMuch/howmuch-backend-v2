@@ -14,19 +14,19 @@ import java.util.Optional;
 
 public interface AccountTransactionJpaRepository extends JpaRepository<AccountTransactionJpaEntity, Long> {
     List<AccountTransactionJpaEntity>
-    findByAccount_IdAndTransactedAtGreaterThanEqualAndTransactedAtLessThanOrderByTransactedAtDescIdDesc(
+    findByAccountIdAndTransactedAtGreaterThanEqualAndTransactedAtLessThanOrderByTransactedAtDescIdDesc(
             Long accountId,
             LocalDateTime start,
             LocalDateTime end
     );
 
-    Optional<AccountTransactionJpaEntity> findByAccount_IdAndId(Long accountId, Long transactionId);
+    Optional<AccountTransactionJpaEntity> findByAccountIdAndId(Long accountId, Long transactionId);
 
     @Query("""
-            select transaction.account.id, max(transaction.transactedAt)
+            select transaction.accountId, max(transaction.transactedAt)
               from AccountTransactionJpaEntity transaction
-             where transaction.account.id in :accountIds
-             group by transaction.account.id
+             where transaction.accountId in :accountIds
+             group by transaction.accountId
             """)
     List<Object[]> findLastUsedAtByAccountIds(@Param("accountIds") Collection<Long> accountIds);
 

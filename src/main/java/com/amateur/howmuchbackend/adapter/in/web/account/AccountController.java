@@ -11,6 +11,7 @@ import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.AccountSum
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.AccountTransactionWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.application.port.in.account.ConnectBankUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.DeleteAccountUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountDetailUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransactionsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountsUseCase;
@@ -21,6 +22,7 @@ import com.amateur.howmuchbackend.domain.account.AccountSort;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -41,6 +43,7 @@ public class AccountController implements AccountDocs {
     private final GetAccountsUseCase getAccountsUseCase;
     private final GetAccountDetailUseCase getAccountDetailUseCase;
     private final GetAccountTransactionsUseCase getAccountTransactionsUseCase;
+    private final DeleteAccountUseCase deleteAccountUseCase;
 
     @Override
     @GetMapping
@@ -73,6 +76,13 @@ public class AccountController implements AccountDocs {
         return ApiResponse.success(getAccountTransactionsUseCase.getAccountTransactions(accountId, yearMonth).stream()
                 .map(AccountTransactionWebResponse::from)
                 .toList());
+    }
+
+    @Override
+    @DeleteMapping("/{accountId}")
+    public ApiResponse<Void> deleteAccount(@PathVariable Long accountId) {
+        deleteAccountUseCase.delete(accountId);
+        return ApiResponse.success();
     }
 
     @Override
