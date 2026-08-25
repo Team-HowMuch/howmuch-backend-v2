@@ -114,6 +114,7 @@ class GroupPersistenceIntegrationTest {
         assertThat(deleted.status()).isEqualTo(GroupStatus.DELETED);
         assertThat(groupMemberPersistenceAdapter.findByGroupIdAndUserId(savedGroup.id(), userId)).isPresent();
         assertThat(groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId)).isEmpty();
+        assertThat(groupMemberPersistenceAdapter.findActiveRoster(savedGroup.id())).isEmpty();
         Integer membershipCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM group_members WHERE group_id = ?",
                 Integer.class,
@@ -190,6 +191,9 @@ class GroupPersistenceIntegrationTest {
         var members = groupMemberPersistenceAdapter.findActiveByGroupId(savedGroup.id());
 
         assertThat(members).extracting(GroupMember::userId)
+                .containsExactly(userId, earlierMemberUserId, laterMemberUserId);
+        var roster = groupMemberPersistenceAdapter.findActiveRoster(savedGroup.id()).orElseThrow();
+        assertThat(roster.activeUserIds())
                 .containsExactly(userId, earlierMemberUserId, laterMemberUserId);
     }
 

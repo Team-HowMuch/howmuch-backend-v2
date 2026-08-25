@@ -41,6 +41,7 @@ class SettlementParticipantPersistenceIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     private Long creatorId;
+    private Long groupId;
     private UUID settlementId;
 
     @BeforeEach
@@ -85,11 +86,33 @@ class SettlementParticipantPersistenceIntegrationTest {
                 CREATED_AT
         );
         settlementJpaRepository.saveAndFlush(new SettlementJpaEntity(settlement));
+        groupId = jdbcTemplate.queryForObject("""
+                        INSERT INTO groups (
+                            name,
+                            owner_id,
+                            invite_code,
+                            status,
+                            creator_id,
+                            created_at,
+                            updated_at
+                        )
+                        VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?)
+                        RETURNING id
+                        """,
+                Long.class,
+                "참여자 출처 그룹",
+                creatorId,
+                "GP" + uniqueKey.replace("-", "").substring(0, 6).toUpperCase(),
+                creatorId,
+                CREATED_AT,
+                CREATED_AT
+        );
     }
 
     @AfterEach
     void tearDown() {
         jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", settlementId);
+        jdbcTemplate.update("DELETE FROM groups WHERE id = ?", groupId);
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", creatorId);
     }
 
@@ -113,6 +136,7 @@ class SettlementParticipantPersistenceIntegrationTest {
         assertThat(entity.getSource()).isEqualTo(SettlementParticipantSource.REGISTERED_USER);
         assertThat(entity.getLinkedUserId()).isEqualTo(creatorId);
         assertThat(entity.getPhoneHash()).isNull();
+        assertThat(entity.getSourceGroupId()).isNull();
         assertThat(entity.getDisplayName()).isEqualTo("최수아");
         assertThat(entity.getDisplayOrder()).isZero();
     }
@@ -149,6 +173,59 @@ class SettlementParticipantPersistenceIntegrationTest {
                 .containsExactly(0, 1, 2);
         assertThat(participants).extracting(SettlementParticipant::displayName)
                 .containsExactly("첫 번째", "두 번째", "세 번째");
+    }
+
+    @Test
+    @DisplayName("그룹 참여자의 출처 그룹 ID를 저장하고 복원한다")
+    void savesGroupMemberSource() {
+        SettlementParticipant saved = settlementParticipantPersistenceAdapter.save(
+                SettlementParticipant.groupMember(
+                        settlementId,
+                        groupId,
+                        creatorId,
+                        "그룹 참여자",
+                        0,
+                        CREATED_AT
+                )
+        );
+
+        var entity = settlementParticipantJpaRepository.findById(saved.id()).orElseThrow();
+        assertThat(entity.getSource()).isEqualTo(SettlementParticipantSource.GROUP_MEMBER);
+        assertThat(entity.getSourceGroupId()).isEqualTo(groupId);
+        assertThat(saved.sourceGroupId()).isEqualTo(groupId);
+    }
+
+    @Test
+    @DisplayName("전환 기간의 GROUP_MEMBER 출처 null 행은 등록 사용자로 안전하게 읽는다")
+    void readsLegacyGroupMemberAsRegisteredUser() {
+        UUID participantId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_participants (
+                            id,
+                            settlement_id,
+                            source,
+                            linked_user_id,
+                            display_name,
+                            display_order,
+                            created_at,
+                            updated_at
+                        )
+                        VALUES (?, ?, 'GROUP_MEMBER', ?, ?, 0, ?, ?)
+                        """,
+                participantId,
+                settlementId,
+                creatorId,
+                "legacy 그룹 참여자",
+                CREATED_AT,
+                CREATED_AT
+        );
+
+        SettlementParticipant loaded = settlementParticipantPersistenceAdapter
+                .findBySettlementIdAndId(settlementId, participantId)
+                .orElseThrow();
+
+        assertThat(loaded.source()).isEqualTo(SettlementParticipantSource.REGISTERED_USER);
+        assertThat(loaded.sourceGroupId()).isNull();
     }
 
     private SettlementParticipant unlinkedContact(String phoneHash, String displayName, int displayOrder) {

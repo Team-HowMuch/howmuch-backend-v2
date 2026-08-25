@@ -292,6 +292,7 @@ class SettlementItemAllocationServiceTest {
                 SettlementParticipantSource.REGISTERED_USER,
                 linkedUserId,
                 null,
+                null,
                 name,
                 order,
                 CREATED_AT,

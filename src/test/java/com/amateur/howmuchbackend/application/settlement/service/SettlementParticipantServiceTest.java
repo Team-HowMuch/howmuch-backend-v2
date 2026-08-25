@@ -40,6 +40,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
@@ -784,6 +785,10 @@ class SettlementParticipantServiceTest {
         assertThat(result.publicId()).isEqualTo("group.member");
         assertThat(result.displayName()).isEqualTo("회원 3");
         assertThat(result.displayOrder()).isEqualTo(3);
+        ArgumentCaptor<SettlementParticipant> participantCaptor =
+                ArgumentCaptor.forClass(SettlementParticipant.class);
+        verify(saveSettlementParticipantPort).save(participantCaptor.capture());
+        assertThat(participantCaptor.getValue().sourceGroupId()).isEqualTo(groupId);
         verify(allocationDraftInvalidator).invalidate(any(Settlement.class), any(LocalDateTime.class));
     }
 
@@ -847,6 +852,7 @@ class SettlementParticipantServiceTest {
                 SettlementParticipantSource.REGISTERED_USER,
                 CREATOR_ID,
                 null,
+                null,
                 "최수아",
                 0,
                 CREATED_AT,
@@ -860,6 +866,7 @@ class SettlementParticipantServiceTest {
                 SETTLEMENT_ID,
                 SettlementParticipantSource.CONTACT,
                 LINKED_USER_ID,
+                null,
                 null,
                 "연락처 회원",
                 1,
@@ -879,6 +886,7 @@ class SettlementParticipantServiceTest {
                 SettlementParticipantSource.CONTACT,
                 null,
                 phoneHash,
+                null,
                 "비회원 연락처",
                 2,
                 CREATED_AT,

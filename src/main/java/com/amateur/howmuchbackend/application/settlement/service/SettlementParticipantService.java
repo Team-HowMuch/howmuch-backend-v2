@@ -454,6 +454,7 @@ public class SettlementParticipantService implements
                 SettlementParticipantSource.REGISTERED_USER,
                 user.id(),
                 user.identityKey(),
+                null,
                 user.name(),
                 user.publicId()
         );
@@ -474,6 +475,7 @@ public class SettlementParticipantService implements
                 SettlementParticipantSource.CONTACT,
                 linkedUser == null ? null : linkedUser.id(),
                 phoneHash,
+                null,
                 command.displayName(),
                 linkedUser == null ? null : linkedUser.publicId()
         );
@@ -506,6 +508,7 @@ public class SettlementParticipantService implements
                 SettlementParticipantSource.GROUP_MEMBER,
                 user.id(),
                 user.identityKey(),
+                command.groupId(),
                 user.name(),
                 user.publicId()
         );
@@ -533,6 +536,7 @@ public class SettlementParticipantService implements
             SettlementParticipantSource source,
             Long linkedUserId,
             String phoneHash,
+            Long sourceGroupId,
             String displayName,
             String publicId
     ) {
@@ -566,6 +570,7 @@ public class SettlementParticipantService implements
                         );
                 case GROUP_MEMBER -> SettlementParticipant.groupMember(
                         settlementId,
+                        sourceGroupId,
                         linkedUserId,
                         displayName,
                         displayOrder,
