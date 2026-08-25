@@ -116,6 +116,7 @@
 - CODEF 조회 기간이 여러 달이면 월 단위로 나누어 호출하되 동일 external key는 DB unique 제약으로 한 번만 저장한다.
 - 동일 시각·금액·설명 거래는 기존 account transaction key와 계좌별 unique 제약을 재사용한다.
 - 같은 대조 요청이 동시에 들어오면 Settlement row lock으로 직렬화하고 저장 전 기존 연결을 다시 확인한다.
+- 같은 `sourceAccountId`를 쓰는 다른 `AWAITING_DEPOSIT` 정산의 미완료 Share도 후보에 포함하고, 둘 이상과 일치하는 거래는 어느 정산에도 자동 연결하지 않는다.
 - 활성 Account가 삭제되어도 snapshot의 복호화된 계좌번호와 사용자당 하나인 활성 ExternalConnection으로 조회한다. ExternalConnection 자체가 비활성화되면 자동 대조하지 않는다.
 
 ## 4. Contracts
@@ -145,6 +146,8 @@ Result: SettlementDepositSummaryResult
 | 기존 `LoadAccountTransactionPort` | 수금 계좌의 기간별 수입 거래를 조회한다. | 입금 대조 Service | 기존 `AccountTransactionPersistenceAdapter` |
 | 기존 `LoadSettlementSharePort` | 확정 Share를 조회한다. | 입금 대조·현황 Service | 기존 `SettlementSharePersistenceAdapter` |
 | `SettlementDepositStorePort` | 확인된 거래 연결 저장과 Share별 확인 합계를 제공한다. | 입금 대조·현황 Service | settlement persistence Adapter |
+
+`SettlementDepositStorePort`는 같은 수금 계좌를 사용하는 모든 입금 대기 정산의 미완료 후보도 함께 조회한다. `SaveAccountTransactionPort` 구현은 실제 신규 거래가 저장된 월의 `account_monthly_summaries`를 삭제해 다음 계좌 조회에서 다시 계산되도록 한다.
 
 CODEF transaction key 생성은 현재 `AccountQueryService`의 private 구현을 두 번째로 복사하지 않는다. 두 실제 호출자가 생기는 시점에 Application 공용 helper로 이동한다.
 
@@ -280,7 +283,7 @@ Migration PR 단계에서 V1~V20 신규 적용, 기존 V19 데이터 위 V20 적
 | Migration PR | Complete | #172 merged, V20 applied before V21 |
 | Java·HTTP 구현 | Complete | #156 범위의 대조·조회 UseCase, JPA Adapter, API와 Swagger 구현 |
 | 핵심 단위 검증 | Complete | 정상 완료, 부분 입금, 모호·초과·소수 금액 거부, 완료 후 멱등 재조회 |
-| 전체 회귀 검증 | Complete | 임시 PostgreSQL 18.3·Redis 7에서 397개 테스트 전체 통과 후 컨테이너 제거 |
+| 전체 회귀 검증 | Complete | 임시 PostgreSQL 18.3·Redis 7에서 400개 테스트 전체 통과 후 컨테이너 제거 |
 | 전용 HTTP·Persistence 통합 시나리오 | Pending | #157에서 실제 행 저장, OpenAPI 경로와 오류 응답 고정 |
 
 ## 9. Progress log
@@ -290,6 +293,7 @@ Migration PR 단계에서 V1~V20 신규 적용, 기존 V19 데이터 위 V20 적
 | 2026-08-25 | 최신 `origin/develop`과 #136 흐름 조사, 안전한 자동 대조·저장 계약 확정 | V20 migration-only PR | 거래 설명에 참여자 이름이 없거나 중복이면 자동 매칭할 수 없음 |
 | 2026-08-25 | #172 병합과 V20 적용 확인, 최신 `origin/develop`으로 구현 브랜치 갱신 | #156 Application·Persistence·Web 구현 | 생성자도 Share를 가지므로 본인 Share를 입금 완료 분모에서 제외해야 함 |
 | 2026-08-25 | #156 입금 대조·완료 전환과 생성자 조회/실행 API 구현, 전체 테스트 통과 | #157 전용 Persistence·HTTP 통합 검증 | 실제 CODEF 거래 설명의 이름 포함률은 운영 데이터로 확인 필요 |
+| 2026-08-25 | PR #175 리뷰 반영: 동일 계좌 교차 정산 후보 대조와 신규 거래 월 요약 무효화, 400개 테스트 통과 | 리뷰 재확인 | 재연결로 물리 계좌의 내부 ID가 바뀌는 경우는 별도 계좌 동일성 계약이 필요함 |
 
 ## 10. Decision log
 
@@ -300,6 +304,8 @@ Migration PR 단계에서 V1~V20 신규 적용, 기존 V19 데이터 위 V20 적
 | 2026-08-25 | 모호한 거래는 연결하지 않는다. | 잘못된 참여자를 완료 처리하는 것보다 미확인 상태 유지가 안전하다. | 수동 연결은 실제 미매칭 빈도 확인 후 별도 이슈로 만든다. |
 | 2026-08-25 | Deposit 상태 column을 두지 않는다. | 부분·완료는 불변 거래 연결 합계로 결정 가능하다. | 환불·취소가 필요해지면 reversal 모델을 별도 설계한다. |
 | 2026-08-25 | 생성자 본인 Share는 입금 대사와 완료 분모에서 제외한다. | 생성자는 기존 PAY 목록에서도 송금 대상이 아니며 자기 수금 계좌로 본인 몫을 이체하지 않는다. | Share 자체는 총액 배분 근거로 유지한다. |
+| 2026-08-25 | 같은 수금 계좌의 모든 입금 대기 정산 후보를 함께 비교한다. | 먼저 대조한 정산이 공통 거래를 잘못 선점하는 것을 막는다. | 여러 정산에 맞는 거래는 미확인으로 남긴다. |
+| 2026-08-25 | 신규 계좌 거래가 실제 삽입된 월의 저장 요약을 삭제한다. | 거래 목록과 캐시된 월 합계·건수의 불일치를 막는다. | 중복 거래만 들어온 월은 기존 요약을 유지한다. |
 
 ## 11. Completion record
 
