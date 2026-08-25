@@ -2,14 +2,20 @@ package com.amateur.howmuchbackend.adapter.in.web.group;
 
 import com.amateur.howmuchbackend.application.group.model.GroupImage;
 import com.amateur.howmuchbackend.application.port.in.group.CreateGroupUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.AddGroupMemberUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.DeleteGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupImageUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetMyGroupsUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.GetGroupMembersUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.JoinGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.UpdateGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.command.UpdateGroupCommand;
+import com.amateur.howmuchbackend.application.port.in.group.command.AddGroupMemberCommand;
+import com.amateur.howmuchbackend.application.port.in.group.command.JoinGroupCommand;
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupDetailResult;
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupSummaryResult;
+import com.amateur.howmuchbackend.application.port.in.group.result.GroupMemberResult;
 import com.amateur.howmuchbackend.domain.group.GroupMemberRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,11 +25,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,6 +40,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,6 +55,9 @@ class GroupControllerTest {
     @Mock private GetGroupImageUseCase getGroupImageUseCase;
     @Mock private UpdateGroupUseCase updateGroupUseCase;
     @Mock private DeleteGroupUseCase deleteGroupUseCase;
+    @Mock private JoinGroupUseCase joinGroupUseCase;
+    @Mock private GetGroupMembersUseCase getGroupMembersUseCase;
+    @Mock private AddGroupMemberUseCase addGroupMemberUseCase;
 
     private MockMvc mockMvc;
 
@@ -57,7 +69,10 @@ class GroupControllerTest {
                 getGroupUseCase,
                 getGroupImageUseCase,
                 updateGroupUseCase,
-                deleteGroupUseCase
+                deleteGroupUseCase,
+                joinGroupUseCase,
+                getGroupMembersUseCase,
+                addGroupMemberUseCase
         )).build();
     }
 
@@ -133,6 +148,52 @@ class GroupControllerTest {
         verify(deleteGroupUseCase).delete(10L);
     }
 
+    @Test
+    @DisplayName("초대 코드 가입 결과를 그룹 상세 응답으로 변환한다")
+    void joinsGroup() throws Exception {
+        when(joinGroupUseCase.join(any())).thenReturn(detail("여행", null, null));
+
+        mockMvc.perform(post("/api/v2/groups/join")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inviteCode\":\"ab12cd34\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.groupId").value(10))
+                .andExpect(jsonPath("$.data.inviteCode").value("AB12CD34"));
+
+        ArgumentCaptor<JoinGroupCommand> captor = ArgumentCaptor.forClass(JoinGroupCommand.class);
+        verify(joinGroupUseCase).join(captor.capture());
+        assertThat(captor.getValue().inviteCode()).isEqualTo("ab12cd34");
+    }
+
+    @Test
+    @DisplayName("활성 그룹 멤버 목록을 응답 DTO로 변환한다")
+    void getsGroupMembers() throws Exception {
+        when(getGroupMembersUseCase.getMembers(10L)).thenReturn(List.of(memberResult()));
+
+        mockMvc.perform(get("/api/v2/groups/{groupId}/members", 10L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].memberId").value(20))
+                .andExpect(jsonPath("$.data[0].publicId").value("sua.test"))
+                .andExpect(jsonPath("$.data[0].role").value("MEMBER"));
+    }
+
+    @Test
+    @DisplayName("OWNER 직접 추가 결과를 201로 반환한다")
+    void addsGroupMember() throws Exception {
+        when(addGroupMemberUseCase.add(any(), any())).thenReturn(memberResult());
+
+        mockMvc.perform(post("/api/v2/groups/{groupId}/members", 10L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"publicId\":\"sua.test\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.memberId").value(20))
+                .andExpect(jsonPath("$.data.name").value("최수아"));
+
+        ArgumentCaptor<AddGroupMemberCommand> captor = ArgumentCaptor.forClass(AddGroupMemberCommand.class);
+        verify(addGroupMemberUseCase).add(org.mockito.ArgumentMatchers.eq(10L), captor.capture());
+        assertThat(captor.getValue().publicId()).isEqualTo("sua.test");
+    }
+
     private GroupDetailResult detail(String name, String memo, String imageUrl) {
         return new GroupDetailResult(
                 10L,
@@ -143,6 +204,16 @@ class GroupControllerTest {
                 "AB12CD34",
                 "https://howmuch.app/groups/join?code=AB12CD34",
                 GroupMemberRole.OWNER
+        );
+    }
+
+    private GroupMemberResult memberResult() {
+        return new GroupMemberResult(
+                20L,
+                "sua.test",
+                "최수아",
+                GroupMemberRole.MEMBER,
+                LocalDateTime.of(2026, 8, 25, 6, 0)
         );
     }
 }
