@@ -11,7 +11,7 @@
 - [#147 그룹 생성·목록·상세 및 이미지 조회 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/147)
 - [#148 그룹 설정 수정과 소프트 삭제 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/148)
 
-## 2. 현재 상태
+## 2. 구현 전 상태
 
 - `develop`에는 그룹 Domain, 그룹 Web API와 그룹 Persistence가 없다.
 - 정산 모듈만 `LoadGroupMembersPort`와 `GroupMemberRoster`를 가지고 있다.
@@ -349,3 +349,13 @@ Authorization: Bearer {accessToken}
 - 가입·직접 추가·소유권 이전·탈퇴·제거의 세부 상태 전이는 [그룹 멤버십·권한 Spec](group-membership-spec.md)을 따른다.
 - 실제 정산 roster와 `source_group_id` 호환은 [그룹-정산 연동 Spec](group-settlement-integration-spec.md)을 따른다.
 - 구현·migration·PR 순서는 [그룹 관리 Feature Plan](group-management.md)을 따른다.
+
+## 11. 구현 결과
+
+- #147·#148 범위의 그룹 생성, 내 그룹 목록, 상세, 이미지, 설정 수정과 소프트 삭제 API를 구현했다.
+- `Group`, `GroupMember` Domain과 목적 지향 Load/Save/Image/Invite Link Port를 추가했다.
+- V18 스키마에 맞춘 JPA Entity·Mapper·Repository·Persistence Adapter를 추가했다.
+- 그룹 이미지는 UUID 파일명, signature 검증, 원자 저장, rollback 신규 파일 정리와 commit 이후 기존 파일 정리를 사용한다.
+- 단위·Controller·파일 저장·PostgreSQL 영속 통합 테스트를 추가했다.
+- 임시 PostgreSQL·Redis에서 `./gradlew test` 전체 성공을 확인했다.
+- 가입·멤버 목록·직접 추가는 #149, 실제 정산 roster와 그룹 출처 쓰기는 #150에서 후속 구현한다.

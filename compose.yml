@@ -8,7 +8,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
+      GROUP_IMAGE_STORAGE_DIR: /app/uploads/group-images
       PROFILE_IMAGE_STORAGE_DIR: /app/uploads/profile-images
     volumes:
+      - group_images:/app/uploads/group-images
       - ${PROFILE_IMAGE_HOST_DIR:-./uploads/profile-images}:/app/uploads/profile-images
     restart: unless-stopped
+
+volumes:
+  group_images:

@@ -5,6 +5,9 @@ spring:
       port: ${REDIS_PORT:6379}
 
 howmuch:
+  group:
+    invite:
+      base-url: ${GROUP_INVITE_BASE_URL}
   settlement:
     link:
       base-url: ${SETTLEMENT_LINK_BASE_URL}
