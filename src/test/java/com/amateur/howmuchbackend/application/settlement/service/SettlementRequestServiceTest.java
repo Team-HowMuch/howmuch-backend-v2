@@ -4,6 +4,8 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestPhase;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.group.model.GroupMemberRoster;
+import com.amateur.howmuchbackend.application.port.out.group.LockGroupMemberRosterPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
@@ -72,6 +74,7 @@ class SettlementRequestServiceTest {
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementLinkTokenPort linkTokenPort;
     @Mock private SaveSettlementRequestPort saveSettlementRequestPort;
+    @Mock private LockGroupMemberRosterPort lockGroupMemberRosterPort;
 
     private SettlementRequestService service;
 
@@ -89,7 +92,8 @@ class SettlementRequestServiceTest {
                 loadUserPort,
                 new SettlementRequestPolicy(),
                 linkTokenPort,
-                saveSettlementRequestPort
+                saveSettlementRequestPort,
+                lockGroupMemberRosterPort
         );
     }
 
@@ -175,6 +179,31 @@ class SettlementRequestServiceTest {
         verify(saveSettlementRequestPort, never()).save(any(), any(), any());
     }
 
+    @Test
+    @DisplayName("정산 요청 시 탈퇴한 그룹 출처 참여자가 있으면 발행을 거부한다")
+    void rejectsInactiveGroupMemberParticipant() {
+        authenticate();
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementAllocationType.DUTCH_PAY)));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(
+                        participant(CREATOR_PARTICIPANT_ID, USER_ID, "최수아", 0),
+                        groupParticipant(PAYER_PARTICIPANT_ID, 10L, 2L, "민선영", 1)
+                ));
+        when(lockGroupMemberRosterPort.lockAndLoad(10L))
+                .thenReturn(Optional.of(new GroupMemberRoster(10L, List.of(USER_ID))));
+
+        assertThatThrownBy(() -> service.request(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(
+                                SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
+                        ));
+
+        verify(lockGroupMemberRosterPort).lockAndLoad(10L);
+        verify(saveSettlementPort, never()).update(any());
+        verify(linkTokenPort, never()).issue(any());
+    }
+
     private void arrangeCommon(SettlementAllocationType allocationType) {
         authenticate();
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
@@ -235,6 +264,27 @@ class SettlementRequestServiceTest {
                 linkedUserId,
                 null,
                 null,
+                displayName,
+                displayOrder,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private SettlementParticipant groupParticipant(
+            UUID id,
+            Long groupId,
+            Long linkedUserId,
+            String displayName,
+            int displayOrder
+    ) {
+        return new SettlementParticipant(
+                id,
+                SETTLEMENT_ID,
+                SettlementParticipantSource.GROUP_MEMBER,
+                linkedUserId,
+                null,
+                groupId,
                 displayName,
                 displayOrder,
                 CREATED_AT,

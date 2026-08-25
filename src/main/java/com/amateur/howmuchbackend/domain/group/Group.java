@@ -109,6 +109,27 @@ public record Group(
         );
     }
 
+    public Group transferOwnership(Long targetOwnerId, LocalDateTime now) {
+        requireActive();
+        requirePositive(targetOwnerId, "새 그룹 OWNER ID는 필수입니다.");
+        if (ownerId.equals(targetOwnerId)) {
+            throw new IllegalStateException("현재 OWNER에게 소유권을 이전할 수 없습니다.");
+        }
+        return new Group(
+                id,
+                name,
+                memo,
+                imageFileName,
+                targetOwnerId,
+                inviteCode,
+                status,
+                creatorId,
+                createdAt,
+                Objects.requireNonNull(now, "소유권 이전 시각은 필수입니다."),
+                deletedAt
+        );
+    }
+
     public void requireActive() {
         if (status != GroupStatus.ACTIVE) {
             throw ApplicationException.of(GroupStatusCode.GROUP_NOT_FOUND);
