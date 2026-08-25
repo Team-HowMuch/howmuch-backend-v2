@@ -1,11 +1,13 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.group;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.group.mapper.GroupMemberMapper;
+import com.amateur.howmuchbackend.adapter.out.persistence.group.repository.GroupJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.group.repository.GroupMemberJpaRepository;
 import com.amateur.howmuchbackend.application.group.model.GroupMemberRoster;
 import com.amateur.howmuchbackend.application.port.out.group.GroupSummaryReadModel;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMembersPort;
+import com.amateur.howmuchbackend.application.port.out.group.LockGroupMemberRosterPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.GroupMemberStatus;
@@ -16,14 +18,19 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Comparator;
 
 @Component
 @RequiredArgsConstructor
-public class GroupMemberPersistenceAdapter implements LoadGroupMemberPort, LoadGroupMembersPort, SaveGroupMemberPort {
+public class GroupMemberPersistenceAdapter implements
+        LoadGroupMemberPort,
+        LoadGroupMembersPort,
+        LockGroupMemberRosterPort,
+        SaveGroupMemberPort {
     private final GroupMemberJpaRepository groupMemberJpaRepository;
+    private final GroupJpaRepository groupJpaRepository;
 
     @Override
     public Optional<GroupMember> findByGroupIdAndUserId(Long groupId, Long userId) {
@@ -69,6 +76,20 @@ public class GroupMemberPersistenceAdapter implements LoadGroupMemberPort, LoadG
                 .map(GroupMemberJpaRepository.GroupRosterProjection::getUserId)
                 .filter(java.util.Objects::nonNull)
                 .toList()));
+    }
+
+    @Override
+    public Optional<GroupMemberRoster> lockAndLoad(Long groupId) {
+        if (groupId == null || groupId <= 0) {
+            return Optional.empty();
+        }
+        if (groupJpaRepository.findByIdForUpdate(groupId).isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new GroupMemberRoster(
+                groupId,
+                findActiveByGroupId(groupId).stream().map(GroupMember::userId).toList()
+        ));
     }
 
     @Override
