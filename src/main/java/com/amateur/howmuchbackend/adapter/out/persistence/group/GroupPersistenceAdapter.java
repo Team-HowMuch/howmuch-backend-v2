@@ -5,6 +5,8 @@ import com.amateur.howmuchbackend.adapter.out.persistence.group.repository.Group
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupPort;
 import com.amateur.howmuchbackend.domain.group.Group;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.group.status.GroupStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +23,11 @@ public class GroupPersistenceAdapter implements LoadGroupPort, SaveGroupPort {
     }
 
     @Override
+    public Optional<Group> findByIdForUpdate(Long groupId) {
+        return groupJpaRepository.findByIdForUpdate(groupId).map(GroupMapper::toDomain);
+    }
+
+    @Override
     public boolean existsByInviteCode(String inviteCode) {
         return groupJpaRepository.existsByInviteCode(inviteCode);
     }
@@ -28,5 +35,13 @@ public class GroupPersistenceAdapter implements LoadGroupPort, SaveGroupPort {
     @Override
     public Group save(Group group) {
         return GroupMapper.toDomain(groupJpaRepository.save(GroupMapper.toEntity(group)));
+    }
+
+    @Override
+    public Group update(Group group) {
+        var entity = groupJpaRepository.findById(group.id())
+                .orElseThrow(() -> ApplicationException.of(GroupStatusCode.GROUP_NOT_FOUND));
+        entity.updateFrom(group);
+        return GroupMapper.toDomain(groupJpaRepository.save(entity));
     }
 }

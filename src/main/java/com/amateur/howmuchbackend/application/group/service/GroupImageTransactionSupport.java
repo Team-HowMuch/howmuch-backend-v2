@@ -24,4 +24,34 @@ public class GroupImageTransactionSupport {
             }
         });
     }
+
+    public void replaceAfterCompletion(
+            String previousFileName,
+            String currentFileName,
+            String newlyStoredFileName
+    ) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deletePreviousIfChanged(previousFileName, currentFileName);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                deletePreviousIfChanged(previousFileName, currentFileName);
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED && newlyStoredFileName != null) {
+                    groupImageStoragePort.delete(newlyStoredFileName);
+                }
+            }
+        });
+    }
+
+    private void deletePreviousIfChanged(String previousFileName, String currentFileName) {
+        if (previousFileName != null && !previousFileName.equals(currentFileName)) {
+            groupImageStoragePort.delete(previousFileName);
+        }
+    }
 }
