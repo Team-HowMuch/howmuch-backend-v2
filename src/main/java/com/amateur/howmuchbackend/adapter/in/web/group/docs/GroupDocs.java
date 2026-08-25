@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.group.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.CreateGroupWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.UpdateGroupWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupDetailWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupSummaryWebResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,7 +15,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 
-@Tag(name = "그룹 API", description = "그룹 생성과 조회 API")
+@Tag(name = "그룹 API", description = "그룹 생성, 조회와 설정 API")
 public interface GroupDocs {
     @Operation(
             summary = "그룹 생성",
@@ -87,4 +88,30 @@ public interface GroupDocs {
             )
     })
     ResponseEntity<byte[]> getGroupImage(Long groupId);
+
+    @Operation(
+            summary = "그룹 설정 수정",
+            description = "OWNER가 이름, 메모 또는 이미지를 부분 수정합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "그룹 설정 수정 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_GROUP_NAME, INVALID_GROUP_MEMO, INVALID_GROUP_IMAGE 또는 INVALID_GROUP_UPDATE"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "GROUP_ACCESS_DENIED 또는 GROUP_OWNER_REQUIRED"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "GROUP_NOT_FOUND - 그룹이 없거나 삭제됨"
+            )
+    })
+    ApiResponse<GroupDetailWebResponse> updateGroup(Long groupId, UpdateGroupWebRequest request);
 }

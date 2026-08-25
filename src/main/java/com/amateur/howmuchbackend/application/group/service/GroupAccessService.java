@@ -22,11 +22,26 @@ public class GroupAccessService {
         return group;
     }
 
+    public Group loadActiveForUpdate(Long groupId) {
+        Group group = loadGroupPort.findByIdForUpdate(groupId)
+                .orElseThrow(() -> ApplicationException.of(GroupStatusCode.GROUP_NOT_FOUND));
+        group.requireActive();
+        return group;
+    }
+
     public GroupMember requireActiveMember(Long groupId, Long userId) {
         GroupMember member = loadGroupMemberPort.findByGroupIdAndUserId(groupId, userId)
                 .orElseThrow(() -> ApplicationException.of(GroupStatusCode.GROUP_ACCESS_DENIED));
         if (!member.isActive()) {
             throw ApplicationException.of(GroupStatusCode.GROUP_ACCESS_DENIED);
+        }
+        return member;
+    }
+
+    public GroupMember requireOwner(Long groupId, Long userId) {
+        GroupMember member = requireActiveMember(groupId, userId);
+        if (!member.isOwner()) {
+            throw ApplicationException.of(GroupStatusCode.GROUP_OWNER_REQUIRED);
         }
         return member;
     }

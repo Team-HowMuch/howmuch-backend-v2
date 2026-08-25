@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.in.web.group;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.docs.GroupDocs;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.CreateGroupWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.UpdateGroupWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupDetailWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupSummaryWebResponse;
 import com.amateur.howmuchbackend.application.group.model.GroupImage;
@@ -10,12 +11,14 @@ import com.amateur.howmuchbackend.application.port.in.group.CreateGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupImageUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetMyGroupsUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.UpdateGroupUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +34,7 @@ public class GroupController implements GroupDocs {
     private final GetMyGroupsUseCase getMyGroupsUseCase;
     private final GetGroupUseCase getGroupUseCase;
     private final GetGroupImageUseCase getGroupImageUseCase;
+    private final UpdateGroupUseCase updateGroupUseCase;
 
     @Override
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -65,5 +69,16 @@ public class GroupController implements GroupDocs {
                 .cacheControl(CacheControl.noStore())
                 .contentType(MediaType.parseMediaType(image.contentType()))
                 .body(image.content());
+    }
+
+    @Override
+    @PatchMapping(value = "/{groupId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<GroupDetailWebResponse> updateGroup(
+            @PathVariable Long groupId,
+            @ModelAttribute UpdateGroupWebRequest request
+    ) {
+        return ApiResponse.success(GroupDetailWebResponse.from(
+                updateGroupUseCase.update(groupId, request.toCommand())
+        ));
     }
 }
