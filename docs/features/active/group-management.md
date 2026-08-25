@@ -360,8 +360,8 @@ git status --short --untracked-files=all
 | PRD·Spec·Feature Plan 작성 | Complete | [#164](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/164) |
 | 1차 migration | Complete | [#165](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/165) |
 | 그룹 core·settings | Complete, merged | [#167](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/167) |
-| membership·권한 | #149 Implemented, PR pending; #151 Pending | #149, #151 |
-| settlement integration | Pending | #150 |
+| membership·권한 | #149 Complete, merged; #151 Pending | [#168](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/168), #151 |
+| settlement integration | Implemented, PR pending | #150 |
 | 2차 strict migration | Pending | #152 |
 | 전체 통합·OpenAPI | Pending | #153 |
 
@@ -372,6 +372,7 @@ git status --short --untracked-files=all
 | 2026-08-25 | 기능명세서, `develop`, 기존 PR·문서 형식 분석; PRD·Spec 3종·Feature Plan 초안 작성 | 문서 리뷰 후 #146 migration gate 실행 | GROUP_MEMBER legacy 행과 구버전 writer 사이 배포 호환 필요 |
 | 2026-08-25 | #164·#165 병합; 그룹 생성·조회·이미지·설정·소프트 삭제와 계층별 테스트 구현 | #147·#148 PR 리뷰 후 #149 | 무페이지 목록은 규모 증가 시 재검토 필요 |
 | 2026-08-25 | #167 병합; 초대 코드 가입·재가입, 멤버 목록과 OWNER 직접 추가·복구 구현 및 계층별 테스트 완료 | #149 PR 리뷰 후 #150 | 동시 신규 가입은 unique 제약 충돌을 중복 활성 오류로 변환 |
+| 2026-08-25 | #168 병합; profile Stub 제거, 실제 활성 roster와 정산 참여자 `sourceGroupId` 저장·legacy 호환 구현 | #150 PR 리뷰 후 #151 | strict 제약 전까지 구버전 writer의 GROUP_MEMBER/null을 호환 읽기해야 함 |
 
 ## 10. Decision log
 

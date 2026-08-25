@@ -290,3 +290,14 @@ JpaEntity(source=GROUP_MEMBER, sourceGroupId=null)
 - migration 전환 중 구버전 writer와 legacy 데이터 때문에 애플리케이션 기동·조회가 깨지지 않는다.
 - 2차 migration 후 DB가 최종 source/group 불변식을 강제한다.
 - 기존 비그룹 정산 참여자 흐름과 공개 API가 호환된다.
+
+## 11. 구현 결과
+
+- #150 범위에서 profile별 그룹 roster Stub을 제거하고 `GroupMemberPersistenceAdapter`가 기존 `LoadGroupMembersPort`를 구현하도록 교체했다.
+- 활성 그룹의 `ACTIVE` 멤버만 OWNER 우선, 가입 시각과 멤버 ID 순으로 반환하고 삭제 그룹은 roster 없음으로 처리한다.
+- `SettlementParticipant`에 내부 `sourceGroupId`를 추가하고 `GROUP_MEMBER` factory가 양수 그룹 ID를 필수로 받도록 강화했다.
+- `AddSettlementParticipantCommand.groupId`를 `ResolvedParticipant`와 Domain factory를 거쳐 `settlement_participants.source_group_id`에 저장한다.
+- JPA Entity·Mapper가 그룹 출처를 저장·복원하며 legacy `GROUP_MEMBER/source_group_id NULL`은 `REGISTERED_USER/null`로 안전하게 읽는다.
+- 기존 REGISTERED_USER·CONTACT와 공개 Web 응답 계약은 변경하지 않았다.
+- Domain·Application 단위 테스트와 실제 그룹 roster, 그룹 출처 저장, legacy 호환 PostgreSQL 통합 테스트를 추가했다.
+- 멤버 종료용 정산 상태 조회는 #151, strict source/group 제약은 배포 호환 확인 후 #152에서 구현한다.
