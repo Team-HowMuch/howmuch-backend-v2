@@ -4,10 +4,14 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementDeletionPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -32,6 +36,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -55,7 +60,16 @@ class SettlementServiceTest {
     private SaveSettlementPort saveSettlementPort;
 
     @Mock
+    private DeleteSettlementPort deleteSettlementPort;
+
+    @Mock
+    private LoadSettlementSharePort loadSettlementSharePort;
+
+    @Mock
     private SaveSettlementParticipantPort saveSettlementParticipantPort;
+
+    @Mock
+    private SettlementItemAllocationStorePort settlementItemAllocationStorePort;
 
     @Mock
     private LoadUserPort loadUserPort;
@@ -71,7 +85,11 @@ class SettlementServiceTest {
                 currentActorPort,
                 loadSettlementPort,
                 saveSettlementPort,
+                deleteSettlementPort,
+                loadSettlementSharePort,
                 saveSettlementParticipantPort,
+                settlementItemAllocationStorePort,
+                new SettlementDeletionPolicy(),
                 loadUserPort,
                 allocationDraftInvalidator
         );
@@ -181,6 +199,124 @@ class SettlementServiceTest {
         assertThat(result.totalAmount()).isEqualTo(20_000);
     }
 
+    @Test
+    @DisplayName("생성자가 요청 중인 정산을 수동 중단하고 저장한다")
+    void suspendsRequestedSettlementForCreator() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(requested()));
+        when(saveSettlementPort.update(any(Settlement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = settlementService.suspend(SETTLEMENT_ID);
+
+        assertThat(result.status()).isEqualTo(SettlementStatus.SUSPENDED);
+        verify(saveSettlementPort).update(argThat(settlement ->
+                settlement.status() == SettlementStatus.SUSPENDED));
+    }
+
+    @Test
+    @DisplayName("정산 재개 시 기존 품목 선택은 유지하고 제출 완료 표시만 초기화한다")
+    void resumesSettlementAndClearsSubmissions() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(suspended()));
+        when(saveSettlementPort.update(any(Settlement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = settlementService.resume(SETTLEMENT_ID);
+
+        verify(settlementItemAllocationStorePort).deleteAllSubmissions(SETTLEMENT_ID);
+        verify(saveSettlementPort).update(argThat(settlement ->
+                settlement.status() == SettlementStatus.REQUESTED));
+        assertThat(result.status()).isEqualTo(SettlementStatus.REQUESTED);
+    }
+
+    @Test
+    @DisplayName("생성자가 아닌 사용자는 정산을 수동 중단하지 않는다")
+    void rejectsManualSuspendByAnotherUser() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(requested()));
+
+        assertThatThrownBy(() -> settlementService.suspend(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+        verify(saveSettlementPort, never()).update(any(Settlement.class));
+    }
+
+    @Test
+    @DisplayName("허용되지 않은 재개 요청은 제출 완료 표시를 삭제하지 않는다")
+    void rejectsResumeWithoutClearingSubmissions() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(requested()));
+
+        assertThatThrownBy(() -> settlementService.resume(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_STATUS_TRANSITION));
+        verify(settlementItemAllocationStorePort, never()).deleteAllSubmissions(SETTLEMENT_ID);
+        verify(saveSettlementPort, never()).update(any(Settlement.class));
+    }
+
+    @Test
+    @DisplayName("송금 단계 전인 생성자 정산만 삭제하고 root 삭제 Port를 호출한다")
+    void deletesSettlementBeforeTransferStage() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(draft()));
+        when(loadSettlementSharePort.existsBySettlementId(SETTLEMENT_ID)).thenReturn(false);
+
+        settlementService.delete(SETTLEMENT_ID);
+
+        verify(deleteSettlementPort).delete(SETTLEMENT_ID);
+    }
+
+    @Test
+    @DisplayName("송금 Share가 있는 정산은 삭제하지 않는다")
+    void rejectsDeletionAfterTransferStage() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(requested()));
+        when(loadSettlementSharePort.existsBySettlementId(SETTLEMENT_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> settlementService.delete(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_DELETABLE));
+        verify(deleteSettlementPort, never()).delete(SETTLEMENT_ID);
+    }
+
+    @Test
+    @DisplayName("생성자가 아닌 사용자는 정산을 삭제하지 않는다")
+    void rejectsDeletionByAnotherUser() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(draft()));
+
+        assertThatThrownBy(() -> settlementService.delete(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+        verify(loadSettlementSharePort, never()).existsBySettlementId(SETTLEMENT_ID);
+        verify(deleteSettlementPort, never()).delete(SETTLEMENT_ID);
+    }
+
+    @Test
+    @DisplayName("없는 정산은 삭제하지 않는다")
+    void rejectsDeletingMissingSettlement() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> settlementService.delete(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
+        verify(deleteSettlementPort, never()).delete(SETTLEMENT_ID);
+    }
+
     private Settlement draft() {
         return new Settlement(
                 SETTLEMENT_ID,
@@ -191,6 +327,14 @@ class SettlementServiceTest {
                 CREATED_AT,
                 CREATED_AT
         );
+    }
+
+    private Settlement requested() {
+        return draft().request(CREATED_AT.plusMinutes(1));
+    }
+
+    private Settlement suspended() {
+        return requested().suspend(CREATED_AT.plusMinutes(2));
     }
 
     private User creator() {

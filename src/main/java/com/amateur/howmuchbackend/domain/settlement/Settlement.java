@@ -176,6 +176,14 @@ public record Settlement(
         return transition(SettlementStatus.REQUESTED, SettlementStatus.SUSPENDED, now);
     }
 
+    public Settlement suspendManually(LocalDateTime now) {
+        return suspend(now);
+    }
+
+    public Settlement resume(LocalDateTime now) {
+        return transition(SettlementStatus.SUSPENDED, SettlementStatus.REQUESTED, now);
+    }
+
     public Settlement complete(LocalDateTime now) {
         return transition(SettlementStatus.AWAITING_DEPOSIT, SettlementStatus.COMPLETED, now);
     }

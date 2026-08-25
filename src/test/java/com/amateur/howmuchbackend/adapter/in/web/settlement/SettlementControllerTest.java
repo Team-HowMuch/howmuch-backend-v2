@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.DeleteSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
@@ -10,7 +11,9 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUs
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.ResumeSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.SuspendSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
@@ -29,6 +32,7 @@ import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,9 +51,11 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -67,6 +73,9 @@ class SettlementControllerTest {
     private CreateSettlementUseCase createSettlementUseCase;
 
     @Mock
+    private DeleteSettlementUseCase deleteSettlementUseCase;
+
+    @Mock
     private GetSettlementUseCase getSettlementUseCase;
 
     @Mock
@@ -80,6 +89,12 @@ class SettlementControllerTest {
 
     @Mock
     private RemoveSettlementParticipantUseCase removeSettlementParticipantUseCase;
+
+    @Mock
+    private SuspendSettlementUseCase suspendSettlementUseCase;
+
+    @Mock
+    private ResumeSettlementUseCase resumeSettlementUseCase;
 
     @Mock
     private GetSettlementParticipantsUseCase getSettlementParticipantsUseCase;
@@ -107,11 +122,14 @@ class SettlementControllerTest {
         validator.afterPropertiesSet();
         SettlementController controller = new SettlementController(
             createSettlementUseCase,
+                deleteSettlementUseCase,
             getSettlementUseCase,
             getSettlementsUseCase,
-            updateSettlementDraftUseCase,
+                updateSettlementDraftUseCase,
                 addSettlementParticipantUseCase,
                 removeSettlementParticipantUseCase,
+                suspendSettlementUseCase,
+                resumeSettlementUseCase,
                 getSettlementParticipantsUseCase,
                 getSettlementParticipantAvatarUseCase,
                 searchSettlementParticipantUseCase,
@@ -144,6 +162,14 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data.title").value("회식 정산"))
                 .andExpect(jsonPath("$.data.totalAmount").value(10_000))
                 .andExpect(jsonPath("$.data.status").value("DRAFT"));
+    }
+
+    @Test
+    @DisplayName("생성자가 삭제 가능한 정산을 삭제한다")
+    void deletesSettlement() throws Exception {
+        mockMvc.perform(delete("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -263,6 +289,67 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.title").value("최종 회식 정산"))
                 .andExpect(jsonPath("$.data.totalAmount").value(10_000));
+    }
+
+    @Test
+    @DisplayName("생성자가 요청 중인 정산을 수동 중단하고 최신 상태를 받는다")
+    void suspendsSettlement() throws Exception {
+        when(suspendSettlementUseCase.suspend(SETTLEMENT_ID)).thenReturn(
+                new SettlementResult(
+                        SETTLEMENT_ID,
+                        1L,
+                        "회식 정산",
+                        10_000,
+                        SettlementStatus.SUSPENDED,
+                        CREATED_AT
+                )
+        );
+
+        mockMvc.perform(post("/api/v2/settlements/{settlementId}/suspend", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("SUSPENDED"));
+    }
+
+    @Test
+    @DisplayName("생성자가 중단된 정산을 재개하고 최신 상태를 받는다")
+    void resumesSettlement() throws Exception {
+        when(resumeSettlementUseCase.resume(SETTLEMENT_ID)).thenReturn(
+                new SettlementResult(
+                        SETTLEMENT_ID,
+                        1L,
+                        "회식 정산",
+                        10_000,
+                        SettlementStatus.REQUESTED,
+                        CREATED_AT
+                )
+        );
+
+        mockMvc.perform(post("/api/v2/settlements/{settlementId}/resume", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("REQUESTED"));
+    }
+
+    @Test
+    @DisplayName("정산 수명주기 권한·상태 오류를 기존 Application 오류 계약으로 반환한다")
+    void returnsSettlementLifecycleErrors() throws Exception {
+        when(suspendSettlementUseCase.suspend(SETTLEMENT_ID))
+                .thenThrow(ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+        when(resumeSettlementUseCase.resume(SETTLEMENT_ID))
+                .thenThrow(ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_STATUS_TRANSITION));
+        doThrow(ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_DELETABLE))
+                .when(deleteSettlementUseCase).delete(SETTLEMENT_ID);
+
+        mockMvc.perform(post("/api/v2/settlements/{settlementId}/suspend", SETTLEMENT_ID))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_ACCESS_DENIED"));
+        mockMvc.perform(post("/api/v2/settlements/{settlementId}/resume", SETTLEMENT_ID))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("INVALID_SETTLEMENT_STATUS_TRANSITION"));
+        mockMvc.perform(delete("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_NOT_DELETABLE"));
     }
 
     @Test

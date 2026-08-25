@@ -25,7 +25,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import java.util.List;
 import java.util.UUID;
 
-@Tag(name = "정산 API", description = "정산 초안과 참여자 관리 API")
+@Tag(name = "정산 API", description = "정산 초안·상태·참여자 관리 API")
 public interface SettlementDocs {
     @Operation(
             summary = "정산 초안 생성",
@@ -143,6 +143,102 @@ public interface SettlementDocs {
             UUID settlementId,
             UpdateSettlementDraftWebRequest request
     );
+
+    @Operation(
+            summary = "정산 수동 중단",
+            description = "현재 로그인한 생성자가 REQUESTED 상태의 정산을 SUSPENDED 상태로 중단합니다. "
+                    + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
+                    + "허용되지 않은 상태면 INVALID_SETTLEMENT_STATUS_TRANSITION을 반환합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 수동 중단 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND - 정산 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION - 허용되지 않은 상태 변경"
+            )
+    })
+    ApiResponse<SettlementWebResponse> suspendSettlement(UUID settlementId);
+
+    @Operation(
+            summary = "정산 재개",
+            description = "현재 로그인한 생성자가 SUSPENDED 상태의 정산을 REQUESTED 상태로 재개합니다. "
+                    + "재개 시 참여자 제출 완료 표시는 초기화하고 기존 품목 선택은 유지합니다. "
+                    + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
+                    + "허용되지 않은 상태면 INVALID_SETTLEMENT_STATUS_TRANSITION을 반환합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 재개 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND - 정산 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION - 허용되지 않은 상태 변경"
+            )
+    })
+    ApiResponse<SettlementWebResponse> resumeSettlement(UUID settlementId);
+
+    @Operation(
+            summary = "정산 삭제",
+            description = "현재 로그인한 생성자가 송금 단계에 도달하지 않은 정산을 삭제합니다. "
+                    + "Share가 있거나 AWAITING_DEPOSIT·COMPLETED 상태인 정산은 삭제할 수 없습니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 삭제 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND - 정산 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_NOT_DELETABLE - 송금 또는 입금이 진행된 정산"
+            )
+    })
+    ApiResponse<Void> deleteSettlement(UUID settlementId);
 
     @Operation(
             summary = "정산 참여자 추가",

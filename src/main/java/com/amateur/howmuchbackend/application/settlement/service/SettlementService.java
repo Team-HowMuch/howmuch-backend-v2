@@ -2,15 +2,22 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.DeleteSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.ResumeSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.SuspendSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementDeletionPolicy;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
@@ -30,12 +37,19 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SettlementService implements
         CreateSettlementUseCase,
+        DeleteSettlementUseCase,
         GetSettlementUseCase,
-        UpdateSettlementDraftUseCase {
+        UpdateSettlementDraftUseCase,
+        SuspendSettlementUseCase,
+        ResumeSettlementUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
     private final SaveSettlementPort saveSettlementPort;
+    private final DeleteSettlementPort deleteSettlementPort;
+    private final LoadSettlementSharePort loadSettlementSharePort;
     private final SaveSettlementParticipantPort saveSettlementParticipantPort;
+    private final SettlementItemAllocationStorePort settlementItemAllocationStorePort;
+    private final SettlementDeletionPolicy settlementDeletionPolicy;
     private final LoadUserPort loadUserPort;
     private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
@@ -72,6 +86,18 @@ public class SettlementService implements
 
     @Override
     @Transactional
+    public void delete(UUID settlementId) {
+        CurrentActor actor = currentActorPort.getCurrentActor();
+        Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
+        settlementDeletionPolicy.validate(
+                settlement,
+                loadSettlementSharePort.existsBySettlementId(settlementId)
+        );
+        deleteSettlementPort.delete(settlementId);
+    }
+
+    @Override
+    @Transactional
     public SettlementResult update(UUID settlementId, UpdateSettlementDraftCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
@@ -86,6 +112,26 @@ public class SettlementService implements
                 now
         );
         return SettlementResult.from(saveSettlementPort.update(updated));
+    }
+
+    @Override
+    @Transactional
+    public SettlementResult suspend(UUID settlementId) {
+        CurrentActor actor = currentActorPort.getCurrentActor();
+        Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        return SettlementResult.from(saveSettlementPort.update(settlement.suspendManually(now)));
+    }
+
+    @Override
+    @Transactional
+    public SettlementResult resume(UUID settlementId) {
+        CurrentActor actor = currentActorPort.getCurrentActor();
+        Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        Settlement resumed = settlement.resume(now);
+        settlementItemAllocationStorePort.deleteAllSubmissions(settlementId);
+        return SettlementResult.from(saveSettlementPort.update(resumed));
     }
 
     private Settlement loadOwnedSettlement(UUID settlementId, Long userId) {

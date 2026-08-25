@@ -4,8 +4,9 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.Sett
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
-import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReceivingAccountUsagePort;
@@ -25,6 +26,7 @@ public class SettlementPersistenceAdapter implements
         LoadSettlementPort,
         LoadSettlementListPort,
         SaveSettlementPort,
+        DeleteSettlementPort,
         SettlementReceivingAccountUsagePort {
     private final SettlementJpaRepository settlementJpaRepository;
 
@@ -63,6 +65,11 @@ public class SettlementPersistenceAdapter implements
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
         entity.updateFrom(settlement);
         return SettlementMapper.toDomain(settlementJpaRepository.save(entity));
+    }
+
+    @Override
+    public void delete(UUID settlementId) {
+        settlementJpaRepository.deleteById(settlementId);
     }
 
     private SettlementListReadModel toReadModel(

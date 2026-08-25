@@ -7,6 +7,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface SettlementShareJpaRepository extends JpaRepository<SettlementShareJpaEntity, UUID> {
+    boolean existsBySettlementId(UUID settlementId);
+
     Optional<SettlementShareJpaEntity> findBySettlementIdAndPayerParticipantId(
             UUID settlementId,
             UUID payerParticipantId
