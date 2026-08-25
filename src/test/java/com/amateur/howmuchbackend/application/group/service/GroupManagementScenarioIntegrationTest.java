@@ -74,10 +74,10 @@ class GroupManagementScenarioIntegrationTest {
     @Test
     @DisplayName("가입한 그룹멤버를 정산에 연결하고 종료 정책과 그룹 삭제 이후 보존을 검증한다")
     void preservesSettlementAcrossGroupMemberLifecycle() {
-        Long ownerId = insertUser("최수아", "sua.scenario");
-        Long memberId = insertUser("그룹 멤버", "member.scenario");
+        UserFixture owner = insertUser("최수아");
+        UserFixture member = insertUser("그룹 멤버");
 
-        authenticate(ownerId);
+        authenticate(owner.id());
         var group = createGroupUseCase.create(new CreateGroupCommand(
                 "제주 여행",
                 "통합 검증",
@@ -85,13 +85,13 @@ class GroupManagementScenarioIntegrationTest {
         ));
         groupId = group.groupId();
 
-        authenticate(memberId);
+        authenticate(member.id());
         var joined = joinGroupUseCase.join(new JoinGroupCommand(
                 "  " + group.inviteCode().toLowerCase() + "  "
         ));
         assertThat(joined.memberCount()).isEqualTo(2);
 
-        authenticate(ownerId);
+        authenticate(owner.id());
         var settlement = createSettlementUseCase.create(new CreateSettlementCommand(
                 "제주 여행 정산",
                 30_000
@@ -100,14 +100,14 @@ class GroupManagementScenarioIntegrationTest {
 
         assertThat(groupCandidatesUseCase.get(settlementId, groupId))
                 .extracting(candidate -> candidate.publicId())
-                .containsExactly("member.scenario");
+                .containsExactly(member.publicId());
 
         var participant = addSettlementParticipantUseCase.add(
                 settlementId,
                 new AddSettlementParticipantCommand(
                         SettlementParticipantSource.GROUP_MEMBER,
                         groupId,
-                        "member.scenario",
+                        member.publicId(),
                         null,
                         null
                 )
@@ -119,7 +119,7 @@ class GroupManagementScenarioIntegrationTest {
                 "UPDATE settlements SET status = 'REQUESTED' WHERE id = ?",
                 settlementId
         );
-        authenticate(memberId);
+        authenticate(member.id());
         assertThatThrownBy(() -> leaveGroupUseCase.leave(groupId))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
@@ -131,9 +131,9 @@ class GroupManagementScenarioIntegrationTest {
                 settlementId
         );
         leaveGroupUseCase.leave(groupId);
-        assertThat(memberStatus(memberId)).isEqualTo("LEFT");
+        assertThat(memberStatus(member.id())).isEqualTo("LEFT");
 
-        authenticate(ownerId);
+        authenticate(owner.id());
         deleteGroupUseCase.delete(groupId);
         assertThatThrownBy(() -> getGroupUseCase.get(groupId))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
@@ -144,8 +144,9 @@ class GroupManagementScenarioIntegrationTest {
         assertThat(sourceGroupId(participant.participantId())).isEqualTo(groupId);
     }
 
-    private Long insertUser(String name, String publicId) {
+    private UserFixture insertUser(String name) {
         String uniqueKey = UUID.randomUUID().toString();
+        String publicId = "user_" + uniqueKey.replace("-", "").substring(0, 12);
         Long userId = jdbcTemplate.queryForObject("""
                         INSERT INTO users (
                             identity_key,
@@ -174,7 +175,7 @@ class GroupManagementScenarioIntegrationTest {
                 CREATED_AT
         );
         userIds.add(userId);
-        return userId;
+        return new UserFixture(userId, publicId);
     }
 
     private void authenticate(Long userId) {
@@ -205,5 +206,8 @@ class GroupManagementScenarioIntegrationTest {
                 groupId,
                 memberUserId
         );
+    }
+
+    private record UserFixture(Long id, String publicId) {
     }
 }
