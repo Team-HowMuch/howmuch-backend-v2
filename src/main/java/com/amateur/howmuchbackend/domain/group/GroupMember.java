@@ -100,12 +100,40 @@ public record GroupMember(
         );
     }
 
+    public GroupMember demoteOwner(LocalDateTime now) {
+        if (!isActive() || !isOwner()) {
+            throw new IllegalStateException("활성 OWNER만 MEMBER로 변경할 수 있습니다.");
+        }
+        return changeRole(GroupMemberRole.MEMBER, now);
+    }
+
+    public GroupMember promoteToOwner(LocalDateTime now) {
+        if (!isActive() || isOwner()) {
+            throw new IllegalStateException("활성 MEMBER만 OWNER로 변경할 수 있습니다.");
+        }
+        return changeRole(GroupMemberRole.OWNER, now);
+    }
+
     public boolean isActive() {
         return status == GroupMemberStatus.ACTIVE;
     }
 
     public boolean isOwner() {
         return role == GroupMemberRole.OWNER;
+    }
+
+    private GroupMember changeRole(GroupMemberRole changedRole, LocalDateTime now) {
+        return new GroupMember(
+                id,
+                groupId,
+                userId,
+                changedRole,
+                status,
+                joinedAt,
+                leftAt,
+                createdAt,
+                Objects.requireNonNull(now, "그룹멤버 역할 변경 시각은 필수입니다.")
+        );
     }
 
     private static void requirePositive(Long value, String message) {
