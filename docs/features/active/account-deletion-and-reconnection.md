@@ -1,6 +1,6 @@
 # 기능 계획: 계좌 물리 삭제와 재연결 이력 분리
 
-- 상태: 초안
+- 상태: 진행 중
 - 최종 수정일: 2026-08-24
 - 관련 이슈: [#97 계좌 삭제와 CODEF 재연결 정책 결정](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/97)
 - 관련 ADR: [ADR-0004 Active Account와 Account Record 수명주기 분리](../../adr/0004-separate-active-account-and-account-record-lifecycles.md)
@@ -27,7 +27,7 @@
 - [ ] 본인 활성 계좌 삭제 시 해당 행과 `external_account_key_ciphertext`, `candidate_key`, 잔액·기본 계좌 설정이 `accounts`에서 물리 삭제된다.
 - [ ] 삭제 전 거래·월 요약·정산 지출·확정 정산 스냅샷은 삭제되지 않는다.
 - [ ] 삭제한 외부 계좌를 다시 연결하면 새 `accounts.id`가 생성된다.
-- [ ] 새 계좌에는 새 연결 시각 이전 거래를 동기화하지 않는다.
+- [ ] 새 계좌의 거래 조회는 연결 시각과 무관하게 사용자가 요청한 조회 기간 전체를 동기화한다.
 - [ ] 삭제 계좌를 수령 계좌로 선택한 DRAFT 정산이 하나라도 있으면 계좌 삭제를 거부한다.
 - [ ] 삭제가 기본 계좌를 제거하면 남은 계좌 중 `displayOrder`, `id` 순 첫 계좌가 기본 계좌가 된다.
 - [ ] 다른 사용자의 계좌와 이미 삭제한 계좌는 동일하게 `404 ACCOUNT_NOT_FOUND`를 반환한다.
@@ -39,7 +39,7 @@
 - 사용자가 모든 금융기관 연결을 해지하는 API
 - CODEF `/v1/account/delete` 호출과 `ConnectedInstitution`/`ExternalConnection` 삭제
 - 법적 보존기간 또는 개인정보 삭제 요청에 따른 `account_records` 파기 정책
-- 삭제한 계좌와 재연결 계좌의 거래 병합
+- 삭제 전 거래 행을 재연결 계좌로 이관하거나 기존 행의 `accountId`를 변경하는 작업
 
 ## 2. 도메인 분석
 
@@ -59,7 +59,7 @@
 | 계좌 기록 | 한 번 연결된 계좌 수명주기의 최소 비민감 출처 정보 | `account_records` |
 | 로컬 계좌 삭제 | `accounts` 행만 물리 삭제하고 기관 인증정보는 유지하는 동작 | `DeleteAccountUseCase` |
 | 기관 연결 해지 | CODEF 기관 계정 정보를 삭제하는 별도 동작 | 현재 범위 밖 |
-| 재연결 경계 | 새 계좌가 자기 거래로 받아들일 수 있는 최초 UTC 시각 | 새 `accounts.created_at` |
+| 거래 조회 기간 | 연결 시각과 무관하게 CODEF에서 가져올 거래 기간 | API가 요청한 `YearMonth`의 시작일과 종료일 |
 
 ### Actor와 UseCase
 
@@ -75,7 +75,8 @@
 - `account_records`에는 `external_connection_id`, `candidate_key`, `external_account_key_ciphertext`, 잔액, 기본 여부, 표시 순서를 저장하지 않는다.
 - `account_transactions.account_id`, `account_monthly_summaries.account_id`, `settlement_receiving_account_snapshots.source_account_id`는 `account_records.id`를 참조한다.
 - 삭제된 Account Record의 `deleted_at`은 필수이며 행 자체는 후속 보존 정책 전까지 삭제하지 않는다.
-- 새 계좌는 새 ID와 새 `linked_at`을 가지며, 외부 거래의 `transactedAt < linked_at`인 항목은 저장하지 않는다.
+- 새 계좌는 새 ID와 새 `linked_at`을 가지지만, `linked_at`은 거래 조회·저장 필터로 사용하지 않는다.
+- 재연결 계좌가 과거 기간을 조회하면 해당 기간의 거래를 새 `accountId` 아래 새 행으로 저장할 수 있으며, 삭제 전 거래 행을 이관하거나 연결하지 않는다.
 - 활성 계좌가 하나 이상이면 기본 계좌는 정확히 하나다. 삭제 후 `displayOrder` 간격은 재정렬하지 않는다.
 - DRAFT 정산이 수령 계좌로 참조 중인 Account는 삭제할 수 없다.
 
@@ -97,8 +98,8 @@
 1. 기존 `POST /api/v2/accounts/connections/banks`가 기관 자격증명을 갱신하고 후보를 반환한다.
 2. 삭제한 계좌의 `candidateKey`는 활성 계좌 목록에 없으므로 `alreadyLinked=false`다.
 3. `POST /api/v2/accounts/external`이 새 `accounts` 행과 새 Account Record를 만든다.
-4. 거래 동기화는 새 `accounts.created_at` 이상인 거래만 저장한다.
-5. 삭제 전 거래와 새 계좌 거래는 서로 다른 `accountId`로 유지된다.
+4. 거래 동기화는 연결 시각과 무관하게 사용자가 요청한 월 전체를 CODEF에서 조회한다.
+5. 같은 외부 거래가 삭제 전 계좌에도 있었더라도 재연결 계좌에는 새 `accountId`의 별도 거래로 저장되며 기존 행을 이관하지 않는다.
 
 ### 실패 흐름
 
@@ -165,12 +166,14 @@ Authentication: required
   - 기존 `accounts`를 `account_records`로 backfill
   - `accounts` INSERT/표시정보 UPDATE 시 Account Record를 upsert하고 DELETE 시 `deleted_at`을 기록하는 PostgreSQL trigger 추가
   - `account_transactions.account_id`, `account_monthly_summaries.account_id` FK를 `account_records(id)`로 변경
+  - 거래·월 요약 JPA Entity는 활성 `AccountJpaEntity` 연관관계 대신 scalar `Long accountId`를 사용하고 무결성은 PostgreSQL FK로 보장
   - `settlement_receiving_account_snapshots.source_account_id` FK를 `account_records(id)`로 변경하고 `settlement_id`는 `settlements(id) ON DELETE CASCADE`로 독립
   - `settlements(creator_id, receiving_account_id)`의 기존 소유자 복합 FK와 삭제 제한을 유지
   - 계좌 삭제 전에 요청 완료 정산의 `receiving_account_id`만 명시적으로 `NULL` 처리하고 DRAFT 참조는 삭제 제한의 최종 방어선으로 유지
+  - `linked_at`은 연결 이력 표시에만 사용하고 거래 조회 범위를 제한하는 조건에는 사용하지 않음
 - Flyway migration required: `Yes`
-- Planned migration: 다음 사용 가능한 버전은 구현 시작 시 최신 `origin/develop`과 열린 migration PR을 확인해 정한다.
-- Migration pull request: `Pending`
+- Planned migration: `V17__preserve_account_records_for_deletion.sql`
+- Migration pull request: [#126](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/126) (`Open`, 의존 문제 해결 전 병합 보류)
 - Redis key, TTL, or serialization changes: 없음
 - External API or message changes: 계좌 삭제에서는 없음
 - Environment variable or profile changes: 없음
@@ -183,7 +186,8 @@ Authentication: required
 
 - `accounts`는 현재 결제수단만 보관하고 삭제된 행을 재활성화하지 않는다.
 - Account Record는 기록의 출처와 소유권만 보존하며 현재 계좌 기능에 노출하지 않는다.
-- 같은 외부 계좌의 재연결은 새 수명주기이므로 새 ID와 새 거래 시작 시각을 사용한다.
+- 같은 외부 계좌의 재연결은 새 수명주기이므로 새 ID를 사용하되, 거래는 사용자가 요청한 조회 기간 전체를 다시 가져올 수 있다.
+- 과거 거래를 다시 가져오는 것은 기존 거래 행의 연결이나 이관이 아니라 새 Account 수명주기에 대한 별도 동기화다.
 - DRAFT 정산이 참조 중인 계좌는 사용자가 정산에서 다른 계좌를 선택하거나 정산을 종료하기 전까지 삭제하지 않는다.
 - 기본 계좌 승격과 외부 연결 잠금 순서는 Application Service가 조정한다.
 
@@ -209,9 +213,9 @@ CODEF 공식 `/v1/account/delete`는 선택한 은행계좌 한 건이 아니라
 | 영역 | 영향 | 확인한 파일 또는 계약 |
 |---|---|---|
 | API | 계좌 삭제 endpoint와 Swagger 추가 | `AccountController`, `adapter.in.web.account.docs.AccountDocs` |
-| Application | 삭제 UseCase·Service, DRAFT 사용 확인, 잠금 후 계좌 재검증, 거래 동기화 시작 시각 필터 | `BankAccountService`, `AccountQueryService`, `SettlementReceivingAccountService` |
-| Domain | Account에 연결 시작 시각 노출, 필요 시 기본 계좌 선택 규칙 재사용 | `domain.account.Account` |
-| Persistence | Account Record, FK 전환, trigger, 물리 삭제와 기본 승격 | V2, V10, V15, V16의 후속 migration과 account persistence |
+| Application | 삭제 UseCase·Service, DRAFT 사용 확인, 잠금 후 계좌 재검증, 기존 월 단위 거래 동기화 유지 | `BankAccountService`, `AccountQueryService`, `SettlementReceivingAccountService` |
+| Domain | 필요 시 기본 계좌 선택 규칙 재사용 | `domain.account.Account` |
+| Persistence | Account Record, FK 전환, 거래·월 요약 scalar ID 매핑, trigger, 물리 삭제와 기본 승격 | V2, V10, V15, V16의 후속 migration과 account persistence |
 | Redis | 없음 | N/A |
 | Security | 본인 소유 계좌만 삭제, 타인 계좌도 404 | `CurrentActorPort`, `LoadAccountPort` |
 | Configuration | 없음 | N/A |
@@ -226,16 +230,17 @@ CODEF 공식 `/v1/account/delete`는 선택한 은행계좌 한 건이 아니라
 
 ## 7. 구현 계획
 
-- [ ] Migration-only pull request to `develop` (`Required`)
-- [ ] `DeleteAccountUseCase` 추가 (`Command`/`Result`는 N/A)
-- [ ] `LoadAccountPort` 잠금 조회, `DeleteAccountPort`, `SettlementReceivingAccountUsagePort` 추가
-- [ ] Account에 `linkedAt`을 노출하고 재연결 이전 거래 필터 추가
-- [ ] Application Policy (`N/A` - Service의 기존 정렬 규칙으로 충분)
-- [ ] `AccountDeletionService`에서 연결 잠금 → 계좌 재검증 → DRAFT 참조 확인 → 요청 완료 참조 분리 → 기본 계좌 결정 → 삭제 조정
-- [ ] Account Persistence Adapter의 물리 삭제·기본 계좌 승격과 거래/요약 scalar account ID 매핑
-- [ ] 계좌 삭제 Controller·Swagger 추가
-- [ ] Infra configuration and Bean wiring (`N/A` - 기존 component scan 사용)
-- [ ] 관련 Feature Plan과 검증 결과 갱신
+- [x] Migration-only pull request to `develop` (`Required`, PR #126 병합 보류)
+- [x] `DeleteAccountUseCase` 추가 (`Command`/`Result`는 N/A)
+- [x] `LoadAccountPort` 잠금 조회, `DeleteAccountPort`, `SettlementReceivingAccountUsagePort` 추가
+- [x] 거래 조회는 기존 `AccountQueryService`의 요청 월 전체 조회를 유지하고 `linkedAt` 필터를 추가하지 않음
+- [x] Application Policy (`N/A` - Service의 기존 정렬 규칙으로 충분)
+- [x] `AccountDeletionService`에서 연결 잠금 → 계좌 재검증 → DRAFT 참조 확인 → 요청 완료 참조 분리 → 기본 계좌 결정 → 삭제 조정
+- [x] Account Persistence Adapter의 물리 삭제·기본 계좌 승격
+- [x] 거래·월 요약 JPA Entity를 scalar `accountId`로 변경하고 Account 삭제 후 이력 조회 검증
+- [x] 계좌 삭제 Controller·Swagger 추가
+- [x] Infra configuration and Bean wiring (`N/A` - 기존 component scan 사용)
+- [x] 관련 Feature Plan과 검증 결과 갱신
 
 구현 요청이 시작되면 Flyway gate에 따라 migration-only PR을 먼저 생성하고 그 작업을 즉시 종료한다. Java 구현은 별도 후속 작업에서 진행한다.
 
@@ -247,7 +252,6 @@ CODEF 공식 `/v1/account/delete`는 선택한 은행계좌 한 건이 아니라
 docs(account): 계좌 삭제와 재연결 수명주기 결정
 build(database): 계좌 기록 보존과 물리 삭제 스키마 추가
 feat(account): 계좌 물리 삭제 기능 추가
-fix(account): 재연결 이전 거래 동기화 차단
 test(account): 계좌 삭제와 재연결 기록 분리 검증
 docs(account): 계좌 삭제 구현 결과 반영
 ```
@@ -267,15 +271,15 @@ git status --short --untracked-files=all
 
 ### 완료 기준
 
-- [ ] 계좌 삭제 뒤 `accounts` 행은 없고 Account Record·거래·월 요약은 남는다.
-- [ ] 삭제 계좌의 CODEF 암호문·candidate key·잔액·기본 설정은 Account Record에 남지 않는다.
-- [ ] DRAFT 정산이 수령 계좌로 참조하면 409로 삭제를 거부하고 모든 행을 유지한다.
-- [ ] DRAFT 참조가 없으면 요청 완료 정산의 활성 계좌 참조만 분리되고 snapshot·Share는 남는다.
-- [ ] 삭제한 계좌 후보를 다시 연결하면 새 ID가 생기고 이전 거래를 새 ID로 저장하지 않는다.
+- [x] 계좌 삭제 뒤 `accounts` 행은 없고 Account Record는 남는다.
+- [x] 삭제 계좌의 CODEF 암호문·candidate key·잔액·기본 설정은 Account Record에 남지 않는다.
+- [x] DRAFT 정산이 수령 계좌로 참조하면 409로 삭제를 거부하고 어떤 삭제 작업도 호출하지 않는다.
+- [x] DRAFT 참조가 없으면 요청 완료 정산의 활성 계좌 참조만 분리된다.
+- [ ] 삭제한 계좌 후보를 다시 연결하면 새 ID가 생기고, 요청한 과거 기간 거래도 새 ID의 별도 거래로 저장한다.
 - [ ] 기본 계좌 삭제, 마지막 계좌 삭제, 반복 삭제, 타인 계좌 삭제를 검증한다.
 - [ ] 삭제와 거래 동기화·재연결·정산 계좌 선택의 동시 요청에서 500과 고아 참조가 생기지 않는다.
-- [ ] 계좌 삭제 중 CODEF `/v1/account/delete`가 호출되지 않는다.
-- [ ] Swagger와 관련 문서가 실제 계약과 일치한다.
+- [x] 계좌 삭제 UseCase가 CODEF Port에 의존하지 않는다.
+- [x] Swagger와 관련 문서가 실제 계약과 일치한다.
 
 ### 결과
 
@@ -283,20 +287,26 @@ git status --short --untracked-files=all
 |---|---|---|
 | 열린 이슈·현재 코드·Flyway 관계 분석 | 완료 | Issue #97, V2/V10/V15/V16, Account·Settlement 서비스 확인 |
 | CODEF 계정 삭제 계약 확인 | 완료 | 공식 `cid-delete` 문서의 `/v1/account/delete` 입력·삭제 범위 확인 |
-| 구현·자동 테스트·런타임 | 대기 | 이번 작업은 정책 문서 작성만 수행 |
+| 거래 조회 기간 정책 수정 | 완료 | 기존 `AccountQueryService`가 요청 월 전체를 조회하며 `linkedAt` 필터가 없음을 확인 |
+| 계좌 삭제 Application·Web 구현 | 완료 | UseCase, 연결·Account 잠금, DRAFT 충돌, 요청 완료 참조 분리, 기본 계좌 승격, DELETE API |
+| 자동 테스트 | 완료 | V17 PostgreSQL·Redis에서 전체 281개 통과 후 삭제 영속 통합 테스트 별도 통과 |
+| 과거 이력 FK·JPA 매핑 | 완료 | Account 삭제 후 거래·월 요약 조회 및 두 FK의 `account_records` 참조 확인 |
+| 남은 런타임 검증 | 대기 | 재연결 새 ID·과거 월 거래 조회와 실제 동시 요청 검증 |
 
 ## 9. 진행 기록
 
 | 날짜 | 완료 작업 | 다음 작업 | 발견 위험 |
 |---|---|---|---|
 | 2026-08-24 | 최신 `origin/develop`, Issue #97, Account/거래/정산 FK와 CODEF 삭제 계약을 분석하고 정책 초안 작성 | 팀 리뷰 후 migration-only 작업 | 현재 물리 삭제는 V10·V15·V16 FK로 차단되며 재연결은 같은 ID를 재활성화함 |
+| 2026-08-24 | 재연결 계좌의 거래 조회에서 `linked_at` 하한을 사용하지 않도록 정책 수정 | 계좌 삭제 Java 구현 | 동일 외부 거래가 삭제 전후 Account에 각각 저장될 수 있음 |
+| 2026-08-24 | 계좌 삭제 UseCase·API·영속 처리와 V17 통합 검증 완료 | 재연결·동시성 시나리오 검증 | 구현 브랜치는 병합 보류된 PR #126 스키마에 의존함 |
 
 ## 10. 결정 기록
 
 | 날짜 | 결정 | 이유 | 대안 또는 영향 |
 |---|---|---|---|
 | 2026-08-24 | `accounts`는 물리 삭제하고 Account Record만 보존 | 현재 결제수단과 과거 기록의 수명주기를 분리 | soft delete·재활성화는 사용하지 않음 |
-| 2026-08-24 | 재연결은 새 ID·새 거래 시작 시각을 사용 | 삭제 전후 기록을 합치지 않음 | 과거 거래를 새 계좌에서 다시 가져오지 않음 |
+| 2026-08-24 | 재연결은 새 ID를 사용하되 요청 기간의 과거 거래도 다시 조회 | 최초 연결과 재연결 모두 과거 거래 조회가 필요함 | 기존 행은 이관하지 않고 새 Account의 별도 거래로 저장 |
 | 2026-08-24 | 로컬 계좌 삭제에서 CODEF delete를 호출하지 않음 | CODEF 삭제 단위는 개별 은행계좌가 아니라 기관 인증정보임 | 기관 연결 해지는 별도 기능 |
 | 2026-08-24 | DRAFT 정산이 수령 계좌로 사용하는 Account 삭제를 거부 | 진행 중인 정산의 사용자 선택을 암묵적으로 변경하지 않음 | 사용자가 다른 수령 계좌를 선택하거나 DRAFT를 종료한 뒤 삭제 |
 

@@ -1,7 +1,9 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.account.repository;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.account.entity.AccountJpaEntity;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -24,6 +26,28 @@ public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, Lo
     List<AccountJpaEntity> findByUser_IdAndActiveTrue(Long userId);
 
     Optional<AccountJpaEntity> findByIdAndUser_IdAndActiveTrue(Long id, Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select account
+              from AccountJpaEntity account
+             where account.id = :id
+               and account.user.id = :userId
+               and account.active = true
+            """)
+    Optional<AccountJpaEntity> findActiveByIdAndUserIdForUpdate(
+            @Param("id") Long id,
+            @Param("userId") Long userId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update AccountJpaEntity account
+               set account.isDefault = true
+             where account.id = :accountId
+               and account.active = true
+            """)
+    int markDefault(@Param("accountId") Long accountId);
 
     @Modifying(clearAutomatically = true)
     @Query("""

@@ -25,6 +25,7 @@ import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -81,6 +82,7 @@ public class AccountQueryService
     }
 
     @Override
+    @Transactional
     public AccountDetailResult getAccountDetail(Long accountId, YearMonth requestedYearMonth) {
         Account account = ownedAccount(accountId);
         YearMonth yearMonth = yearMonth(requestedYearMonth);
@@ -103,6 +105,7 @@ public class AccountQueryService
     }
 
     @Override
+    @Transactional
     public List<AccountTransactionResult> getAccountTransactions(Long accountId, YearMonth requestedYearMonth) {
         Account account = ownedAccount(accountId);
         YearMonth yearMonth = yearMonth(requestedYearMonth);
@@ -129,17 +132,21 @@ public class AccountQueryService
                     .orElseThrow(() -> ApplicationException.of(
                             ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND
                     ));
+            Account activeAccount = loadAccountPort.findActiveByIdAndUserIdForUpdate(
+                            account.id(), account.userId()
+                    )
+                    .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
             List<Transaction> transactions = bankTransactionPort.fetch(
                             connection.connectedId(),
-                            account.organization(),
-                            account.externalAccountKey(),
+                            activeAccount.organization(),
+                            activeAccount.externalAccountKey(),
                             yearMonth.atDay(1),
                             yearMonth.atEndOfMonth()
                     ).stream()
                     .map(transaction -> new Transaction(
                             null,
-                            account.id(),
-                            transactionKey(account.externalAccountKey(), transaction),
+                            activeAccount.id(),
+                            transactionKey(activeAccount.externalAccountKey(), transaction),
                             transaction.type(),
                             transaction.amount(),
                             transaction.transactedAt(),
@@ -148,9 +155,9 @@ public class AccountQueryService
                     ))
                     .toList();
             saveTransactionPort.saveAllIgnoringDuplicates(transactions);
-            AccountMonthlySummary calculated = loadTransactionPort.calculateSummary(account.id(), yearMonth);
+            AccountMonthlySummary calculated = loadTransactionPort.calculateSummary(activeAccount.id(), yearMonth);
             saveTransactionPort.saveSummaryIfAbsent(calculated);
-            return loadTransactionPort.findSummary(account.id(), yearMonth).orElse(calculated);
+            return loadTransactionPort.findSummary(activeAccount.id(), yearMonth).orElse(calculated);
         });
     }
 

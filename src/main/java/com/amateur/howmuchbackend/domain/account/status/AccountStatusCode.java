@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum AccountStatusCode implements StatusCode {
     ACCOUNT_NOT_FOUND("계좌를 찾을 수 없습니다.", 404),
+    ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT("작성 중인 정산에서 수령 계좌로 사용 중입니다.", 409),
     INVALID_ACCOUNT_QUERY("계좌 조회 조건이 올바르지 않습니다.", 400),
     ACCOUNT_TRANSACTION_NOT_SUPPORTED("거래내역 조회를 지원하지 않는 계좌입니다.", 422);
 

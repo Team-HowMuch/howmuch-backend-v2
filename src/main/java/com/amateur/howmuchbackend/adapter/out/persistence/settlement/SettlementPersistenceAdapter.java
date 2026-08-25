@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReceivingAccountUsagePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
@@ -20,7 +21,11 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-public class SettlementPersistenceAdapter implements LoadSettlementPort, LoadSettlementListPort, SaveSettlementPort {
+public class SettlementPersistenceAdapter implements
+        LoadSettlementPort,
+        LoadSettlementListPort,
+        SaveSettlementPort,
+        SettlementReceivingAccountUsagePort {
     private final SettlementJpaRepository settlementJpaRepository;
 
     @Override
@@ -80,5 +85,15 @@ public class SettlementPersistenceAdapter implements LoadSettlementPort, LoadSet
                 tab == SettlementListTab.PAY ? projection.getAmountToPay() : null,
                 tab == SettlementListTab.PAY ? projection.getRequesterName() : null
         );
+    }
+
+    @Override
+    public boolean existsDraftByReceivingAccountId(Long accountId) {
+        return settlementJpaRepository.existsByReceivingAccountIdAndStatus(accountId, SettlementStatus.DRAFT);
+    }
+
+    @Override
+    public void detachIssuedByReceivingAccountId(Long accountId) {
+        settlementJpaRepository.detachIssuedByReceivingAccountId(accountId, SettlementStatus.DRAFT);
     }
 }

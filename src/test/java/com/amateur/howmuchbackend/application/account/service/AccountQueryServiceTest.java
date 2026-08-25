@@ -128,6 +128,8 @@ class AccountQueryServiceTest {
                 .thenReturn(Optional.empty(), Optional.of(calculated));
         when(connectionStorePort.findActiveByIdAndUserId(account.externalConnectionId(), USER_ID))
                 .thenReturn(Optional.of(new ExternalConnection(account.externalConnectionId(), USER_ID, "CID-1")));
+        when(loadAccountPort.findActiveByIdAndUserIdForUpdate(account.id(), USER_ID))
+                .thenReturn(Optional.of(account));
         when(bankTransactionPort.fetch("CID-1", "0020", "1002123456789", AUGUST.atDay(1), AUGUST.atEndOfMonth()))
                 .thenReturn(List.of(new BankTransactionPort.BankTransaction(
                         AccountTransactionType.EXPENSE,
@@ -152,6 +154,23 @@ class AccountQueryServiceTest {
             assertThat(transaction.amount()).isEqualByComparingTo("12500");
         });
         verify(saveTransactionPort).saveSummaryIfAbsent(calculated);
+    }
+
+    @Test
+    @DisplayName("연결 잠금 전에 계좌가 삭제되면 CODEF 조회 없이 404로 종료한다")
+    void rejectsAccountDeletedBeforeTransactionFetch() {
+        Account account = account(1L, "0020", true, 0);
+        when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
+        when(loadTransactionPort.findSummary(account.id(), AUGUST)).thenReturn(Optional.empty());
+        when(connectionStorePort.findActiveByIdAndUserId(account.externalConnectionId(), USER_ID))
+                .thenReturn(Optional.of(new ExternalConnection(account.externalConnectionId(), USER_ID, "CID-1")));
+        when(loadAccountPort.findActiveByIdAndUserIdForUpdate(account.id(), USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getAccountDetail(account.id(), AUGUST))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(AccountStatusCode.ACCOUNT_NOT_FOUND));
+
+        verifyNoInteractions(bankTransactionPort, saveTransactionPort);
     }
 
     @Test
