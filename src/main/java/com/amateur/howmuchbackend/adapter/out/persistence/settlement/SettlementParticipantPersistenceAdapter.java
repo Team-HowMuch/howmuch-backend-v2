@@ -5,9 +5,12 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberSettlementStatePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
@@ -17,13 +20,15 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
 public class SettlementParticipantPersistenceAdapter implements
         LoadSettlementParticipantPort,
         SaveSettlementParticipantPort,
-        DeleteSettlementParticipantPort {
+        DeleteSettlementParticipantPort,
+        LoadGroupMemberSettlementStatePort {
     private final SettlementParticipantJpaRepository settlementParticipantJpaRepository;
 
     @Override
@@ -81,6 +86,15 @@ public class SettlementParticipantPersistenceAdapter implements
     public void delete(SettlementParticipant participant) {
         settlementParticipantJpaRepository.deleteById(participant.id());
         settlementParticipantJpaRepository.flush();
+    }
+
+    @Override
+    public Set<SettlementStatus> findStatuses(Long groupId, Long userId) {
+        return settlementParticipantJpaRepository.findDistinctSettlementStatusesByGroupMember(
+                SettlementParticipantSource.GROUP_MEMBER,
+                groupId,
+                userId
+        );
     }
 
     private RuntimeException translateConstraintViolation(DataIntegrityViolationException exception) {

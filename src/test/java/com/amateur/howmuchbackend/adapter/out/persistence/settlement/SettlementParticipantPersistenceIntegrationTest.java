@@ -18,6 +18,8 @@ import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,6 +45,7 @@ class SettlementParticipantPersistenceIntegrationTest {
     private Long creatorId;
     private Long groupId;
     private UUID settlementId;
+    private final List<UUID> settlementIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
@@ -76,6 +79,7 @@ class SettlementParticipantPersistenceIntegrationTest {
                 CREATED_AT
         );
         settlementId = UUID.randomUUID();
+        settlementIds.add(settlementId);
         Settlement settlement = new Settlement(
                 settlementId,
                 creatorId,
@@ -111,7 +115,8 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", settlementId);
+        settlementIds.forEach(id -> jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", id));
+        settlementIds.clear();
         jdbcTemplate.update("DELETE FROM groups WHERE id = ?", groupId);
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", creatorId);
     }
@@ -193,6 +198,48 @@ class SettlementParticipantPersistenceIntegrationTest {
         assertThat(entity.getSource()).isEqualTo(SettlementParticipantSource.GROUP_MEMBER);
         assertThat(entity.getSourceGroupId()).isEqualTo(groupId);
         assertThat(saved.sourceGroupId()).isEqualTo(groupId);
+    }
+
+    @Test
+    @DisplayName("그룹멤버 출처 참여자가 속한 정산 상태를 중복 없이 조회한다")
+    void loadsDistinctSettlementStatusesForGroupMember() {
+        settlementParticipantPersistenceAdapter.save(SettlementParticipant.groupMember(
+                settlementId,
+                groupId,
+                creatorId,
+                "초안 참여자",
+                0,
+                CREATED_AT
+        ));
+        UUID requestedSettlementId = UUID.randomUUID();
+        settlementIds.add(requestedSettlementId);
+        settlementJpaRepository.saveAndFlush(new SettlementJpaEntity(new Settlement(
+                requestedSettlementId,
+                creatorId,
+                "요청된 정산",
+                20_000,
+                SettlementStatus.REQUESTED,
+                CREATED_AT.plusHours(1),
+                CREATED_AT.plusHours(1)
+        )));
+        settlementParticipantPersistenceAdapter.save(SettlementParticipant.groupMember(
+                requestedSettlementId,
+                groupId,
+                creatorId,
+                "요청 참여자",
+                0,
+                CREATED_AT.plusHours(1)
+        ));
+
+        Set<SettlementStatus> statuses = settlementParticipantPersistenceAdapter.findStatuses(
+                groupId,
+                creatorId
+        );
+
+        assertThat(statuses).containsExactlyInAnyOrder(
+                SettlementStatus.DRAFT,
+                SettlementStatus.REQUESTED
+        );
     }
 
     @Test

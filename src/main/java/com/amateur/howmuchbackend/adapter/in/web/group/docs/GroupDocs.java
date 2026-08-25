@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.CreateGroupWe
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.AddGroupMemberWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.JoinGroupWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.UpdateGroupWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.TransferGroupOwnershipWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupDetailWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupSummaryWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupMemberWebResponse;
@@ -216,4 +217,85 @@ public interface GroupDocs {
             Long groupId,
             AddGroupMemberWebRequest request
     );
+
+    @Operation(
+            summary = "그룹 소유권 이전",
+            description = "현재 OWNER가 같은 그룹의 활성 MEMBER에게 소유권을 이전합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "그룹 소유권 이전 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "GROUP_ACCESS_DENIED 또는 GROUP_OWNER_REQUIRED"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "GROUP_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "GROUP_OWNER_TRANSFER_TARGET_INVALID"
+            )
+    })
+    ApiResponse<Void> transferGroupOwnership(
+            Long groupId,
+            TransferGroupOwnershipWebRequest request
+    );
+
+    @Operation(
+            summary = "그룹 자기 탈퇴",
+            description = "현재 MEMBER가 진행 중인 그룹 출처 정산이 없을 때 그룹을 탈퇴합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "그룹 탈퇴 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "GROUP_ACCESS_DENIED"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "GROUP_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "GROUP_OWNER_TRANSFER_REQUIRED 또는 GROUP_MEMBER_EXIT_BLOCKED_BY_SETTLEMENT"
+            )
+    })
+    ApiResponse<Void> leaveGroup(Long groupId);
+
+    @Operation(
+            summary = "그룹 멤버 제거",
+            description = "OWNER가 진행 중인 그룹 출처 정산이 없는 활성 MEMBER를 제거합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "그룹 멤버 제거 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "GROUP_ACCESS_DENIED 또는 GROUP_OWNER_REQUIRED"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "GROUP_NOT_FOUND 또는 GROUP_MEMBER_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "GROUP_OWNER_TRANSFER_REQUIRED 또는 GROUP_MEMBER_EXIT_BLOCKED_BY_SETTLEMENT"
+            )
+    })
+    ApiResponse<Void> removeGroupMember(Long groupId, Long memberId);
 }

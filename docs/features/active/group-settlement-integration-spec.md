@@ -190,6 +190,14 @@ AND settlement_participants.linked_user_id = :userId
 - 그룹 삭제 여부와 무관하게 기존 정산의 출처 사실은 유지한다.
 - 정산 참여자를 멤버 종료 시 삭제하거나 source를 변경하지 않는다.
 
+### 5.3 정산 요청과 멤버 종료 직렬화
+
+- `SettlementRequestService`는 settlement row를 잠근 뒤 그룹 출처 참여자를 읽는다.
+- 관련 group row를 그룹 ID 오름차순으로 잠그고 각 `linkedUserId`의 활성 멤버십을 재검증한다.
+- 탈퇴·제거가 먼저 group row를 잠그면 정산 요청은 종료 커밋 후 비활성 멤버를 확인해 발행을 거절한다.
+- 정산 요청이 먼저 group row를 잠그면 멤버 종료는 발행 커밋 후 차단 정산 상태를 확인해 거절한다.
+- 삭제 그룹의 기존 정산 처리를 유지하기 위해 그룹 상태가 아니라 보존된 멤버십의 `ACTIVE` 여부를 검증한다.
+
 ## 6. 2단계 Migration과 배포 호환
 
 저장소 Flyway gate에 따라 두 migration은 각각 SQL-only PR로 분리한다.
@@ -300,4 +308,8 @@ JpaEntity(source=GROUP_MEMBER, sourceGroupId=null)
 - JPA Entity·Mapper가 그룹 출처를 저장·복원하며 legacy `GROUP_MEMBER/source_group_id NULL`은 `REGISTERED_USER/null`로 안전하게 읽는다.
 - 기존 REGISTERED_USER·CONTACT와 공개 Web 응답 계약은 변경하지 않았다.
 - Domain·Application 단위 테스트와 실제 그룹 roster, 그룹 출처 저장, legacy 호환 PostgreSQL 통합 테스트를 추가했다.
-- 멤버 종료용 정산 상태 조회는 #151, strict source/group 제약은 배포 호환 확인 후 #152에서 구현한다.
+- #151에서 settlement Persistence Adapter가 `LoadGroupMemberSettlementStatePort`를 구현해 그룹·사용자·`GROUP_MEMBER` 출처 기준 distinct `SettlementStatus`를 조회한다.
+- 자기 탈퇴와 OWNER 제거가 이 같은 조회 결과를 `GroupMemberExitPolicy`에 전달하며, 실제 PostgreSQL에서 `DRAFT`와 `REQUESTED` 상태 복원을 통합 검증했다.
+- 리뷰 후 정산 요청에도 `LockGroupMemberRosterPort` 기반 group row lock과 활성 그룹멤버 재검증을 추가해 `DRAFT -> REQUESTED` 전이와 멤버 종료를 직렬화했다.
+- 실제 PostgreSQL의 두 트랜잭션에서 탈퇴가 group row를 먼저 잠근 경합을 재현하고, 정산 요청 측 재검증이 커밋된 `LEFT` 상태를 읽는 것을 확인했다.
+- strict source/group 제약은 배포 호환 확인 후 #152에서 구현한다.
