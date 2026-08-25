@@ -4,8 +4,10 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.Sett
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReceivingAccountUsagePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -15,7 +17,10 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-public class SettlementPersistenceAdapter implements LoadSettlementPort, SaveSettlementPort {
+public class SettlementPersistenceAdapter implements
+        LoadSettlementPort,
+        SaveSettlementPort,
+        SettlementReceivingAccountUsagePort {
     private final SettlementJpaRepository settlementJpaRepository;
 
     @Override
@@ -41,5 +46,15 @@ public class SettlementPersistenceAdapter implements LoadSettlementPort, SaveSet
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
         entity.updateFrom(settlement);
         return SettlementMapper.toDomain(settlementJpaRepository.save(entity));
+    }
+
+    @Override
+    public boolean existsDraftByReceivingAccountId(Long accountId) {
+        return settlementJpaRepository.existsByReceivingAccountIdAndStatus(accountId, SettlementStatus.DRAFT);
+    }
+
+    @Override
+    public void detachIssuedByReceivingAccountId(Long accountId) {
+        settlementJpaRepository.detachIssuedByReceivingAccountId(accountId, SettlementStatus.DRAFT);
     }
 }

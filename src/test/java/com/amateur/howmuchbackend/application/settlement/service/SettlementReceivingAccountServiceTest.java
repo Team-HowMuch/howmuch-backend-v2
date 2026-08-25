@@ -93,7 +93,7 @@ class SettlementReceivingAccountServiceTest {
         Settlement settlement = draft();
         Account account = account(7L, true, 0, AccountType.DEPOSIT_TRUST, "11", "KRW");
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
-        when(loadAccountPort.findActiveByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(account));
+        when(loadAccountPort.findActiveByIdAndUserIdForUpdate(7L, USER_ID)).thenReturn(Optional.of(account));
         when(saveSettlementPort.update(any(Settlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = service.select(
@@ -111,7 +111,7 @@ class SettlementReceivingAccountServiceTest {
     void rejectsUnknownOwnedAccount() {
         authenticate();
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
-        when(loadAccountPort.findActiveByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
+        when(loadAccountPort.findActiveByIdAndUserIdForUpdate(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.select(
                 SETTLEMENT_ID, new SelectSettlementReceivingAccountCommand(99L)
@@ -128,7 +128,7 @@ class SettlementReceivingAccountServiceTest {
                 7L, true, 0, AccountType.FOREIGN_CURRENCY, "11", "USD"
         );
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
-        when(loadAccountPort.findActiveByIdAndUserId(7L, USER_ID))
+        when(loadAccountPort.findActiveByIdAndUserIdForUpdate(7L, USER_ID))
                 .thenReturn(Optional.of(foreignAccount));
 
         assertThatThrownBy(() -> service.select(
@@ -153,7 +153,7 @@ class SettlementReceivingAccountServiceTest {
                 assertThat(exception.getStatusCode()).isEqualTo(
                         SettlementStatusCode.SETTLEMENT_NOT_EDITABLE
                 ));
-        verify(loadAccountPort, never()).findActiveByIdAndUserId(any(), any());
+        verify(loadAccountPort, never()).findActiveByIdAndUserIdForUpdate(any(), any());
     }
 
     private void authenticate() {

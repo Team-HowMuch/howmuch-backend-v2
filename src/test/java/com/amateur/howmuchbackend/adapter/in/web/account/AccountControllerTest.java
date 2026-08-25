@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.web.account;
 
 import com.amateur.howmuchbackend.application.port.in.account.ConnectBankUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.DeleteAccountUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountDetailUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransactionsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountsUseCase;
@@ -9,8 +10,10 @@ import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUs
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountDetailResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountSummaryResult;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
+import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,7 +28,10 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
 
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,6 +45,7 @@ class AccountControllerTest {
     @Mock private GetAccountsUseCase getAccountsUseCase;
     @Mock private GetAccountDetailUseCase getAccountDetailUseCase;
     @Mock private GetAccountTransactionsUseCase getAccountTransactionsUseCase;
+    @Mock private DeleteAccountUseCase deleteAccountUseCase;
 
     private MockMvc mockMvc;
 
@@ -50,7 +57,8 @@ class AccountControllerTest {
                 linkBankAccountsUseCase,
                 getAccountsUseCase,
                 getAccountDetailUseCase,
-                getAccountTransactionsUseCase
+                getAccountTransactionsUseCase,
+                deleteAccountUseCase
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -98,5 +106,25 @@ class AccountControllerTest {
         mockMvc.perform(get("/api/v2/accounts/1").param("yearMonth", "2026-8"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+    }
+
+    @Test
+    @DisplayName("계좌를 삭제하고 빈 성공 응답을 반환한다")
+    void deletesAccount() throws Exception {
+        mockMvc.perform(delete("/api/v2/accounts/1"))
+                .andExpect(status().isOk());
+
+        verify(deleteAccountUseCase).delete(1L);
+    }
+
+    @Test
+    @DisplayName("DRAFT 정산이 사용하는 계좌 삭제는 409 계약으로 반환한다")
+    void rejectsAccountUsedByDraftSettlement() throws Exception {
+        doThrow(ApplicationException.of(AccountStatusCode.ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT))
+                .when(deleteAccountUseCase).delete(1L);
+
+        mockMvc.perform(delete("/api/v2/accounts/1"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT"));
     }
 }

@@ -27,13 +27,13 @@ Problems caused by leaving the decision unresolved:
 - soft deletion leaves sensitive integration state and makes accidental row reactivation possible;
 - hard deletion without a durable owner reference creates orphaned transaction history;
 - calling CODEF account deletion for one local Account removes a broader institution credential boundary;
-- reconnecting can duplicate or merge pre-deletion transactions unless a new sync boundary is established.
+- reconnecting can fetch the same historical external transactions again, so the old and new lifecycle records must remain separate.
 
 ## Decision Drivers
 
 - Remove CODEF-derived secrets and mutable payment-method state when the user deletes an Account.
 - Preserve transaction ownership, monthly summaries, imported settlement expenses, and finalized receiving-account snapshots.
-- Give a reconnected account a new identity and prevent pre-link transactions from joining the new lifecycle.
+- Give a reconnected account a new identity while allowing the requested historical transaction period to be synchronized.
 - Keep referential integrity in PostgreSQL.
 - Reject deletion while any DRAFT settlement uses the Account as its receiving account.
 - Allow the migration-only pull request to be deployed before the Java implementation without breaking account creation.
@@ -63,7 +63,11 @@ Problems caused by leaving the decision unresolved:
 
 Use option 3. `accounts` represents only currently usable payment methods and is physically deleted. `account_records` retains the same lifecycle ID plus only the minimum non-sensitive provenance needed by transaction and settlement history: owner, institution, display label, masked number, type, currency, linked time, and deleted time. It never stores the external connection ID, candidate key, encrypted external account key, balance, default state, or display order.
 
-Every active Account has one Account Record. PostgreSQL triggers maintain that record across migration-first deployment and mark it deleted in the same database transaction as Account deletion. Transactions, monthly summaries, and finalized settlement snapshots reference the Account Record. A reconnected external account creates a new Account and Account Record, and transaction synchronization excludes records earlier than the new Account creation time.
+Every active Account has one Account Record. PostgreSQL triggers maintain that record across migration-first deployment and mark it deleted in the same database transaction as Account deletion. Transactions, monthly summaries, and finalized settlement snapshots reference the Account Record. A reconnected external account creates a new Account and Account Record. Its transaction synchronization uses the full period requested by the user and does not use the Account creation or linked time as a lower bound.
+
+Fetching an earlier period after reconnection may store the same external transaction under both the deleted and reconnected Account lifecycle IDs. This is intentional: no existing transaction row is moved, re-parented, or merged, and each Account keeps its own deduplication boundary.
+
+Transaction and monthly-summary JPA entities store `account_id` as a scalar lifecycle ID rather than an `AccountJpaEntity` association. PostgreSQL still enforces `NOT NULL` foreign keys from those columns to `account_records(id)`, so removing the JPA association does not remove referential integrity.
 
 Account deletion is rejected with a conflict while any DRAFT settlement selects it as the receiving account. The user must select another receiving account or end the DRAFT first. Issued settlements do not block deletion: their active `receiving_account_id` reference is detached explicitly while their immutable receiving-account snapshot and Shares remain.
 
@@ -87,6 +91,7 @@ Local Account deletion does not call CODEF `/v1/account/delete`. Institution dis
 - Account deletion adds a settlement-usage check and an explicit detach operation for issued settlements.
 - Issued settlements have `receiving_account_id=null` after Account deletion; their immutable snapshot becomes the only valid transfer source.
 - A dedicated API is required if the product later wants users to browse deleted-account history.
+- A historical external transaction may exist once per Account lifecycle after reconnection.
 
 ### Follow-up
 
@@ -113,7 +118,7 @@ Local Account deletion does not call CODEF `/v1/account/delete`. Institution dis
 - [ ] Verify Account deletion removes `accounts` state while preserving transaction, summary, settlement-expense, snapshot, and Share rows.
 - [ ] Verify a DRAFT receiving-account reference returns a conflict and preserves both the Account and Settlement.
 - [ ] Verify all historical references retain PostgreSQL foreign-key integrity.
-- [ ] Verify relinking creates a new ID and does not synchronize transactions before its linked time.
+- [ ] Verify relinking creates a new ID and synchronizes the full requested transaction period without moving old rows.
 - [ ] Verify local deletion makes no CODEF delete request.
 - [x] Link the related Feature Plan and documentation.
 - [ ] Complete compilation, PostgreSQL migration, concurrency, CODEF Mock, and manual HTTP verification.

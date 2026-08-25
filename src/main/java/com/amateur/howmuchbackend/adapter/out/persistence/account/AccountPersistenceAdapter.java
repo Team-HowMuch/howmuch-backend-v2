@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.adapter.out.persistence.external.repository.Ex
 import com.amateur.howmuchbackend.adapter.out.persistence.user.UserJpaRepository;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
+import com.amateur.howmuchbackend.application.port.out.account.DeleteAccountPort;
 import com.amateur.howmuchbackend.domain.account.Account;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -23,7 +24,7 @@ import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
-public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPort {
+public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPort, DeleteAccountPort {
     private final AccountJpaRepository accountRepository;
     private final UserJpaRepository userRepository;
     private final ExternalConnectionJpaRepository connectionRepository;
@@ -47,11 +48,24 @@ public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPo
     @Transactional(readOnly = true)
     public Optional<Account> findActiveByIdAndUserId(Long accountId, Long userId) {
         return accountRepository.findByIdAndUser_IdAndActiveTrue(accountId, userId)
-                .map(entity -> AccountMapper.toDomain(entity, cipher.decryptAccountKey(
-                        entity.getUser().getId(),
-                        entity.getExternalConnection().getId(),
-                        entity.getExternalAccountKeyCiphertext()
-                )));
+                .map(this::toDomainWithAccountKey);
+    }
+
+    @Override
+    @Transactional
+    public Optional<Account> findActiveByIdAndUserIdForUpdate(Long accountId, Long userId) {
+        return accountRepository.findActiveByIdAndUserIdForUpdate(accountId, userId)
+                .map(this::toDomainWithAccountKey);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long accountId, Long nextDefaultAccountId) {
+        accountRepository.deleteById(accountId);
+        accountRepository.flush();
+        if (nextDefaultAccountId != null) {
+            accountRepository.markDefault(nextDefaultAccountId);
+        }
     }
 
     @Override
@@ -92,5 +106,13 @@ public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPo
     @Transactional
     public int deactivateAccountsForInactiveConnections() {
         return accountRepository.deactivateForInactiveConnections(LocalDateTime.now(ZoneOffset.UTC));
+    }
+
+    private Account toDomainWithAccountKey(AccountJpaEntity entity) {
+        return AccountMapper.toDomain(entity, cipher.decryptAccountKey(
+                entity.getUser().getId(),
+                entity.getExternalConnection().getId(),
+                entity.getExternalAccountKeyCiphertext()
+        ));
     }
 }
