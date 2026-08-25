@@ -123,6 +123,22 @@ class SettlementParticipantTest {
                         .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_PARTICIPANT_IDENTITY));
     }
 
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1})
+    @DisplayName("그룹 참여자는 양수 출처 그룹 ID가 있어야 한다")
+    void rejectsInvalidSourceGroupId(long sourceGroupId) {
+        assertThatThrownBy(() -> SettlementParticipant.groupMember(
+                SETTLEMENT_ID,
+                sourceGroupId,
+                2L,
+                "그룹 참여자",
+                0,
+                CREATED_AT
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_PARTICIPANT_IDENTITY));
+    }
+
     @Test
     @DisplayName("참여자 표시 순서는 첫 참여자부터 증가하도록 음수를 거부한다")
     void rejectsNegativeDisplayOrder() {
