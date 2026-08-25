@@ -136,7 +136,7 @@ class SettlementItemAllocationPersistenceIntegrationTest {
 
         allocationAdapter.saveSelection(saved.changeFraction(
                 SettlementItemAllocationFraction.ONE,
-                CREATED_AT.plusMinutes(1)
+                saved.createdAt().plusMinutes(1)
         ));
 
         assertThat(allocationAdapter.findAllSelections(settlementId))
