@@ -255,7 +255,7 @@ DELETE /api/v2/groups/{groupId}/members/{memberId}
 | `GROUP_MEMBER_ALREADY_ACTIVE` | 409 | 이미 활성 멤버 |
 | `GROUP_MEMBER_REMOVED` | 409 | 제거된 사용자의 초대 코드 재가입 |
 | `GROUP_MEMBER_LEFT_REQUIRES_INVITE` | 409 | LEFT 사용자를 OWNER가 강제 복구하려 함 |
-| `GROUP_OWNER_TRANSFER_REQUIRED` | 409 | OWNER가 이전 없이 탈퇴 |
+| `GROUP_OWNER_TRANSFER_REQUIRED` | 409 | OWNER가 이전 없이 탈퇴하거나 자신을 제거하려 함 |
 | `GROUP_OWNER_TRANSFER_TARGET_INVALID` | 409 | 잘못된 소유권 이전 대상 |
 | `GROUP_MEMBER_EXIT_BLOCKED_BY_SETTLEMENT` | 409 | 미완료 그룹 출처 정산 의무 존재 |
 
@@ -305,4 +305,8 @@ DELETE /api/v2/groups/{groupId}/members/{memberId}
 - 멤버 목록은 활성 멤버만 OWNER 우선, `joinedAt ASC`, `memberId ASC` 순으로 반환하고 현재 User의 `publicId`와 이름을 결합한다.
 - 그룹·사용자 멤버십 unique 충돌은 `GROUP_MEMBER_ALREADY_ACTIVE`로 변환하고 기존 멤버십 변경은 쓰기 잠금을 사용한다.
 - Domain, Policy, Application, Controller 단위 테스트와 PostgreSQL 영속 통합 테스트를 추가했다.
-- 소유권 이전, 자기 탈퇴와 OWNER 멤버 제거는 #151에서 구현한다.
+- #151 범위의 소유권 이전, 자기 탈퇴와 OWNER 멤버 제거 API를 구현했다.
+- 소유권 이전은 그룹 row lock으로 직렬화하고 `TransferGroupOwnershipPort`가 기존 OWNER 강등을 먼저 flush한 뒤 대상 MEMBER 승격과 `groups.owner_id` 변경을 한 트랜잭션에서 반영한다.
+- 자기 탈퇴와 OWNER 제거는 같은 `GroupMemberExitPolicy`와 `LoadGroupMemberSettlementStatePort`를 사용하며 각각 `LEFT`, `REMOVED` 상태를 기록한다.
+- OWNER의 이전 없는 탈퇴·자기 제거와 `REQUESTED`, `AWAITING_DEPOSIT`, `SUSPENDED` 정산이 있는 종료를 차단한다.
+- Domain·Application·Controller 단위 테스트와 PostgreSQL 소유권 동시성 통합 테스트를 추가했다.

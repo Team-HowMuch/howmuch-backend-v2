@@ -18,10 +18,10 @@
 ### Success criteria
 
 - [x] 로그인 사용자가 그룹을 생성하고 자신의 활성 그룹 목록·상세·이미지를 조회할 수 있다.
-- [ ] OWNER가 설정·멤버·소유권을 관리하고 MEMBER는 허용된 조회·탈퇴만 수행한다.
+- [x] OWNER가 설정·멤버·소유권을 관리하고 MEMBER는 허용된 조회·탈퇴만 수행한다.
 - [x] 초대 코드 가입, `LEFT` 재가입과 `REMOVED` OWNER 복구가 정의된 상태 전이를 따른다.
-- [ ] 정산 그룹 후보가 실제 활성 그룹멤버를 사용하고 참여자에 `source_group_id`를 저장한다.
-- [ ] 미완료 그룹 출처 정산이 있으면 자기 탈퇴와 OWNER 제거가 같은 Policy로 차단된다.
+- [x] 정산 그룹 후보가 실제 활성 그룹멤버를 사용하고 참여자에 `source_group_id`를 저장한다.
+- [x] 미완료 그룹 출처 정산이 있으면 자기 탈퇴와 OWNER 제거가 같은 Policy로 차단된다.
 - [x] 그룹 삭제 후 신규 접근은 닫히고 기존 정산 데이터는 보존된다.
 - [ ] migration 전환 중 구버전 writer와 기존 참여자 데이터가 깨지지 않는다.
 
@@ -230,17 +230,25 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
+### #151 implementation revalidation
+
+- Current branch: `feat/group-member-exit`
+- Flyway migration required: No. V18 already provides the role/status columns, active OWNER partial unique index, and nullable `settlement_participants.source_group_id` required by this scope.
+- Ownership transfer persistence: demote the current OWNER and flush before promoting the target MEMBER, then update `groups.owner_id` through one `TransferGroupOwnershipPort` call inside the Application transaction. The group row lock serializes concurrent transfers.
+- Member exit persistence: both self-leave and OWNER removal load settlement statuses through `LoadGroupMemberSettlementStatePort` and pass the same facts to `GroupMemberExitPolicy`; the Domain then records `LEFT` or `REMOVED` respectively.
+- Compatibility boundary: settlement participant API responses and existing settlement state transitions remain unchanged.
+
 - [x] 1차 migration-only pull request to `develop` (#165)
 - [ ] 2차 migration-only pull request to `develop` (애플리케이션 배포 호환 확인 후 #152에서 종료)
-- [ ] UseCase and Application Command/Result
-- [ ] Required Output Ports
-- [ ] Domain models and rules
-- [ ] Application Policies
-- [ ] Application Service
-- [ ] Output Adapters
-- [ ] Web Request/Response DTOs, Controllers, and Swagger
-- [ ] Infra configuration and Bean wiring
-- [ ] Documentation and verification results
+- [x] UseCase and Application Command/Result
+- [x] Required Output Ports
+- [x] Domain models and rules
+- [x] Application Policies
+- [x] Application Service
+- [x] Output Adapters
+- [x] Web Request/Response DTOs, Controllers, and Swagger
+- [x] Infra configuration and Bean wiring (이번 범위 변경 없음)
+- [x] Documentation and verification results
 
 ### Pull request boundaries
 
@@ -360,8 +368,9 @@ git status --short --untracked-files=all
 | PRD·Spec·Feature Plan 작성 | Complete | [#164](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/164) |
 | 1차 migration | Complete | [#165](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/165) |
 | 그룹 core·settings | Complete, merged | [#167](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/167) |
-| membership·권한 | #149 Complete, merged; #151 Pending | [#168](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/168), #151 |
-| settlement integration | Implemented, PR pending | #150 |
+| membership·권한 | #149 Complete, merged; #151 Implemented, PR pending | [#168](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/168), #151 |
+| settlement integration | Complete, merged | [#169](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/169) |
+| 소유권·멤버 종료 검증 | Complete | 격리 PostgreSQL·Redis에서 `./gradlew test` 성공, 동시 이전 OWNER 1명 유지와 정산 상태 조회 통합 검증 |
 | 2차 strict migration | Pending | #152 |
 | 전체 통합·OpenAPI | Pending | #153 |
 
@@ -373,6 +382,7 @@ git status --short --untracked-files=all
 | 2026-08-25 | #164·#165 병합; 그룹 생성·조회·이미지·설정·소프트 삭제와 계층별 테스트 구현 | #147·#148 PR 리뷰 후 #149 | 무페이지 목록은 규모 증가 시 재검토 필요 |
 | 2026-08-25 | #167 병합; 초대 코드 가입·재가입, 멤버 목록과 OWNER 직접 추가·복구 구현 및 계층별 테스트 완료 | #149 PR 리뷰 후 #150 | 동시 신규 가입은 unique 제약 충돌을 중복 활성 오류로 변환 |
 | 2026-08-25 | #168 병합; profile Stub 제거, 실제 활성 roster와 정산 참여자 `sourceGroupId` 저장·legacy 호환 구현 | #150 PR 리뷰 후 #151 | strict 제약 전까지 구버전 writer의 GROUP_MEMBER/null을 호환 읽기해야 함 |
+| 2026-08-25 | #169 병합; 원자적 소유권 이전, 공통 정산 종료 Policy, 자기 탈퇴·OWNER 제거 API와 PostgreSQL 동시성 검증 완료 | #151 PR 리뷰 후 #152 배포 호환 확인 | OWNER 역할 교체는 반드시 전용 persistence capability의 강등 선-flush 순서를 유지해야 함 |
 
 ## 10. Decision log
 
@@ -393,6 +403,6 @@ git status --short --untracked-files=all
 
 - Completed on: Pending
 - Final behavior: Pending
-- Unverified items: #150·#151 Java 구현, 2차 migration, 최종 HTTP·OpenAPI 교차 검증
+- Unverified items: 2차 migration, 최종 실제 HTTP·OpenAPI 교차 검증
 - Remaining risks: 초대 base URL 운영값, 대규모 그룹에서 무페이지 목록의 성능, legacy writer 종료 시점
 - Follow-up work: #146~#153
