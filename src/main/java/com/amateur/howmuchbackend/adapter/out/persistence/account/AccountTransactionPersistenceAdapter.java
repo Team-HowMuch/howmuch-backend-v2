@@ -7,6 +7,7 @@ import com.amateur.howmuchbackend.adapter.out.persistence.account.repository.Acc
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
 import com.amateur.howmuchbackend.domain.account.AccountMonthlySummary;
+import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.account.Transaction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -61,6 +62,24 @@ public class AccountTransactionPersistenceAdapter
     public Optional<Transaction> findByAccountIdAndId(Long accountId, Long transactionId) {
         return transactionRepository.findByAccountIdAndId(accountId, transactionId)
                 .map(this::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Transaction> findIncomeByAccountIdBetween(
+            Long accountId,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
+        return transactionRepository
+                .findByAccountIdAndTypeAndTransactedAtGreaterThanEqualAndTransactedAtLessThanEqualOrderByTransactedAtAscIdAsc(
+                        accountId,
+                        AccountTransactionType.INCOME,
+                        start,
+                        end
+                ).stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     @Override
