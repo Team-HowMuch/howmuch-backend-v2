@@ -12,4 +12,6 @@ public interface LoadAccountPort {
     List<Account> findActiveByUserId(Long userId);
 
     Optional<Account> findActiveByIdAndUserId(Long accountId, Long userId);
+
+    Optional<Account> findActiveByIdAndUserIdForUpdate(Long accountId, Long userId);
 }

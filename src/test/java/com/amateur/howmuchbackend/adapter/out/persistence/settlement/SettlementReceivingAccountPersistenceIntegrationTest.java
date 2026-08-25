@@ -55,6 +55,7 @@ class SettlementReceivingAccountPersistenceIntegrationTest {
     void tearDown() {
         jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", settlementId);
         jdbcTemplate.update("DELETE FROM accounts WHERE id = ?", accountId);
+        jdbcTemplate.update("DELETE FROM account_records WHERE id = ?", accountId);
         jdbcTemplate.update("DELETE FROM external_connections WHERE id = ?", connectionId);
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", creatorId);
     }
