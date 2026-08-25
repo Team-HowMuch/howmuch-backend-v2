@@ -125,9 +125,14 @@ class SettlementDepositServiceTest {
             assertThat(deposit.accountTransactionId()).isEqualTo(savedTransaction.id());
         });
         verify(saveSettlementPort).update(any(Settlement.class));
-        InOrder accountUpdateOrder = inOrder(loadAccountPort, saveTransactionPort);
+        InOrder accountUpdateOrder = inOrder(
+                loadAccountPort,
+                loadSettlementPort,
+                saveTransactionPort
+        );
         accountUpdateOrder.verify(loadAccountPort)
                 .findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID);
+        accountUpdateOrder.verify(loadSettlementPort).findByIdForUpdate(SETTLEMENT_ID);
         accountUpdateOrder.verify(saveTransactionPort).saveAllIgnoringDuplicates(anyList());
     }
 
@@ -191,9 +196,50 @@ class SettlementDepositServiceTest {
         verifyNoInteractions(connectionStorePort, bankTransactionPort, saveTransactionPort, saveSettlementPort);
     }
 
-    private void arrangeSettlement(SettlementStatus status) {
+    @Test
+    @DisplayName("계좌 잠금 대기 중 완료된 정산은 잠금 후 상태를 재검증해 저장하지 않는다")
+    void rechecksCompletedStatusAfterAccountLock() {
+        arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.COMPLETED)));
+        when(connectionStorePort.findActiveByUserId(CREATOR_ID))
+                .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
+        when(bankTransactionPort.fetch(
+                eq("CID-1"),
+                eq("0020"),
+                eq("1002123456789"),
+                any(LocalDate.class),
+                any(LocalDate.class)
+        )).thenReturn(List.of());
+        Transaction transaction = transaction("6000");
+        when(loadTransactionPort.findIncomeByAccountIdBetween(eq(7L), eq(CREATED_AT), any()))
+                .thenReturn(List.of(transaction));
+        when(depositStorePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(new SettlementDeposit(
+                        UUID.randomUUID(),
+                        SETTLEMENT_ID,
+                        PAYER_SHARE_ID,
+                        7L,
+                        transaction.id(),
+                        CREATED_AT.plusHours(2)
+                )));
+
+        var result = service.reconcile(SETTLEMENT_ID);
+
+        assertThat(result.status()).isEqualTo(SettlementStatus.COMPLETED);
+        assertThat(result.confirmedAmount()).isEqualTo(6_000);
+        verify(saveTransactionPort, never()).saveAllIgnoringDuplicates(anyList());
+        verify(depositStorePort, never()).saveAll(anyList());
+        verifyNoInteractions(saveSettlementPort);
+    }
+
+    private void arrangeSettlement(SettlementStatus status) {
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(status)));
+        if (status != SettlementStatus.COMPLETED) {
+            when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                    .thenReturn(Optional.of(settlement(status)));
+        }
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))

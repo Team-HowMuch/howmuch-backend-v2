@@ -73,27 +73,34 @@ public class SettlementDepositService implements
     @Transactional
     public SettlementDepositSummaryResult reconcile(UUID settlementId) {
         CurrentActor actor = currentActorPort.getCurrentActor();
-        Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
+        Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
         ensureAvailable(settlement.status());
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        DepositData data = loadData(settlement, now);
         if (settlement.status() == SettlementStatus.COMPLETED) {
+            DepositData data = loadData(settlement, now);
             return summarize(settlement, data.payableShares(), data.confirmedAmounts());
         }
 
+        SettlementReceivingAccountSnapshot snapshot = loadSnapshot(settlement.id());
         ExternalConnection connection = connectionStorePort.findActiveByUserId(actor.userId())
                 .orElseThrow(() -> ApplicationException.of(
                         ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND
                 ));
         List<Transaction> fetchedTransactions = fetchTransactions(
                 connection,
-                data.snapshot(),
+                snapshot,
                 now
         );
         loadAccountPort.findActiveByIdAndUserIdForUpdate(
-                data.snapshot().sourceAccountId(),
+                snapshot.sourceAccountId(),
                 actor.userId()
         );
+        Settlement lockedSettlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
+        ensureAvailable(lockedSettlement.status());
+        DepositData data = loadData(lockedSettlement, now);
+        if (lockedSettlement.status() == SettlementStatus.COMPLETED) {
+            return summarize(lockedSettlement, data.payableShares(), data.confirmedAmounts());
+        }
         saveTransactionPort.saveAllIgnoringDuplicates(fetchedTransactions);
 
         List<Transaction> transactions = loadTransactionPort.findIncomeByAccountIdBetween(
@@ -104,7 +111,7 @@ public class SettlementDepositService implements
         Map<Long, Transaction> transactionById = transactions.stream()
                 .collect(Collectors.toMap(Transaction::id, Function.identity()));
         List<SettlementDeposit> existingDeposits =
-                depositStorePort.findAllBySettlementId(settlement.id());
+                depositStorePort.findAllBySettlementId(lockedSettlement.id());
         Map<UUID, Long> confirmedAmounts = confirmedAmounts(existingDeposits, transactionById);
         Set<Long> matchedTransactionIds = new HashSet<>(depositStorePort.findMatchedTransactionIds(
                 transactionById.keySet()
@@ -134,7 +141,7 @@ public class SettlementDepositService implements
                     .filter(currentPayableByShareId::containsKey)
                     .ifPresent(shareId -> {
                         SettlementDeposit deposit = SettlementDeposit.create(
-                                settlement.id(),
+                                lockedSettlement.id(),
                                 shareId,
                                 data.snapshot().sourceAccountId(),
                                 transaction.id(),
@@ -152,8 +159,8 @@ public class SettlementDepositService implements
         depositStorePort.saveAll(newDeposits);
 
         Settlement result = allCompleted(data.payableShares(), confirmedAmounts)
-                ? saveSettlementPort.update(settlement.complete(now))
-                : settlement;
+                ? saveSettlementPort.update(lockedSettlement.complete(now))
+                : lockedSettlement;
         return summarize(result, data.payableShares(), confirmedAmounts);
     }
 
@@ -168,11 +175,7 @@ public class SettlementDepositService implements
     }
 
     private DepositData loadData(Settlement settlement, LocalDateTime now) {
-        SettlementReceivingAccountSnapshot snapshot = loadSnapshotPort
-                .findBySettlementId(settlement.id())
-                .orElseThrow(() -> ApplicationException.of(
-                        SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND
-                ));
+        SettlementReceivingAccountSnapshot snapshot = loadSnapshot(settlement.id());
         List<PayableShare> payableShares = payableShares(
                 settlement,
                 loadSettlementSharePort.findAllBySettlementId(settlement.id()),
@@ -190,6 +193,13 @@ public class SettlementDepositService implements
                 transactionById
         );
         return new DepositData(snapshot, payableShares, confirmedAmounts);
+    }
+
+    private SettlementReceivingAccountSnapshot loadSnapshot(UUID settlementId) {
+        return loadSnapshotPort.findBySettlementId(settlementId)
+                .orElseThrow(() -> ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND
+                ));
     }
 
     private List<Transaction> fetchTransactions(
