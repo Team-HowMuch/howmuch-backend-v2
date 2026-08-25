@@ -18,4 +18,6 @@ public interface SettlementItemSubmissionJpaRepository
             UUID settlementId,
             UUID participantId
     );
+
+    void deleteAllBySettlementId(UUID settlementId);
 }

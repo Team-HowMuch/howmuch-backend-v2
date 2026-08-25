@@ -231,7 +231,7 @@ Persistence Adapter는 SQL/JPA 조인과 중복 제거를 소유하고, Applicat
 - Decision owned by the Policy: N/A. 접근 범위와 탭·상태 필터는 조회 조건이며, 기존 저장 데이터의 관계와 SQL 조건으로 보장한다.
 - Facts loaded by the Service and passed to the Policy: N/A
 - Why the rule is not an Entity-local invariant: 사용자의 정산 접근 범위와 Share 합계는 `Settlement`, `SettlementParticipant`, `SettlementShare` 여러 저장 상태를 결합한 조회 규칙이다.
-- Future inputs deliberately not implemented yet: 실제 입금 상태, 수령 계좌 거래내역, 정산 삭제·재개 상태
+- Future inputs deliberately not implemented yet: 실제 입금 상태, 수령 계좌 거래내역
 
 ### Web API
 

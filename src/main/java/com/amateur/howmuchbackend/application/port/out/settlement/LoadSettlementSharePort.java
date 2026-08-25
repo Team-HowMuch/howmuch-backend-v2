@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface LoadSettlementSharePort {
+    boolean existsBySettlementId(UUID settlementId);
+
     Optional<SettlementShare> findBySettlementIdAndPayerParticipantId(
             UUID settlementId,
             UUID payerParticipantId

@@ -61,9 +61,9 @@
 
 ### State and invariants
 
-- State transitions: DRAFT → REQUESTED, REQUESTED → AWAITING_DEPOSIT, REQUESTED → SUSPENDED, AWAITING_DEPOSIT → COMPLETED만 허용한다. SUSPENDED 정산은 재개하지 않고 새 정산 요청을 만든다.
+- State transitions: DRAFT → REQUESTED, REQUESTED → AWAITING_DEPOSIT, REQUESTED → SUSPENDED, SUSPENDED → REQUESTED, AWAITING_DEPOSIT → COMPLETED만 허용한다. SUSPENDED 정산은 생성자만 REQUESTED 상태로 재개할 수 있다.
 - Rules that must always hold: 생성자 ID와 정산 ID는 변경하지 않는다. 금액은 0원보다 커야 한다. DRAFT만 생성자에게 제목·선언 총액 수정 권한을 준다.
-- Invalid states: 존재하지 않는 생성자, 0 이하 총액, 완료·중단 정산 수정, CODEF 완료 전 COMPLETED 전이.
+- Invalid states: 존재하지 않는 생성자, 0 이하 총액, 완료·중단 정산 수정, 생성자가 아닌 사용자의 중단·재개, CODEF 완료 전 COMPLETED 전이.
 
 ## 3. Scenarios
 

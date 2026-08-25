@@ -28,4 +28,6 @@ public interface SettlementItemAllocationStorePort {
     );
 
     SettlementItemSubmission saveSubmission(SettlementItemSubmission submission);
+
+    void deleteAllSubmissions(UUID settlementId);
 }

@@ -127,6 +127,11 @@ public class SettlementItemAllocationPersistenceAdapter
         }
     }
 
+    @Override
+    public void deleteAllSubmissions(UUID settlementId) {
+        submissionRepository.deleteAllBySettlementId(settlementId);
+    }
+
     private boolean hasConstraint(Throwable throwable, String constraintName) {
         Throwable current = throwable;
         while (current != null) {

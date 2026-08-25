@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.DeleteSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantCandidateAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
@@ -10,7 +11,9 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUs
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.ResumeSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.SuspendSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthTokenPort;
@@ -42,6 +45,9 @@ class SettlementAmountDeserializationTest {
     private CreateSettlementUseCase createSettlementUseCase;
 
     @MockitoBean
+    private DeleteSettlementUseCase deleteSettlementUseCase;
+
+    @MockitoBean
     private GetSettlementUseCase getSettlementUseCase;
 
     @MockitoBean
@@ -55,6 +61,12 @@ class SettlementAmountDeserializationTest {
 
     @MockitoBean
     private RemoveSettlementParticipantUseCase removeSettlementParticipantUseCase;
+
+    @MockitoBean
+    private SuspendSettlementUseCase suspendSettlementUseCase;
+
+    @MockitoBean
+    private ResumeSettlementUseCase resumeSettlementUseCase;
 
     @MockitoBean
     private GetSettlementParticipantsUseCase getSettlementParticipantsUseCase;

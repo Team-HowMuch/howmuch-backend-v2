@@ -154,6 +154,36 @@ class SettlementTest {
                             assertThat(exception.getStatusCode())
                                     .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_STATUS_TRANSITION));
         }
+
+        @Test
+        @DisplayName("생성자가 진행 중인 정산을 중단하고 다시 참여자 입력 상태로 재개한다")
+        void suspendsAndResumesRequestedSettlement() {
+            Settlement requested = draft().request(CREATED_AT.plusMinutes(1));
+            Settlement suspended = requested.suspendManually(CREATED_AT.plusMinutes(2));
+            Settlement resumed = suspended.resume(CREATED_AT.plusMinutes(3));
+
+            assertThat(suspended.status()).isEqualTo(SettlementStatus.SUSPENDED);
+            assertThat(resumed.status()).isEqualTo(SettlementStatus.REQUESTED);
+            assertThat(resumed.updatedAt()).isEqualTo(CREATED_AT.plusMinutes(3));
+        }
+
+        @Test
+        @DisplayName("요청되지 않은 정산이나 완료된 정산은 수동 중단·재개하지 않는다")
+        void rejectsManualStatusTransitionsOutsideAllowedStates() {
+            assertThatThrownBy(() -> draft().suspendManually(CREATED_AT.plusMinutes(1)))
+                    .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                            assertThat(exception.getStatusCode())
+                                    .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_STATUS_TRANSITION));
+
+            Settlement completed = draft()
+                    .request(CREATED_AT.plusMinutes(1))
+                    .awaitDeposit(CREATED_AT.plusMinutes(2))
+                    .complete(CREATED_AT.plusMinutes(3));
+            assertThatThrownBy(() -> completed.resume(CREATED_AT.plusMinutes(4)))
+                    .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                            assertThat(exception.getStatusCode())
+                                    .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_STATUS_TRANSITION));
+        }
     }
 
     private Settlement draft() {
