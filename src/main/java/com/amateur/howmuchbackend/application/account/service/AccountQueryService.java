@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.account.service;
 
+import com.amateur.howmuchbackend.application.account.AccountTransactionKey;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountDetailUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransactionsUseCase;
@@ -27,14 +28,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -146,7 +143,7 @@ public class AccountQueryService
                     .map(transaction -> new Transaction(
                             null,
                             activeAccount.id(),
-                            transactionKey(activeAccount.externalAccountKey(), transaction),
+                            AccountTransactionKey.from(activeAccount.externalAccountKey(), transaction),
                             transaction.type(),
                             transaction.amount(),
                             transaction.transactedAt(),
@@ -200,25 +197,6 @@ public class AccountQueryService
 
     private String institutionName(Account account, BankCatalogResult institution) {
         return institution == null ? account.organization() : institution.name();
-    }
-
-    private String transactionKey(String accountKey, BankTransactionPort.BankTransaction transaction) {
-        String source = String.join("\u0000",
-                accountKey,
-                transaction.transactedAt().toString(),
-                transaction.type().name(),
-                transaction.amount().stripTrailingZeros().toPlainString(),
-                transaction.afterBalance() == null
-                        ? ""
-                        : transaction.afterBalance().stripTrailingZeros().toPlainString(),
-                transaction.description() == null ? "" : transaction.description()
-        );
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(source.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("SHA-256 is not available.", impossible);
-        }
     }
 
     private record AccountView(Account account, LocalDateTime lastUsedAt) {

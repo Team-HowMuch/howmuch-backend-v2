@@ -1,0 +1,16 @@
+package com.amateur.howmuchbackend.application.port.out.settlement;
+
+import com.amateur.howmuchbackend.domain.settlement.SettlementDeposit;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+public interface SettlementDepositStorePort {
+    List<SettlementDeposit> findAllBySettlementId(UUID settlementId);
+
+    Set<Long> findMatchedTransactionIds(Collection<Long> transactionIds);
+
+    void saveAll(List<SettlementDeposit> deposits);
+}

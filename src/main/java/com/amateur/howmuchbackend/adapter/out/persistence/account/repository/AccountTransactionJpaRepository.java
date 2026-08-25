@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.account.repository;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.account.entity.AccountTransactionJpaEntity;
+import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -21,6 +22,14 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
     );
 
     Optional<AccountTransactionJpaEntity> findByAccountIdAndId(Long accountId, Long transactionId);
+
+    List<AccountTransactionJpaEntity>
+    findByAccountIdAndTypeAndTransactedAtGreaterThanEqualAndTransactedAtLessThanEqualOrderByTransactedAtAscIdAsc(
+            Long accountId,
+            AccountTransactionType type,
+            LocalDateTime start,
+            LocalDateTime end
+    );
 
     @Query("""
             select transaction.accountId, max(transaction.transactedAt)
