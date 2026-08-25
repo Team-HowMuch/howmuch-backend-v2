@@ -296,3 +296,13 @@ DELETE /api/v2/groups/{groupId}/members/{memberId}
 - OWNER가 그룹을 삭제하는 작업은 멤버 종료 Policy를 호출하지 않는다. 삭제는 기록을 유지한 채 그룹 전체의 신규 접근을 닫는 별도 흐름이다.
 - 정산 상태 조회 쿼리와 legacy 그룹 출처 데이터 호환은 [그룹-정산 연동 Spec](group-settlement-integration-spec.md)을 따른다.
 - 구현 순서와 PR 경계는 [그룹 관리 Feature Plan](group-management.md)을 따른다.
+
+## 11. 구현 결과
+
+- #149 범위의 초대 코드 가입, 활성 멤버 목록과 OWNER 직접 추가 API를 구현했다.
+- 초대 코드는 바깥 공백 제거와 대문자 정규화 후 8자리 영숫자 형식을 검증한다.
+- 신규 멤버십 생성, `LEFT` 초대 코드 재가입, `REMOVED` OWNER 직접 복구와 상태별 거절을 구현했다.
+- 멤버 목록은 활성 멤버만 OWNER 우선, `joinedAt ASC`, `memberId ASC` 순으로 반환하고 현재 User의 `publicId`와 이름을 결합한다.
+- 그룹·사용자 멤버십 unique 충돌은 `GROUP_MEMBER_ALREADY_ACTIVE`로 변환하고 기존 멤버십 변경은 쓰기 잠금을 사용한다.
+- Domain, Policy, Application, Controller 단위 테스트와 PostgreSQL 영속 통합 테스트를 추가했다.
+- 소유권 이전, 자기 탈퇴와 OWNER 멤버 제거는 #151에서 구현한다.
