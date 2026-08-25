@@ -10,9 +10,11 @@ import com.amateur.howmuchbackend.application.port.in.group.GetMyGroupsUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupMembersUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.JoinGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.UpdateGroupUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.TransferGroupOwnershipUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.command.UpdateGroupCommand;
 import com.amateur.howmuchbackend.application.port.in.group.command.AddGroupMemberCommand;
 import com.amateur.howmuchbackend.application.port.in.group.command.JoinGroupCommand;
+import com.amateur.howmuchbackend.application.port.in.group.command.TransferGroupOwnershipCommand;
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupDetailResult;
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupSummaryResult;
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupMemberResult;
@@ -44,6 +46,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -61,6 +64,7 @@ class GroupControllerTest {
     @Mock private JoinGroupUseCase joinGroupUseCase;
     @Mock private GetGroupMembersUseCase getGroupMembersUseCase;
     @Mock private AddGroupMemberUseCase addGroupMemberUseCase;
+    @Mock private TransferGroupOwnershipUseCase transferGroupOwnershipUseCase;
 
     private MockMvc mockMvc;
 
@@ -75,7 +79,8 @@ class GroupControllerTest {
                 deleteGroupUseCase,
                 joinGroupUseCase,
                 getGroupMembersUseCase,
-                addGroupMemberUseCase
+                addGroupMemberUseCase,
+                transferGroupOwnershipUseCase
         )).setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -212,6 +217,24 @@ class GroupControllerTest {
         ArgumentCaptor<AddGroupMemberCommand> captor = ArgumentCaptor.forClass(AddGroupMemberCommand.class);
         verify(addGroupMemberUseCase).add(org.mockito.ArgumentMatchers.eq(10L), captor.capture());
         assertThat(captor.getValue().publicId()).isEqualTo("sua.test");
+    }
+
+    @Test
+    @DisplayName("그룹 소유권 이전 성공은 빈 200 응답을 반환한다")
+    void transfersGroupOwnership() throws Exception {
+        mockMvc.perform(put("/api/v2/groups/{groupId}/owner", 10L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetMemberId\":20}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        ArgumentCaptor<TransferGroupOwnershipCommand> captor =
+                ArgumentCaptor.forClass(TransferGroupOwnershipCommand.class);
+        verify(transferGroupOwnershipUseCase).transfer(
+                org.mockito.ArgumentMatchers.eq(10L),
+                captor.capture()
+        );
+        assertThat(captor.getValue().targetMemberId()).isEqualTo(20L);
     }
 
     private GroupDetailResult detail(String name, String memo, String imageUrl) {
