@@ -2,8 +2,12 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.SettlementMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReceivingAccountUsagePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -19,6 +23,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SettlementPersistenceAdapter implements
         LoadSettlementPort,
+        LoadSettlementListPort,
         SaveSettlementPort,
         SettlementReceivingAccountUsagePort {
     private final SettlementJpaRepository settlementJpaRepository;
@@ -41,11 +46,45 @@ public class SettlementPersistenceAdapter implements
     }
 
     @Override
+    public java.util.List<SettlementListReadModel> findAll(
+            Long userId,
+            SettlementListTab tab,
+            SettlementListStatusFilter status
+    ) {
+        return settlementJpaRepository.findAllForUser(userId, tab.name(), status.name())
+                .stream()
+                .map(projection -> toReadModel(projection, tab))
+                .toList();
+    }
+
+    @Override
     public Settlement update(Settlement settlement) {
         var entity = settlementJpaRepository.findById(settlement.id())
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
         entity.updateFrom(settlement);
         return SettlementMapper.toDomain(settlementJpaRepository.save(entity));
+    }
+
+    private SettlementListReadModel toReadModel(
+            SettlementJpaRepository.SettlementListProjection projection,
+            SettlementListTab tab
+    ) {
+        SettlementStatus status = SettlementStatus.valueOf(projection.getStatus());
+        Integer completedParticipantCount = status == SettlementStatus.COMPLETED
+                ? Math.toIntExact(projection.getParticipantCount())
+                : null;
+        return new SettlementListReadModel(
+                projection.getSettlementId(),
+                status,
+                projection.getRequestedAt(),
+                tab == SettlementListTab.RECEIVE ? projection.getTotalAmount() : null,
+                tab == SettlementListTab.RECEIVE
+                        ? Math.toIntExact(projection.getParticipantCount())
+                        : null,
+                tab == SettlementListTab.RECEIVE ? completedParticipantCount : null,
+                tab == SettlementListTab.PAY ? projection.getAmountToPay() : null,
+                tab == SettlementListTab.PAY ? projection.getRequesterName() : null
+        );
     }
 
     @Override

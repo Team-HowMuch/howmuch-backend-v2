@@ -6,11 +6,13 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettl
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.MatchSettlementContactsWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SearchSettlementParticipantWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SettlementListWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementContactCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
@@ -19,6 +21,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementGroupParticipantCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
@@ -48,6 +51,7 @@ import java.util.UUID;
 public class SettlementController implements SettlementDocs {
     private final CreateSettlementUseCase createSettlementUseCase;
     private final GetSettlementUseCase getSettlementUseCase;
+    private final GetSettlementsUseCase getSettlementsUseCase;
     private final UpdateSettlementDraftUseCase updateSettlementDraftUseCase;
     private final AddSettlementParticipantUseCase addSettlementParticipantUseCase;
     private final RemoveSettlementParticipantUseCase removeSettlementParticipantUseCase;
@@ -76,6 +80,17 @@ public class SettlementController implements SettlementDocs {
         return ApiResponse.success(SettlementWebResponse.from(
                 getSettlementUseCase.get(settlementId)
         ));
+    }
+
+    @Override
+    @GetMapping
+    public ApiResponse<List<SettlementListItemWebResponse>> getSettlements(
+            @ModelAttribute SettlementListWebRequest request
+    ) {
+        return ApiResponse.success(getSettlementsUseCase.get(request.toCommand())
+                .stream()
+                .map(SettlementListItemWebResponse::from)
+                .toList());
     }
 
     @Override
