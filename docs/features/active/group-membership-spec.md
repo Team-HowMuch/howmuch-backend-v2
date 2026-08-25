@@ -174,6 +174,7 @@ Policy는 Output Port, JPA, HTTP, Infra 설정에 의존하지 않는다.
 - 대상이 요청자 자신, 비활성 멤버, 이미 OWNER 또는 다른 그룹 멤버면 `GROUP_OWNER_TRANSFER_TARGET_INVALID`다.
 - Persistence 저장은 활성 OWNER partial unique를 일시적으로 위반하지 않도록 기존 OWNER 강등과 대상 승격을 하나의 ownership transfer capability로 반영한다.
 - 동시 소유권 이전은 그룹 row lock으로 직렬화한다.
+- 그룹 출처 정산을 `DRAFT`에서 발행할 때도 관련 그룹 row를 같은 경계로 잠그고 참여자의 활성 멤버십을 재검증해, 정산 요청과 멤버 종료 중 한쪽만 먼저 커밋할 수 있게 한다.
 - 응답 성공 시점에는 `groups.owner_id`와 활성 OWNER 멤버십이 같은 사용자를 가리켜야 한다.
 
 ## 7. Web API 계약
@@ -309,4 +310,5 @@ DELETE /api/v2/groups/{groupId}/members/{memberId}
 - 소유권 이전은 그룹 row lock으로 직렬화하고 `TransferGroupOwnershipPort`가 기존 OWNER 강등을 먼저 flush한 뒤 대상 MEMBER 승격과 `groups.owner_id` 변경을 한 트랜잭션에서 반영한다.
 - 자기 탈퇴와 OWNER 제거는 같은 `GroupMemberExitPolicy`와 `LoadGroupMemberSettlementStatePort`를 사용하며 각각 `LEFT`, `REMOVED` 상태를 기록한다.
 - OWNER의 이전 없는 탈퇴·자기 제거와 `REQUESTED`, `AWAITING_DEPOSIT`, `SUSPENDED` 정산이 있는 종료를 차단한다.
+- 정산 요청이 관련 그룹 row를 잠그고 그룹 출처 참여자를 재검증해 `DRAFT` 조회와 `REQUESTED` 전이 사이의 종료 경쟁을 차단한다.
 - Domain·Application·Controller 단위 테스트와 PostgreSQL 소유권 동시성 통합 테스트를 추가했다.
