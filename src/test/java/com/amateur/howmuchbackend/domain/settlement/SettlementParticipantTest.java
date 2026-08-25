@@ -33,6 +33,7 @@ class SettlementParticipantTest {
         );
         SettlementParticipant groupMember = SettlementParticipant.groupMember(
                 SETTLEMENT_ID,
+                10L,
                 2L,
                 "문채원",
                 1,
@@ -45,6 +46,7 @@ class SettlementParticipantTest {
         assertThat(registered.displayName()).isEqualTo("최수아");
         assertThat(registered.isLinkedTo(1L)).isTrue();
         assertThat(groupMember.source()).isEqualTo(SettlementParticipantSource.GROUP_MEMBER);
+        assertThat(groupMember.sourceGroupId()).isEqualTo(10L);
         assertThat(groupMember.isLinkedTo(2L)).isTrue();
     }
 

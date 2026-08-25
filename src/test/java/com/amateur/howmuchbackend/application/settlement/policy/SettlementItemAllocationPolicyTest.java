@@ -153,6 +153,7 @@ class SettlementItemAllocationPolicyTest {
                 SettlementParticipantSource.REGISTERED_USER,
                 linkedUserId,
                 null,
+                null,
                 name,
                 order,
                 NOW,

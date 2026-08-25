@@ -54,6 +54,9 @@ public class SettlementParticipantJpaEntity extends BaseTimeJpaEntity {
     @Column(name = "phone_hash", updatable = false, length = SettlementParticipant.PHONE_HASH_LENGTH)
     private String phoneHash;
 
+    @Column(name = "source_group_id", updatable = false)
+    private Long sourceGroupId;
+
     @Column(
             name = "display_name",
             nullable = false,
@@ -71,6 +74,7 @@ public class SettlementParticipantJpaEntity extends BaseTimeJpaEntity {
         this.source = participant.source();
         this.linkedUserId = participant.linkedUserId();
         this.phoneHash = participant.phoneHash();
+        this.sourceGroupId = participant.sourceGroupId();
         this.displayName = participant.displayName();
         this.displayOrder = participant.displayOrder();
     }
