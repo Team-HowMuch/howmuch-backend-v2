@@ -18,10 +18,12 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -105,13 +107,26 @@ public class AccountTransactionPersistenceAdapter
     @Override
     @Transactional
     public void saveAllIgnoringDuplicates(List<Transaction> transactions) {
+        Set<AccountMonth> changedMonths = new HashSet<>();
         for (Transaction transaction : transactions) {
-            transactionRepository.insertIgnoringDuplicate(
+            int inserted = transactionRepository.insertIgnoringDuplicate(
                     transaction.accountId(), transaction.externalTransactionKey(), transaction.type().name(),
                     transaction.amount(), transaction.transactedAt(), transaction.description(),
                     transaction.afterBalance()
             );
+            if (inserted > 0) {
+                changedMonths.add(new AccountMonth(
+                        transaction.accountId(),
+                        YearMonth.from(transaction.transactedAt()
+                                .atZone(ZoneOffset.UTC)
+                                .withZoneSameInstant(SEOUL))
+                ));
+            }
         }
+        changedMonths.forEach(accountMonth -> summaryRepository.deleteByAccountIdAndYearMonth(
+                accountMonth.accountId(),
+                accountMonth.yearMonth().atDay(1)
+        ));
     }
 
     @Override
@@ -142,5 +157,8 @@ public class AccountTransactionPersistenceAdapter
         return yearMonth.atDay(1).atStartOfDay(SEOUL)
                 .withZoneSameInstant(ZoneOffset.UTC)
                 .toLocalDateTime();
+    }
+
+    private record AccountMonth(Long accountId, YearMonth yearMonth) {
     }
 }
