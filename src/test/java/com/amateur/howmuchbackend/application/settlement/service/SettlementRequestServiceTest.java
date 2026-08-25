@@ -234,6 +234,7 @@ class SettlementRequestServiceTest {
                 SettlementParticipantSource.REGISTERED_USER,
                 linkedUserId,
                 null,
+                null,
                 displayName,
                 displayOrder,
                 CREATED_AT,

@@ -14,6 +14,7 @@ public record SettlementParticipant(
         SettlementParticipantSource source,
         Long linkedUserId,
         String phoneHash,
+        Long sourceGroupId,
         String displayName,
         int displayOrder,
         LocalDateTime createdAt,
@@ -31,7 +32,7 @@ public record SettlementParticipant(
         Objects.requireNonNull(updatedAt, "정산 참여자 수정 시각은 필수입니다.");
         displayName = normalizeDisplayName(displayName);
         validateDisplayOrder(displayOrder);
-        validateIdentity(source, linkedUserId, phoneHash);
+        validateIdentity(source, linkedUserId, phoneHash, sourceGroupId);
     }
 
     public static SettlementParticipant registeredUser(
@@ -46,6 +47,7 @@ public record SettlementParticipant(
                 SettlementParticipantSource.REGISTERED_USER,
                 linkedUserId,
                 null,
+                null,
                 displayName,
                 displayOrder,
                 now
@@ -54,6 +56,7 @@ public record SettlementParticipant(
 
     public static SettlementParticipant groupMember(
             UUID settlementId,
+            Long sourceGroupId,
             Long linkedUserId,
             String displayName,
             int displayOrder,
@@ -64,6 +67,7 @@ public record SettlementParticipant(
                 SettlementParticipantSource.GROUP_MEMBER,
                 linkedUserId,
                 null,
+                sourceGroupId,
                 displayName,
                 displayOrder,
                 now
@@ -81,6 +85,7 @@ public record SettlementParticipant(
                 settlementId,
                 SettlementParticipantSource.CONTACT,
                 linkedUserId,
+                null,
                 null,
                 displayName,
                 displayOrder,
@@ -100,6 +105,7 @@ public record SettlementParticipant(
                 SettlementParticipantSource.CONTACT,
                 null,
                 phoneHash,
+                null,
                 displayName,
                 displayOrder,
                 now
@@ -115,6 +121,7 @@ public record SettlementParticipant(
             SettlementParticipantSource source,
             Long linkedUserId,
             String phoneHash,
+            Long sourceGroupId,
             String displayName,
             int displayOrder,
             LocalDateTime now
@@ -126,6 +133,7 @@ public record SettlementParticipant(
                 source,
                 linkedUserId,
                 phoneHash,
+                sourceGroupId,
                 displayName,
                 displayOrder,
                 now,
@@ -153,15 +161,21 @@ public record SettlementParticipant(
     private static void validateIdentity(
             SettlementParticipantSource source,
             Long linkedUserId,
-            String phoneHash
+            String phoneHash,
+            Long sourceGroupId
     ) {
         boolean hasValidLinkedUser = linkedUserId != null && linkedUserId > 0;
         boolean hasValidPhoneHash = phoneHash != null && PHONE_HASH_PATTERN.matcher(phoneHash).matches();
 
         boolean valid = switch (source) {
-            case REGISTERED_USER, GROUP_MEMBER -> hasValidLinkedUser && phoneHash == null;
-            case CONTACT -> (hasValidLinkedUser && phoneHash == null)
-                    || (linkedUserId == null && hasValidPhoneHash);
+            case REGISTERED_USER -> hasValidLinkedUser && phoneHash == null && sourceGroupId == null;
+            case GROUP_MEMBER -> hasValidLinkedUser
+                    && phoneHash == null
+                    && sourceGroupId != null
+                    && sourceGroupId > 0;
+            case CONTACT -> sourceGroupId == null
+                    && ((hasValidLinkedUser && phoneHash == null)
+                    || (linkedUserId == null && hasValidPhoneHash));
         };
         if (!valid) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_PARTICIPANT_IDENTITY);
