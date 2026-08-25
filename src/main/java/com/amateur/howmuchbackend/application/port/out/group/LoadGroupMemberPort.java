@@ -10,6 +10,8 @@ public interface LoadGroupMemberPort {
 
     Optional<GroupMember> findByGroupIdAndUserIdForUpdate(Long groupId, Long userId);
 
+    List<GroupMember> findActiveByGroupId(Long groupId);
+
     int countActiveByGroupId(Long groupId);
 
     List<GroupSummaryReadModel> findActiveGroupSummariesByUserId(Long userId);
