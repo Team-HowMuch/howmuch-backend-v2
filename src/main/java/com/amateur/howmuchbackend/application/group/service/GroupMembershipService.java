@@ -50,7 +50,7 @@ public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembers
     public GroupDetailResult join(JoinGroupCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
         String inviteCode = groupInviteCodePolicy.normalize(command.inviteCode());
-        Group group = loadGroupPort.findByInviteCode(inviteCode)
+        Group group = loadGroupPort.findByInviteCodeForUpdate(inviteCode)
                 .orElseThrow(() -> ApplicationException.of(GroupStatusCode.GROUP_NOT_FOUND));
         group.requireActive();
 

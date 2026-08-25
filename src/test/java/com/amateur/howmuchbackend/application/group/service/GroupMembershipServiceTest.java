@@ -230,7 +230,7 @@ class GroupMembershipServiceTest {
     }
 
     private void givenJoinGroup() {
-        when(loadGroupPort.findByInviteCode("AB12CD34")).thenReturn(Optional.of(group()));
+        when(loadGroupPort.findByInviteCodeForUpdate("AB12CD34")).thenReturn(Optional.of(group()));
     }
 
     private void givenInviteLink() {
