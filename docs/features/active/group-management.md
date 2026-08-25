@@ -1,6 +1,6 @@
 # Feature Plan: 그룹 관리
 
-- Status: Draft
+- Status: In Progress
 - Last updated: 2026-08-25
 - Related issue: [#139 그룹 생성·조회·멤버 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/139)
 - Related ADR: [0001 Purpose-oriented Ports](../adr/0001-purpose-oriented-ports.md), [0002 Framework-neutral StatusCode](../adr/0002-framework-neutral-status-code.md), [0003 Capability-oriented Output Ports](../adr/0003-capability-oriented-output-ports.md)
@@ -17,12 +17,12 @@
 
 ### Success criteria
 
-- [ ] 로그인 사용자가 그룹을 생성하고 자신의 활성 그룹 목록·상세·이미지를 조회할 수 있다.
+- [x] 로그인 사용자가 그룹을 생성하고 자신의 활성 그룹 목록·상세·이미지를 조회할 수 있다.
 - [ ] OWNER가 설정·멤버·소유권을 관리하고 MEMBER는 허용된 조회·탈퇴만 수행한다.
 - [ ] 초대 코드 가입, `LEFT` 재가입과 `REMOVED` OWNER 복구가 정의된 상태 전이를 따른다.
 - [ ] 정산 그룹 후보가 실제 활성 그룹멤버를 사용하고 참여자에 `source_group_id`를 저장한다.
 - [ ] 미완료 그룹 출처 정산이 있으면 자기 탈퇴와 OWNER 제거가 같은 Policy로 차단된다.
-- [ ] 그룹 삭제 후 신규 접근은 닫히고 기존 정산 데이터는 보존된다.
+- [x] 그룹 삭제 후 신규 접근은 닫히고 기존 정산 데이터는 보존된다.
 - [ ] migration 전환 중 구버전 writer와 기존 참여자 데이터가 깨지지 않는다.
 
 ### Out of scope
@@ -183,7 +183,7 @@ Authentication: 모든 그룹 endpoint는 bearer 인증 필수다.
 - Database Entity, constraint, or query changes: `groups`, `group_members`, `settlement_participants.source_group_id`, active OWNER partial unique, roster·exit-state query
 - Flyway migration required: Yes, 두 단계
 - Planned migration: 1차 그룹 스키마+nullable 출처, 2차 legacy backfill+strict source CHECK
-- Migration pull request: Pending (#146, #152)
+- Migration pull request: 1차 완료 ([#165](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/165)), 2차 Pending (#152)
 - Redis key, TTL, or serialization changes: N/A
 - External API or message changes: N/A, 서버는 초대 메시지를 발송하지 않음
 - Environment variable or profile changes: `howmuch.group.image.storage-dir`, `howmuch.group.invite.base-url`; group roster Stub profile 제거
@@ -230,7 +230,8 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] Migration-only pull request to `develop` (`Required`: #146 후 작업 즉시 종료, 애플리케이션 배포 후 #152에서 다시 종료)
+- [x] 1차 migration-only pull request to `develop` (#165)
+- [ ] 2차 migration-only pull request to `develop` (애플리케이션 배포 호환 확인 후 #152에서 종료)
 - [ ] UseCase and Application Command/Result
 - [ ] Required Output Ports
 - [ ] Domain models and rules
@@ -356,9 +357,9 @@ git status --short --untracked-files=all
 
 | Item | Result | Evidence |
 | --- | --- | --- |
-| PRD·Spec·Feature Plan 작성 | In progress | docs PR |
-| 1차 migration | Pending | #146 |
-| 그룹 core·settings | Pending | #147, #148 |
+| PRD·Spec·Feature Plan 작성 | Complete | [#164](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/164) |
+| 1차 migration | Complete | [#165](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/165) |
+| 그룹 core·settings | Implemented, PR pending | #147, #148 |
 | membership·권한 | Pending | #149, #151 |
 | settlement integration | Pending | #150 |
 | 2차 strict migration | Pending | #152 |
@@ -369,6 +370,7 @@ git status --short --untracked-files=all
 | Date | Completed work | Next work | Discovered risk |
 | --- | --- | --- | --- |
 | 2026-08-25 | 기능명세서, `develop`, 기존 PR·문서 형식 분석; PRD·Spec 3종·Feature Plan 초안 작성 | 문서 리뷰 후 #146 migration gate 실행 | GROUP_MEMBER legacy 행과 구버전 writer 사이 배포 호환 필요 |
+| 2026-08-25 | #164·#165 병합; 그룹 생성·조회·이미지·설정·소프트 삭제와 계층별 테스트 구현 | #147·#148 PR 리뷰 후 #149 | 무페이지 목록은 규모 증가 시 재검토 필요 |
 
 ## 10. Decision log
 
