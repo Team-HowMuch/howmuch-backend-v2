@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestResult;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.group.LockGroupMemberRosterPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
@@ -23,6 +24,8 @@ import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
@@ -34,7 +37,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -51,6 +57,7 @@ public class SettlementRequestService implements RequestSettlementUseCase {
     private final SettlementRequestPolicy requestPolicy;
     private final SettlementLinkTokenPort linkTokenPort;
     private final SaveSettlementRequestPort saveSettlementRequestPort;
+    private final LockGroupMemberRosterPort lockGroupMemberRosterPort;
 
     @Override
     @Transactional
@@ -59,13 +66,16 @@ public class SettlementRequestService implements RequestSettlementUseCase {
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         Settlement requested = settlement.request(now);
+        List<SettlementParticipant> participants =
+                loadSettlementParticipantPort.findAllBySettlementId(settlement.id());
+        validateActiveGroupMembers(participants);
         Account account = loadReceivingAccount(settlement, actor.userId());
         User creator = loadUserPort.findById(actor.userId())
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
 
         List<SettlementShare> shares = requestPolicy.prepareShares(
                 settlement,
-                loadSettlementParticipantPort.findAllBySettlementId(settlement.id()),
+                participants,
                 loadSettlementExpensePort.findAllBySettlementId(settlement.id()),
                 settlement.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
                         ? loadSettlementItemPort.findAllBySettlementId(settlement.id())
@@ -106,6 +116,28 @@ public class SettlementRequestService implements RequestSettlementUseCase {
                         : SettlementRequestPhase.ITEM_SELECTION,
                 saved.status()
         );
+    }
+
+    private void validateActiveGroupMembers(List<SettlementParticipant> participants) {
+        Map<Long, List<Long>> userIdsByGroupId = participants.stream()
+                .filter(participant -> participant.source() == SettlementParticipantSource.GROUP_MEMBER)
+                .collect(Collectors.groupingBy(
+                        SettlementParticipant::sourceGroupId,
+                        TreeMap::new,
+                        Collectors.mapping(SettlementParticipant::linkedUserId, Collectors.toList())
+                ));
+
+        userIdsByGroupId.forEach((groupId, userIds) -> {
+            var roster = lockGroupMemberRosterPort.lockAndLoad(groupId)
+                    .orElseThrow(() -> ApplicationException.of(
+                            SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
+                    ));
+            if (userIds.stream().anyMatch(userId -> !roster.contains(userId))) {
+                throw ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
+                );
+            }
+        });
     }
 
     private Account loadReceivingAccount(Settlement settlement, Long creatorId) {
