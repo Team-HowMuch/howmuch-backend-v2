@@ -3,8 +3,11 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementDepositJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementDepositJpaRepository;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.SettlementDeposit;
+import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +21,9 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
-public class SettlementDepositPersistenceAdapter implements SettlementDepositStorePort {
+public class SettlementDepositPersistenceAdapter implements
+        SettlementDepositStorePort,
+        LoadSettlementDepositSummaryPort {
     private final SettlementDepositJpaRepository repository;
     private final CodefSecretCipher cipher;
 
@@ -28,6 +33,27 @@ public class SettlementDepositPersistenceAdapter implements SettlementDepositSto
         return repository.findAllBySettlementIdOrderByMatchedAtAscIdAsc(settlementId)
                 .stream()
                 .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ConfirmedShareAmount> findConfirmedShareAmountsBySettlementId(UUID settlementId) {
+        return repository.findConfirmedShareAmountsBySettlementId(settlementId)
+                .stream()
+                .map(projection -> {
+                    try {
+                        return new ConfirmedShareAmount(
+                                projection.getShareId(),
+                                projection.getAmount().longValueExact()
+                        );
+                    } catch (ArithmeticException exception) {
+                        throw ApplicationException.of(
+                                SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND,
+                                exception
+                        );
+                    }
+                })
                 .toList();
     }
 

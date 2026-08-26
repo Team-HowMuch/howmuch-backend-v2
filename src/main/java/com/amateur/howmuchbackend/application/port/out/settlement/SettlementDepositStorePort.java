@@ -36,4 +36,5 @@ public interface SettlementDepositStorePort {
             LocalDateTime snapshotCreatedAt
     ) {
     }
+
 }
