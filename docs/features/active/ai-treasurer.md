@@ -2,7 +2,7 @@
 
 - Status: Implemented (initial scope)
 - Last updated: 2026-08-26
-- Related issue: F-GRO-004
+- Related issue: [#187](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/187), F-GRO-004
 - Related ADR: N/A
 
 ## 1. Purpose
@@ -29,7 +29,7 @@
 - 송금·입금 확인·알림 발송 실행
 - 기한 필드(정산 도메인에 dueDate 없음) — 기한 초과는 미구현, 장기 미처리는 `createdAt` 7일 기준
 - 사용자별 입금 PAID를 정산 COMPLETED와 분리하는 집계(목록에 paymentStatus 없음). 완료는 정산 상태 `COMPLETED`로 근사
-- 그룹 ID 필터(정산 엔티티에 groupId 없음). 모임명은 정산 `title` 부분 일치
+- 그룹 ID 필터(정산 엔티티에 groupId 없음). 모임명·정산명 힌트는 `○○모임`/`○○정산` 패턴만 사용하고 질문 문장 잔여는 쓰지 않는다
 
 ## 2. Domain analysis
 
@@ -80,9 +80,9 @@
 ### Input Port
 
 ```text
-GetTreasurerSummaryUseCase → TreasurerSummaryResponse
-AskTreasurerUseCase(question) → TreasurerAnswerResponse
-GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResponse
+GetTreasurerSummaryUseCase → TreasurerSummaryResult
+AskTreasurerUseCase(AskTreasurerCommand) → TreasurerAnswerResult
+GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 ```
 
 ### Output Ports
@@ -102,6 +102,8 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResponse
 - LLM 없음. 키워드 분류 (`InquiryParser`).
 - 기존 `LoadSettlementListPort`는 title이 없어 treasurer 전용 조회를 둔다. 목록 HTTP 계약은 변경하지 않는다.
 - 내부 시각은 UTC 저장값을 쓰되, `이번 달`은 Asia/Seoul 달력이다.
+- 받을 금액은 생성자 본인 share를 제외한 금액이다.
+- 지출 요약은 SEND 방향만 합산한다.
 
 ## 6. Impact surface
 

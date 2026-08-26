@@ -1,9 +1,9 @@
-package com.amateur.howmuchbackend.application.port.in.treasurer.response;
+package com.amateur.howmuchbackend.application.port.in.treasurer.result;
 
 import java.util.List;
 import java.util.UUID;
 
-public record TreasurerRecommendationsResponse(
+public record TreasurerRecommendationsResult(
         String message,
         List<Item> items
 ) {

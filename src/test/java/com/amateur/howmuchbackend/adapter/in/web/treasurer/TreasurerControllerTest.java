@@ -3,9 +3,9 @@ package com.amateur.howmuchbackend.adapter.in.web.treasurer;
 import com.amateur.howmuchbackend.application.port.in.treasurer.AskTreasurerUseCase;
 import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerRecommendationsUseCase;
 import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerSummaryUseCase;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerAnswerResponse;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerRecommendationsResponse;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerSummaryResponse;
+import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerAnswerResult;
+import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerRecommendationsResult;
+import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerSummaryResult;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -55,7 +55,7 @@ class TreasurerControllerTest {
     @Test
     @DisplayName("현황 요약을 반환한다")
     void returnsSummary() throws Exception {
-        when(getTreasurerSummaryUseCase.getSummary()).thenReturn(new TreasurerSummaryResponse(
+        when(getTreasurerSummaryUseCase.getSummary()).thenReturn(new TreasurerSummaryResult(
                 30_000L, 1, 0L, 0, 1, 0, "보낼 정산 1건, 30,000원이 남아 있어요."
         ));
 
@@ -69,13 +69,13 @@ class TreasurerControllerTest {
     @Test
     @DisplayName("질의 답변을 반환한다")
     void returnsAnswer() throws Exception {
-        when(askTreasurerUseCase.ask(any())).thenReturn(new TreasurerAnswerResponse(
+        when(askTreasurerUseCase.ask(any())).thenReturn(new TreasurerAnswerResult(
                 "SEND_SETTLEMENTS",
                 "THIS_MONTH",
                 "현재 월 기준으로 조회했어요.",
                 "현재 월 기준으로 조회했어요. 보낼 정산은 1건, 총 45,000원이에요.",
                 List.of(),
-                List.of(new TreasurerAnswerResponse.Action("SEND_LIST", "보낼 정산 확인하기"))
+                List.of(new TreasurerAnswerResult.Action("SEND_LIST", "보낼 정산 확인하기"))
         ));
 
         mockMvc.perform(post("/api/v2/treasurer/questions")
@@ -104,7 +104,7 @@ class TreasurerControllerTest {
     @DisplayName("추천 목록을 반환한다")
     void returnsRecommendations() throws Exception {
         when(getTreasurerRecommendationsUseCase.getRecommendations())
-                .thenReturn(new TreasurerRecommendationsResponse("처리할 정산이 없어요.", List.of()));
+                .thenReturn(new TreasurerRecommendationsResult("처리할 정산이 없어요.", List.of()));
 
         mockMvc.perform(get("/api/v2/treasurer/recommendations"))
                 .andExpect(status().isOk())

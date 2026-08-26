@@ -2,9 +2,9 @@ package com.amateur.howmuchbackend.adapter.in.web.treasurer.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.request.AskTreasurerWebRequest;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerAnswerResponse;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerRecommendationsResponse;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerSummaryResponse;
+import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerAnswerWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerRecommendationsWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerSummaryWebResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -22,7 +22,7 @@ public interface TreasurerDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "UNAUTHORIZED")
     })
-    ApiResponse<TreasurerSummaryResponse> getSummary();
+    ApiResponse<TreasurerSummaryWebResponse> getSummary();
 
     @Operation(
             summary = "AI 정산·지출 질의",
@@ -34,7 +34,7 @@ public interface TreasurerDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "질문 검증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "UNAUTHORIZED")
     })
-    ApiResponse<TreasurerAnswerResponse> ask(@Valid AskTreasurerWebRequest request);
+    ApiResponse<TreasurerAnswerWebResponse> ask(@Valid AskTreasurerWebRequest request);
 
     @Operation(
             summary = "확인이 필요한 정산 추천",
@@ -45,5 +45,5 @@ public interface TreasurerDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "UNAUTHORIZED")
     })
-    ApiResponse<TreasurerRecommendationsResponse> getRecommendations();
+    ApiResponse<TreasurerRecommendationsWebResponse> getRecommendations();
 }

@@ -73,11 +73,15 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.title AS title,
                 settlement.status AS status,
                 settlement.created_at AS requestedAt,
-                settlement.total_amount AS totalAmount,
                 creator.name AS requesterName,
                 MAX(CASE
                         WHEN participant.linked_user_id = :userId THEN share.amount
-                    END) AS amountToPay
+                    END) AS amountToPay,
+                COALESCE(SUM(CASE
+                        WHEN participant.linked_user_id IS NULL
+                             OR participant.linked_user_id <> settlement.creator_id
+                        THEN share.amount
+                    END), 0) AS receivableAmount
               FROM settlements settlement
               JOIN users creator
                 ON creator.id = settlement.creator_id
@@ -100,7 +104,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     )
                 )
              GROUP BY settlement.id, settlement.title, settlement.status, settlement.created_at,
-                      settlement.total_amount, creator.name
+                      creator.name
              ORDER BY settlement.created_at DESC, settlement.id DESC
             """, nativeQuery = true)
     List<TreasurerSettlementProjection> findAllForTreasurer(
@@ -137,11 +141,11 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
 
         LocalDateTime getRequestedAt();
 
-        long getTotalAmount();
-
         String getRequesterName();
 
         Long getAmountToPay();
+
+        long getReceivableAmount();
     }
 
     boolean existsByReceivingAccountIdAndStatus(Long accountId, SettlementStatus status);

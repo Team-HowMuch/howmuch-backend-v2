@@ -1,9 +1,9 @@
-package com.amateur.howmuchbackend.application.port.in.treasurer.response;
+package com.amateur.howmuchbackend.application.port.in.treasurer.result;
 
 import java.util.List;
 import java.util.UUID;
 
-public record TreasurerAnswerResponse(
+public record TreasurerAnswerResult(
         String intent,
         String period,
         String scope,

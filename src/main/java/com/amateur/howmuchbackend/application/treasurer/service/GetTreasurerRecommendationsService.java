@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.application.treasurer.service;
 
 import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerRecommendationsUseCase;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerRecommendationsResponse;
+import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerRecommendationsResult;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerActionType;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerRecommendation;
 import lombok.RequiredArgsConstructor;
@@ -17,15 +17,15 @@ public class GetTreasurerRecommendationsService implements GetTreasurerRecommend
     private final Clock clock;
 
     @Override
-    public TreasurerRecommendationsResponse getRecommendations() {
+    public TreasurerRecommendationsResult getRecommendations() {
         List<TreasurerRecommendation> recommendations = TreasurerRecommendation.prioritize(
                 treasurerSettlementQuery.loadMine(),
                 clock.instant()
         );
         if (recommendations.isEmpty()) {
-            return new TreasurerRecommendationsResponse("처리할 정산이 없어요.", List.of());
+            return new TreasurerRecommendationsResult("처리할 정산이 없어요.", List.of());
         }
-        return new TreasurerRecommendationsResponse(
+        return new TreasurerRecommendationsResult(
                 null,
                 recommendations.stream()
                         .map(this::toItem)
@@ -33,8 +33,8 @@ public class GetTreasurerRecommendationsService implements GetTreasurerRecommend
         );
     }
 
-    private TreasurerRecommendationsResponse.Item toItem(TreasurerRecommendation recommendation) {
-        return new TreasurerRecommendationsResponse.Item(
+    private TreasurerRecommendationsResult.Item toItem(TreasurerRecommendation recommendation) {
+        return new TreasurerRecommendationsResult.Item(
                 recommendation.settlement().settlementId(),
                 recommendation.settlement().title(),
                 recommendation.settlement().direction().name(),
@@ -42,7 +42,7 @@ public class GetTreasurerRecommendationsService implements GetTreasurerRecommend
                 recommendation.reason(),
                 recommendation.settlement().amountOrZero(),
                 recommendation.actions().stream()
-                        .map(action -> new TreasurerRecommendationsResponse.Action(action.name(), labelOf(action)))
+                        .map(action -> new TreasurerRecommendationsResult.Action(action.name(), labelOf(action)))
                         .toList()
         );
     }

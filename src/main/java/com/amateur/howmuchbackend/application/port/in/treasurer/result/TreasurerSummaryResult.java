@@ -1,6 +1,6 @@
-package com.amateur.howmuchbackend.application.port.in.treasurer.response;
+package com.amateur.howmuchbackend.application.port.in.treasurer.result;
 
-public record TreasurerSummaryResponse(
+public record TreasurerSummaryResult(
         long sendAmount,
         int sendCount,
         long receiveAmount,

@@ -1,8 +1,8 @@
 package com.amateur.howmuchbackend.application.treasurer.service;
 
 import com.amateur.howmuchbackend.application.port.in.treasurer.AskTreasurerUseCase;
-import com.amateur.howmuchbackend.application.port.in.treasurer.request.AskTreasurerRequest;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerAnswerResponse;
+import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreasurerCommand;
+import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerAnswerResult;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
@@ -35,10 +35,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     private final Clock clock;
 
     @Override
-    public TreasurerAnswerResponse ask(AskTreasurerRequest request) {
-        InquiryParser.ParsedInquiry parsed = inquiryParser.parse(request.question());
+    public TreasurerAnswerResult ask(AskTreasurerCommand command) {
+        InquiryParser.ParsedInquiry parsed = inquiryParser.parse(command.question());
         if (parsed.intent() == InquiryIntent.UNKNOWN) {
-            return new TreasurerAnswerResponse(
+            return new TreasurerAnswerResult(
                     InquiryIntent.UNKNOWN.name(),
                     null,
                     null,
@@ -62,7 +62,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     scope,
                     filtered.stream().filter(PersonalSettlement::isSend).filter(PersonalSettlement::isOpen).toList(),
                     "보낼 정산",
-                    new TreasurerAnswerResponse.Action("SEND_LIST", "보낼 정산 확인하기")
+                    new TreasurerAnswerResult.Action("SEND_LIST", "보낼 정산 확인하기")
             );
             case RECEIVE_SETTLEMENTS -> answerList(
                     parsed.intent(),
@@ -70,28 +70,32 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     scope,
                     filtered.stream().filter(PersonalSettlement::isReceive).filter(PersonalSettlement::isOpen).toList(),
                     "받을 정산",
-                    new TreasurerAnswerResponse.Action("RECEIVE_LIST", "받을 정산 확인하기")
+                    new TreasurerAnswerResult.Action("RECEIVE_LIST", "받을 정산 확인하기")
             );
             case SETTLEMENT_STATUS -> answerStatus(period, scope, filtered);
-            case EXPENSE_SUMMARY -> answerExpense(period, scope, filtered);
+            case EXPENSE_SUMMARY -> answerExpense(
+                    period,
+                    scope,
+                    filtered.stream().filter(PersonalSettlement::isSend).toList()
+            );
             case UNKNOWN -> throw new IllegalStateException("UNKNOWN은 이미 처리됨");
         };
     }
 
-    private TreasurerAnswerResponse answerList(
+    private TreasurerAnswerResult answerList(
             InquiryIntent intent,
             InquiryPeriod period,
             String scope,
             List<PersonalSettlement> items,
             String label,
-            TreasurerAnswerResponse.Action action
+            TreasurerAnswerResult.Action action
     ) {
         long total = items.stream().mapToLong(PersonalSettlement::amountOrZero).sum();
         String extra = items.size() > HIGHLIGHT_LIMIT ? " 외 %d건".formatted(items.size() - HIGHLIGHT_LIMIT) : "";
         String answer = items.isEmpty()
                 ? "%s %s은 없어요.".formatted(scope, label)
                 : "%s %s은 %d건, 총 %,d원이에요.%s".formatted(scope, label, items.size(), total, extra);
-        return new TreasurerAnswerResponse(
+        return new TreasurerAnswerResult(
                 intent.name(),
                 period.name(),
                 scope,
@@ -101,39 +105,39 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         );
     }
 
-    private TreasurerAnswerResponse answerStatus(InquiryPeriod period, String scope, List<PersonalSettlement> items) {
+    private TreasurerAnswerResult answerStatus(InquiryPeriod period, String scope, List<PersonalSettlement> items) {
         long open = items.stream().filter(PersonalSettlement::isOpen).count();
         long done = items.size() - open;
         String answer = "%s 진행 중인 정산 %d건, 완료된 정산 %d건이에요.".formatted(scope, open, done);
-        return new TreasurerAnswerResponse(
+        return new TreasurerAnswerResult(
                 InquiryIntent.SETTLEMENT_STATUS.name(),
                 period.name(),
                 scope,
                 answer,
                 highlights(items.stream().filter(PersonalSettlement::isOpen).toList()),
-                List.of(new TreasurerAnswerResponse.Action("STATUS_LIST", "정산 상태 확인하기"))
+                List.of(new TreasurerAnswerResult.Action("STATUS_LIST", "정산 상태 확인하기"))
         );
     }
 
-    private TreasurerAnswerResponse answerExpense(InquiryPeriod period, String scope, List<PersonalSettlement> items) {
+    private TreasurerAnswerResult answerExpense(InquiryPeriod period, String scope, List<PersonalSettlement> items) {
         long total = items.stream().mapToLong(PersonalSettlement::amountOrZero).sum();
         String answer = items.isEmpty()
                 ? "%s 조회된 지출·정산이 없어요.".formatted(scope)
                 : "%s 정산·지출은 %d건, 총 %,d원이에요.".formatted(scope, items.size(), total);
-        return new TreasurerAnswerResponse(
+        return new TreasurerAnswerResult(
                 InquiryIntent.EXPENSE_SUMMARY.name(),
                 period.name(),
                 scope,
                 answer,
                 highlights(items),
-                List.of(new TreasurerAnswerResponse.Action("EXPENSE_LIST", "지출 내역 보기"))
+                List.of(new TreasurerAnswerResult.Action("EXPENSE_LIST", "지출 내역 보기"))
         );
     }
 
-    private List<TreasurerAnswerResponse.Highlight> highlights(List<PersonalSettlement> items) {
+    private List<TreasurerAnswerResult.Highlight> highlights(List<PersonalSettlement> items) {
         return items.stream()
                 .limit(HIGHLIGHT_LIMIT)
-                .map(item -> new TreasurerAnswerResponse.Highlight(
+                .map(item -> new TreasurerAnswerResult.Highlight(
                         item.settlementId(),
                         item.title(),
                         item.direction() == SettlementDirection.SEND ? "SEND" : "RECEIVE",

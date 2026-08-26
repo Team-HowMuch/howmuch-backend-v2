@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.application.treasurer.service;
 
 import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerSummaryUseCase;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerSummaryResponse;
+import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerSummaryResult;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerSummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,9 +12,9 @@ public class GetTreasurerSummaryService implements GetTreasurerSummaryUseCase {
     private final TreasurerSettlementQuery treasurerSettlementQuery;
 
     @Override
-    public TreasurerSummaryResponse getSummary() {
+    public TreasurerSummaryResult getSummary() {
         TreasurerSummary summary = TreasurerSummary.from(treasurerSettlementQuery.loadMine());
-        return new TreasurerSummaryResponse(
+        return new TreasurerSummaryResult(
                 summary.sendAmount(),
                 summary.sendCount(),
                 summary.receiveAmount(),

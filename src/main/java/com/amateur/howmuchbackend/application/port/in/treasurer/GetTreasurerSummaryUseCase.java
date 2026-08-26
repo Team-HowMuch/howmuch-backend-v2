@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.application.port.in.treasurer;
 
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerSummaryResponse;
+import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerSummaryResult;
 
 public interface GetTreasurerSummaryUseCase {
-    TreasurerSummaryResponse getSummary();
+    TreasurerSummaryResult getSummary();
 }

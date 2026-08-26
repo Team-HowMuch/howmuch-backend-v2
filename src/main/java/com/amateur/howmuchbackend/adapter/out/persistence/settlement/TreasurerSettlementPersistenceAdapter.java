@@ -34,7 +34,9 @@ public class TreasurerSettlementPersistenceAdapter implements LoadTreasurerSettl
                         tab,
                         SettlementStatus.valueOf(projection.getStatus()),
                         projection.getRequestedAt(),
-                        tab == SettlementListTab.PAY ? projection.getAmountToPay() : projection.getTotalAmount(),
+                        tab == SettlementListTab.PAY
+                                ? projection.getAmountToPay()
+                                : projection.getReceivableAmount(),
                         projection.getRequesterName()
                 ))
                 .toList();

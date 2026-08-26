@@ -1,8 +1,8 @@
 package com.amateur.howmuchbackend.application.port.in.treasurer;
 
-import com.amateur.howmuchbackend.application.port.in.treasurer.request.AskTreasurerRequest;
-import com.amateur.howmuchbackend.application.port.in.treasurer.response.TreasurerAnswerResponse;
+import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreasurerCommand;
+import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerAnswerResult;
 
 public interface AskTreasurerUseCase {
-    TreasurerAnswerResponse ask(AskTreasurerRequest request);
+    TreasurerAnswerResult ask(AskTreasurerCommand command);
 }
