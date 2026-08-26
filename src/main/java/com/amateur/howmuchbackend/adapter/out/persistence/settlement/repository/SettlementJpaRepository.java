@@ -67,6 +67,47 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
             @Param("status") String status
     );
 
+    @Query(value = """
+            SELECT
+                settlement.id AS settlementId,
+                settlement.title AS title,
+                settlement.status AS status,
+                settlement.created_at AS requestedAt,
+                settlement.total_amount AS totalAmount,
+                creator.name AS requesterName,
+                MAX(CASE
+                        WHEN participant.linked_user_id = :userId THEN share.amount
+                    END) AS amountToPay
+              FROM settlements settlement
+              JOIN users creator
+                ON creator.id = settlement.creator_id
+              LEFT JOIN settlement_participants participant
+                ON participant.settlement_id = settlement.id
+              LEFT JOIN settlement_shares share
+                ON share.settlement_id = settlement.id
+               AND share.payer_participant_id = participant.id
+             WHERE (
+                    (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
+                    OR (
+                        :tab = 'PAY'
+                        AND settlement.creator_id <> :userId
+                        AND EXISTS (
+                            SELECT 1
+                              FROM settlement_participants linked_participant
+                             WHERE linked_participant.settlement_id = settlement.id
+                               AND linked_participant.linked_user_id = :userId
+                        )
+                    )
+                )
+             GROUP BY settlement.id, settlement.title, settlement.status, settlement.created_at,
+                      settlement.total_amount, creator.name
+             ORDER BY settlement.created_at DESC, settlement.id DESC
+            """, nativeQuery = true)
+    List<TreasurerSettlementProjection> findAllForTreasurer(
+            @Param("userId") Long userId,
+            @Param("tab") String tab
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select settlement from SettlementJpaEntity settlement where settlement.id = :settlementId")
     Optional<SettlementJpaEntity> findByIdForUpdate(@Param("settlementId") UUID settlementId);
@@ -83,6 +124,22 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         String getRequesterName();
 
         long getParticipantCount();
+
+        Long getAmountToPay();
+    }
+
+    interface TreasurerSettlementProjection {
+        UUID getSettlementId();
+
+        String getTitle();
+
+        String getStatus();
+
+        LocalDateTime getRequestedAt();
+
+        long getTotalAmount();
+
+        String getRequesterName();
 
         Long getAmountToPay();
     }
