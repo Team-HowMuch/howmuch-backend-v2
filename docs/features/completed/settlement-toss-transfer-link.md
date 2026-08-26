@@ -37,7 +37,7 @@
 
 - Existing domain to reuse: settlement
 - Reason a new domain is required, if applicable: N/A
-- Relationships to other domains: 정산 수취계좌 스냅샷의 은행 기관코드와 계좌번호를 사용한다.
+- Relationships to other domains: 정산 수취계좌 스냅샷의 은행 기관코드와 계좌번호, `BANK.attr2`의 Toss 은행명을 사용한다.
 
 ### Ubiquitous language
 
@@ -116,10 +116,10 @@ Authentication: 공개 링크 token과 단기 참여 문맥 결합 검증
 
 ### Persistence and external integrations
 
-- Database Entity, constraint, or query changes: 없음
-- Flyway migration required (`Yes` / `No`): No
-- Planned migration: N/A
-- Migration pull request (`Pending` / URL): N/A
+- Database Entity, constraint, or query changes: `BANK.attr2`에 Toss 딥링크 은행명 관리
+- Flyway migration required (`Yes` / `No`): Yes
+- Planned migration: `V22__add_toss_deep_link_bank_common_code.sql`
+- Migration pull request (`Pending` / URL): #186 (Merged)
 - Redis key, TTL, or serialization changes: 없음
 - External API or message changes: Toss 비공식 `supertoss://send` URI 생성
 - Environment variable or profile changes: 없음
@@ -143,7 +143,7 @@ Toss 링크 지원 은행:
 
 ### Business logic
 
-- Rules and their locations: 송금 가능 상태와 참여자 범위는 기존 Service, 앱별 은행·URL 규격은 Output Adapter.
+- Rules and their locations: 송금 가능 상태와 참여자 범위는 기존 Service, Toss 은행명은 `BankCatalog`, URL 규격은 Output Adapter.
 - Behavior owned by Domain: 기존 Settlement·Share·Snapshot 불변식 유지.
 - Decisions owned by Application Policy: N/A
 - Flow orchestrated by Application: 검증된 금액·계좌를 모든 링크 제공자에 전달하고 하나 이상 생성되지 않으면 422를 반환한다.
@@ -154,7 +154,7 @@ Toss 링크 지원 은행:
 - Selected approach: 앱별 `SettlementTransferLinkPort` 구현체 목록과 `transferLinks` 배열.
 - Reason for selection: 신규 앱은 기존 Service 수정 없이 구현체 추가만으로 연결할 수 있다.
 - Alternatives considered: Service 내부 Toss 문자열 조립은 가장 짧지만 이후 여러 앱 지원 시 외부 규격 분기가 누적되어 제외했다.
-- Trade-offs and limits: `supertoss://send` 파라미터는 공식 안정 계약이 확인되지 않아 앱 업데이트에 따라 변경될 수 있다. 앱인토스 내부 `openURL`에서는 정책상 허용되지 않는다.
+- Trade-offs and limits: `supertoss://send` 파라미터는 공식 안정 계약이 확인되지 않아 앱 업데이트에 따라 변경될 수 있다. 은행 목록 응답은 기존 `organization`, `name`, `iconUrl`만 유지한다.
 
 ## 6. Impact surface
 
@@ -163,7 +163,7 @@ Toss 링크 지원 은행:
 | API | `transferLinks` 배열과 422 문서 추가 | `SettlementTransferInstructionWebResponse`, `SettlementTransferInstructionDocs` |
 | Application | 링크 제공자 호출과 결과 조립 | `SettlementTransferInstructionService` |
 | Domain | 오류 코드 추가 외 상태 변경 없음 | `SettlementStatusCode` |
-| Persistence | 없음 | 기존 Snapshot 조회 재사용 |
+| Persistence | `BANK.attr2` 조회 | `BankCatalog`, V22 Migration |
 | Redis | 없음 | 기존 참여 문맥 조회 재사용 |
 | Security | 검증된 문맥에서만 민감한 URL 반환, 로그 저장 없음 | 기존 Controller/Service 경계 |
 | Configuration | 없음 | Spring의 동일 Port 구현체 목록 주입 |
@@ -220,7 +220,7 @@ git status --short --untracked-files=all
 | 구현 전 계약 검토 | Pass | 기존 송금 안내·Snapshot 복호화·은행 코드 목록 확인 |
 | Flyway migration | N/A | 저장 구조 변경 없음 |
 | 관련 테스트 | Pass | Toss Adapter, Application Service, Web Controller 테스트 통과 |
-| 전체 테스트 | Pass | 격리 PostgreSQL 18.3·Redis에서 431개 테스트 통과 |
+| 전체 테스트 | Pass | 격리 PostgreSQL 18.3·Redis에서 411개 테스트 통과, V22 Flyway 적용 |
 | OpenAPI 런타임 | Pass | 200·404·422 응답과 `transferLinks[]` schema 확인 |
 | 실제 Toss 앱 실행 | Not run | 모바일 기기와 Toss 앱 버전별 확인이 필요한 외부 상태 |
 
@@ -230,6 +230,7 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-08-26 | 기존 송금 안내 흐름과 외부 스킴 계약 검토 | Port, Toss Adapter, API 계약 구현 | `supertoss://send`는 공식 안정 계약이 확인되지 않음 |
 | 2026-08-26 | Toss 링크 Adapter, 다중 제공자 Port, API 배열, 테스트 구현 | PR 생성 | 실제 Toss 앱 실행은 모바일 검증 필요 |
+| 2026-08-26 | V22 병합 후 하드코딩 맵을 제거하고 `BANK.attr2` 조회로 변경 | 검증 및 PR 업데이트 | 은행 목록 외부 응답에는 attr2를 노출하지 않음 |
 
 ## 10. Decision log
 
@@ -237,7 +238,7 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-08-26 | 서버가 앱별 링크 배열을 생성한다. | 클라이언트 중복과 앱별 규격 누수를 막는다. | 기존 원시 송금 필드는 호환성을 위해 유지한다. |
 | 2026-08-26 | 현재는 Toss만 구현한다. | 사용자가 지정한 현재 범위다. | 다른 앱은 같은 Port Adapter로 추가한다. |
-| 2026-08-26 | Toss 은행명 매핑을 Adapter 내부에 둔다. | CODEF 기관코드와 Toss query 값은 외부 시스템 간 변환이다. | DB 공통코드 변경과 Migration은 만들지 않는다. |
+| 2026-08-26 | Toss 은행명은 `BANK.attr2`에서 `BankCatalog`로 조회한다. | 관리 값의 단일 소스를 공통 코드로 유지한다. | 공개 은행 목록 응답에는 attr2를 추가하지 않는다. |
 
 ## 11. Completion record
 
