@@ -1,11 +1,13 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementTransferInstructionResult;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementLinkPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantContextPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementTransferLinkPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -26,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,6 +55,7 @@ class SettlementTransferInstructionServiceTest {
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
     @Mock private LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
+    @Mock private SettlementTransferLinkPort transferLinkPort;
 
     private SettlementTransferInstructionService service;
 
@@ -63,7 +67,8 @@ class SettlementTransferInstructionServiceTest {
                 loadParticipantContextPort,
                 loadSettlementPort,
                 loadSettlementSharePort,
-                loadSnapshotPort
+                loadSnapshotPort,
+                List.of(transferLinkPort)
         );
     }
 
@@ -85,6 +90,12 @@ class SettlementTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+                .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
+                        "TOSS",
+                        "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
+                                + "&accountNo=1002123456789&amount=6000"
+                )));
 
         var result = service.get(RAW_TOKEN, CONTEXT_ID);
 
@@ -93,6 +104,41 @@ class SettlementTransferInstructionServiceTest {
         assertThat(result.amount()).isEqualTo(6_000);
         assertThat(result.recipientBankCode()).isEqualTo("0020");
         assertThat(result.recipientAccountNumber()).isEqualTo("1002123456789");
+        assertThat(result.transferLinks()).containsExactly(
+                new SettlementTransferInstructionResult.TransferLink(
+                        "TOSS",
+                        "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
+                                + "&accountNo=1002123456789&amount=6000"
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("지원하는 송금 앱 링크가 없으면 원계좌번호만 반환하지 않는다")
+    void rejectsUnsupportedTransferLink() {
+        arrangeLinkAndContext();
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(
+                SETTLEMENT_ID,
+                PARTICIPANT_ID
+        )).thenReturn(Optional.of(new SettlementShare(
+                SHARE_ID,
+                SETTLEMENT_ID,
+                PARTICIPANT_ID,
+                6_000,
+                CREATED_AT
+        )));
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(snapshot()));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.get(RAW_TOKEN, CONTEXT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(
+                                SettlementStatusCode.SETTLEMENT_TRANSFER_LINK_NOT_SUPPORTED
+                        ));
     }
 
     @Test

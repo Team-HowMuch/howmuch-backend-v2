@@ -4,12 +4,14 @@ import com.amateur.howmuchbackend.application.port.in.account.GetBankCatalogUseC
 import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
 import com.amateur.howmuchbackend.application.port.out.commoncode.LoadCommonCodePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.commoncode.CommonCode;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -30,5 +32,11 @@ public class BankCatalog implements GetBankCatalogUseCase {
         if (!loadCommonCodePort.existsActiveByGroupCodeAndCode(GROUP_CODE, organization)) {
             throw ApplicationException.of(ExternalConnectionStatusCode.BANK_NOT_SUPPORTED);
         }
+    }
+
+    public Optional<String> findTossDeepLinkBankName(String organization) {
+        return loadCommonCodePort.findActiveByGroupCodeAndCode(GROUP_CODE, organization)
+                .map(CommonCode::attr2)
+                .filter(bankName -> !bankName.isBlank());
     }
 }
