@@ -1,5 +1,6 @@
 UPDATE common_code_group
 SET attr2_name = '토스 딥링크 은행',
+    revision = revision + 1,
     updated_at = CURRENT_TIMESTAMP
 WHERE group_code = 'BANK';
 
