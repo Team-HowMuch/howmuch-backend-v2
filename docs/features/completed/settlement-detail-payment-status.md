@@ -64,7 +64,8 @@ Errors: 401 UNAUTHORIZED, 403 SETTLEMENT_ACCESS_DENIED, 404 SETTLEMENT_NOT_FOUND
 ### Persistence
 
 - 기존 정산, 참여자, Share 조회 Port를 재사용한다.
-- `SettlementDepositStorePort`에 정산별 Share 입금 합계 조회를 추가한다.
+- 상세 조회 전용 `LoadSettlementDepositSummaryPort`에서 정산별 Share 입금 합계를 조회한다.
+- V9 이전 정산에 생성자 참여자 행이 없으면 기존 `LoadUserPort`에서 생성자 이름을 조회한다.
 - `settlement_deposits`와 `account_transactions`를 조인해 Share별 금액을 합산한다.
 - Flyway migration required: No
 - Redis, 외부 API, 환경 변수 변경: 없음
@@ -76,6 +77,7 @@ Errors: 401 UNAUTHORIZED, 403 SETTLEMENT_ACCESS_DENIED, 404 SETTLEMENT_NOT_FOUND
 - 진행률은 `confirmedAmount * 100 / expectedAmount`의 내림 정수값이다. 납부 예정액이 없으면 진행 중은 0, 완료 상태는 100이다.
 - Share가 아직 없는 참여자는 `expectedAmount = null`, `paymentStatus = NOT_READY`로 반환한다.
 - 부분 입금은 `0 < confirmedAmount < expectedAmount`로 표시한다.
+- 생성자 참여자 자동 등록 전 생성된 정산은 사용자 정보로 생성자 이름을 보완한다.
 
 ## 5. Impact surface
 
@@ -139,6 +141,7 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-08-26 | `origin/develop`의 단건 조회, Share, 입금 대조 저장 흐름과 #138, #161~#163 분석 | 상세 계약 구현 | 기존 단건 응답의 `creatorId` 제거는 응답 계약 변경 |
 | 2026-08-26 | 상세 Result, 권한, Share별 입금 합계, Web·Swagger 계약과 검증 구현 | PR 검토 및 게시 | 참여자에게는 전체 요약과 본인 행만 노출 |
+| 2026-08-26 | Codex 리뷰에 따라 V9 이전 정산 호환과 상세 전용 입금 요약 Port를 반영 | 회귀 검증 | 생성자 사용자가 존재하지 않으면 `USER_NOT_FOUND` 반환 |
 
 ## 9. Completion record
 

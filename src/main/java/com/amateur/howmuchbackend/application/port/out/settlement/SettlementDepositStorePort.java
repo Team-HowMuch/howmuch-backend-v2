@@ -11,8 +11,6 @@ import java.util.UUID;
 public interface SettlementDepositStorePort {
     List<SettlementDeposit> findAllBySettlementId(UUID settlementId);
 
-    List<ConfirmedShareAmount> findConfirmedShareAmountsBySettlementId(UUID settlementId);
-
     Set<String> findMatchedExternalTransactionKeysByReceivingAccount(
             Long creatorId,
             Long sourceAccountId,
@@ -39,6 +37,4 @@ public interface SettlementDepositStorePort {
     ) {
     }
 
-    record ConfirmedShareAmount(UUID shareId, long amount) {
-    }
 }
