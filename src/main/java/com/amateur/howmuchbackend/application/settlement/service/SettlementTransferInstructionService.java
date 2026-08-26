@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementTransferLinkPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -34,6 +36,7 @@ public class SettlementTransferInstructionService
     private final LoadSettlementPort loadSettlementPort;
     private final LoadSettlementSharePort loadSettlementSharePort;
     private final LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
+    private final List<SettlementTransferLinkPort> transferLinkPorts;
 
     @Override
     @Transactional(readOnly = true)
@@ -74,13 +77,25 @@ public class SettlementTransferInstructionService
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND
                 ));
+        List<SettlementTransferInstructionResult.TransferLink> transferLinks = transferLinkPorts.stream()
+                .map(port -> port.create(snapshot.organization(), snapshot.accountNumber(), share.amount()))
+                .flatMap(java.util.Optional::stream)
+                .map(generatedLink -> new SettlementTransferInstructionResult.TransferLink(
+                        generatedLink.provider(),
+                        generatedLink.url()
+                ))
+                .toList();
+        if (transferLinks.isEmpty()) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_TRANSFER_LINK_NOT_SUPPORTED);
+        }
         return new SettlementTransferInstructionResult(
                 settlement.id(),
                 context.participantId(),
                 share.id(),
                 share.amount(),
                 snapshot.organization(),
-                snapshot.accountNumber()
+                snapshot.accountNumber(),
+                transferLinks
         );
     }
 }

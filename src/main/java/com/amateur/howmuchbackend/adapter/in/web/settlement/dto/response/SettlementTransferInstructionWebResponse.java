@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementTransferInstructionResult;
 
+import java.util.List;
 import java.util.UUID;
 
 public record SettlementTransferInstructionWebResponse(
@@ -10,7 +11,8 @@ public record SettlementTransferInstructionWebResponse(
         UUID shareId,
         long amount,
         String recipientBankCode,
-        String recipientAccountNumber
+        String recipientAccountNumber,
+        List<TransferLinkWebResponse> transferLinks
 ) {
     public static SettlementTransferInstructionWebResponse from(
             SettlementTransferInstructionResult result
@@ -21,7 +23,13 @@ public record SettlementTransferInstructionWebResponse(
                 result.shareId(),
                 result.amount(),
                 result.recipientBankCode(),
-                result.recipientAccountNumber()
+                result.recipientAccountNumber(),
+                result.transferLinks().stream()
+                        .map(link -> new TransferLinkWebResponse(link.provider(), link.url()))
+                        .toList()
         );
+    }
+
+    public record TransferLinkWebResponse(String provider, String url) {
     }
 }
