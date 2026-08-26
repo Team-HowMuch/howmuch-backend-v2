@@ -18,6 +18,19 @@ public interface SettlementDepositJpaRepository
     );
 
     @Query(value = """
+            SELECT deposit.share_id AS shareId,
+                   SUM(account_transaction.amount) AS amount
+              FROM settlement_deposits deposit
+              JOIN account_transactions account_transaction
+                ON account_transaction.id = deposit.account_transaction_id
+             WHERE deposit.settlement_id = :settlementId
+             GROUP BY deposit.share_id
+            """, nativeQuery = true)
+    List<ConfirmedShareAmountProjection> findConfirmedShareAmountsBySettlementId(
+            @Param("settlementId") UUID settlementId
+    );
+
+    @Query(value = """
             SELECT account_transaction.external_transaction_key AS externalTransactionKey,
                    snapshot.settlement_id AS settlementId,
                    snapshot.source_account_id AS sourceAccountId,
@@ -85,6 +98,12 @@ public interface SettlementDepositJpaRepository
         Long getSourceAccountId();
 
         String getAccountNumberCiphertext();
+    }
+
+    interface ConfirmedShareAmountProjection {
+        UUID getShareId();
+
+        BigDecimal getAmount();
     }
 
     interface PayableDepositCandidateProjection {

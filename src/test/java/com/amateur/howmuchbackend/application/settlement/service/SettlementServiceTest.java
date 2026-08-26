@@ -139,30 +139,6 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("없는 정산을 임의로 생성하지 않도록 SETTLEMENT_NOT_FOUND를 반환한다")
-    void rejectsMissingSettlement() {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> settlementService.get(SETTLEMENT_ID))
-                .isInstanceOfSatisfying(ApplicationException.class, exception ->
-                        assertThat(exception.getStatusCode())
-                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
-    }
-
-    @Test
-    @DisplayName("생성자만 정산을 확인할 수 있도록 다른 사용자의 조회를 거부한다")
-    void rejectsReadByAnotherUser() {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
-
-        assertThatThrownBy(() -> settlementService.get(SETTLEMENT_ID))
-                .isInstanceOfSatisfying(ApplicationException.class, exception ->
-                        assertThat(exception.getStatusCode())
-                                .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
-    }
-
-    @Test
     @DisplayName("생성자만 정산 기준을 바꿀 수 있도록 다른 사용자의 수정을 저장하지 않는다")
     void rejectsUpdateByAnotherUser() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));

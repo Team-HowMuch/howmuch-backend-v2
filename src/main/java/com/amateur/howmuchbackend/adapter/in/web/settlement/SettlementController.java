@@ -10,6 +10,7 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.Settleme
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementContactCandidateWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementDetailWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementListItemWebResponse;
@@ -89,10 +90,10 @@ public class SettlementController implements SettlementDocs {
 
     @Override
     @GetMapping("/{settlementId}")
-    public ApiResponse<SettlementWebResponse> getSettlement(
+    public ApiResponse<SettlementDetailWebResponse> getSettlement(
             @PathVariable UUID settlementId
     ) {
-        return ApiResponse.success(SettlementWebResponse.from(
+        return ApiResponse.success(SettlementDetailWebResponse.from(
                 getSettlementUseCase.get(settlementId)
         ));
     }

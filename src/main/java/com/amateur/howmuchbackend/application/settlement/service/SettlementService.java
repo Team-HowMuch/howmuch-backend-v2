@@ -3,7 +3,6 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.DeleteSettlementUseCase;
-import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ResumeSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SuspendSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
@@ -38,7 +37,6 @@ import java.util.UUID;
 public class SettlementService implements
         CreateSettlementUseCase,
         DeleteSettlementUseCase,
-        GetSettlementUseCase,
         UpdateSettlementDraftUseCase,
         SuspendSettlementUseCase,
         ResumeSettlementUseCase {
@@ -75,13 +73,6 @@ public class SettlementService implements
                 now
         ));
         return SettlementResult.from(saved);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public SettlementResult get(UUID settlementId) {
-        CurrentActor actor = currentActorPort.getCurrentActor();
-        return SettlementResult.from(loadOwnedSettlement(settlementId, actor.userId()));
     }
 
     @Override
@@ -132,12 +123,6 @@ public class SettlementService implements
         Settlement resumed = settlement.resume(now);
         settlementItemAllocationStorePort.deleteAllSubmissions(settlementId);
         return SettlementResult.from(saveSettlementPort.update(resumed));
-    }
-
-    private Settlement loadOwnedSettlement(UUID settlementId, Long userId) {
-        Settlement settlement = loadSettlementPort.findById(settlementId)
-                .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
-        return verifyOwnership(settlement, userId);
     }
 
     private Settlement loadOwnedSettlementForUpdate(UUID settlementId, Long userId) {
