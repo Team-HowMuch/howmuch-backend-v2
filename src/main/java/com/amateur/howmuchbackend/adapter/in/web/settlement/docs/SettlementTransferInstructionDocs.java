@@ -27,6 +27,10 @@ public interface SettlementTransferInstructionDocs {
                     responseCode = "404",
                     description = "SETTLEMENT_LINK_NOT_FOUND, SETTLEMENT_PARTICIPANT_CONTEXT_NOT_FOUND "
                             + "또는 SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "422",
+                    description = "SETTLEMENT_TRANSFER_LINK_NOT_SUPPORTED"
             )
     })
     ApiResponse<SettlementTransferInstructionWebResponse> get(
