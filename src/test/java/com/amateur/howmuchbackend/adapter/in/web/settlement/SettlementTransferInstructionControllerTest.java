@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.Mockito.when;
@@ -48,7 +49,12 @@ class SettlementTransferInstructionControllerTest {
                         SHARE_ID,
                         6_000,
                         "0020",
-                        "1002123456789"
+                        "1002123456789",
+                        List.of(new SettlementTransferInstructionResult.TransferLink(
+                                "TOSS",
+                                "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
+                                        + "&accountNo=1002123456789&amount=6000"
+                        ))
                 )
         );
 
@@ -63,7 +69,12 @@ class SettlementTransferInstructionControllerTest {
                 .andExpect(jsonPath("$.data.shareId").value(SHARE_ID.toString()))
                 .andExpect(jsonPath("$.data.amount").value(6_000))
                 .andExpect(jsonPath("$.data.recipientBankCode").value("0020"))
-                .andExpect(jsonPath("$.data.recipientAccountNumber").value("1002123456789"));
+                .andExpect(jsonPath("$.data.recipientAccountNumber").value("1002123456789"))
+                .andExpect(jsonPath("$.data.transferLinks[0].provider").value("TOSS"))
+                .andExpect(jsonPath("$.data.transferLinks[0].url").value(
+                        "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
+                                + "&accountNo=1002123456789&amount=6000"
+                ));
     }
 
     @Test
