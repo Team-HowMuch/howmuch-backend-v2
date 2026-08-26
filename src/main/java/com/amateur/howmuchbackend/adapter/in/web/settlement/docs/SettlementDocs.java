@@ -9,6 +9,7 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.Settleme
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDraftWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantCandidateWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementContactCandidateWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementDetailWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementListItemWebResponse;
@@ -51,15 +52,16 @@ public interface SettlementDocs {
     ApiResponse<SettlementWebResponse> createSettlement(CreateSettlementWebRequest request);
 
     @Operation(
-            summary = "정산 초안 조회",
-            description = "현재 로그인한 사용자가 생성한 정산을 ID로 조회합니다. "
-                    + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED를 반환합니다.",
+            summary = "정산 상세 조회",
+            description = "정산 생성자는 전체 납부 현황을, 연결 참여자는 자신의 납부 행을 조회합니다. "
+                    + "실제 입금 확인액, 미납액, 진행률과 참여자별 납부 상태를 반환하며 "
+                    + "내부 사용자 ID, 연락처와 계좌번호는 노출하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
-                    description = "정산 초안 조회 성공",
+                    description = "정산 상세 조회 성공",
                     useReturnTypeSchema = true
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -75,7 +77,7 @@ public interface SettlementDocs {
                     description = "SETTLEMENT_NOT_FOUND - 정산 없음"
             )
     })
-    ApiResponse<SettlementWebResponse> getSettlement(UUID settlementId);
+    ApiResponse<SettlementDetailWebResponse> getSettlement(UUID settlementId);
 
     @Operation(
             summary = "정산 목록 조회",

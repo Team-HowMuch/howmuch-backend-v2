@@ -25,6 +25,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementContactCandidateResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
@@ -189,15 +190,19 @@ class SettlementControllerTest {
     }
 
     @Test
-    @DisplayName("생성자가 정산 초안을 이어서 편집할 수 있도록 저장된 기본 정보를 반환한다")
+    @DisplayName("정산 상세에 생성자 표시 정보와 실제 납부 진행도를 반환한다")
     void getsSettlement() throws Exception {
-        when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(result());
+        when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(detailResult());
 
         mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.creatorId").value(1))
-                .andExpect(jsonPath("$.data.createdAt").value("2026-08-21T09:00:00"));
+                .andExpect(jsonPath("$.data.creatorName").value("최수아"))
+                .andExpect(jsonPath("$.data.viewerRole").value("CREATOR"))
+                .andExpect(jsonPath("$.data.paymentSummary.progressPercent").value(50))
+                .andExpect(jsonPath("$.data.participants[0].paymentStatus").value("PARTIALLY_PAID"))
+                .andExpect(jsonPath("$.data.creatorId").doesNotExist())
+                .andExpect(jsonPath("$.data.receivingAccountId").doesNotExist());
     }
 
     @Test
@@ -757,6 +762,27 @@ class SettlementControllerTest {
                 10_000,
                 SettlementStatus.DRAFT,
                 CREATED_AT
+        );
+    }
+
+    private SettlementDetailResult detailResult() {
+        return new SettlementDetailResult(
+                SETTLEMENT_ID,
+                "회식 정산",
+                10_000,
+                null,
+                SettlementStatus.AWAITING_DEPOSIT,
+                CREATED_AT,
+                SettlementDetailResult.ViewerRole.CREATOR,
+                "최수아",
+                new SettlementDetailResult.PaymentSummary(8_000, 4_000, 4_000, 50, 1, 0),
+                List.of(new SettlementDetailResult.ParticipantPayment(
+                        PARTICIPANT_ID,
+                        "김참여",
+                        8_000L,
+                        4_000,
+                        SettlementDetailResult.PaymentStatus.PARTIALLY_PAID
+                ))
         );
     }
 }
