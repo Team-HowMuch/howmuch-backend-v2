@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -159,6 +160,61 @@ class SettlementDepositPersistenceIntegrationTest {
         );
 
         assertThat(matchedKeys).containsExactly(externalTransactionKey);
+    }
+
+    @Test
+    @DisplayName("정산 상세 조회를 위해 Share별 실제 입금액을 합산한다")
+    void sumsConfirmedAmountByShare() {
+        UUID settlementId = settlementIds.get(0);
+        UUID shareId = jdbcTemplate.queryForObject(
+                "SELECT id FROM settlement_shares WHERE settlement_id = ?",
+                UUID.class,
+                settlementId
+        );
+        insertDeposit(settlementId, shareId, 2_500, "b".repeat(64));
+        insertDeposit(settlementId, shareId, 3_500, "c".repeat(64));
+
+        var amounts = adapter.findConfirmedShareAmountsBySettlementId(settlementId);
+
+        assertThat(amounts).containsExactly(
+                new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(shareId, 6_000)
+        );
+    }
+
+    private void insertDeposit(
+            UUID settlementId,
+            UUID shareId,
+            long amount,
+            String externalTransactionKey
+    ) {
+        Long transactionId = jdbcTemplate.queryForObject("""
+                        INSERT INTO account_transactions (
+                            account_id, external_transaction_key, transaction_type, amount,
+                            transacted_at, description, after_balance, created_at, updated_at
+                        ) VALUES (?, ?, 'INCOME', ?, ?, '입금', 100000, ?, ?)
+                        RETURNING id
+                        """,
+                Long.class,
+                sourceAccountId,
+                externalTransactionKey,
+                amount,
+                NOW.plusHours(1),
+                NOW,
+                NOW
+        );
+        jdbcTemplate.update("""
+                INSERT INTO settlement_deposits (
+                    id, settlement_id, share_id, source_account_id,
+                    account_transaction_id, matched_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                UUID.randomUUID(),
+                settlementId,
+                shareId,
+                sourceAccountId,
+                transactionId,
+                NOW.plusHours(1)
+        );
     }
 
     private Long insertUser(String prefix) {
