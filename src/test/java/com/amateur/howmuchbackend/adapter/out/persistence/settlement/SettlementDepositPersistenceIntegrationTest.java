@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -177,7 +177,7 @@ class SettlementDepositPersistenceIntegrationTest {
         var amounts = adapter.findConfirmedShareAmountsBySettlementId(settlementId);
 
         assertThat(amounts).containsExactly(
-                new SettlementDepositStorePort.ConfirmedShareAmount(shareId, 6_000)
+                new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(shareId, 6_000)
         );
     }
 

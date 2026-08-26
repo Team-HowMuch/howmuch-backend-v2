@@ -3,10 +3,11 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -15,6 +16,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,7 +53,8 @@ class SettlementDetailServiceTest {
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
-    @Mock private SettlementDepositStorePort depositStorePort;
+    @Mock private LoadSettlementDepositSummaryPort loadDepositSummaryPort;
+    @Mock private LoadUserPort loadUserPort;
 
     private SettlementDetailService service;
 
@@ -61,7 +65,8 @@ class SettlementDetailServiceTest {
                 loadSettlementPort,
                 loadSettlementParticipantPort,
                 loadSettlementSharePort,
-                depositStorePort
+                loadDepositSummaryPort,
+                loadUserPort
         );
     }
 
@@ -116,7 +121,7 @@ class SettlementDetailServiceTest {
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
                 .thenReturn(participants());
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
-        when(depositStorePort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of());
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
@@ -142,7 +147,29 @@ class SettlementDetailServiceTest {
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
-        verifyNoInteractions(loadSettlementSharePort, depositStorePort);
+        verifyNoInteractions(loadSettlementSharePort, loadDepositSummaryPort);
+    }
+
+    @Test
+    @DisplayName("생성자 참여자 백필 전 정산도 사용자 이름으로 상세 조회한다")
+    void supportsSettlementWithoutCreatorParticipant() {
+        User creator = mock(User.class);
+        when(creator.name()).thenReturn("기존 생성자");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(participants().get(1)));
+        when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.creatorName()).isEqualTo("기존 생성자");
+        assertThat(result.participants()).singleElement()
+                .satisfies(payment -> assertThat(payment.participantId())
+                        .isEqualTo(PAYER_PARTICIPANT_ID));
     }
 
     private void givenSettlement(Long actorId) {
@@ -155,10 +182,10 @@ class SettlementDetailServiceTest {
                         new SettlementShare(PAYER_SHARE_ID, SETTLEMENT_ID, PAYER_PARTICIPANT_ID, 600, NOW),
                         new SettlementShare(CONTACT_SHARE_ID, SETTLEMENT_ID, CONTACT_PARTICIPANT_ID, 400, NOW)
                 ));
-        when(depositStorePort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of(
-                        new SettlementDepositStorePort.ConfirmedShareAmount(PAYER_SHARE_ID, 300),
-                        new SettlementDepositStorePort.ConfirmedShareAmount(CONTACT_SHARE_ID, 400)
+                        new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(PAYER_SHARE_ID, 300),
+                        new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(CONTACT_SHARE_ID, 400)
                 ));
     }
 

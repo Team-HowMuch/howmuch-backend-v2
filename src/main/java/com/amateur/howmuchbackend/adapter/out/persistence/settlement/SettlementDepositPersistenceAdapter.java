@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementDepositJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementDepositJpaRepository;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.SettlementDeposit;
@@ -20,7 +21,9 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
-public class SettlementDepositPersistenceAdapter implements SettlementDepositStorePort {
+public class SettlementDepositPersistenceAdapter implements
+        SettlementDepositStorePort,
+        LoadSettlementDepositSummaryPort {
     private final SettlementDepositJpaRepository repository;
     private final CodefSecretCipher cipher;
 

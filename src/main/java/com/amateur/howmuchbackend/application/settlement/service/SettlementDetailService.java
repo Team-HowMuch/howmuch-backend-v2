@@ -3,11 +3,13 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
@@ -32,7 +34,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
     private final LoadSettlementPort loadSettlementPort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementSharePort loadSettlementSharePort;
-    private final SettlementDepositStorePort depositStorePort;
+    private final LoadSettlementDepositSummaryPort loadDepositSummaryPort;
+    private final LoadUserPort loadUserPort;
 
     @Override
     @Transactional(readOnly = true)
@@ -44,12 +47,13 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 ));
         List<SettlementParticipant> participants =
                 loadSettlementParticipantPort.findAllBySettlementId(settlementId);
-        SettlementParticipant creator = participants.stream()
+        String creatorName = participants.stream()
                 .filter(participant -> participant.isLinkedTo(settlement.creatorId()))
+                .map(SettlementParticipant::displayName)
                 .findFirst()
-                .orElseThrow(() -> ApplicationException.of(
-                        SettlementStatusCode.SETTLEMENT_CREATOR_PARTICIPANT_NOT_FOUND
-                ));
+                .orElseGet(() -> loadUserPort.findById(settlement.creatorId())
+                        .map(user -> user.name())
+                        .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND)));
         SettlementDetailResult.ViewerRole viewerRole = viewerRole(
                 settlement,
                 participants,
@@ -63,16 +67,16 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         SettlementShare::payerParticipantId,
                         Function.identity()
                 ));
-        Map<UUID, Long> confirmedByShareId = depositStorePort
+        Map<UUID, Long> confirmedByShareId = loadDepositSummaryPort
                 .findConfirmedShareAmountsBySettlementId(settlementId)
                 .stream()
                 .collect(Collectors.toMap(
-                        SettlementDepositStorePort.ConfirmedShareAmount::shareId,
-                        SettlementDepositStorePort.ConfirmedShareAmount::amount
+                        LoadSettlementDepositSummaryPort.ConfirmedShareAmount::shareId,
+                        LoadSettlementDepositSummaryPort.ConfirmedShareAmount::amount
                 ));
 
         List<SettlementDetailResult.ParticipantPayment> allPayments = participants.stream()
-                .filter(participant -> !participant.id().equals(creator.id()))
+                .filter(participant -> !participant.isLinkedTo(settlement.creatorId()))
                 .sorted(Comparator.comparingInt(SettlementParticipant::displayOrder))
                 .map(participant -> payment(
                         participant,
@@ -104,7 +108,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 settlement.status(),
                 settlement.createdAt(),
                 viewerRole,
-                creator.displayName(),
+                creatorName,
                 summary(settlement.status(), allPayments),
                 visiblePayments
         );
