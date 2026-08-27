@@ -1,24 +1,9 @@
 package com.amateur.howmuchbackend.application.port.out.treasurer;
 
-import java.util.List;
+import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
+
+import java.util.Optional;
 
 public interface GenerateTreasurerAnswerPort {
-    String generate(TreasurerAnswerDraft draft);
-
-    record TreasurerAnswerDraft(
-            String question,
-            String intent,
-            String scope,
-            String fallbackAnswer,
-            long totalAmount,
-            int itemCount,
-            List<Item> items
-    ) {
-        public record Item(
-                String title,
-                String direction,
-                long amount
-        ) {
-        }
-    }
+    Optional<String> generate(TreasurerAnswerDraft draft);
 }

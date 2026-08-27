@@ -4,9 +4,11 @@ import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.docs.TreasurerDocs;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.request.AskTreasurerWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerAnswerWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerChatWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerRecommendationsWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerSummaryWebResponse;
 import com.amateur.howmuchbackend.application.port.in.treasurer.AskTreasurerUseCase;
+import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerChatUseCase;
 import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerRecommendationsUseCase;
 import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerSummaryUseCase;
 import jakarta.validation.Valid;
@@ -21,9 +23,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/v2/treasurer")
 public class TreasurerController implements TreasurerDocs {
+    private final GetTreasurerChatUseCase getTreasurerChatUseCase;
     private final GetTreasurerSummaryUseCase getTreasurerSummaryUseCase;
     private final AskTreasurerUseCase askTreasurerUseCase;
     private final GetTreasurerRecommendationsUseCase getTreasurerRecommendationsUseCase;
+
+    @Override
+    @GetMapping("/chat")
+    public ApiResponse<TreasurerChatWebResponse> getChat() {
+        return ApiResponse.success(TreasurerChatWebResponse.from(getTreasurerChatUseCase.getChat()));
+    }
 
     @Override
     @GetMapping("/summary")

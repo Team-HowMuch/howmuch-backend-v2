@@ -89,4 +89,17 @@ class InquiryParserTest {
         assertThat(parser.parse(null).intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("푸딩은 어떻게 만드나요?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
     }
+
+    @Test
+    void classifiesChatQuickActionsAndMenuChips() {
+        assertThat(parser.parse("보낼 정산").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(parser.parse("받을 정산").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("정산 상태").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
+        assertThat(parser.parse("이번 주에 정산 있어?").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
+        assertThat(parser.parse("이번 주에 정산 있어?").period()).isEqualTo(InquiryPeriod.THIS_WEEK);
+        assertThat(parser.parse("이번 주에 마감해야 할 정산 알려줘").intent()).isEqualTo(InquiryIntent.DUE_SETTLEMENTS);
+        assertThat(parser.parse("OCR 정산은 어떻게 해?").intent()).isEqualTo(InquiryIntent.GUIDE);
+        assertThat(parser.parse("나한테 아직 송금 안 한 사람 누구야?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("영수증 정산에서 받을 돈 있어?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+    }
 }

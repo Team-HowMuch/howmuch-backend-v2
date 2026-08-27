@@ -81,7 +81,20 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                         WHEN participant.linked_user_id IS NULL
                              OR participant.linked_user_id <> settlement.creator_id
                         THEN share.amount
-                    END), 0) AS receivableAmount
+                    END), 0) AS receivableAmount,
+                COUNT(DISTINCT CASE
+                        WHEN participant.linked_user_id IS NULL
+                             OR participant.linked_user_id <> settlement.creator_id
+                        THEN participant.id
+                    END) AS payerCount,
+                COUNT(DISTINCT CASE
+                        WHEN (
+                                participant.linked_user_id IS NULL
+                                OR participant.linked_user_id <> settlement.creator_id
+                             )
+                             AND paid.share_id IS NOT NULL
+                        THEN participant.id
+                    END) AS completedPayerCount
               FROM settlements settlement
               JOIN users creator
                 ON creator.id = settlement.creator_id
@@ -90,6 +103,12 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
               LEFT JOIN settlement_shares share
                 ON share.settlement_id = settlement.id
                AND share.payer_participant_id = participant.id
+              LEFT JOIN (
+                    SELECT DISTINCT settlement_id, share_id
+                      FROM settlement_deposits
+                ) paid
+                ON paid.settlement_id = settlement.id
+               AND paid.share_id = share.id
              WHERE (
                     (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
                     OR (
@@ -146,6 +165,10 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         Long getAmountToPay();
 
         long getReceivableAmount();
+
+        long getPayerCount();
+
+        long getCompletedPayerCount();
     }
 
     boolean existsByReceivingAccountIdAndStatus(Long accountId, SettlementStatus status);

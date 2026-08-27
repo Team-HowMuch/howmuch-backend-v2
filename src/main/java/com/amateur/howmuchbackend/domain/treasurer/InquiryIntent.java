@@ -5,5 +5,7 @@ public enum InquiryIntent {
     RECEIVE_SETTLEMENTS,
     SETTLEMENT_STATUS,
     EXPENSE_SUMMARY,
+    DUE_SETTLEMENTS,
+    GUIDE,
     UNKNOWN
 }

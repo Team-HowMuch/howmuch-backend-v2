@@ -13,14 +13,20 @@ import java.util.regex.Pattern;
 
 @Component
 public class InquiryParser {
+    private static final List<String> PERIOD_THIS_WEEK = List.of("이번주", "이번 주");
     private static final List<String> PERIOD_THIS_MONTH = List.of("이번달", "이번 달");
     private static final List<String> PERIOD_LAST_MONTH = List.of("지난달", "지난 달", "저번달", "저번 달");
     private static final List<String> SEND_KEYWORDS = List.of("보낼", "내야", "보내야", "낼정산", "송금");
     private static final List<String> RECEIVE_KEYWORDS = List.of("받을", "받을돈", "받을금액", "받아야");
+    private static final List<String> UNPAID_TO_ME = List.of("송금안", "아직송금");
     private static final List<String> EXPENSE_KEYWORDS = List.of("지출", "사용했", "사용내역", "소비", "결제");
     private static final List<String> STATUS_KEYWORDS = List.of(
-            "진행상태", "진행 상황", "진행상황", "진행중인", "진행 중인", "진행중", "진행 중", "정산상태", "어디까지"
+            "진행상태", "진행 상황", "진행상황", "진행중인", "진행 중인", "진행중", "진행 중",
+            "정산상태", "정산 있어", "정산있어", "어디까지"
     );
+    private static final List<String> DUE_KEYWORDS = List.of("마감해야 할 정산", "마감할 정산", "마감해야", "마감할", "마감");
+    private static final List<String> GUIDE_KEYWORDS = List.of("ocr", "영수증");
+    private static final List<String> FILLER_KEYWORDS = List.of("알려줘", "어떻게해", "어떻게", "누구야", "있어");
     private static final Pattern TITLE_HINT = Pattern.compile("([가-힣A-Za-z0-9]{1,20}(?:모임|정산))");
 
     public ParsedInquiry parse(String question) {
@@ -35,6 +41,9 @@ public class InquiryParser {
     }
 
     private InquiryPeriod periodOf(String compact) {
+        if (containsAny(compact, PERIOD_THIS_WEEK)) {
+            return InquiryPeriod.THIS_WEEK;
+        }
         if (containsAny(compact, PERIOD_LAST_MONTH)) {
             return InquiryPeriod.LAST_MONTH;
         }
@@ -45,6 +54,14 @@ public class InquiryParser {
     }
 
     private InquiryIntent intentOf(String compact) {
+        if (containsAny(compact, UNPAID_TO_ME)) {
+            return InquiryIntent.RECEIVE_SETTLEMENTS;
+        }
+        if (containsAny(compact, DUE_KEYWORDS)
+                && !containsAny(compact, SEND_KEYWORDS)
+                && !containsAny(compact, RECEIVE_KEYWORDS)) {
+            return InquiryIntent.DUE_SETTLEMENTS;
+        }
         int sendAt = earliestIndex(compact, SEND_KEYWORDS);
         int receiveAt = earliestIndex(compact, RECEIVE_KEYWORDS);
         if (sendAt >= 0 && (receiveAt < 0 || sendAt <= receiveAt)) {
@@ -58,6 +75,9 @@ public class InquiryParser {
         }
         if (containsAny(compact, STATUS_KEYWORDS)) {
             return InquiryIntent.SETTLEMENT_STATUS;
+        }
+        if (containsAny(compact, GUIDE_KEYWORDS)) {
+            return InquiryIntent.GUIDE;
         }
         return InquiryIntent.UNKNOWN;
     }
@@ -76,12 +96,17 @@ public class InquiryParser {
     private String stripQueryGrammar(String compact) {
         String remainder = compact;
         List<String> phrases = new ArrayList<>();
+        phrases.addAll(PERIOD_THIS_WEEK);
         phrases.addAll(PERIOD_THIS_MONTH);
         phrases.addAll(PERIOD_LAST_MONTH);
         phrases.addAll(SEND_KEYWORDS);
         phrases.addAll(RECEIVE_KEYWORDS);
+        phrases.addAll(UNPAID_TO_ME);
         phrases.addAll(EXPENSE_KEYWORDS);
         phrases.addAll(STATUS_KEYWORDS);
+        phrases.addAll(DUE_KEYWORDS);
+        phrases.addAll(GUIDE_KEYWORDS);
+        phrases.addAll(FILLER_KEYWORDS);
         phrases.sort(Comparator.comparingInt((String phrase) -> compactPhrase(phrase).length()).reversed());
         for (String phrase : phrases) {
             remainder = remainder.replace(compactPhrase(phrase), "");
@@ -91,12 +116,17 @@ public class InquiryParser {
 
     private boolean isQueryGrammar(String candidate) {
         String compact = compactPhrase(candidate).toLowerCase(Locale.ROOT);
-        return containsAny(compact, PERIOD_THIS_MONTH)
+        return containsAny(compact, PERIOD_THIS_WEEK)
+                || containsAny(compact, PERIOD_THIS_MONTH)
                 || containsAny(compact, PERIOD_LAST_MONTH)
                 || containsAny(compact, SEND_KEYWORDS)
                 || containsAny(compact, RECEIVE_KEYWORDS)
+                || containsAny(compact, UNPAID_TO_ME)
                 || containsAny(compact, EXPENSE_KEYWORDS)
-                || containsAny(compact, STATUS_KEYWORDS);
+                || containsAny(compact, STATUS_KEYWORDS)
+                || containsAny(compact, DUE_KEYWORDS)
+                || containsAny(compact, GUIDE_KEYWORDS)
+                || containsAny(compact, FILLER_KEYWORDS);
     }
 
     private boolean containsAny(String compact, List<String> phrases) {
@@ -115,7 +145,7 @@ public class InquiryParser {
     }
 
     private String compactPhrase(String phrase) {
-        return phrase.replaceAll("\\s+", "");
+        return phrase.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
     }
 
     public record ParsedInquiry(InquiryIntent intent, InquiryPeriod period, String titleHint) {

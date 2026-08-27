@@ -6,7 +6,7 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.Sett
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementParticipantJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementShareJpaRepository;
-import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
+import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
@@ -134,13 +134,15 @@ class TreasurerSettlementPersistenceIntegrationTest {
                 .filteredOn(item -> item.settlementId().equals(receiveSettlementId))
                 .singleElement()
                 .satisfies(item -> {
-                    assertThat(item.direction()).isEqualTo(SettlementListTab.RECEIVE);
+                    assertThat(item.direction()).isEqualTo(SettlementDirection.RECEIVE);
                     assertThat(item.amount()).isEqualTo(6_000L);
+                    assertThat(item.payerCount()).isEqualTo(1);
+                    assertThat(item.completedPayerCount()).isZero();
                 });
     }
 
     @Test
-    @DisplayName("PAY는 현재 사용자의 Share 금액을 선택한다")
+    @DisplayName("SEND는 현재 사용자의 Share 금액을 선택한다")
     void loadsAmountToPayForLinkedParticipant() {
         var result = treasurerSettlementPersistenceAdapter.findAll(payerId);
 
@@ -148,7 +150,7 @@ class TreasurerSettlementPersistenceIntegrationTest {
                 .filteredOn(item -> item.settlementId().equals(paySettlementId))
                 .singleElement()
                 .satisfies(item -> {
-                    assertThat(item.direction()).isEqualTo(SettlementListTab.PAY);
+                    assertThat(item.direction()).isEqualTo(SettlementDirection.SEND);
                     assertThat(item.amount()).isEqualTo(5_500L);
                 });
     }

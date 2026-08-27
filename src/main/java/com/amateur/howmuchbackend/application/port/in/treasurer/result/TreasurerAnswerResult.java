@@ -1,27 +1,62 @@
 package com.amateur.howmuchbackend.application.port.in.treasurer.result;
 
+import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
+import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
+import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
+import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerActionType;
+import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerView;
+import com.amateur.howmuchbackend.domain.treasurer.TreasurerCardMarker;
+
 import java.util.List;
 import java.util.UUID;
 
 public record TreasurerAnswerResult(
-        String intent,
-        String period,
+        InquiryIntent intent,
+        InquiryPeriod period,
         String scope,
+        TreasurerAnswerView view,
         String answer,
-        List<Highlight> highlights,
-        List<Action> actions
+        String footer,
+        List<Item> items,
+        SummaryCard summary,
+        List<Action> actions,
+        List<Prompt> prompts
 ) {
-    public record Highlight(
+    public record Item(
             UUID settlementId,
-            String title,
-            String direction,
-            long amount
+            String requestedDate,
+            String headline,
+            String subtitle,
+            SettlementDirection direction,
+            long amount,
+            TreasurerCardMarker marker
+    ) {
+    }
+
+    public record SummaryCard(
+            SummaryRow send,
+            SummaryRow receive,
+            SummaryRow completed
+    ) {
+    }
+
+    public record SummaryRow(
+            String label,
+            String detail,
+            String value
     ) {
     }
 
     public record Action(
-            String type,
+            TreasurerAnswerActionType type,
             String label
+    ) {
+    }
+
+    public record Prompt(
+            InquiryIntent type,
+            String label,
+            String question
     ) {
     }
 }

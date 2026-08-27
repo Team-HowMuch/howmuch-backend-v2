@@ -1,7 +1,6 @@
 package com.amateur.howmuchbackend.application.treasurer.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
-import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.LoadTreasurerSettlementsPort;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
@@ -27,7 +26,7 @@ class TreasurerSettlementQueryTest {
     private LoadTreasurerSettlementsPort loadTreasurerSettlementsPort;
 
     @Test
-    void mapsPayTabToSendAndReceiveTabToReceive() {
+    void mapsLoadedRecordsToPersonalSettlements() {
         UUID payId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UUID receiveId = UUID.fromString("22222222-2222-2222-2222-222222222222");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(7L));
@@ -35,20 +34,24 @@ class TreasurerSettlementQueryTest {
                 new LoadTreasurerSettlementsPort.TreasurerSettlementRecord(
                         payId,
                         "낼 정산",
-                        SettlementListTab.PAY,
+                        SettlementDirection.SEND,
                         SettlementStatus.REQUESTED,
                         LocalDateTime.of(2026, 8, 10, 0, 0),
                         5_500L,
-                        "요청자"
+                        "요청자",
+                        1,
+                        0
                 ),
                 new LoadTreasurerSettlementsPort.TreasurerSettlementRecord(
                         receiveId,
                         "받을 정산",
-                        SettlementListTab.RECEIVE,
+                        SettlementDirection.RECEIVE,
                         SettlementStatus.AWAITING_DEPOSIT,
                         LocalDateTime.of(2026, 8, 11, 0, 0),
                         6_000L,
-                        "나"
+                        "나",
+                        1,
+                        0
                 )
         ));
         TreasurerSettlementQuery query = new TreasurerSettlementQuery(currentActorPort, loadTreasurerSettlementsPort);

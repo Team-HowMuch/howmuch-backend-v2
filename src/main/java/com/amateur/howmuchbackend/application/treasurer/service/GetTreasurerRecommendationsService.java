@@ -28,7 +28,7 @@ public class GetTreasurerRecommendationsService implements GetTreasurerRecommend
             return new TreasurerRecommendationsResult("처리할 정산이 없어요.", List.of());
         }
         return new TreasurerRecommendationsResult(
-                null,
+                "확인이 필요한 정산이 %d건 있어요.".formatted(recommendations.size()),
                 recommendations.stream()
                         .map(this::toItem)
                         .toList()

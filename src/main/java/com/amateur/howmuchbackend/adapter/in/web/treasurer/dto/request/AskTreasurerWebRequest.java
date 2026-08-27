@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 public record AskTreasurerWebRequest(
         @NotBlank(message = "질문을 입력해 주세요.")
         @Size(max = 500, message = "질문은 500자 이하여야 합니다.")
-        @Schema(description = "정산·지출 자연어 질문", example = "이번 달 내가 보낼 정산은 얼마야?")
+        @Schema(description = "정산 자연어 질문 또는 바로가기/메뉴 칩 문구", example = "보낼 정산")
         String question
 ) {
     public AskTreasurerCommand toCommand() {

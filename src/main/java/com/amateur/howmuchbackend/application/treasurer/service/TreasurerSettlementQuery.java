@@ -1,10 +1,8 @@
 package com.amateur.howmuchbackend.application.treasurer.service;
 
-import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.LoadTreasurerSettlementsPort;
 import com.amateur.howmuchbackend.domain.treasurer.PersonalSettlement;
-import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -27,13 +25,13 @@ public class TreasurerSettlementQuery {
         return new PersonalSettlement(
                 record.settlementId(),
                 record.title(),
-                record.direction() == SettlementListTab.PAY
-                        ? SettlementDirection.SEND
-                        : SettlementDirection.RECEIVE,
+                record.direction(),
                 record.status(),
                 record.requestedAt(),
                 record.amount(),
-                record.counterpartName()
+                record.counterpartName(),
+                record.payerCount(),
+                record.completedPayerCount()
         );
     }
 }

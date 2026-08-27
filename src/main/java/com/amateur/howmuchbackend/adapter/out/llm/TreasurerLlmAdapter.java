@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.llm;
 
 import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
+import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.infra.treasurer.config.TreasurerLlmProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -14,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -39,23 +41,16 @@ public class TreasurerLlmAdapter implements GenerateTreasurerAnswerPort {
     }
 
     @Override
-    public String generate(TreasurerAnswerDraft draft) {
-        if (draft == null || !StringUtils.hasText(draft.fallbackAnswer())) {
-            return draft == null ? "" : draft.fallbackAnswer();
-        }
-        if (!properties.usesOpenAi() && !properties.usesGemini()) {
-            return draft.fallbackAnswer();
+    public Optional<String> generate(TreasurerAnswerDraft draft) {
+        if (draft == null || (!properties.usesOpenAi() && !properties.usesGemini())) {
+            return Optional.empty();
         }
         try {
             String generated = properties.usesOpenAi() ? completeOpenAi(draft) : completeGemini(draft);
-            String sanitized = TreasurerLlmResponseParser.sanitize(generated);
-            if (sanitized == null || !TreasurerLlmResponseParser.usesOnlyKnownNumbers(sanitized, draft)) {
-                return draft.fallbackAnswer();
-            }
-            return sanitized;
+            return Optional.ofNullable(TreasurerLlmResponseParser.sanitize(generated));
         } catch (Exception exception) {
-            log.warn("Treasurer LLM call failed; using fallback answer. {}", exception.getClass().getSimpleName());
-            return draft.fallbackAnswer();
+            log.warn("Treasurer LLM call failed. {}", exception.getClass().getSimpleName());
+            return Optional.empty();
         }
     }
 
@@ -105,7 +100,7 @@ public class TreasurerLlmAdapter implements GenerateTreasurerAnswerPort {
     private String userPrompt(TreasurerAnswerDraft draft) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("질문: ").append(draft.question()).append('\n');
-        prompt.append("의도: ").append(draft.intent()).append('\n');
+        prompt.append("의도: ").append(draft.intent().name()).append('\n');
         prompt.append("조회 범위: ").append(draft.scope()).append('\n');
         prompt.append("건수: ").append(draft.itemCount()).append('\n');
         prompt.append("총액(원): ").append(draft.totalAmount()).append('\n');

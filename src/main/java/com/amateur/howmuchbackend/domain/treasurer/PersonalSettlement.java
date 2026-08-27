@@ -14,9 +14,23 @@ public record PersonalSettlement(
         SettlementStatus status,
         LocalDateTime requestedAt,
         Long amount,
-        String counterpartName
+        String counterpartName,
+        int payerCount,
+        int completedPayerCount
 ) {
     public static final Duration STALE_AFTER = Duration.ofDays(7);
+
+    public PersonalSettlement(
+            UUID settlementId,
+            String title,
+            SettlementDirection direction,
+            SettlementStatus status,
+            LocalDateTime requestedAt,
+            Long amount,
+            String counterpartName
+    ) {
+        this(settlementId, title, direction, status, requestedAt, amount, counterpartName, 0, 0);
+    }
 
     public boolean isOpen() {
         return status != SettlementStatus.COMPLETED;
@@ -49,5 +63,10 @@ public record PersonalSettlement(
 
     public boolean isReceive() {
         return direction == SettlementDirection.RECEIVE;
+    }
+
+    public int unpaidPayerCount() {
+        int unpaid = payerCount - completedPayerCount;
+        return Math.max(unpaid, 0);
     }
 }

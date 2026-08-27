@@ -60,6 +60,7 @@ class GetTreasurerRecommendationsServiceTest {
 
         var result = service.getRecommendations();
 
+        assertThat(result.message()).isEqualTo("확인이 필요한 정산이 2건 있어요.");
         assertThat(result.items()).filteredOn(item -> "요청됨".equals(item.title()))
                 .singleElement()
                 .extracting(item -> item.actions().stream().map(action -> action.type()).toList())

@@ -1,7 +1,7 @@
 # Feature Plan: AI 총무 (개인 정산 비서)
 
 - Status: Implemented (initial scope)
-- Last updated: 2026-08-27
+- Last updated: 2026-08-27 (chat card UI)
 - Related issue: [#187](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/187), F-GRO-004
 - Related ADR: N/A
 
@@ -23,6 +23,9 @@
 - [x] 미완료 정산을 보낼/받을·장기 미처리 우선순위로 안내하고 화면 이동 액션만 제공한다.
 - [x] 정산 데이터를 변경하지 않는다.
 - [x] 질의 답변 문장은 OpenAI 또는 Gemini로 생성하고, 키/호출 실패 시 서버 템플릿으로 내려간다.
+- [x] 채팅 시작 시 인사·바로가기(보낼/받을/정산 상태)와 메뉴 제안 칩을 제공한다.
+- [x] 보낼/받을 질의는 날짜·헤드라인·부제·마커가 있는 리스트 카드를 반환한다.
+- [x] 정산 상태 질의는 낼 돈/받을 돈/이번 달 완료 요약 카드를 반환한다.
 
 ### Out of scope
 
@@ -54,6 +57,7 @@
 | Actor | Goal | UseCase |
 |---|---|---|
 | 로그인 사용자 | 현황 요약 | `GetTreasurerSummaryUseCase` |
+| 로그인 사용자 | 채팅 시작(인사·바로가기·제안 칩) | `GetTreasurerChatUseCase` |
 | 로그인 사용자 | 자연어 질의 | `AskTreasurerUseCase` |
 | 로그인 사용자 | 확인 필요 항목 | `GetTreasurerRecommendationsUseCase` |
 
@@ -81,6 +85,7 @@
 ### Input Port
 
 ```text
+GetTreasurerChatUseCase → TreasurerChatResult
 GetTreasurerSummaryUseCase → TreasurerSummaryResult
 AskTreasurerUseCase(AskTreasurerCommand) → TreasurerAnswerResult
 GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
@@ -90,13 +95,14 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 
 | Port | Purpose |
 |---|---|
-| `LoadTreasurerSettlementsPort` | 사용자 RECEIVE/PAY 전체 정산(제목 포함) |
-| `GenerateTreasurerAnswerPort` | 집계된 팩트로 안내 문장 생성 |
+| `LoadTreasurerSettlementsPort` | 사용자 SEND/RECEIVE 전체 정산(제목 포함). 방향은 `SettlementDirection` |
+| `GenerateTreasurerAnswerPort` | LLM 문장 후보만 반환(`Optional`). 실패·미사용은 empty |
 
 ### Web API
 
+- `GET /api/v2/treasurer/chat` 인사·바로가기·메뉴 제안 칩
 - `GET /api/v2/treasurer/summary`
-- `POST /api/v2/treasurer/questions` body `{ "question": "..." }`
+- `POST /api/v2/treasurer/questions` body `{ "question": "..." }` — `view`가 `LIST`/`SUMMARY`/`TEXT`
 - `GET /api/v2/treasurer/recommendations`
 
 ## 5. Design decisions
@@ -111,7 +117,14 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 - 기간과 제목이 함께 있으면 기간·질의 문법을 제거한 뒤 `○○모임`/`○○정산`만 제목으로 쓴다.
 - 보낼/받을 키워드가 한 질문에 같이 있으면 먼저 나온 쪽을 쓴다.
 - 추천 액션은 실제 실행 가능한 상태만 노출한다. `TRANSFER`와 `CHECK_DEPOSIT`은 `AWAITING_DEPOSIT`에서만 제공한다.
-- LLM이 서버 팩트·템플릿에 없는 숫자를 쓰면 템플릿 문장으로 되돌린다. `8월`처럼 날짜 접미 숫자는 허용한다.
+- LLM이 서버 팩트·템플릿에 없는 숫자를 쓰면 `TreasurerAnswerFactCheck`가 템플릿 문장으로 되돌린다. Adapter는 생성 문장만 반환하고 금액 검증은 하지 않는다. `8월`처럼 날짜 접미 숫자는 허용한다.
+- 카드 문구 Policy(`TreasurerCardCopy`)는 자체 Chip/Card 레코드를 반환하고, Service가 Result로 매핑한다.
+- 평소 입력은 자유 대화(`POST /questions`)이고, 메뉴 칩·바로가기도 같은 질의 API로 처리한다.
+- 바로가기(보낼/받을/정산 상태)와 기간을 생략한 질의는 `이번 달 기준으로 조회했어요.`를 쓴다.
+- 리스트 카드 부제의 완료 인원은 입금(`settlement_deposits`)이 있는 참여자 수로 근사한다. 부분 입금은 완료로 센다.
+- `이번 주`는 Asia/Seoul ISO 주이고, 기한 필드가 없어 `마감`은 요청일 + 7일이 해당 기간에 들어오는 미완료 정산으로 근사한다.
+- OCR 안내 키워드(`ocr`, `영수증`)는 보낼/받을/마감/지출/상태 의도가 없을 때만 GUIDE로 본다.
+- OCR 안내는 고정 문구만 반환하고 OCR 서버는 호출하지 않는다.
 
 ## 6. Impact surface
 
