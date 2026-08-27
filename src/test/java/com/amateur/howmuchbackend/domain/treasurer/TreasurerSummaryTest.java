@@ -35,6 +35,18 @@ class TreasurerSummaryTest {
         assertThat(summary.message()).isEqualTo("현재 처리할 정산이 없어요.");
     }
 
+    @Test
+    void countsDraftAsInProgressWithoutSendOrReceiveBalance() {
+        TreasurerSummary summary = TreasurerSummary.from(List.of(
+                settlement(SettlementDirection.RECEIVE, SettlementStatus.DRAFT, 80_000L)
+        ));
+
+        assertThat(summary.inProgressCount()).isEqualTo(1);
+        assertThat(summary.receiveCount()).isZero();
+        assertThat(summary.receiveAmount()).isZero();
+        assertThat(summary.message()).isEqualTo("진행 중인 정산 1건이 있어요.");
+    }
+
     private PersonalSettlement settlement(SettlementDirection direction, SettlementStatus status, long amount) {
         return new PersonalSettlement(
                 UUID.randomUUID(),

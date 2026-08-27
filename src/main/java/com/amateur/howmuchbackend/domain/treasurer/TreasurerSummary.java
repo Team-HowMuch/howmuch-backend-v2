@@ -20,17 +20,20 @@ public record TreasurerSummary(
         int completedCount = 0;
 
         for (PersonalSettlement settlement : settlements) {
-            if (settlement.isOpen()) {
-                inProgressCount++;
-                if (settlement.isSend()) {
-                    sendCount++;
-                    sendAmount += settlement.amountOrZero();
-                } else {
-                    receiveCount++;
-                    receiveAmount += settlement.amountOrZero();
-                }
-            } else {
+            if (!settlement.isOpen()) {
                 completedCount++;
+                continue;
+            }
+            inProgressCount++;
+            if (!settlement.isOutstanding()) {
+                continue;
+            }
+            if (settlement.isSend()) {
+                sendCount++;
+                sendAmount += settlement.amountOrZero();
+            } else {
+                receiveCount++;
+                receiveAmount += settlement.amountOrZero();
             }
         }
 

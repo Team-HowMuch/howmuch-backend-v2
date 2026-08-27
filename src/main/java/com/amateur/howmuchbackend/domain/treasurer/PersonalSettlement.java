@@ -22,12 +22,22 @@ public record PersonalSettlement(
         return status != SettlementStatus.COMPLETED;
     }
 
+    public boolean isOutstanding() {
+        return status == SettlementStatus.REQUESTED
+                || status == SettlementStatus.AWAITING_DEPOSIT
+                || status == SettlementStatus.SUSPENDED;
+    }
+
+    public boolean countsAsExpense() {
+        return isSend() && status != SettlementStatus.DRAFT;
+    }
+
     public long amountOrZero() {
         return amount == null ? 0L : amount;
     }
 
     public boolean isStale(Instant now) {
-        if (!isOpen() || requestedAt == null) {
+        if (!isOutstanding() || requestedAt == null) {
             return false;
         }
         return requestedAt.toInstant(java.time.ZoneOffset.UTC).isBefore(now.minus(STALE_AFTER));

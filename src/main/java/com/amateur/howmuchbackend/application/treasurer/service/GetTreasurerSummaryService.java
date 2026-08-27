@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.application.port.in.treasurer.result.Treasurer
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerSummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -12,6 +13,7 @@ public class GetTreasurerSummaryService implements GetTreasurerSummaryUseCase {
     private final TreasurerSettlementQuery treasurerSettlementQuery;
 
     @Override
+    @Transactional(readOnly = true)
     public TreasurerSummaryResult getSummary() {
         TreasurerSummary summary = TreasurerSummary.from(treasurerSettlementQuery.loadMine());
         return new TreasurerSummaryResult(

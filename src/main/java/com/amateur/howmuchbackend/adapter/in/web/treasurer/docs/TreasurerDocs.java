@@ -15,7 +15,7 @@ import jakarta.validation.Valid;
 public interface TreasurerDocs {
     @Operation(
             summary = "개인 정산 현황 요약",
-            description = "로그인 사용자 기준 보낼/받을/진행 중/완료 건수와 금액을 집계하고 우선 안내 문구 1개를 반환합니다.",
+            description = "로그인 사용자 기준 보낼/받을/진행 중/완료 건수와 금액을 집계하고 우선 안내 문구 1개를 반환합니다. 보낼/받을 금액은 요청된 이후 미완료 정산만 합산하고, 작성 중인 DRAFT는 진행 중 건수에만 포함합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -26,7 +26,7 @@ public interface TreasurerDocs {
 
     @Operation(
             summary = "AI 정산·지출 질의",
-            description = "보낼 정산, 받을 정산, 진행 상태, 지출 요약 의도를 키워드로 분류한 뒤 정산 목록을 조회합니다. LLM을 호출하지 않습니다.",
+            description = "보낼 정산, 받을 정산, 진행 상태, 지출 요약 의도를 키워드로 분류한 뒤 정산 목록을 조회합니다. 기간과 제목이 함께 있으면 기간을 제외한 `○○모임`/`○○정산`만 제목 필터로 씁니다. 안내 문장은 설정된 LLM이 서버 팩트만으로 생성하고, 없거나 실패하거나 숫자를 지어내면 서버 템플릿을 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -38,7 +38,7 @@ public interface TreasurerDocs {
 
     @Operation(
             summary = "확인이 필요한 정산 추천",
-            description = "미완료 정산을 보낼/받을·장기 미처리 순으로 안내하고 화면 이동 액션만 제공합니다.",
+            description = "미완료이면서 이미 요청된 정산을 보낼/받을·장기 미처리 순으로 안내합니다. 작성 중인 DRAFT는 제외합니다. 화면 이동 액션만 제공하며, 송금·입금 확인은 AWAITING_DEPOSIT에서만 노출합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({

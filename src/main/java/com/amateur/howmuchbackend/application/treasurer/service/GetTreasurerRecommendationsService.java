@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.domain.treasurer.TreasurerActionType;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerRecommendation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.util.List;
@@ -17,6 +18,7 @@ public class GetTreasurerRecommendationsService implements GetTreasurerRecommend
     private final Clock clock;
 
     @Override
+    @Transactional(readOnly = true)
     public TreasurerRecommendationsResult getRecommendations() {
         List<TreasurerRecommendation> recommendations = TreasurerRecommendation.prioritize(
                 treasurerSettlementQuery.loadMine(),
@@ -52,7 +54,6 @@ public class GetTreasurerRecommendationsService implements GetTreasurerRecommend
             case SETTLEMENT_DETAIL -> "정산 상세 보기";
             case CHECK_DEPOSIT -> "입금 확인";
             case TRANSFER -> "송금하기";
-            case SEND_NOTIFICATION -> "알림 보내기";
         };
     }
 }

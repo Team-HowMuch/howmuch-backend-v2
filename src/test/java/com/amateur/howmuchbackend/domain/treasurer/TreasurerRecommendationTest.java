@@ -52,12 +52,89 @@ class TreasurerRecommendationTest {
         assertThat(TreasurerRecommendation.prioritize(List.of(completed), now)).isEmpty();
     }
 
+    @Test
+    void ignoresDraftSettlements() {
+        Instant now = Instant.parse("2026-08-26T00:00:00Z");
+        PersonalSettlement draft = settlement(
+                SettlementDirection.RECEIVE,
+                SettlementStatus.DRAFT,
+                LocalDateTime.ofInstant(now.minusSeconds(60), ZoneOffset.UTC),
+                1
+        );
+
+        assertThat(TreasurerRecommendation.prioritize(List.of(draft), now)).isEmpty();
+    }
+
+    @Test
+    void exposesTransferOnlyWhenSendSettlementAwaitsDeposit() {
+        Instant now = Instant.parse("2026-08-26T00:00:00Z");
+        PersonalSettlement requested = settlement(
+                SettlementDirection.SEND,
+                SettlementStatus.REQUESTED,
+                LocalDateTime.ofInstant(now.minusSeconds(60), ZoneOffset.UTC),
+                1
+        );
+        PersonalSettlement awaiting = settlement(
+                SettlementDirection.SEND,
+                SettlementStatus.AWAITING_DEPOSIT,
+                LocalDateTime.ofInstant(now.minusSeconds(60), ZoneOffset.UTC),
+                2
+        );
+
+        List<TreasurerRecommendation> result = TreasurerRecommendation.prioritize(List.of(requested, awaiting), now);
+
+        assertThat(result).satisfiesExactly(
+                item -> assertThat(item.actions()).containsExactly(TreasurerActionType.SETTLEMENT_DETAIL),
+                item -> assertThat(item.actions()).containsExactly(
+                        TreasurerActionType.SETTLEMENT_DETAIL,
+                        TreasurerActionType.TRANSFER
+                )
+        );
+    }
+
+    @Test
+    void exposesDepositCheckOnlyWhenReceiveSettlementAwaitsDeposit() {
+        Instant now = Instant.parse("2026-08-26T00:00:00Z");
+        PersonalSettlement requested = settlement(
+                SettlementDirection.RECEIVE,
+                SettlementStatus.REQUESTED,
+                LocalDateTime.ofInstant(now.minusSeconds(60), ZoneOffset.UTC),
+                1
+        );
+        PersonalSettlement awaiting = settlement(
+                SettlementDirection.RECEIVE,
+                SettlementStatus.AWAITING_DEPOSIT,
+                LocalDateTime.ofInstant(now.minusSeconds(60), ZoneOffset.UTC),
+                2
+        );
+
+        List<TreasurerRecommendation> result = TreasurerRecommendation.prioritize(List.of(requested, awaiting), now);
+
+        assertThat(result).filteredOn(item -> item.settlement().status() == SettlementStatus.REQUESTED)
+                .singleElement()
+                .extracting(TreasurerRecommendation::actions)
+                .isEqualTo(List.of(TreasurerActionType.SETTLEMENT_DETAIL));
+        assertThat(result).filteredOn(item -> item.settlement().status() == SettlementStatus.AWAITING_DEPOSIT)
+                .singleElement()
+                .extracting(TreasurerRecommendation::actions)
+                .isEqualTo(List.of(TreasurerActionType.SETTLEMENT_DETAIL, TreasurerActionType.CHECK_DEPOSIT));
+    }
+
     private PersonalSettlement settlement(SettlementDirection direction, LocalDateTime requestedAt, long amount) {
+        return settlement(direction, SettlementStatus.REQUESTED, requestedAt, amount);
+    }
+
+    private PersonalSettlement settlement(
+            SettlementDirection direction,
+            SettlementStatus status,
+            LocalDateTime requestedAt,
+            long amount
+    ) {
         return new PersonalSettlement(
                 UUID.randomUUID(),
                 "정산",
                 direction,
-                SettlementStatus.REQUESTED,
+                status,
                 requestedAt,
                 amount,
                 null
