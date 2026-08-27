@@ -16,11 +16,21 @@ When documentation and code disagree, do not guess. Inspect the actual code and 
 ## Documentation map
 
 - [Architecture](docs/architecture.md): package responsibilities, dependency direction, and layer-specific rules
+- [Coding guidelines](docs/coding-guidelines.md): default component shapes, mapping ownership, and review checklist
 - [Development workflow](docs/development-workflow.md): feature analysis, implementation, verification, and commit boundaries
 - [Feature Plan template](docs/templates/feature-plan.md): integrated design and execution plan for non-trivial work
 - [ADR template](docs/templates/adr.md): decisions that have durable impact across multiple features
+- [Purpose-oriented Ports ADR](docs/adr/0001-purpose-oriented-ports.md): historical Load/Save Port separation and Application-owned Policy rules
+- [Framework-neutral StatusCode ADR](docs/adr/0002-framework-neutral-status-code.md): numeric HTTP status contract without Domain framework dependencies
+- [Capability-oriented Output Ports ADR](docs/adr/0003-capability-oriented-output-ports.md): current Output Port naming and cohesion rules
 
 Create a Feature Plan before adding an endpoint, UseCase, domain, storage structure, external integration, security behavior, or change spanning multiple packages. Skip it for typos, isolated one-file changes, and small cleanups that do not change behavior.
+
+## Documentation language
+
+- Write system documents in English: `AGENTS.md`, architecture, development workflow, templates, ADRs, and repository-wide operating rules.
+- Write development review documents in Korean: active Feature Plans, implementation review notes, QA notes, and handoff documents intended for the team to review.
+- Keep code identifiers, API paths, JSON fields, commands, and error codes verbatim.
 
 ## Project baseline
 
@@ -32,7 +42,7 @@ Create a Feature Plan before adding an endpoint, UseCase, domain, storage struct
 - Spring Security and JWT
 - Springdoc OpenAPI
 - Default profile: `local`
-- Flyway: currently disabled
+- Flyway: enabled; Hibernate validates the schema after migrations
 - Internal storage and calculation time: UTC `LocalDateTime`
 
 Run commands from the repository root.
@@ -53,8 +63,21 @@ Check the database, Redis, and environment prerequisites before running `test` o
 4. Trace the relevant flow from the inbound request to every external interaction.
 5. For non-trivial work, create or update `docs/features/active/<feature>.md`.
 6. Define the impact surface and verification method before implementation.
+7. Before implementation, decide whether the planned feature requires a Flyway migration.
 
 Treat existing changes as user-owned work. Do not modify or clean unrelated files.
+
+### Flyway migration gate
+
+For a task that includes feature implementation, inspect the completed design before editing implementation code. If the feature requires a Flyway migration:
+
+1. Fetch the latest `origin/develop` and inspect both its migration versions and open migration pull requests before selecting the next version.
+2. Create an isolated branch from the latest `origin/develop`.
+3. Add only the required versioned SQL file under `src/main/resources/db/migration`.
+4. Verify the migration, commit and push the migration-only change, and create a pull request targeting `develop`.
+5. Report the pull request and stop the current task immediately after it is created.
+
+Do not include the Feature Plan, Java code, tests, configuration, or other documentation in the migration pull request. Do not wait for the pull request to merge or continue with any other item in the feature plan. All remaining feature work belongs to a separate follow-up task. A request that asks only for analysis or a plan does not trigger this publishing workflow.
 
 ## Core architecture
 
@@ -75,18 +98,128 @@ common: shared response and exception contracts
 
 Follow [Architecture](docs/architecture.md) for detailed rules and documented exceptions.
 
+## Implementation rules by component
+
+### Input Port and UseCase
+
+- Place them under `application.port.in.<domain>`.
+- Name each user goal `<Verb><Target>UseCase`.
+- When a UseCase needs a structured input record, place it under `application.port.in.<domain>.command` and name it `<Action>Command`; keep simple identifiers as method parameters.
+- Place structured output values under `application.port.in.<domain>.result` and name them `<Subject>Result`.
+- Apply Command/Result naming to new or modified contracts. Existing `request`/`response` contracts are transition points, not examples to copy.
+- Keep Commands and Results as plain Java records.
+- Do not include Jakarta Validation, Servlet, HTTP status, Swagger, JPA, or Redis types.
+- One Application Service may implement several cohesive UseCases; do not combine every endpoint in a domain into one broad UseCase.
+
+### Application Service
+
+- Place it under `application.<domain>.service`.
+- Implement UseCases and coordinate current-actor lookup, transaction boundaries, Domain behavior, Policy decisions, Output Port calls, and response assembly.
+- Do not depend on Web DTOs, `SecurityContextHolder`, `JwtPrincipal`, JPA Repositories/Entities, or Redis clients.
+- Keep Entity-only invariants in Domain. Pass facts spanning multiple entities or domains to an Application Policy.
+- `@Service`, `@Transactional`, and direct Spring `PasswordEncoder` injection are accepted.
+
+### Application Policy
+
+- Place it under `application.<domain>.policy`.
+- A Policy is Application-owned and is used only by Application Services.
+- Use a concrete class or record unless interchangeable implementations are real.
+- Do not place Policy creation, Policy rules, or Policy interpretation in `infra`.
+- A Policy must not access Adapters, JPA, Redis, HTTP, or `infra` Properties.
+- The Service loads external facts through Output Ports and passes plain Domain/Application values to the Policy.
+- A stateless Policy may be an Application `@Component`; do not create an Infra Config solely to construct it.
+- This repository currently contains `infra/auth/config/AuthPolicyConfig.java`; treat it as transitional code, not the pattern for new Policies.
+
+Group-member exit example:
+
+```text
+GroupMemberService
+  -> LoadGroupMemberPort
+  -> GroupMemberExitPolicy.validate(member)
+  -> GroupMember.leave/remove
+  -> SaveGroupMemberPort
+
+When settlement is implemented:
+  -> LoadGroupMemberSettlementStatePort
+  -> GroupMemberExitPolicy.validate(member, settlementState)
+```
+
+Do not create the future settlement Port or a no-op Adapter until a real settlement caller and query exist. Self-leave and manager removal must use the same exit Policy so removal cannot bypass outstanding obligations.
+
+### Output Port
+
+- Place it under `application.port.out.<domain>`.
+- Name it after the cohesive capability the Application requires from an external system.
+- Use `Load<Aggregate>Port` and `Save<Aggregate>Port` when general aggregate retrieval and persistence are the actual capabilities; they are options, not mandatory pairs.
+- Use capability names such as `Store`, `Sender`, `Publisher`, `Authorizer`, `Token`, `CurrentActor`, or `Delete` when they express the conversation more accurately.
+- Do not combine reads and writes into a broad `<Aggregate>RepositoryPort`.
+- Use Domain or Application types and do not expose JPA-specific operations.
+- Create a Port only for a real external boundary with a caller.
+- Split a Port when callers need materially different capabilities; keep cohesive operations together instead of creating one interface per method.
+
+Target user-port shape:
+
+```java
+public interface LoadUserPort {
+    Optional<User> findById(Long id);
+    Optional<User> findByIdentityKey(String identityKey);
+}
+
+public interface SaveUserPort {
+    User save(User user);
+    User update(User user);
+}
+```
+
+`UserPersistenceAdapter` may implement both Ports while each Service injects only the capability it uses. The current `UserRepositoryPort` and `PaymentConnectionRepositoryPort` are transition points; do not introduce another broad Repository Port or refactor these outside an approved feature scope.
+
+### Inbound Adapter
+
+- Place HTTP adapters under `adapter.in.web.<domain>`.
+- Keep HTTP request and response DTOs under `adapter.in.web.<domain>.dto.request` and `.response`.
+- Use the explicit flow `Web Request DTO -> Command -> UseCase/Service -> Result -> Web Response DTO`.
+- Validate Web Request DTOs, map them with `toCommand()`, invoke UseCases, map Results with `Response.from(result)`, wrap responses in `ApiResponse`, and document them through the current `*Docs` pattern.
+- Do not implement business rules or access Repositories, JPA Entities, Redis, or `SecurityContextHolder`.
+- Authenticated Application Services obtain the actor through `CurrentActorPort`; new Controllers do not interpret `JwtPrincipal`.
+
+### Outbound Adapter
+
+- Implement Output Ports with external technology under `adapter.out`.
+- One Adapter may implement multiple Ports for the same technology boundary, for example `UserPersistenceAdapter implements LoadUserPort, SaveUserPort`.
+- Persistence Adapters own JPA Entities, Spring Data Repositories, and Domain/Entity mapping.
+- Keep each Persistence Adapter directly under `adapter.out.persistence.<domain>`.
+- Place JPA Entities under `adapter.out.persistence.<domain>.entity`, Mappers under `.mapper`, and Spring Data Repositories under `.repository` for new or structurally modified persistence domains.
+- Existing `user`, `auth`, and `payment` technical types that remain directly under the domain persistence package are transition points; move them only in a dedicated refactor.
+- Adapters translate technology interactions and errors but do not decide business Policy.
+- Redis Adapters own serialization/key/TTL mechanics, JWT Adapters own token mechanics, and SMS Adapters own message delivery.
+
+### Domain
+
+- Own Entity state, value invariants, and state transitions.
+- Do not depend on Application, Adapters, Infra, JPA, HTTP, or Redis models.
+- Do not add Aggregates, Domain Services, or Factories to simple CRUD without a real invariant requiring them.
+
+### Infra
+
+- Own framework and technical setup only: Security configuration and filters, Swagger, JPA auditing, profiles, external-client configuration, and technology Bean wiring.
+- Properties transport technical configuration to Infra or Outbound Adapters.
+- Infra must not own, construct, or interpret Application Policies or business rules.
+- Do not copy the current `AuthPolicyConfig` pattern into new features; refactor it separately when authentication architecture is addressed.
+
 ## Feature implementation order
 
 1. Define the user problem, reason, success criteria, and exclusions.
 2. Decide whether to reuse an existing domain or introduce a new one.
-3. Define the UseCase and Application Request/Response contracts first.
-4. Define only the Output Ports required for real external interactions.
-5. Implement the Domain model and business rules.
-6. Orchestrate the flow in an Application Service.
-7. Implement Output Adapters.
-8. Implement Web Request DTOs, Controllers, and Swagger documentation.
-9. Wire Infra configuration and Beans.
-10. Revalidate the impact surface and completion criteria.
+3. Define user-goal UseCases and Application Command/Result contracts first.
+4. Define only the purpose-oriented Output Ports required for real external interactions.
+5. If the plan requires a Flyway migration, follow the migration gate above and stop the current task after creating its pull request.
+6. Implement Domain state and Entity-local invariants.
+7. Implement Application Policies for decisions combining multiple facts.
+8. Orchestrate Domain, Policies, and Ports in Application Services.
+9. Implement Output Adapters.
+10. Implement Web Request/Response DTOs, Controllers, and Swagger documentation.
+11. Add Infra configuration only for framework or technical setup.
+12. Revalidate the impact surface and completion criteria.
 
 Do not finish with an unused Port. Keep unrelated refactoring separate from feature behavior.
 
@@ -105,11 +238,13 @@ Do not finish with an unused Port. Keep unrelated refactoring separate from feat
 - Documentation change: validate every relative link and referenced local path.
 - Every change: run `git diff --check` and `git status --short --untracked-files=all`.
 
-Do not create new test cases under the current project instruction. Run existing tests only when they are relevant and their prerequisites are available. Report why a test was not run.
+Add or update tests for changed behavior at the appropriate layer, following the patterns under `src/test`. Run relevant tests when their prerequisites are available. Report any test that was not run and why.
 
 ## Commits
 
 Do not commit, push, or open a pull request unless the user explicitly requests it.
+
+The Flyway migration gate is the only standing exception for a request that explicitly includes feature implementation. That request authorizes only the migration-only commit, push, and pull request required by the gate; it does not authorize publishing the remaining feature work.
 
 Use this commit title format:
 

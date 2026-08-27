@@ -49,9 +49,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/api/v2/auth/sms/**",
-                                "/api/v2/auth/complete",
-                                "/api/v2/auth/token/refresh",
-                                "/api/v2/auth/dev/login"
+                                "/api/v2/auth/signup",
+                                "/api/v2/auth/login",
+                                "/api/v2/auth/token/refresh"
+                        ).permitAll()
+                        .requestMatchers("/api/v2/settlement-links/**").permitAll()
+                        .requestMatchers(
+                                "/admin/common-codes",
+                                "/admin/common-codes/**",
+                                "/admin/common-codes.css",
+                                "/admin/common-codes.js"
                         ).permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
@@ -67,11 +74,11 @@ public class SecurityConfig {
     }
 
     private void writeError(HttpServletResponse response, CommonStatusCode statusCode) throws IOException {
-        response.setStatus(statusCode.getHttpStatus().value());
+        response.setStatus(statusCode.getStatus());
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getWriter(), new BaseResponse<>(ErrorResponse.of(
-                statusCode.getHttpStatus().value(),
+                statusCode.getStatus(),
                 statusCode.getCode(),
                 statusCode.getMessage()
         )));

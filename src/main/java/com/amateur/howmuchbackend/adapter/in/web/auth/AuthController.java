@@ -1,20 +1,24 @@
 package com.amateur.howmuchbackend.adapter.in.web.auth;
 
 import com.amateur.howmuchbackend.adapter.in.web.auth.docs.AuthDocs;
-import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.CompleteAuthRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.ConfirmSmsVerificationRequest;
+import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.LoginRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.RefreshTokenRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.SendSmsVerificationRequest;
+import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.SignUpRequest;
+import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.SmsVerificationConfirmedWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.SmsVerificationSentWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.TokenWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
-import com.amateur.howmuchbackend.application.port.in.auth.CompleteAuthUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.ConfirmSmsVerificationUseCase;
+import com.amateur.howmuchbackend.application.port.in.auth.LoginUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.LogoutUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.RefreshTokenUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.SendSmsVerificationUseCase;
-import com.amateur.howmuchbackend.application.port.in.auth.response.SmsVerificationConfirmedResponse;
-import com.amateur.howmuchbackend.application.port.in.auth.response.SmsVerificationSentResponse;
-import com.amateur.howmuchbackend.application.port.in.auth.response.TokenResponse;
+import com.amateur.howmuchbackend.application.port.in.auth.SignUpUseCase;
+import com.amateur.howmuchbackend.application.port.in.auth.command.LogoutCommand;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,41 +31,50 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController implements AuthDocs {
     private final SendSmsVerificationUseCase sendSmsVerificationUseCase;
     private final ConfirmSmsVerificationUseCase confirmSmsVerificationUseCase;
-    private final CompleteAuthUseCase completeAuthUseCase;
+    private final SignUpUseCase signUpUseCase;
+    private final LoginUseCase loginUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
     private final LogoutUseCase logoutUseCase;
 
     @PostMapping("/sms/send")
-    public ApiResponse<SmsVerificationSentResponse> sendSms(
+    public ApiResponse<SmsVerificationSentWebResponse> sendSms(
             @Valid @RequestBody SendSmsVerificationRequest request
     ) {
-        return ApiResponse.success(sendSmsVerificationUseCase.send(request.toRequest()));
+        return ApiResponse.success(SmsVerificationSentWebResponse.from(sendSmsVerificationUseCase.send(request.toCommand())));
     }
 
     @PostMapping("/sms/confirm")
-    public ApiResponse<SmsVerificationConfirmedResponse> confirmSms(
+    public ApiResponse<SmsVerificationConfirmedWebResponse> confirmSms(
             @Valid @RequestBody ConfirmSmsVerificationRequest request
     ) {
-        return ApiResponse.success(confirmSmsVerificationUseCase.confirm(request.toRequest()));
+        return ApiResponse.success(SmsVerificationConfirmedWebResponse.from(confirmSmsVerificationUseCase.confirm(request.toCommand())));
     }
 
-    @PostMapping("/complete")
-    public ApiResponse<TokenResponse> complete(
-            @Valid @RequestBody CompleteAuthRequest request
+    @PostMapping("/signup")
+    public ApiResponse<Void> signUp(
+            @Valid @RequestBody SignUpRequest request
     ) {
-        return ApiResponse.success(completeAuthUseCase.complete(request.toRequest()));
+        signUpUseCase.signUp(request.toCommand());
+        return ApiResponse.success();
+    }
+
+    @PostMapping("/login")
+    public ApiResponse<TokenWebResponse> login(
+            @Valid @RequestBody LoginRequest request
+    ) {
+        return ApiResponse.success(TokenWebResponse.from(loginUseCase.login(request.toCommand())));
     }
 
     @PostMapping("/token/refresh")
-    public ApiResponse<TokenResponse> refresh(
+    public ApiResponse<TokenWebResponse> refresh(
             @Valid @RequestBody RefreshTokenRequest request
     ) {
-        return ApiResponse.success(refreshTokenUseCase.refresh(request.toRequest()));
+        return ApiResponse.success(TokenWebResponse.from(refreshTokenUseCase.refresh(request.toCommand())));
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout() {
-        logoutUseCase.logout();
+    public ApiResponse<Void> logout(HttpServletRequest request) {
+        logoutUseCase.logout(new LogoutCommand(request.getRemoteAddr(), request.getHeader("User-Agent")));
         return ApiResponse.success();
     }
 }

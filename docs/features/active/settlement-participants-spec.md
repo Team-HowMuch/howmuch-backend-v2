@@ -1,0 +1,417 @@
+# Feature Plan: 정산 참여자 선택 및 관리
+
+- Status: In Progress
+- Last updated: 2026-08-23
+- Related issues: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#36 정산 참여자 추가·제거 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/36), [#71 정산 참여자 목록 조회 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/71), [#38 정산 참여자 사용자 ID 검색 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/38), [#39 정산 참여자 연락처 일괄 매칭 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/39), [#37 그룹 구성원 조회 Output Port 및 개발 Stub 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/37), [#40 그룹 구성원 기반 정산 참여자 추가 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/40)
+- Related ADR: N/A
+- Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
+- Prerequisite: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md)
+
+## 1. Purpose
+
+### Problem
+
+정산 초안에 누가 참여하는지 등록하고, 링크를 연 로그인 회원을 어떤 참여자로 처리할지 결정하는 데이터와 계약이 없다. 참여자를 확정하지 못하면 더치페이 금액, 품목 선택, Share, 브라우저 이름 선택을 모두 만들 수 없다.
+
+### Why now
+
+참여자는 정산 금액 계산의 분모이자 링크 진입 후 현재 사용자를 자동 식별하는 기준이다. 지출·배분과 요청·링크 기능보다 먼저 일관된 참여자 모델이 필요하다.
+
+### Success criteria
+
+- [x] 생성자는 DRAFT 정산에서 자신을 포함한 참여자를 추가·제거할 수 있다.
+- [x] 생성자는 화면 재진입 시 저장된 참여자를 표시 순서대로 다시 조회할 수 있다.
+- [x] 사용자 ID, 연락처, 그룹 구성원이라는 세 경로가 같은 참여자 모델로 저장된다.
+- [ ] 로그인 회원이 공통 링크를 앱에서 열면 사용자 ID로 참여자를 자동 식별할 수 있다.
+- [ ] 비회원 브라우저 흐름에는 표시 이름을 가진 참여자 목록을 제공할 수 있다.
+
+### Out of scope
+
+- 그룹 생성·수정·가입·탈퇴
+- 기기 연락처 동기화와 서버의 SMS·푸시 발송
+- 비회원 이름 선택을 강한 본인 인증으로 바꾸는 기능
+- 공통 링크 토큰 생성과 실제 링크 라우팅 구현
+
+## 2. Domain analysis
+
+### Domain boundary
+
+- Existing domain to reuse: settlement의 하위 Entity로 참여자를 추가한다.
+- Reason a new domain is required, if applicable: N/A. 참여자는 독립 Aggregate가 아니라 하나의 Settlement에 귀속된다.
+- Relationships to other domains: user는 등록 참여자의 userId와 표시 이름을 제공한다. group은 구성원 조회 Output Port만 제공한다. request-link은 SettlementParticipant의 등록 userId를 사용해 앱 회원을 자동 매칭한다.
+
+### Ubiquitous language
+
+| Term | Meaning | Code representation |
+| --- | --- | --- |
+| 정산 참여자 | 하나의 정산에서 비용을 부담하거나 품목을 선택하는 사람 | SettlementParticipant |
+| 등록 참여자 | 서비스 userId와 연결된 참여자 | REGISTERED_USER |
+| 연락처 참여자 | 생성자가 연락처 정보로 추가한 외부 참여자 | CONTACT |
+| 그룹 참여자 | 그룹 구성원 조회 결과에서 추가한 참여자 | GROUP_MEMBER |
+| 표시 이름 | 브라우저 이름 선택과 정산 현황에 보여 주는 이름 | displayName |
+| 자동 매칭 | 로그인 사용자 ID와 참여자의 userId가 일치하는 경우 | linkedUserId match |
+
+### Actors and UseCases
+
+| Actor | Goal | UseCase |
+| --- | --- | --- |
+| 생성자 | 정산에 자신과 다른 참여자를 등록한다. | AddSettlementParticipantUseCase |
+| 생성자 | 초안에서 잘못 선택한 참여자를 제거한다. | RemoveSettlementParticipantUseCase |
+| 생성자 | 저장된 참여자 목록과 회원 아바타를 다시 조회한다. | GetSettlementParticipantsUseCase, GetSettlementParticipantAvatarUseCase |
+| 생성자 | 사용자 ID·연락처·그룹 구성원에서 참여자를 찾는다. | SearchSettlementParticipantUseCase |
+| 요청·링크 기능 | 로그인 회원과 해당 정산 참여자를 연결한다. | LoadSettlementParticipantByUserUseCase |
+
+### State and invariants
+
+- State transitions: 참여자 추가·제거는 Settlement가 DRAFT일 때만 허용한다.
+- Rules that must always hold: 정산 생성자는 초안 생성 시 첫 참여자로 자동 등록한다. 하나의 정산에 같은 등록 사용자 또는 같은 연락처 식별자를 중복 등록하지 않는다. 요청 확정 전 참여자는 최소 2명이어야 한다.
+- Invalid states: 다른 생성자의 정산 변경, 요청됨 이후 참여자 변경, 중복 참여자, 존재하지 않는 사용자·그룹 구성원 추가, 생성자 자신을 제거하는 요청.
+
+## 3. Scenarios
+
+### Normal flow
+
+1. 정산 생성 시 현재 사용자를 등록 참여자로 자동 저장한다.
+2. 생성자는 사용자 ID 검색 결과, 전화번호 기반 연락처 검색 결과, 또는 그룹 구성원 조회 결과에서 대상을 고른다.
+3. Application Service가 대상 정보를 SettlementParticipant로 정규화하고 DRAFT 정산에 추가한다.
+4. 생성자는 요청 확정 전까지 참여자를 제거할 수 있다.
+5. 요청·링크 기능은 앱에서 받은 현재 사용자 ID로 같은 정산의 등록 참여자를 조회한다.
+6. 일치하는 참여자가 있으면 이름 선택 없이 그 참여자의 더치페이 송금 또는 품목 선택 단계로 이동한다.
+
+### Failure flow
+
+- 생성자가 아닌 사용자가 참여자를 변경한다: 접근 권한 오류를 반환한다.
+- DRAFT가 아닌 정산의 참여자를 변경한다: 수정 불가 상태 오류를 반환한다.
+- 중복 사용자·연락처를 추가한다: 중복 참여자 오류를 반환한다.
+- 요청 확정 시 참여자가 한 명뿐이다: 정산 요청 불가 오류를 반환한다.
+- 앱 로그인 사용자와 연결된 참여자가 없다: 앱은 브라우저 이름 선택 흐름으로 전환한다.
+
+### Boundary conditions
+
+- 비회원·앱 미설치 사용자는 common link로 브라우저에서 표시 이름만 선택한다.
+- 로그인 세션이 없는 앱도 현재 사용자를 식별할 수 없으므로 브라우저 이름 선택 흐름으로 전환한다.
+- 연락처의 원본 전화번호는 영속화하지 않고 IdentityPolicy로 정규화·HMAC 처리한 식별자만 저장한다.
+- 그룹 구성원 정보가 없는 경우 그룹 경로는 결과 없음으로 처리하고 다른 참여자 경로를 계속 제공한다.
+
+## 4. Contracts
+
+### Input Port and boundary mapping
+
+~~~
+AddSettlementParticipantUseCase.add(
+  settlementId,
+  AddSettlementParticipantCommand(source, groupId, publicId, displayName, phoneNumber)
+) -> SettlementParticipantResult
+
+RemoveSettlementParticipantUseCase.remove(settlementId, participantId) -> void
+
+GetSettlementParticipantsUseCase.get(settlementId)
+  -> List<SettlementParticipantListItemResult>
+
+GetSettlementParticipantAvatarUseCase.get(settlementId, participantId)
+  -> ProfileImage
+
+SearchSettlementParticipantUseCase.searchByPublicId(
+  settlementId,
+  SearchSettlementParticipantCommand(publicIdPrefix)
+) -> List<SettlementParticipantCandidateResult>
+
+MatchSettlementContactsUseCase.match(
+  settlementId,
+  MatchSettlementContactsCommand(contacts)
+) -> List<SettlementContactCandidateResult>
+
+GetSettlementGroupParticipantCandidatesUseCase.get(
+  settlementId,
+  groupId
+) -> List<SettlementParticipantCandidateResult>
+
+GetSettlementParticipantCandidateAvatarUseCase.get(
+  settlementId,
+  publicId
+) -> ProfileImage
+
+LoadSettlementParticipantByUserUseCase.find(settlementId, userId)
+  -> Optional<SettlementParticipantResponse>
+~~~
+
+`AddSettlementParticipantWebRequest -> AddSettlementParticipantCommand -> SettlementParticipantResult -> SettlementParticipantWebResponse` 경계를 사용한다. #36의 `source`는 `REGISTERED_USER`, `CONTACT`만 허용한다. `REGISTERED_USER`는 `publicId`로 활성 회원을 정확히 조회하고 서버의 회원 이름을 표시 이름 스냅샷으로 사용한다. `CONTACT`는 `displayName`, `phoneNumber`만 받고, 저장 전에 전화번호를 HMAC으로 변환해 활성 회원이면 `linkedUserId`, 아니면 `phoneHash`로 저장한다. `GROUP_MEMBER`는 그룹 소속 검증이 필요한 #40에서 확장한다.
+
+#40의 그룹 경로는 `Long groupId`를 사용한다. 후보 조회 시 정산 생성자가 해당 그룹의 활성 구성원인지 먼저 검증하고, 그룹의 활성 구성원 순서를 유지한 채 활성 회원만 반환한다. 이미 정산에 `linkedUserId`로 연결됐거나 연락처 `phoneHash`가 현재 회원의 `identityKey`와 일치하는 사용자는 제외한다. 그룹 정보가 없으면 빈 후보 목록을 반환하고, 그룹은 존재하지만 생성자가 구성원이 아니면 접근 권한 오류를 반환한다.
+
+그룹 구성원 추가는 기존 `POST /participants`를 확장한다. `GROUP_MEMBER`는 `groupId`, `publicId`만 허용하며 후보 조회 이후에도 생성자의 그룹 소속과 선택 사용자의 활성 그룹 구성원 여부를 다시 검증한다. 검증된 회원은 `source=GROUP_MEMBER`, `linkedUserId`, 현재 이름 스냅샷으로 저장한다. 그룹 후보 목록과 추가 요청 사이에 구성원이 탈퇴하거나 비활성화된 경우 후보 없음으로 거부한다.
+
+#71은 요청 DTO 없이 정산 ID를 받아 `SettlementParticipantListItemResult` 목록을 반환한다. Web Response는 회원 정보가 있는 항목에만 참여자 전용 `avatarUrl`을 조립한다. 이미지 조회는 같은 정산의 생성자 권한과 참여자 소속을 다시 확인한 후 기존 `ProfileImageStoragePort`를 사용한다.
+
+#38은 `SearchSettlementParticipantWebRequest -> SearchSettlementParticipantCommand -> SettlementParticipantCandidateResult -> SettlementParticipantCandidateWebResponse` 경계를 사용한다. 검색어는 공백 제거와 소문자 변환 후 영문·숫자·점·밑줄 1~20자로 제한한다. 활성 회원을 `publicId` prefix로 최대 20명까지 오름차순 조회하고, 현재 정산에 이미 연결된 회원은 후보에서 제외한다. 후보 응답은 `publicId`, 표시 이름, 보호된 `avatarUrl`만 제공하며 내부 userId와 저장 파일명은 노출하지 않는다.
+
+#39는 `MatchSettlementContactsWebRequest -> MatchSettlementContactsCommand -> SettlementContactCandidateResult -> SettlementContactCandidateWebResponse` 경계를 사용한다. 요청은 1~500개의 `contactId`, `displayName`, `phoneNumber`를 받고, 연락처 ID와 표시 이름은 100자, 원본 전화번호는 20자로 제한한다. Application에서 길이를 다시 검증한 뒤 `IdentityPolicy`로 전화번호를 정규화·HMAC 처리한다. 같은 연락처 ID가 중복되면 요청 전체를 거부하고, 같은 정규화 전화번호가 여러 번 나오면 입력 순서상 첫 항목만 유지한다. 활성 회원은 HMAC 목록으로 한 번에 조회한다.
+
+응답은 `contactId`, 연락처 표시 이름, 회원 여부, 회원의 `publicId`·표시 이름·보호된 `avatarUrl`, 기존 참여 여부만 반환한다. 원본 전화번호, phoneHash, 내부 userId, 아바타 저장 파일명은 반환하거나 영속화하지 않는다. 사용자가 실제 선택한 연락처는 기존 `POST /participants`의 CONTACT 입력으로 다시 전달하며, 서버가 처리 중 가입 여부와 중복을 재검증한다.
+
+회원 정보 열거를 제한하기 위해 사용자별로 분당 10회, 24시간당 중복 제거 후 연락처 2,000개의 quota를 적용한다. Redis는 사용자 ID별 요청 수와 조회 수 숫자만 원자 증가하며 연락처 원문과 HMAC은 저장하지 않는다. 둘 중 하나를 초과하면 회원 조회 전에 `TOO_MANY_REQUEST` 429를 반환한다. Redis 장애 시 quota를 우회하지 않고 요청을 실패시킨다.
+
+### Output Ports
+
+| Port | Purpose | Caller | Expected Adapter |
+| --- | --- | --- | --- |
+| LoadSettlementParticipantPort | 정산 참여자 단건·목록·중복·다음 표시 순서를 조회한다. | 추가·제거·목록·아바타 UseCase | JPA Persistence Adapter |
+| SaveSettlementParticipantPort | 참여자를 저장한다. | 추가 UseCase | JPA Persistence Adapter |
+| DeleteSettlementParticipantPort | 확인된 참여자를 제거한다. | 제거 UseCase | JPA Persistence Adapter |
+| LoadSettlementPort | 정산을 잠금 조회해 참여자 변경과 요청 확정을 직렬화한다. | 추가·제거 UseCase | JPA Persistence Adapter |
+| LoadUserPort | `publicId`, `identityKey`, ID 또는 ID 목록으로 등록 회원을 조회한다. | 추가·목록·아바타 UseCase | user Persistence Adapter |
+| SearchUserPort | 활성 회원을 `publicId` prefix로 제한 조회하고 제외 대상 userId를 반영한다. | 공개 ID 후보 검색 UseCase | user Persistence Adapter |
+| MatchContactUsersPort | 연락처 HMAC 목록과 일치하는 활성 회원을 일괄 조회한다. | 연락처 일괄 매칭 UseCase | user Persistence Adapter |
+| TrackSettlementContactMatchUsagePort | 사용자별 연락처 매칭 요청 수와 조회 연락처 수를 원자 누적한다. | 연락처 일괄 매칭 UseCase | Redis Adapter |
+| ProfileImageStoragePort | 회원 참여자의 아바타 파일을 읽는다. | 참여자 아바타 UseCase | 기존 파일 저장 Adapter |
+| LoadGroupMembersPort | 특정 그룹의 구성원을 조회한다. | 그룹 기반 후보·추가 UseCase | group Adapter 또는 개발 Stub |
+| CurrentActorPort | 생성자 권한과 앱 로그인 사용자를 제공한다. | 모든 UseCase | 기존 Spring Security Adapter |
+
+### Web API
+
+~~~
+GET /api/v2/settlements/{settlementId}/participant-candidates/users
+Query: publicIdPrefix
+Response: [{ publicId, displayName, avatarUrl? }]
+Authentication: required, creator only, DRAFT only
+
+GET /api/v2/settlements/{settlementId}/participant-candidates/users/{publicId}/avatar
+Response: image bytes
+Authentication: required, creator only, DRAFT only
+
+POST /api/v2/settlements/{settlementId}/participant-candidates/contacts/match
+Request: { contacts: [{ contactId, displayName, phoneNumber }] }
+Response: [{ contactId, contactDisplayName, member, publicId?, memberDisplayName?, avatarUrl?, alreadyParticipant }]
+Authentication: required, creator only, DRAFT only
+
+GET /api/v2/settlements/{settlementId}/participant-candidates/groups/{groupId}/members
+Response: [{ publicId, displayName, avatarUrl? }]
+Authentication: required, creator only, DRAFT only, active group member only
+
+POST /api/v2/settlements/{settlementId}/participants
+Request: { source, groupId?, publicId?, displayName?, phoneNumber? }
+Response: { participantId, source, publicId?, displayName, displayOrder }
+Authentication: required, creator only
+
+DELETE /api/v2/settlements/{settlementId}/participants/{participantId}
+Response: empty success
+Authentication: required, creator only
+
+GET /api/v2/settlements/{settlementId}/participants
+Response: [{ participantId, source, publicId?, displayName, displayOrder, avatarUrl? }]
+Authentication: required, creator only
+
+GET /api/v2/settlements/{settlementId}/participants/{participantId}/avatar
+Response: image bytes
+Authentication: required, creator only
+~~~
+
+앱 회원 자동 매칭은 public endpoint가 아니라 request-link UseCase가 인증된 현재 사용자 ID와 participant userId를 비교하는 내부 계약으로 제공한다.
+
+### Persistence and external integrations
+
+- Database Entity, constraint, or query changes: settlement_participants 테이블에 settlement_id, source, linked_user_id nullable, phone_hash nullable, display_name, display_order, 생성·수정 시각을 저장한다. 등록 사용자·연락처 식별자·표시 순서 중복을 방지하는 정산 범위 Unique 제약을 둔다.
+- Flyway migration required: Yes
+- Planned migration: `V9__create_settlement_participant_schema.sql`
+- Migration pull request: [#80 정산 참여자 영속 스키마 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/80) (Merged)
+- Redis key, TTL, or serialization changes: `settlement:contact-match:quota:requests:{userId}`는 1분, `settlement:contact-match:quota:contacts:{userId}`는 24시간 TTL을 사용하며 숫자만 저장한다.
+- External API or message changes: group 구성원 조회는 `Long groupId`와 활성 `userId` 순서 목록을 반환하는 Output Port로 연결한다.
+- Environment variable or profile changes: `local`, `dev`는 고정 그룹 명단 Stub을 사용하고 `prod`는 실제 group Adapter가 연결되기 전 빈 결과 Adapter로 기동한다.
+
+#36, #71, #38, #39는 기존 V9 스키마와 `users.identity_key`, `users.public_id`를 조회하는 기능이므로 추가 Flyway migration이 필요하지 않다.
+
+## 5. Design decisions
+
+### Business logic
+
+- Rules and their locations: 초안 수정 가능 여부는 Settlement에, source별 식별자와 표시 이름은 SettlementParticipant에 둔다. 중복과 생성자 제거 금지는 여러 저장 상태를 결합하므로 Application Policy에서 판단한다.
+- Behavior owned by Domain: 참여자 식별자 유효성, source별 필수값, 표시 이름·순서 유효성, DRAFT 참여자 변경 가능 여부.
+- Decisions owned by Application Policy: 같은 정산의 동일 회원·연락처 중복 추가 거부, 생성자 참여자 제거 거부.
+- Flow orchestrated by Application: 현재 생성자와 DRAFT 상태를 잠금 조회하고, `publicId` 또는 연락처 HMAC으로 후보를 해석한 뒤 중복 확인·표시 순서 결정·저장 또는 삭제를 수행한다.
+
+### Technology and patterns
+
+- Constraint to solve: user와 group 기능의 구현 시점이 달라도 정산 참여자 선택이 중단되지 않아야 한다.
+- Selected approach: 참여자는 정산 모듈이 소유하고 user 검색과 group 구성원 조회만 Output Port로 분리한다.
+- Reason for selection: 정산이 참여자 상태를 직접 소유하면서도 외부 도메인의 CRUD 구현을 기다리지 않는다.
+- Alternatives considered: 참여자를 user 또는 group 테이블의 조인 결과로만 표현하는 방식은 연락처 참여자와 링크 자동 매칭을 표현하지 못해 제외한다.
+- Trade-offs and limits: 이름만 고르는 브라우저 MVP는 가장을 막지 못한다. 강한 본인 확인은 별도 기능으로 추가한다.
+
+## 6. Impact surface
+
+| Area | Impact | Verified file or contract |
+| --- | --- | --- |
+| API | 참여자 추가·제거·목록·아바타와 공개 ID·연락처 후보 검색 API 추가 | SettlementController, SettlementDocs |
+| Application | 추가·제거·목록·아바타·공개 ID 검색·연락처 매칭 UseCase, Command/Result, 변경 Policy 추가 | application.settlement |
+| Domain | SettlementParticipant와 source 규칙 추가 | domain.settlement |
+| Persistence | 참여자 단건·목록·중복·표시 순서·삭제 쿼리, 정산 잠금 조회, 활성 회원 prefix·identityKey 목록 조회 추가 | adapter.out.persistence.settlement, adapter.out.persistence.user |
+| Redis | 사용자별 연락처 매칭 요청·조회 수 원자 카운터 추가 | SettlementContactMatchQuotaRedisAdapter |
+| Security | 생성자만 DRAFT 참여자 변경, 생성자만 목록·아바타 조회, 로그인 회원 자동 매칭, 사용자별 연락처 매칭 quota | CurrentActorPort, SettlementContactMatchQuotaPolicy |
+| Configuration | 개발용 group Stub 활성화 | dev profile |
+| Documentation | PRD와 요청·링크 Spec의 자동 매칭 계약 연결 | 이 문서 |
+
+Existing behavior that must remain unchanged:
+
+- 기존 user 프로필과 auth 세션 계약을 변경하지 않는다.
+- 정산 외부에서 group CRUD를 구현하거나 수정하지 않는다.
+- 연락처 원본 전화번호를 DB·로그·응답에 저장하지 않는다.
+
+## 7. Implementation plan
+
+- [x] V9 migration-only PR로 참여자 테이블과 DB 제약을 추가한다.
+- [x] 참여자 source와 식별자·표시 이름·순서 규칙을 Domain에 정의한다.
+- [x] 생성자 자동 참여에 필요한 저장 Output Port와 JPA Adapter를 구현한다.
+- [x] 정산 생성 트랜잭션에서 현재 사용자를 첫 등록 참여자로 저장한다.
+- [x] #36에서 참여자 조회·삭제와 회원 식별 조회 Output Port를 실제 호출에 맞게 확장한다.
+- [x] #36에서 등록 사용자·연락처 참여자 추가와 참여자 제거 UseCase를 구현한다.
+- [x] #36에서 JPA 조회·중복·다음 표시 순서·삭제와 정산 잠금 조회를 구현한다.
+- [x] #36에서 Web DTO, Controller, Swagger와 생성자 권한 검증을 구현한다.
+- [x] #71에서 표시 순서 기반 목록 조회와 회원 아바타 조회를 구현한다.
+- [x] #38에서 공개 ID prefix 후보 검색과 후보 아바타 조회를 구현한다.
+- [x] #39에서 연락처 정규화·HMAC 일괄 매칭과 기존 참여 여부 응답을 구현한다.
+- [x] #39 연락처 매칭 입력 길이와 사용자별 누적 조회 quota를 적용한다.
+- [x] #37에서 그룹 구성원 조회 Output Port와 개발 Stub을 구현한다.
+- [x] #40에서 그룹 조회·소속 검증과 선택 구성원 추가를 구현한다.
+- [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
+
+### Expected commit boundaries
+
+~~~
+docs: 정산 참여자 추가 제거 구현 계획 갱신
+feat: 정산 참여자 변경 규칙과 애플리케이션 계약 추가
+feat: 정산 참여자 조회와 삭제 영속 기능 추가
+feat: 정산 참여자 추가 제거 서비스 구현
+feat: 정산 참여자 추가 제거 API 구현
+test: 정산 API 테스트 의존성 갱신
+docs: 정산 참여자 추가 제거 구현 결과 반영
+docs: 정산 참여자 목록 조회 구현 계획 반영
+feat: 정산 참여자 목록 조회 API 구현
+feat: 정산 참여자 아바타 조회 API 구현
+test: 정산 컨트롤러 테스트 의존성 갱신
+test: 정산 참여자 목록과 아바타 동작 검증
+docs: 정산 참여자 목록 조회 구현 결과 반영
+docs: 정산 참여자 공개 ID 검색 구현 계획 반영
+feat: 정산 참여자 공개 ID 검색 기능 구현
+feat: 정산 참여자 공개 ID 검색 API 구현
+test: 정산 참여자 공개 ID 검색 동작 검증
+fix: 연락처 회원 전환 후보 중복 노출 방지
+fix: 공개 ID 검색어 정규화 순서 보정
+docs: 정산 참여자 공개 ID 검색 구현 결과 반영
+docs: 정산 참여자 연락처 일괄 매칭 구현 계획 반영
+feat: 정산 참여자 연락처 일괄 매칭 기능 구현
+feat: 정산 참여자 연락처 일괄 매칭 API 구현
+fix: 연락처 텍스트 정규화 순서 보정
+test: 정산 참여자 연락처 일괄 매칭 동작 검증
+fix: 연락처 목록 요소 검증 선언 보정
+docs: 정산 참여자 연락처 일괄 매칭 구현 결과 반영
+fix: 연락처 매칭 입력 길이 제한 추가
+fix: 연락처 매칭 사용자별 조회 한도 추가
+docs: 정산 그룹 참여자 구현 계획 반영
+feat: 정산 그룹 구성원 후보 조회 기능 추가
+feat: 정산 그룹 구성원 참여자 추가 기능 추가
+feat: 정산 그룹 참여자 API 추가
+test: 정산 그룹 참여자 동작 검증
+docs: 정산 그룹 참여자 구현 결과 반영
+~~~
+
+## 8. Verification
+
+### Commands
+
+~~~
+./gradlew compileJava
+env DISCORD_SMS_WEBHOOK_URL=http://localhost ./gradlew test
+env DISCORD_SMS_WEBHOOK_URL=http://localhost ./gradlew bootRun
+git diff --check
+git status --short --untracked-files=all
+~~~
+
+수동 검증 전제조건: PostgreSQL·Redis, 생성자와 다른 로그인 사용자, group dev Stub 데이터가 필요하다.
+
+### Completion criteria
+
+- [x] 생성자는 본인을 유지한 채 등록 사용자·연락처 참여자를 추가·제거한다.
+- [x] 다른 사용자는 참여자 변경을 할 수 없다.
+- [x] 중복 참여자·생성자 제거·요청됨 이후 수정이 거부된다.
+- [ ] 로그인 회원 링크 진입은 이름 선택 없이 매칭되고, 비회원은 브라우저 이름 선택으로 진행한다.
+
+### Results
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| 문서 작성 | Complete | 이 Spec |
+| V9 참여자 스키마 | Complete | PR #80, 실제 PostgreSQL 제약 검증 |
+| Domain·JPA 구현 | Complete | `SettlementParticipant`, 저장 Port와 Persistence Adapter |
+| 생성자 자동 참여 | Complete | 실제 로그인 JWT로 정산 생성 후 `REGISTERED_USER`, 순서 0 DB 저장 확인 |
+| 컴파일·자동 테스트 | Complete | `./gradlew compileJava`, PostgreSQL·Redis 전체 80개 테스트 성공 |
+| Swagger 계약 | Complete | 정산 생성 API의 기존 200·400·401 계약 유지 확인 |
+| #36 등록 사용자·연락처 추가 | Complete | 실제 JWT HTTP 요청으로 회원·비회원 연락처 매칭과 DB 식별 형태 확인 |
+| #36 참여자 제거 | Complete | 일반 참여자 제거 성공, 생성자 제거 409 확인 |
+| #36 권한·상태·중복 | Complete | 다른 생성자 403, 비 DRAFT 409, 중복 409, 후보 없음 404 확인 |
+| #36 Swagger | Complete | OpenAPI POST·DELETE 응답 계약과 Swagger UI 최종 200 확인 |
+| #71 목록·아바타 조회 | Complete | 실제 JWT HTTP로 3명 표시 순서, 공개 필드, 이미지 bytes와 Content-Type 검증 |
+| #71 권한·상태·오류 | Complete | 다른 사용자 403, 없는 정산 404, 비회원 아바타 404, REQUESTED 목록 200 확인 |
+| #71 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 66개 테스트, OpenAPI 목록·binary 이미지 계약, Swagger UI 200 |
+| #38 공개 ID 후보 검색 | Complete | 실제 JWT HTTP로 prefix 정렬 조회, 기존 참여자 제외, 공개 필드만 응답, 최대 20명 제한 검증 |
+| #38 권한·상태·오류 | Complete | 미인증 401, 다른 생성자 403, 비 DRAFT 409, 잘못된 검색어 400 검증 |
+| #38 연락처 회원 전환 | Complete | 기존 phoneHash와 신규 회원 identityKey가 일치하면 목록·아바타 후보에서 제외하는 자동 테스트 성공 |
+| #38 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 80개 테스트, OpenAPI 후보 목록·binary 이미지 경로, Swagger UI 200 |
+| #39 연락처 일괄 매칭 | Complete | 실제 JWT HTTP로 회원·비회원 매칭, 입력 순서 유지, 같은 정규화 번호의 첫 항목 유지 검증 |
+| #39 개인정보·기존 참여 판정 | Complete | 응답의 원본 번호·HMAC·내부 userId·저장 파일명 비노출, 선택 연락처만 64자 HMAC으로 저장, 재매칭 `alreadyParticipant=true` 확인 |
+| #39 권한·오류 | Complete | 미인증 401, 다른 생성자 403, 잘못된 번호 400 `INVALID_PHONE_NUMBER` 검증 |
+| #39 입력·조회 한도 | Complete | 개별 필드 길이 제한, 사용자별 분당 10회·24시간 2,000개 quota와 Redis 원자 누적·TTL 검증 |
+| #39 자동 테스트·Swagger | Complete | PostgreSQL·Redis 전체 96개 테스트, 실제 HTTP 200·400·429, OpenAPI 연락처 매칭 429 계약, Swagger UI 200 |
+| #37 그룹 조회 경계·Stub | Complete | `Long groupId` 기반 활성 userId 순서 계약, local·dev 결정적 Stub과 prod 빈 결과 Adapter 구현 |
+| #40 그룹 후보·추가 | Complete | 생성자 그룹 소속 검증, 활성 회원 후보 조회, 기존 참여자 제외, 추가 시 소속 재검증 구현 |
+| #40 자동 테스트 | Complete | PostgreSQL·Redis 전체 114개 테스트 성공, 그룹 Application·Web·Stub 테스트 성공 |
+| #40 실제 HTTP·DB | Complete | JWT로 후보 2명 조회, GROUP_MEMBER 추가, 후보 제외와 `linked_user_id=2` 저장 확인 |
+| #40 Swagger | Complete | Swagger UI 200, OpenAPI 그룹 후보 경로와 GROUP_MEMBER enum 노출 확인 |
+
+## 9. Progress log
+
+| Date | Completed work | Next work | Discovered risk |
+| --- | --- | --- | --- |
+| 2026-08-21 | 참여자 source·권한·앱 자동 매칭 설계 기록 | Persistence와 후보 검색 구현 | 비회원 이름 선택 MVP의 가장 위험 |
+| 2026-08-22 | V9 참여자 스키마와 식별자·중복·순서 제약 머지 | Domain·JPA와 생성자 자동 참여 구현 | SQL `CHECK`의 NULL 삼값 논리를 명시 조건으로 보완함 |
+| 2026-08-22 | 참여자 Domain·JPA와 생성자 자동 참여 구현, 실제 HTTP 검증 | 추가·제거 UseCase와 API 구현 | 조회·삭제 Port는 실제 호출자가 생기는 #36에서 추가해야 함 |
+| 2026-08-22 | #35 완료, #36 추가·제거 계약과 구현 경계 확정 | Application·Persistence·Web 구현 | 내부 userId 비노출과 연락처 원문 비영속을 API 경계에서 보장해야 함 |
+| 2026-08-22 | #36 추가·제거 API 구현 및 PostgreSQL·Redis HTTP 검증 완료 | #71 목록 조회 또는 #38 후보 검색 | 그룹 source는 소속 검증이 추가되는 #40 전까지 400으로 거부함 |
+| 2026-08-22 | #71 목록 조회 계약과 생성자 전용 아바타 URL 설계 | Application·Persistence·Web 구현 | 회원 정보는 일괄 조회하고 내부 userId와 저장 파일명은 응답에서 숨겨야 함 |
+| 2026-08-22 | #71 목록·아바타 API 구현과 PostgreSQL·Redis·Swagger 검증 완료 | #38 공개 ID 후보 검색 | 저장된 아바타 파일이 유실되면 URL 조회는 PROFILE_IMAGE_NOT_FOUND를 반환함 |
+| 2026-08-23 | #38 공개 ID prefix 검색의 입력·제외·응답·아바타 계약 확정 | Application·Persistence·Web 구현 | `_`를 SQL wildcard가 아닌 공개 ID 문자로 검색하고 결과 수를 20명으로 제한해야 함 |
+| 2026-08-23 | #38 공개 ID 후보 검색·아바타 API와 PostgreSQL·Redis·Swagger 검증 완료 | #39 연락처 일괄 매칭 | 연락처 추가 뒤 가입한 회원은 linkedUserId가 없어도 phoneHash와 identityKey로 중복 제외해야 함 |
+| 2026-08-23 | #39 연락처 일괄 매칭의 요청 제한·중복·개인정보·응답 계약 확정 | Application·Persistence·Web 구현 | 원본 전화번호를 저장·응답·로그하지 않고 요청 범위에서만 HMAC으로 다뤄야 함 |
+| 2026-08-23 | #39 연락처 일괄 매칭 API와 PostgreSQL·Redis·Swagger 검증 완료 | #40 그룹 구성원 선택·추가 | 같은 번호의 중복 입력은 첫 항목만 반환하고 실제 선택 시 기존 추가 API가 다시 검증함 |
+| 2026-08-23 | #39 리뷰에서 입력 길이와 누적 회원 조회 제한 위험 확인 | 사용자별 Redis quota 구현 | 정산별 제한은 새 정산 생성으로 우회되므로 사용자 ID를 기준으로 해야 함 |
+| 2026-08-23 | #39 입력 길이와 사용자별 누적 조회 quota 구현·실제 HTTP 검증 완료 | #40 그룹 구성원 선택·추가 | Redis 장애 시 개인정보 열거 방지를 위해 연락처 회원 조회를 실패시킴 |
+| 2026-08-23 | #37·#40 그룹 구성원 후보 조회와 선택 참여자 추가를 한 PR로 구현·검증 | 요청·링크 Spec과 회원 자동 매칭 구현 | 실제 group Adapter 연결 전 local·dev만 결정적 Stub 명단을 제공함 |
+
+## 10. Decision log
+
+| Date | Decision | Reason | Alternative or impact |
+| --- | --- | --- | --- |
+| 2026-08-21 | 생성자를 첫 참여자로 자동 등록한다. | UI와 더치페이 분모에서 생성자도 참여자로 취급한다. | 생성자 제외 정산은 제공하지 않는다. |
+| 2026-08-21 | 앱 회원은 userId로 자동 매칭한다. | 공통 링크에서 이름 선택을 건너뛰고 바로 개인 단계로 이동해야 한다. | 세션이 없으면 브라우저 MVP로 내린다. |
+| 2026-08-21 | 연락처 원본은 hash 식별자로만 저장한다. | 개인정보 최소화와 기존 IdentityPolicy 규칙을 따른다. | 원본 번호를 조회·로그에 노출하지 않는다. |
+| 2026-08-22 | 참여자 `source`는 선택 경로를, linkedUserId 또는 phoneHash는 실제 식별자를 나타낸다. | 연락처로 찾은 회원과 비회원을 같은 CONTACT 경로로 표현하면서 식별 방식은 구분해야 한다. | CONTACT는 두 식별자 중 정확히 하나만 가진다. |
+| 2026-08-22 | 생성자 참여자는 사용자 이름을 표시 이름 스냅샷으로 저장하고 순서 0을 사용한다. | 정산 생성 직후 브라우저 목록과 계산 순서에서 안정적인 첫 참여자가 필요하다. | 이후 프로필 이름 변경이 기존 정산 표시 이름을 바꾸지 않는다. |
+| 2026-08-22 | #36의 등록 사용자는 내부 userId 대신 `publicId`로 받고, 연락처는 선택된 한 건의 전화번호만 HMAC 처리한다. | 내부 식별자 노출과 주소록 전체 영속화를 피하면서 실제 참여자 확정을 제공하기 위해서다. | 후보 자동완성과 주소록 일괄 매칭은 #38·#39에서 추가한다. |
+| 2026-08-22 | 참여자 추가·제거 시 정산 행을 잠금 조회한다. | 동시 추가의 표시 순서 충돌과 요청 확정 중 참여자 변경을 직렬화해야 한다. | 정산 초안 PATCH의 낙관적 락 정책은 그대로 유지한다. |
+| 2026-08-22 | 목록 조회는 모든 정산 상태에서 허용하고 생성자 권한만 검사한다. | 요청 확정 뒤에도 참여자 현황 화면을 복원해야 한다. | 참여자 변경의 DRAFT 제한은 그대로 유지한다. |
+| 2026-08-22 | 회원 아바타는 참여자 ID 기반 보호된 URL로 제공한다. | 내부 userId와 저장 파일명을 노출하지 않으면서 생성자만 이미지를 읽게 한다. | 비회원 연락처와 아바타가 없는 회원은 `avatarUrl`을 null로 반환한다. |
+| 2026-08-23 | 공개 ID 후보 검색은 전용 user 경로와 최대 20개의 prefix 결과를 사용한다. | 연락처 일괄 매칭과 요청 형태가 달라 하나의 `type` query 계약으로 묶지 않고, 사용자 열거와 무제한 조회를 방지한다. | 검색어는 1~20자로 제한하고 이미 추가된 회원은 제외한다. |
+| 2026-08-23 | 후보 아바타는 정산 ID와 publicId 기반 보호된 URL로 제공한다. | 후보는 아직 participantId가 없으므로 저장 파일명을 노출하지 않는 별도 조회 계약이 필요하다. | 생성자·DRAFT·활성 회원·미추가 후보를 다시 검증한다. |
+| 2026-08-23 | 공개 ID 후보에서 linkedUserId와 phoneHash 두 식별 경로를 모두 제외한다. | 연락처로 먼저 추가된 비회원이 가입해도 기존 정산 참여자와 동일인이다. | phoneHash 제외 수만큼 추가 조회한 뒤 최대 20명으로 다시 제한한다. |
+| 2026-08-23 | 연락처 매칭은 최대 500개를 POST body로 받고 같은 번호의 첫 항목만 반환한다. | 주소록을 URL에 노출하지 않고 요청·DB 부하를 제한하며 동일 번호의 중복 후보를 막는다. | 500개를 넘으면 클라이언트가 요청을 나눠야 한다. |
+| 2026-08-23 | 연락처 매칭은 후보만 반환하고 실제 저장은 기존 CONTACT 참여자 추가 API가 재검증한다. | 매칭과 사용자 선택 사이에 가입·중복 상태가 바뀔 수 있다. | 후보 응답만으로 참여자가 확정됐다고 간주하지 않는다. |
+| 2026-08-23 | 연락처 매칭은 사용자별 분당 10회와 24시간당 2,000개 조회 quota를 함께 적용한다. | 요청당 500개 제한만으로는 반복 호출에 의한 전화번호 기반 회원 정보 열거를 막을 수 없다. | Redis에는 사용자 ID별 숫자만 저장하고, 초과 또는 Redis 장애 시 회원 조회를 진행하지 않는다. |
+| 2026-08-23 | 그룹 후보 조회와 추가는 같은 활성 명단을 각각 검증하고 그룹 순서를 유지한다. | 화면 조회 뒤 탈퇴·비활성화된 사용자가 stale 요청으로 추가되는 것을 막아야 한다. | 실제 group 구현은 `LoadGroupMembersPort` Adapter만 교체하며 정산 API 계약은 유지한다. |
+| 2026-08-23 | 그룹 정보가 없으면 후보 조회는 빈 목록, 추가는 후보 없음으로 처리한다. | 아직 group 영속 구현이 없는 환경에서 다른 참여자 선택 경로와 서버 기동을 유지한다. | 그룹은 있으나 생성자가 구성원이 아니면 `SETTLEMENT_GROUP_ACCESS_DENIED`를 반환한다. |
+
+## 11. Completion record
+
+- Completed on: Pending
+- Final behavior: Pending
+- Unverified items: #36 동시 요청의 대기 순서는 별도 부하 테스트하지 않았으며 PostgreSQL 행 잠금과 Unique 제약으로 보호한다.
+- Remaining risks: 실제 group Adapter가 연결되기 전 운영 환경은 그룹 후보를 제공하지 않으며 local·dev Stub은 `groupId`부터 연속된 userId 3명을 명단으로 사용한다.
+- Follow-up work: 요청·링크 Spec의 로그인 회원 자동 매칭과 비회원 브라우저 참여자 선택을 구현한다.

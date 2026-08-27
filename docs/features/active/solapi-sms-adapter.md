@@ -64,7 +64,7 @@
 
 ### Normal flow
 
-1. 사용자가 `POST /api/v2/auth/sms/send`로 이름, 주민등록번호 앞 7자리, 휴대폰 번호를 보낸다.
+1. 사용자가 `POST /api/v2/auth/sms/send`로 휴대폰 번호를 보낸다.
 2. `SendSmsVerificationService`가 기존 정책으로 입력을 정규화하고 재전송 가능 여부를 확인한 뒤 OTP 상태를 Redis에 저장한다.
 3. `SmsSenderPort`가 활성화된 `SolapiSmsSenderAdapter`를 호출한다.
 4. Adapter가 `[HowMuch] 인증번호는 123456입니다.` 형식의 단건 메시지를 SOLAPI로 즉시 발송한다.
@@ -89,7 +89,7 @@
 
 ```text
 UseCase: SendSmsVerificationUseCase.send
-Request: SendSmsVerificationRequest(name, residentNumber, phoneNumber)
+Request: SendSmsVerificationRequest(phoneNumber)
 Response: SmsVerificationSentResponse(verificationRequestId, phoneNumber, expiresAt, resendAvailableAt)
 ```
 
@@ -105,7 +105,7 @@ Response: SmsVerificationSentResponse(verificationRequestId, phoneNumber, expire
 
 ```text
 POST /api/v2/auth/sms/send
-Request: 기존 SendSmsVerificationRequest 유지
+Request: SendSmsVerificationRequest(phoneNumber)
 Response: 기존 SmsVerificationSentResponse 유지
 Errors: 기존 검증/재전송 오류 + SMS_SEND_FAILED (502)
 Authentication: 불필요
@@ -162,7 +162,7 @@ Authentication: 불필요
 Existing behavior that must remain unchanged:
 
 - 기본 `SMS_SENDER=discord`에서 Discord Mock 발송이 동작한다.
-- `/api/v2/auth/sms/send`의 Request/Response 형식과 기존 검증 오류가 유지된다.
+- `/api/v2/auth/sms/send`는 휴대폰 번호만 받고 기존 Response 형식과 SMS 검증 오류를 유지한다.
 - OTP 만료 3분, 재전송 제한 60초, 최대 확인 횟수 5회 설정을 변경하지 않는다.
 - 인증번호 평문은 Redis, 데이터베이스 및 로그에 저장하지 않는다.
 

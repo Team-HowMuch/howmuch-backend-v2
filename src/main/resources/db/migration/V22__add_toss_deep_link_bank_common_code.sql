@@ -1,0 +1,33 @@
+UPDATE common_code_group
+SET attr2_name = '토스 딥링크 은행',
+    revision = revision + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE group_code = 'BANK';
+
+UPDATE common_code_detail AS detail
+SET attr2 = toss_bank.name,
+    updated_at = CURRENT_TIMESTAMP
+FROM (VALUES
+    ('0002', 'KDB산업은행'),
+    ('0003', 'IBK기업은행'),
+    ('0004', 'KB국민은행'),
+    ('0007', '수협은행'),
+    ('0011', 'NH농협은행'),
+    ('0020', '우리은행'),
+    ('0023', 'SC은행'),
+    ('0027', '씨티은행'),
+    ('0031', '대구은행'),
+    ('0032', '부산은행'),
+    ('0034', '광주은행'),
+    ('0035', '제주은행'),
+    ('0037', '전북은행'),
+    ('0039', '경남은행'),
+    ('0045', 'MG새마을금고'),
+    ('0048', '신협'),
+    ('0071', '우체국'),
+    ('0081', '하나은행'),
+    ('0088', '신한은행'),
+    ('0089', '케이뱅크')
+) AS toss_bank(code, name)
+WHERE detail.group_code = 'BANK'
+  AND detail.code = toss_bank.code;
