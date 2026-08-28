@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSettlementsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
@@ -41,33 +42,46 @@ class SettlementListServiceTest {
                 LocalDateTime.of(2026, 8, 13, 0, 0),
                 600L,
                 3,
+                0,
                 null,
                 null,
-                null
+                List.of(new SettlementListReadModel.GroupSummary(10L, "여행 모임", true))
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
-        when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS))
+        when(loadSettlementListPort.findAll(
+                USER_ID,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS,
+                10L
+        ))
                 .thenReturn(List.of(readModel));
 
         var result = service.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS
+                SettlementListStatusFilter.IN_PROGRESS,
+                10L
         ));
 
         verify(loadSettlementListPort).findAll(
                 USER_ID,
                 SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS
+                SettlementListStatusFilter.IN_PROGRESS,
+                10L
         );
-        assertThat(result).containsExactly(new com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult(
+        assertThat(result).containsExactly(new SettlementListItemResult(
                 SETTLEMENT_ID,
                 SettlementStatus.AWAITING_DEPOSIT,
                 LocalDateTime.of(2026, 8, 13, 0, 0),
                 600L,
                 3,
+                0,
                 null,
                 null,
-                null
+                List.of(new SettlementListItemResult.GroupSummary(
+                        10L,
+                        "여행 모임",
+                        true
+                ))
         ));
     }
 }

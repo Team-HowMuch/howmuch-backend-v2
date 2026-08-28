@@ -210,28 +210,45 @@ class SettlementControllerTest {
     void getsSettlementList() throws Exception {
         when(getSettlementsUseCase.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS
+                SettlementListStatusFilter.IN_PROGRESS,
+                10L
         ))).thenReturn(List.of(new SettlementListItemResult(
                 SETTLEMENT_ID,
                 SettlementStatus.AWAITING_DEPOSIT,
                 CREATED_AT,
                 600L,
                 3,
+                0,
                 null,
                 null,
-                null
+                List.of(new SettlementListItemResult.GroupSummary(10L, "여행 모임", true))
         )));
 
         mockMvc.perform(get("/api/v2/settlements")
-                        .queryParam("tab", "RECEIVE")
-                        .queryParam("status", "IN_PROGRESS"))
+                .queryParam("tab", "RECEIVE")
+                .queryParam("status", "IN_PROGRESS")
+                .queryParam("groupId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].settlementId").value(SETTLEMENT_ID.toString()))
                 .andExpect(jsonPath("$.data[0].status").value("AWAITING_DEPOSIT"))
                 .andExpect(jsonPath("$.data[0].totalAmount").value(600))
                 .andExpect(jsonPath("$.data[0].participantCount").value(3))
-                .andExpect(jsonPath("$.data[0].completedParticipantCount").doesNotExist());
+                .andExpect(jsonPath("$.data[0].completedParticipantCount").value(0))
+                .andExpect(jsonPath("$.data[0].groups[0].groupId").value(10))
+                .andExpect(jsonPath("$.data[0].groups[0].groupName").value("여행 모임"))
+                .andExpect(jsonPath("$.data[0].groups[0].groupImageUrl")
+                        .value("/api/v2/groups/10/image"));
+    }
+
+    @Test
+    @DisplayName("그룹 필터의 잘못된 식별자를 INVALID_ARGUMENT로 거부한다")
+    void rejectsNonPositiveSettlementListGroupId() throws Exception {
+        mockMvc.perform(get("/api/v2/settlements").queryParam("groupId", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+
+        verifyNoInteractions(getSettlementsUseCase);
     }
 
     @Test
