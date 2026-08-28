@@ -4,14 +4,18 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSett
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Positive;
 
 public record SettlementListWebRequest(
         @Schema(description = "조회 탭", example = "RECEIVE", defaultValue = "RECEIVE")
         SettlementListTab tab,
         @Schema(description = "상태 필터", example = "IN_PROGRESS", defaultValue = "IN_PROGRESS")
-        SettlementListStatusFilter status
+        SettlementListStatusFilter status,
+        @Positive(message = "groupId는 양수여야 합니다.")
+        @Schema(description = "그룹 출처 참여자가 있는 정산만 조회", example = "10", nullable = true)
+        Long groupId
 ) {
     public GetSettlementsCommand toCommand() {
-        return new GetSettlementsCommand(tab, status);
+        return new GetSettlementsCommand(tab, status, groupId);
     }
 }

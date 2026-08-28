@@ -27,7 +27,7 @@
 - 각 탭에서 `진행중`과 `완료`만 선택한다.
 - 받을 정산 항목은 `N원을 N명이서 정산 중`, `총 N명 중 N명 완료`, 요청 날짜를 보여 준다.
 - 낼 정산 항목은 `N원을 보내야 해요`, 요청자, 요청 날짜를 보여 준다.
-- 화면의 그룹 선택 영역은 현재 `Settlement`에 그룹 소속을 저장하는 계약이 없으므로 이번 목록 API의 필터 범위에서 제외한다.
+- 화면의 그룹 선택 영역은 참여자별 `source_group_id`를 기준으로 필터링한다. 정산 자체에는 대표 그룹이 없고 복수 그룹 출처를 허용하므로 모든 출처를 `groups[]`로 응답한다.
 
 ### Success criteria
 
@@ -37,9 +37,11 @@
 - [x] 낼 정산 항목에 본인이 보낼 금액, 요청자, 요청 날짜를 제공한다.
 - [x] 확정 Share가 있는 경우 본인이 보낼 금액을 반환하고, Share가 없으면 `null`로 반환한다.
 - [x] 확정 Share가 있는 받을 정산은 실제 확인 입금액이 예정 금액 이상인 납부 대상자 수를 `completedParticipantCount`로 반환한다.
-- [x] 부분 입금자는 완료 인원에서 제외하고, 납부 대상 Share가 아직 없으면 `completedParticipantCount = null`을 반환한다.
+- [x] 부분 입금자는 완료 인원에서 제외하고, 납부 대상 Share 또는 완납자가 없으면 `completedParticipantCount = 0`을 반환한다.
 - [x] 요청된 정산의 `requestedAt`은 정산 링크 생성 시각을 사용하고, 링크가 없는 DRAFT는 생성 시각을 사용한다.
 - [x] 다른 사용자의 정산, 연락처 원본, 내부 user ID, 참여자 이름·전화번호를 목록 응답에 노출하지 않는다.
+- [x] 선택 `groupId`가 있으면 해당 그룹 출처 참여자가 포함된 정산만 반환한다.
+- [x] 정산의 모든 그룹 출처를 `groupId`, `groupName`, `groupImageUrl`로 반환하고 비그룹 정산은 `groups = []`를 반환한다.
 - [x] 인증·권한·빈 목록·필터·금액 집계 경계를 Service 및 HTTP 테스트로 고정했다.
 
 ### Out of scope
@@ -50,7 +52,7 @@
 - 거래내역 상세 조회, 실제 송금 실행, 실제 수령 거래 내역 반환
 - 정산 삭제·재개·종료 규칙
 - 연락처 참여자의 비회원 목록 노출 또는 전화번호 기반 접근 허용
-- UI의 그룹 선택을 위한 그룹-정산 관계 추가
+- `settlements.group_id` 같은 새로운 단일 대표 그룹 관계 추가
 
 ## 2. Domain analysis
 
@@ -132,7 +134,7 @@
 
 `amountToPay`는 실제 송금 완료액이 아니라 현재 사용자 참여자의 확정 Share 금액이다. Share가 아직 없으면 `null`이다. `받을 정산` 화면은 총 정산액과 참여자별 완료 현황을 보여 주며, 생성자에게 받을 예정 금액을 별도 필드로 제공하지 않는다.
 
-`completedParticipantCount`는 생성자 본인을 제외한 납부 대상 Share별 확인 입금 합계를 기준으로 제공한다. 확인 입금 합계가 Share 금액 이상이면 완료 1명으로 계산하고 부분 입금은 제외한다. 납부 대상 Share가 아직 없으면 `null`, Share가 있으나 확인 입금이 없으면 `0`이다.
+`completedParticipantCount`는 생성자 본인을 제외한 납부 대상 Share별 확인 입금 합계를 기준으로 제공한다. 확인 입금 합계가 Share 금액 이상이면 완료 1명으로 계산하고 부분 입금은 제외한다. 납부 대상 Share 또는 확인 입금이 없으면 `0`이다.
 
 `requestedAt`은 요청 트랜잭션에서 함께 저장되는 `settlement_links.created_at`을 사용한다. 링크가 아직 없는 DRAFT만 `settlements.created_at`을 반환하므로 별도 컬럼과 Flyway migration은 필요하지 않다.
 
@@ -149,6 +151,7 @@
 | `status` | `REQUESTED` | REQUESTED만 |
 | `status` | `AWAITING_DEPOSIT` | AWAITING_DEPOSIT만 |
 | `status` | `SUSPENDED` | SUSPENDED만 |
+| `groupId` | 양수 Long | 해당 그룹 출처 참여자가 있는 정산만 반환. 기본값 없음 |
 
 ### Failure flow
 
@@ -157,7 +160,7 @@
 - 접근 가능한 정산이 없다: 오류가 아니라 HTTP 200과 빈 배열을 반환한다.
 - 다른 사용자가 생성했으며 `linkedUserId`로도 연결되지 않았다: 목록에서 제외한다. 개별 정산 존재 여부를 알려주지 않는다.
 - Share가 누락되었거나 아직 생성되지 않았다: `PAY` 정산은 반환하되 `amountToPay = null`로 반환한다.
-- 납부 대상 Share가 아직 없으면 `completedParticipantCount = null`을 반환한다. Share가 있으면 정산 상태와 무관하게 실제 확인 입금 합계로 완납 인원을 계산한다.
+- 납부 대상 Share가 아직 없으면 `completedParticipantCount = 0`을 반환한다. Share가 있으면 정산 상태와 무관하게 실제 확인 입금 합계로 완납 인원을 계산한다.
 - Share 조회 중 DB 오류가 발생한다: 일부 정산만 임의로 반환하지 않고 요청을 실패시킨다.
 
 ### Boundary conditions
@@ -180,6 +183,7 @@ GetSettlementsUseCase:
 GetSettlementsCommand:
   SettlementListTab tab
   SettlementListStatusFilter status
+  Long groupId // optional
 
 SettlementListItemResult:
   UUID settlementId
@@ -187,9 +191,10 @@ SettlementListItemResult:
   LocalDateTime requestedAt
   Long totalAmount                 // RECEIVE 탭에서 사용
   Integer participantCount         // RECEIVE 탭에서 사용
-  Integer completedParticipantCount // 납부 대상 Share가 없으면 null, 있으면 실제 완납 인원
+  Integer completedParticipantCount // RECEIVE 탭에서 실제 완납 인원, 없으면 0
   Long amountToPay                 // PAY 탭에서 사용, Share가 없으면 null
   String requesterName             // PAY 탭에서 사용
+  List<GroupSummary> groups        // 모든 GROUP_MEMBER 출처, 비그룹 정산은 빈 배열
 
 SettlementListStatusFilter:
   ALL, IN_PROGRESS, DRAFT, REQUESTED, AWAITING_DEPOSIT, SUSPENDED, COMPLETED
@@ -209,7 +214,7 @@ SettlementListItemResult -> SettlementListItemWebResponse
 |---|---|---|---|
 | `LoadSettlementListPort` | 현재 사용자 범위·탭·상태에 맞는 화면 요약과 Share 기준 납부 금액을 조회한다. | `SettlementListService` | `SettlementPersistenceAdapter` 또는 정산 목록 전용 Persistence Adapter |
 | `CurrentActorPort` | 현재 로그인 사용자의 ID를 제공한다. | `SettlementListService` | 기존 Security Adapter |
-`LoadSettlementListPort`는 목록 조회라는 하나의 외부 대화를 표현한다. 기존 목록 쿼리가 Share와 입금 합계를 함께 조회하므로 별도 완료 요약 Port와 정산별 추가 조회를 만들지 않는다. 현재 `LoadSettlementSharePort`는 단건 송금 안내용 계약이므로 목록 집계용으로 확장하지 않는다.
+`LoadSettlementListPort`는 목록 조회라는 하나의 외부 대화를 표현한다. 기존 목록 쿼리가 Share와 입금 합계, 참여자 그룹 출처를 함께 조회하므로 별도 완료 요약 Port를 만들지 않는다. 정산별 N+1 대신 목록 결과 전체의 그룹 메타데이터를 한 번의 추가 쿼리로 조회한다. 현재 `LoadSettlementSharePort`는 단건 송금 안내용 계약이므로 목록 집계용으로 확장하지 않는다.
 
 권장 Application 전용 조회 모델은 다음 정보를 가진다.
 
@@ -223,6 +228,7 @@ SettlementListReadModel:
   Integer completedParticipantCount
   Long amountToPay
   String requesterName
+  List<GroupSummary> groups
 ```
 
 Persistence Adapter는 SQL/JPA 조인과 중복 제거를 소유하고, Application Service는 현재 사용자 확인과 최종 Result 조립을 소유한다. Web·JPA Entity 타입은 Port 경계를 넘지 않는다.
@@ -243,6 +249,7 @@ Query:
   tab=RECEIVE|PAY                                  // optional, default RECEIVE
   status=ALL|IN_PROGRESS|DRAFT|REQUESTED|AWAITING_DEPOSIT|SUSPENDED|COMPLETED
                                                    // optional, default IN_PROGRESS
+  groupId=Long                                     // optional, positive
 
 Response:
   ApiResponse<List<SettlementListItemWebResponse>>
@@ -256,6 +263,7 @@ SettlementListItemWebResponse:
   completedParticipantCount: int|null
   amountToPay: long|null
   requesterName: String|null
+  groups: [{ groupId, groupName, groupImageUrl|null }]
 
 Errors:
   400 INVALID_ARGUMENT - 허용되지 않은 tab 또는 status 값
@@ -266,7 +274,7 @@ Ordering: requestedAt DESC, settlementId DESC
 Pagination: not supported in the initial scope
 ```
 
-성공 응답은 접근 가능한 정산이 없을 때도 HTTP 200과 `[]`를 반환한다. API는 `"600원을 3명이서 정산 중"` 같은 표시 문장을 만들지 않고 숫자·날짜·상태 필드를 반환한다. `amountToPay = null`은 Share 미생성 또는 금액 미확정이다. `completedParticipantCount = null`은 납부 대상 Share가 아직 없다는 뜻이고, `0`은 대상 Share는 있으나 완납자가 없다는 뜻이다. 클라이언트는 원본 `status`를 UI의 `IN_PROGRESS` 또는 `COMPLETED` 그룹으로 표시한다.
+성공 응답은 접근 가능한 정산이 없을 때도 HTTP 200과 `[]`를 반환한다. API는 `"600원을 3명이서 정산 중"` 같은 표시 문장을 만들지 않고 숫자·날짜·상태 필드를 반환한다. `amountToPay = null`은 Share 미생성 또는 금액 미확정이다. RECEIVE의 `completedParticipantCount = 0`은 납부 대상 Share 또는 완납자가 없다는 뜻이며, PAY에서는 사용하지 않아 `null`이다. 비그룹 정산은 `groups = []`이며 그룹 이미지가 없으면 `groupImageUrl = null`이다. 클라이언트는 원본 `status`를 UI의 `IN_PROGRESS` 또는 `COMPLETED` 그룹으로 표시한다.
 
 ### Persistence and external integrations
 
@@ -286,9 +294,11 @@ Persistence 조회는 다음 조건을 하나의 목록 결과로 보장해야 �
 2. 생성자 조건과 참여자 조건이 모두 맞는 정산은 `settlementId` 기준 한 번만 반환한다.
 3. 상태 필터가 `IN_PROGRESS`이면 `DRAFT`, `REQUESTED`, `AWAITING_DEPOSIT`, `SUSPENDED`를 포함하고, 응답에는 각 원본 상태를 그대로 반환한다.
 4. Share가 없는 `PAY` 정산도 목록에서 제거하지 않고 `amountToPay`를 `null`로 둔다.
-5. `participantCount`는 등록 참여자 수를 유지하고, `completedParticipantCount`는 생성자 본인을 제외한 납부 대상 Share 중 완납된 수로 채운다. 납부 대상 Share가 없을 때만 `null`이다.
+5. `participantCount`는 등록 참여자 수를 유지하고, `completedParticipantCount`는 생성자 본인을 제외한 납부 대상 Share 중 완납된 수로 채운다. 납부 대상 Share가 없으면 `0`이다.
 6. `requestedAt`은 정산 링크 생성 시각을 사용하고 링크가 없는 DRAFT는 정산 생성 시각을 사용한다.
 7. 전화번호·참여자 표시 이름·내부 사용자 ID는 조회 결과에 매핑하지 않는다. `requesterName`은 PAY 화면에 필요한 생성자 표시 이름만 예외적으로 제공한다.
+8. `groupId`가 있으면 `GROUP_MEMBER` 참여자의 `source_group_id`가 일치하는 정산만 반환한다. 한 정산의 복수 그룹 출처는 모두 필터 대상으로 인정한다.
+9. 목록 결과의 모든 `settlementId`를 사용해 그룹 ID·이름·이미지 존재 여부를 한 번에 조회하고, 그룹 ID 오름차순 `groups[]`로 조립한다.
 
 구현 방식은 JPQL 또는 native SQL 중 현재 Persistence Adapter의 테스트 가능성과 실행 계획을 확인해 선택한다. 조회 결과를 정산마다 별도 조회하는 N+1 방식은 사용하지 않는다.
 
@@ -299,13 +309,13 @@ Persistence 조회는 다음 조건을 하나의 목록 결과로 보장해야 �
 - Rules and their locations: 사용자 접근 범위와 탭·상태 필터는 `SettlementListService`와 `LoadSettlementListPort` 조회 조건으로 구현한다. 원본 상태는 응답에 보존하고 UI 그룹 매핑은 클라이언트가 담당한다. 상태 변경 규칙은 기존 `Settlement` Domain에 둔다.
 - Behavior owned by Domain: `SettlementStatus`와 기존 정산 상태 전이, `SettlementShare`의 양수 금액 불변성은 변경하지 않는다.
 - Decisions owned by Application Policy: 없음. 여러 저장 상태를 조합하지만 목록 조회에 독립적인 정책 객체를 만들 정도의 가변 규칙은 없다.
-- Flow orchestrated by Application: 현재 사용자 조회, Command 전달, ReadModel을 `SettlementListItemResult`로 변환한다.
+- Flow orchestrated by Application: 현재 사용자 조회, Command 전달, 그룹 요약을 포함한 ReadModel을 `SettlementListItemResult`로 변환한다.
 
 ### Technology and patterns
 
 - Constraint to solve: 생성자·연결 참여자 두 접근 경로와 Share 금액을 한 번의 사용자 목록 응답으로 조합하면서 연락처 원본을 숨겨야 한다.
-- Selected approach: 목적형 `LoadSettlementListPort`와 정산 목록 전용 ReadModel을 유지하고, 하나의 목록 쿼리에서 사용자 범위·Share·입금 합계·요청 링크 시각을 조합한다.
-- Reason for selection: 목록 조회의 SQL 조인과 응답 계약을 단건 조회·송금 안내용 Port와 분리하고 N+1을 피할 수 있다.
+- Selected approach: 목적형 `LoadSettlementListPort`와 정산 목록 전용 ReadModel을 유지한다. 첫 쿼리에서 사용자 범위·Share·입금 합계·요청 링크 시각을 조합하고, 두 번째 쿼리에서 결과 정산들의 그룹 메타데이터를 일괄 조회한다.
+- Reason for selection: 목록 조회의 SQL 조인과 응답 계약을 단건 조회·송금 안내용 Port와 분리하고, 복수 그룹을 정확히 표현하면서 N+1을 피할 수 있다.
 - Alternatives considered:
   - 정산 ID 목록을 먼저 조회한 뒤 단건 정산·참여자·Share를 반복 조회하는 방식: 구현은 쉽지만 N+1과 사용자별 금액 누락 위험 때문에 제외한다.
   - `SettlementResult`를 재사용하는 방식: 단건 계약에 `creatorId`·수령 계좌 ID를 포함하고 있어 목록의 최소 노출 원칙과 맞지 않아 제외한다.
@@ -349,6 +359,7 @@ Existing behavior that must remain unchanged:
 - [x] Swagger와 Feature Plan의 실제 계약·검증 결과 갱신
 - [x] #192 설계에서 V16·V20 저장 구조 재사용과 migration 불필요를 확정
 - [x] 실제 완납 참여자 수와 링크 요청 시각을 목록 쿼리에 반영
+- [x] 선택 `groupId` 필터와 복수 `groups[]` 응답 구현
 - [x] 부분 입금·완납·Share 없음·DRAFT 요청 시각 fallback을 PostgreSQL 통합 테스트로 검증
 
 ### Expected commit boundaries
@@ -403,7 +414,7 @@ git status --short --untracked-files=all
 | `status=ALL` | 접근 가능한 모든 원본 상태 반환 |
 | `tab=PAY` | 생성자가 아닌 연결 참여자 정산만 반환 |
 | `tab=RECEIVE` | 생성자 정산만 반환 |
-| 납부 대상 Share 없음 | `completedParticipantCount = null` |
+| 납부 대상 Share 없음 | `completedParticipantCount = 0` |
 | 확인 입금 없음 | `completedParticipantCount = 0` |
 | 부분 입금 | 완료 인원에 포함하지 않음 |
 | Share 금액 이상 입금 | 완료 인원에 포함 |
@@ -438,8 +449,8 @@ git status --short --untracked-files=all
 | 구현 | Complete | `SettlementJpaRepository`가 링크 요청 시각과 Share별 실제 입금 합계를 목록에 반영 |
 | 컴파일 | Complete | `./gradlew compileJava` |
 | 관련 테스트 | Complete | `SettlementListServiceTest`, `SettlementControllerTest` |
-| PostgreSQL 정산 목록 통합 검증 | Complete | `SettlementListPersistenceIntegrationTest`에서 Share 없음·부분 입금·완납·생성자 Share 제외·링크 요청 시각 확인 |
-| 전체 회귀 테스트 | Complete | 격리 PostgreSQL·Redis에서 전체 412개 테스트 통과 |
+| PostgreSQL 정산 목록 통합 검증 | Complete | `SettlementListPersistenceIntegrationTest`에서 Share 없음·부분 입금·완납·생성자 Share 제외·링크 요청 시각·그룹 필터·`groups[]` 확인 |
+| 전체 회귀 테스트 | Complete | 2026-08-29 격리 PostgreSQL 18·Redis 7에서 전체 481개 테스트 통과 |
 | Swagger | Complete | 실행 중인 애플리케이션의 `/v3/api-docs`와 `/swagger-ui.html` 확인 |
 
 ## 9. Progress log
@@ -450,6 +461,7 @@ git status --short --untracked-files=all
 | 2026-08-25 | 첨부 UI 기준으로 받을/낼 탭, 진행중/완료 상태, 화면용 요약 필드로 범위를 축소하고 목록 API를 구현함 | PostgreSQL 통합 데이터와 Swagger 런타임 확인 | 그룹 선택 UI를 지원할 `Settlement`-그룹 관계가 없음; 정확한 요청일은 `createdAt`으로 대체 |
 | 2026-08-25 | 실제 PostgreSQL에서 RECEIVE/PAY 목록 범위·상태 필터·Share 금액을 검증하고, 실행 애플리케이션의 `/v3/api-docs`에서 Query 계약을 확인함. 컨트롤러 WebMvcTest의 신규 UseCase Mock 누락을 보완하고 `howmuch_app`에 계좌 거래 테이블 권한을 부여함. 고정 과거 시각을 저장된 `createdAt` 기준으로 수정함 | PostgreSQL `EXPLAIN` 실행 계획 확인 | 전체 289개 테스트 통과 |
 | 2026-08-28 | #192 범위에서 V16 링크 생성 시각과 V20 Share별 입금 합계를 목록 쿼리에서 재사용하고 전체 412개 테스트를 통과함 | 없음 | 등록 참여자 수에는 생성자가 포함되지만 완료 인원은 납부 대상자만 센다. |
+| 2026-08-29 | 완료 인원 0 기본값, OpenAPI required/nullable, 그룹 필터와 `groups[]` 응답을 구현하고 격리 PostgreSQL·Redis 전체 481개 테스트를 통과함 | PR 리뷰 | 그룹 메타데이터는 목록 결과당 한 번의 일괄 쿼리가 추가된다. |
 
 ## 10. Decision log
 
@@ -462,12 +474,14 @@ git status --short --untracked-files=all
 | 2026-08-25 | 완료 참여자 수는 근거가 있을 때만 제공한다. | `settlement_shares`에는 입금 상태가 없어 임의로 0 또는 전체 완료를 반환하면 안 된다. | CODEF 입금 현황 Read Port 또는 후속 결제 상태 저장소가 필요하다. |
 | 2026-08-25 | 초기 구현의 `requestedAt`은 `createdAt`을 반환한다. | 현재 `Settlement`에 별도 요청일이 없고 UI에는 날짜 하나만 필요하다. | 실제 요청 시각 구분이 필요해지면 migration으로 분리한다. |
 | 2026-08-28 | #192의 `requestedAt`은 `settlement_links.created_at`을 사용하고 DRAFT만 생성 시각으로 fallback한다. | 링크가 요청 트랜잭션에서 한 번 생성되어 별도 컬럼 없이 실제 요청 시각을 보존한다. | 기존 V16 저장 구조를 재사용하므로 migration이 없다. |
-| 2026-08-28 | 완료 인원은 납부 대상 Share 중 확인 입금 합계가 Share 금액 이상인 수로 계산한다. | 정산 전체 상태 추측 대신 상세 조회와 같은 실제 입금 근거를 사용한다. | 부분 입금은 제외하고, Share가 없을 때만 null을 반환한다. |
+| 2026-08-28 | 완료 인원은 납부 대상 Share 중 확인 입금 합계가 Share 금액 이상인 수로 계산한다. | 정산 전체 상태 추측 대신 상세 조회와 같은 실제 입금 근거를 사용한다. | 부분 입금은 제외한다. |
+| 2026-08-29 | RECEIVE의 완료 인원은 Share가 없어도 `0`을 반환한다. | 앱의 완료 인원 표시를 항상 정수로 유지한다. | PAY에서는 해당 필드를 사용하지 않아 `null`이다. |
+| 2026-08-29 | 그룹 정보는 단일 필드 대신 `groups[]`로 반환한다. | 한 정산이 여러 그룹 출처 참여자를 가질 수 있다. | migration 없이 기존 `source_group_id`를 사용하고 목록당 그룹 쿼리 1회가 추가된다. |
 
 ## 11. Completion record
 
-- Completed on: 2026-08-28
-- Final behavior: `GET /api/v2/settlements`가 `RECEIVE`·`PAY` 탭과 원본 정산 상태 필터를 지원하고, 받을 정산에는 실제 완납 참여자 수와 링크 발급 기준 요청 시각을 반환한다.
+- Completed on: 2026-08-29
+- Final behavior: `GET /api/v2/settlements`가 `RECEIVE`·`PAY` 탭, 원본 상태와 `groupId` 필터를 지원하고, 실제 완납 참여자 수·링크 발급 기준 요청 시각·복수 `groups[]`를 반환한다. 목록·상세 OpenAPI는 required/nullable을 구분한다.
 - Unverified items: SQL 실행 계획(`EXPLAIN`)
-- Remaining risks: `participantCount`는 생성자를 포함한 등록 참여자 수이고 `completedParticipantCount`는 생성자를 제외한 납부 대상 완납자 수다. 목록 규모가 커질 경우 집계 쿼리 실행 계획과 `linked_user_id` 인덱스를 검토한다.
+- Remaining risks: `participantCount`는 생성자를 포함한 등록 참여자 수이고 `completedParticipantCount`는 생성자를 제외한 납부 대상 완납자 수다. 목록마다 그룹 메타데이터 일괄 쿼리 1회가 추가되며, 목록 규모가 커질 경우 실행 계획과 `linked_user_id`·`source_group_id` 인덱스를 검토한다.
 - Follow-up work: 운영 데이터 규모에서 목록 조회 지연이 확인될 때 `EXPLAIN ANALYZE`와 인덱스 이슈를 별도로 진행한다.

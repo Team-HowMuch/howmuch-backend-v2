@@ -10,6 +10,7 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementShareJpaRepository;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
@@ -153,7 +154,8 @@ class SettlementListPersistenceIntegrationTest {
         var result = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS
+                SettlementListStatusFilter.IN_PROGRESS,
+                null
         );
 
         assertThat(result).singleElement().satisfies(item -> {
@@ -161,9 +163,10 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(item.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
             assertThat(item.totalAmount()).isEqualTo(600L);
             assertThat(item.participantCount()).isEqualTo(2);
-            assertThat(item.completedParticipantCount()).isNull();
+            assertThat(item.completedParticipantCount()).isZero();
             assertThat(item.requestedAt()).isEqualTo(receiveCreatedAt);
             assertThat(item.amountToPay()).isNull();
+            assertThat(item.groups()).isEmpty();
         });
     }
 
@@ -176,7 +179,8 @@ class SettlementListPersistenceIntegrationTest {
         var partiallyPaid = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS
+                SettlementListStatusFilter.IN_PROGRESS,
+                null
         );
 
         assertThat(partiallyPaid).singleElement().satisfies(item -> {
@@ -189,7 +193,8 @@ class SettlementListPersistenceIntegrationTest {
         var fullyPaid = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS
+                SettlementListStatusFilter.IN_PROGRESS,
+                null
         );
 
         assertThat(fullyPaid).singleElement()
@@ -214,7 +219,8 @@ class SettlementListPersistenceIntegrationTest {
         var creatorOnlyPaid = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS
+                SettlementListStatusFilter.IN_PROGRESS,
+                null
         );
 
         assertThat(creatorOnlyPaid).singleElement()
@@ -226,7 +232,8 @@ class SettlementListPersistenceIntegrationTest {
         var payerPaid = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS
+                SettlementListStatusFilter.IN_PROGRESS,
+                null
         );
 
         assertThat(payerPaid).singleElement()
@@ -240,7 +247,8 @@ class SettlementListPersistenceIntegrationTest {
         var result = settlementPersistenceAdapter.findAll(
                 payerId,
                 SettlementListTab.PAY,
-                SettlementListStatusFilter.AWAITING_DEPOSIT
+                SettlementListStatusFilter.AWAITING_DEPOSIT,
+                null
         );
 
         assertThat(result).singleElement().satisfies(item -> {
@@ -250,7 +258,42 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(item.requesterName()).isEqualTo("다른 사람");
             assertThat(item.totalAmount()).isNull();
             assertThat(item.participantCount()).isNull();
+            assertThat(item.groups()).isEmpty();
         });
+    }
+
+    @Test
+    @DisplayName("그룹 필터는 해당 그룹 출처 참여자가 있는 정산만 조회한다")
+    void filtersByParticipantSourceGroup() {
+        Long groupId = insertGroup();
+        jdbcTemplate.update("""
+                UPDATE settlement_participants
+                   SET source = 'GROUP_MEMBER', source_group_id = ?
+                 WHERE id = ?
+                """, groupId, receivePayerParticipantId);
+
+        var matching = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS,
+                groupId
+        );
+        var notMatching = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS,
+                groupId + 1
+        );
+
+        assertThat(matching).singleElement().satisfies(item -> {
+            assertThat(item.settlementId()).isEqualTo(receiveSettlementId);
+            assertThat(item.groups()).containsExactly(new SettlementListReadModel.GroupSummary(
+                    groupId,
+                    "목록 필터 그룹",
+                    false
+            ));
+        });
+        assertThat(notMatching).isEmpty();
     }
 
     private Long insertUser(String identityKey, String name) {
@@ -299,6 +342,12 @@ class SettlementListPersistenceIntegrationTest {
                 """);
         jdbcTemplate.update("""
                 DELETE FROM settlements
+                 WHERE creator_id IN (
+                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
+                 )
+                """);
+        jdbcTemplate.update("""
+                DELETE FROM groups
                  WHERE creator_id IN (
                      SELECT id FROM users WHERE identity_key LIKE 'list-%'
                  )
@@ -384,6 +433,24 @@ class SettlementListPersistenceIntegrationTest {
 
     private String randomExternalKey() {
         return UUID.randomUUID().toString().replace("-", "").repeat(2);
+    }
+
+    private Long insertGroup() {
+        return jdbcTemplate.queryForObject("""
+                        INSERT INTO groups (
+                            name, owner_id, invite_code, status, creator_id,
+                            created_at, updated_at
+                        )
+                        VALUES ('목록 필터 그룹', ?, ?, 'ACTIVE', ?, ?, ?)
+                        RETURNING id
+                        """,
+                Long.class,
+                creatorId,
+                UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase(),
+                creatorId,
+                CREATED_AT,
+                CREATED_AT
+        );
     }
 
     private record RequestFixture(UUID shareId, LocalDateTime requestedAt) {

@@ -101,7 +101,7 @@ public class SettlementController implements SettlementDocs {
     @Override
     @GetMapping
     public ApiResponse<List<SettlementListItemWebResponse>> getSettlements(
-            @ModelAttribute SettlementListWebRequest request
+            @Valid @ModelAttribute SettlementListWebRequest request
     ) {
         return ApiResponse.success(getSettlementsUseCase.get(request.toCommand())
                 .stream()

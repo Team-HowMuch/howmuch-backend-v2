@@ -17,8 +17,11 @@ import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -48,14 +51,39 @@ public class SettlementPersistenceAdapter implements
     }
 
     @Override
-    public java.util.List<SettlementListReadModel> findAll(
+    public List<SettlementListReadModel> findAll(
             Long userId,
             SettlementListTab tab,
-            SettlementListStatusFilter status
+            SettlementListStatusFilter status,
+            Long groupId
     ) {
-        return settlementJpaRepository.findAllForUser(userId, tab.name(), status.name())
-                .stream()
-                .map(projection -> toReadModel(projection, tab))
+        var projections = settlementJpaRepository.findAllForUser(userId, tab.name(), status.name(), groupId);
+        if (projections.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, List<SettlementListReadModel.GroupSummary>> groupsBySettlementId =
+                settlementJpaRepository.findGroupsForSettlements(
+                        projections.stream()
+                                .map(SettlementJpaRepository.SettlementListProjection::getSettlementId)
+                                .toList()
+                ).stream()
+                        .collect(Collectors.groupingBy(
+                                SettlementJpaRepository.SettlementListGroupProjection::getSettlementId,
+                                Collectors.mapping(
+                                        projection -> new SettlementListReadModel.GroupSummary(
+                                                projection.getGroupId(),
+                                                projection.getGroupName(),
+                                                projection.getImageFileName() != null
+                                        ),
+                                        Collectors.toList()
+                                )
+                        ));
+        return projections.stream()
+                .map(projection -> toReadModel(
+                        projection,
+                        tab,
+                        groupsBySettlementId.getOrDefault(projection.getSettlementId(), List.of())
+                ))
                 .toList();
     }
 
@@ -74,11 +102,12 @@ public class SettlementPersistenceAdapter implements
 
     private SettlementListReadModel toReadModel(
             SettlementJpaRepository.SettlementListProjection projection,
-            SettlementListTab tab
+            SettlementListTab tab,
+            List<SettlementListReadModel.GroupSummary> groups
     ) {
         SettlementStatus status = SettlementStatus.valueOf(projection.getStatus());
-        Integer completedParticipantCount = projection.getPayableParticipantCount() == null
-                ? null
+        int completedParticipantCount = projection.getCompletedParticipantCount() == null
+                ? 0
                 : Math.toIntExact(projection.getCompletedParticipantCount());
         return new SettlementListReadModel(
                 projection.getSettlementId(),
@@ -90,7 +119,8 @@ public class SettlementPersistenceAdapter implements
                         : null,
                 tab == SettlementListTab.RECEIVE ? completedParticipantCount : null,
                 tab == SettlementListTab.PAY ? projection.getAmountToPay() : null,
-                tab == SettlementListTab.PAY ? projection.getRequesterName() : null
+                tab == SettlementListTab.PAY ? projection.getRequesterName() : null,
+                groups
         );
     }
 

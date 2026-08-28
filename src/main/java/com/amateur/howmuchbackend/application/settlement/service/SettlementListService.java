@@ -19,7 +19,7 @@ public class SettlementListService implements GetSettlementsUseCase {
     @Override
     public List<SettlementListItemResult> get(GetSettlementsCommand command) {
         Long userId = currentActorPort.getCurrentActor().userId();
-        return loadSettlementListPort.findAll(userId, command.tab(), command.status()).stream()
+        return loadSettlementListPort.findAll(userId, command.tab(), command.status(), command.groupId()).stream()
                 .map(item -> new SettlementListItemResult(
                         item.settlementId(),
                         item.status(),
@@ -28,7 +28,14 @@ public class SettlementListService implements GetSettlementsUseCase {
                         item.participantCount(),
                         item.completedParticipantCount(),
                         item.amountToPay(),
-                        item.requesterName()
+                        item.requesterName(),
+                        item.groups().stream()
+                                .map(group -> new SettlementListItemResult.GroupSummary(
+                                        group.groupId(),
+                                        group.groupName(),
+                                        group.hasImage()
+                                ))
+                                .toList()
                 ))
                 .toList();
     }

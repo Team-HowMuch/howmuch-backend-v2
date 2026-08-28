@@ -3,15 +3,21 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+@Schema(requiredProperties = {
+        "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
+        "viewerRole", "creatorName", "paymentSummary", "participants"
+})
 public record SettlementDetailWebResponse(
         UUID settlementId,
         String title,
         long totalAmount,
+        @Schema(nullable = true)
         SettlementAllocationType allocationType,
         SettlementStatus status,
         LocalDateTime createdAt,
@@ -37,6 +43,10 @@ public record SettlementDetailWebResponse(
         );
     }
 
+    @Schema(requiredProperties = {
+            "expectedAmount", "confirmedAmount", "unpaidAmount", "progressPercent",
+            "participantCount", "completedParticipantCount"
+    })
     public record PaymentSummary(
             long expectedAmount,
             long confirmedAmount,
@@ -57,9 +67,13 @@ public record SettlementDetailWebResponse(
         }
     }
 
+    @Schema(requiredProperties = {
+            "participantId", "displayName", "expectedAmount", "confirmedAmount", "paymentStatus"
+    })
     public record ParticipantPayment(
             UUID participantId,
             String displayName,
+            @Schema(nullable = true)
             Long expectedAmount,
             long confirmedAmount,
             SettlementDetailResult.PaymentStatus paymentStatus
