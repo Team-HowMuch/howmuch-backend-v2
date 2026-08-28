@@ -100,6 +100,70 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
             @Param("status") String status
     );
 
+    @Query(value = """
+            SELECT
+                settlement.id AS settlementId,
+                settlement.title AS title,
+                settlement.status AS status,
+                settlement.created_at AS requestedAt,
+                creator.name AS requesterName,
+                MAX(CASE
+                        WHEN participant.linked_user_id = :userId THEN share.amount
+                    END) AS amountToPay,
+                COALESCE(SUM(CASE
+                        WHEN participant.linked_user_id IS NULL
+                             OR participant.linked_user_id <> settlement.creator_id
+                        THEN share.amount
+                    END), 0) AS receivableAmount,
+                COUNT(DISTINCT CASE
+                        WHEN participant.linked_user_id IS NULL
+                             OR participant.linked_user_id <> settlement.creator_id
+                        THEN participant.id
+                    END) AS payerCount,
+                COUNT(DISTINCT CASE
+                        WHEN (
+                                participant.linked_user_id IS NULL
+                                OR participant.linked_user_id <> settlement.creator_id
+                             )
+                             AND paid.share_id IS NOT NULL
+                        THEN participant.id
+                    END) AS completedPayerCount
+              FROM settlements settlement
+              JOIN users creator
+                ON creator.id = settlement.creator_id
+              LEFT JOIN settlement_participants participant
+                ON participant.settlement_id = settlement.id
+              LEFT JOIN settlement_shares share
+                ON share.settlement_id = settlement.id
+               AND share.payer_participant_id = participant.id
+              LEFT JOIN (
+                    SELECT DISTINCT settlement_id, share_id
+                      FROM settlement_deposits
+                ) paid
+                ON paid.settlement_id = settlement.id
+               AND paid.share_id = share.id
+             WHERE (
+                    (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
+                    OR (
+                        :tab = 'PAY'
+                        AND settlement.creator_id <> :userId
+                        AND EXISTS (
+                            SELECT 1
+                              FROM settlement_participants linked_participant
+                             WHERE linked_participant.settlement_id = settlement.id
+                               AND linked_participant.linked_user_id = :userId
+                        )
+                    )
+                )
+             GROUP BY settlement.id, settlement.title, settlement.status, settlement.created_at,
+                      creator.name
+             ORDER BY settlement.created_at DESC, settlement.id DESC
+            """, nativeQuery = true)
+    List<TreasurerSettlementProjection> findAllForTreasurer(
+            @Param("userId") Long userId,
+            @Param("tab") String tab
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select settlement from SettlementJpaEntity settlement where settlement.id = :settlementId")
     Optional<SettlementJpaEntity> findByIdForUpdate(@Param("settlementId") UUID settlementId);
@@ -122,6 +186,26 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         Long getCompletedParticipantCount();
 
         Long getAmountToPay();
+    }
+
+    interface TreasurerSettlementProjection {
+        UUID getSettlementId();
+
+        String getTitle();
+
+        String getStatus();
+
+        LocalDateTime getRequestedAt();
+
+        String getRequesterName();
+
+        Long getAmountToPay();
+
+        long getReceivableAmount();
+
+        long getPayerCount();
+
+        long getCompletedPayerCount();
     }
 
     boolean existsByReceivingAccountIdAndStatus(Long accountId, SettlementStatus status);

@@ -1,0 +1,54 @@
+package com.amateur.howmuchbackend.domain.treasurer;
+
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+public record TreasurerRecommendation(
+        PersonalSettlement settlement,
+        RecommendationPriority priority,
+        String reason,
+        List<TreasurerActionType> actions
+) {
+    public static List<TreasurerRecommendation> prioritize(List<PersonalSettlement> settlements, Instant now) {
+        return settlements.stream()
+                .filter(PersonalSettlement::isOutstanding)
+                .map(settlement -> of(settlement, now))
+                .sorted(Comparator.comparing(TreasurerRecommendation::priority))
+                .toList();
+    }
+
+    private static TreasurerRecommendation of(PersonalSettlement settlement, Instant now) {
+        boolean stale = settlement.isStale(now);
+        if (settlement.isSend()) {
+            return new TreasurerRecommendation(
+                    settlement,
+                    stale ? RecommendationPriority.SEND_STALE : RecommendationPriority.SEND_OPEN,
+                    stale ? "오랫동안 처리되지 않은 정산이에요." : "보내야 할 정산이 아직 끝나지 않았어요.",
+                    actionsOf(settlement)
+            );
+        }
+        return new TreasurerRecommendation(
+                settlement,
+                stale ? RecommendationPriority.RECEIVE_STALE : RecommendationPriority.RECEIVE_OPEN,
+                stale ? "오랫동안 처리되지 않은 정산이에요." : "받을 금액이 아직 남아 있어요.",
+                actionsOf(settlement)
+        );
+    }
+
+    static List<TreasurerActionType> actionsOf(PersonalSettlement settlement) {
+        List<TreasurerActionType> actions = new ArrayList<>();
+        actions.add(TreasurerActionType.SETTLEMENT_DETAIL);
+        if (settlement.status() == SettlementStatus.AWAITING_DEPOSIT) {
+            if (settlement.isSend()) {
+                actions.add(TreasurerActionType.TRANSFER);
+            } else {
+                actions.add(TreasurerActionType.CHECK_DEPOSIT);
+            }
+        }
+        return List.copyOf(actions);
+    }
+}
