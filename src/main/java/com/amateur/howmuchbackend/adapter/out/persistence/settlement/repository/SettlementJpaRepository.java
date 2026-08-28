@@ -93,6 +93,13 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     OR EXISTS (
                         SELECT 1
                           FROM settlement_participants group_participant
+                          JOIN groups filtered_group
+                            ON filtered_group.id = group_participant.source_group_id
+                           AND filtered_group.status = 'ACTIVE'
+                          JOIN group_members viewer_group_member
+                            ON viewer_group_member.group_id = filtered_group.id
+                           AND viewer_group_member.user_id = :userId
+                           AND viewer_group_member.status = 'ACTIVE'
                          WHERE group_participant.settlement_id = settlement.id
                            AND group_participant.source = 'GROUP_MEMBER'
                            AND group_participant.source_group_id = :groupId
@@ -118,12 +125,18 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
               FROM settlement_participants participant
               JOIN groups target_group
                 ON target_group.id = participant.source_group_id
+               AND target_group.status = 'ACTIVE'
+              JOIN group_members viewer_group_member
+                ON viewer_group_member.group_id = target_group.id
+               AND viewer_group_member.user_id = :userId
+               AND viewer_group_member.status = 'ACTIVE'
              WHERE participant.source = 'GROUP_MEMBER'
                AND participant.settlement_id IN (:settlementIds)
              ORDER BY participant.settlement_id, target_group.id
             """, nativeQuery = true)
     List<SettlementListGroupProjection> findGroupsForSettlements(
-            @Param("settlementIds") List<UUID> settlementIds
+            @Param("settlementIds") List<UUID> settlementIds,
+            @Param("userId") Long userId
     );
 
     @Query(value = """

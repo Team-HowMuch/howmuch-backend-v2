@@ -265,12 +265,20 @@ class SettlementListPersistenceIntegrationTest {
     @Test
     @DisplayName("그룹 필터는 해당 그룹 출처 참여자가 있는 정산만 조회한다")
     void filtersByParticipantSourceGroup() {
-        Long groupId = insertGroup();
+        Long groupId = insertGroup("목록 필터 그룹", creatorId);
+        Long unauthorizedGroupId = insertGroup("탈퇴한 그룹", otherUserId);
+        insertGroupMember(groupId, creatorId, "ACTIVE");
+        insertGroupMember(unauthorizedGroupId, creatorId, "LEFT");
         jdbcTemplate.update("""
                 UPDATE settlement_participants
                    SET source = 'GROUP_MEMBER', source_group_id = ?
                  WHERE id = ?
                 """, groupId, receivePayerParticipantId);
+        jdbcTemplate.update("""
+                UPDATE settlement_participants
+                   SET source = 'GROUP_MEMBER', source_group_id = ?
+                 WHERE id = ?
+                """, unauthorizedGroupId, receiveCreatorParticipantId);
 
         var matching = settlementPersistenceAdapter.findAll(
                 creatorId,
@@ -282,7 +290,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                groupId + 1
+                unauthorizedGroupId
         );
 
         assertThat(matching).singleElement().satisfies(item -> {
@@ -344,6 +352,15 @@ class SettlementListPersistenceIntegrationTest {
                 DELETE FROM settlements
                  WHERE creator_id IN (
                      SELECT id FROM users WHERE identity_key LIKE 'list-%'
+                 )
+                """);
+        jdbcTemplate.update("""
+                DELETE FROM group_members
+                 WHERE group_id IN (
+                     SELECT id FROM groups
+                      WHERE creator_id IN (
+                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
+                      )
                  )
                 """);
         jdbcTemplate.update("""
@@ -435,19 +452,36 @@ class SettlementListPersistenceIntegrationTest {
         return UUID.randomUUID().toString().replace("-", "").repeat(2);
     }
 
-    private Long insertGroup() {
+    private Long insertGroup(String name, Long ownerId) {
         return jdbcTemplate.queryForObject("""
                         INSERT INTO groups (
                             name, owner_id, invite_code, status, creator_id,
                             created_at, updated_at
                         )
-                        VALUES ('목록 필터 그룹', ?, ?, 'ACTIVE', ?, ?, ?)
+                        VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?)
                         RETURNING id
                         """,
                 Long.class,
-                creatorId,
+                name,
+                ownerId,
                 UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase(),
-                creatorId,
+                ownerId,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private void insertGroupMember(Long groupId, Long userId, String status) {
+        jdbcTemplate.update("""
+                INSERT INTO group_members (
+                    group_id, user_id, role, status, joined_at, left_at, created_at, updated_at
+                ) VALUES (?, ?, 'MEMBER', ?, ?, ?, ?, ?)
+                """,
+                groupId,
+                userId,
+                status,
+                CREATED_AT,
+                "ACTIVE".equals(status) ? null : CREATED_AT.plusMinutes(1),
                 CREATED_AT,
                 CREATED_AT
         );

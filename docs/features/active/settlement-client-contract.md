@@ -18,7 +18,7 @@
 - [x] RECEIVE 목록의 `completedParticipantCount`는 완납자가 없거나 Share가 없어도 `0` 이상 정수다.
 - [x] 목록·상세 OpenAPI schema가 모든 응답 속성의 존재 여부와 nullable 여부를 구분한다.
 - [x] `groupId`가 전달되면 해당 그룹 출처 참여자가 있는 정산만 반환한다.
-- [x] 각 정산은 모든 그룹 출처를 `groups[]`의 `groupId`, `groupName`, `groupImageUrl`로 반환한다.
+- [x] 각 정산은 현재 사용자가 활성 멤버인 그룹 출처를 `groups[]`의 `groupId`, `groupName`, `groupImageUrl`로 반환한다.
 - [x] 기존 RECEIVE/PAY 탭과 상태 필터 동작은 유지한다.
 
 ### Out of scope
@@ -48,8 +48,8 @@ SettlementListItemResult -> SettlementListItemWebResponse
 ```
 
 - `SettlementListItemWebResponse`의 모든 JSON 속성은 required다.
-- `groupId`는 선택 query parameter이며 해당 그룹 출처 참여자가 있는 정산만 남긴다.
-- `groups`는 required 배열이며 비그룹 정산은 `[]`다. 그룹 이미지를 보유한 경우에만 `groupImageUrl=/api/v2/groups/{groupId}/image`를 반환한다.
+- `groupId`는 선택 query parameter이며 현재 사용자가 활성 멤버인 그룹의 출처 참여자가 있는 정산만 남긴다.
+- `groups`는 required 배열이며 현재 사용자가 활성 멤버가 아닌 그룹 출처와 비그룹 정산은 `[]`다. 그룹 이미지를 보유한 경우에만 `groupImageUrl=/api/v2/groups/{groupId}/image`를 반환한다.
 - 탭에 따라 값이 없는 `totalAmount`, `participantCount`, `completedParticipantCount`, `amountToPay`, `requesterName`은 nullable로 문서화한다.
 - `SettlementDetailWebResponse`의 모든 속성은 required이며 DRAFT의 `allocationType`과 Share 생성 전 `ParticipantPayment.expectedAmount`는 nullable이다.
 - Flyway migration required: No

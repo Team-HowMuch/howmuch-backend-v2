@@ -297,8 +297,8 @@ Persistence 조회는 다음 조건을 하나의 목록 결과로 보장해야 �
 5. `participantCount`는 등록 참여자 수를 유지하고, `completedParticipantCount`는 생성자 본인을 제외한 납부 대상 Share 중 완납된 수로 채운다. 납부 대상 Share가 없으면 `0`이다.
 6. `requestedAt`은 정산 링크 생성 시각을 사용하고 링크가 없는 DRAFT는 정산 생성 시각을 사용한다.
 7. 전화번호·참여자 표시 이름·내부 사용자 ID는 조회 결과에 매핑하지 않는다. `requesterName`은 PAY 화면에 필요한 생성자 표시 이름만 예외적으로 제공한다.
-8. `groupId`가 있으면 `GROUP_MEMBER` 참여자의 `source_group_id`가 일치하는 정산만 반환한다. 한 정산의 복수 그룹 출처는 모두 필터 대상으로 인정한다.
-9. 목록 결과의 모든 `settlementId`를 사용해 그룹 ID·이름·이미지 존재 여부를 한 번에 조회하고, 그룹 ID 오름차순 `groups[]`로 조립한다.
+8. `groupId`가 있으면 현재 사용자가 활성 멤버인 그룹 중 `GROUP_MEMBER` 참여자의 `source_group_id`가 일치하는 정산만 반환한다.
+9. 목록 결과의 모든 `settlementId`를 사용해 현재 사용자가 활성 멤버인 그룹의 ID·이름·이미지 존재 여부를 한 번에 조회하고, 그룹 ID 오름차순 `groups[]`로 조립한다.
 
 구현 방식은 JPQL 또는 native SQL 중 현재 Persistence Adapter의 테스트 가능성과 실행 계획을 확인해 선택한다. 조회 결과를 정산마다 별도 조회하는 N+1 방식은 사용하지 않는다.
 

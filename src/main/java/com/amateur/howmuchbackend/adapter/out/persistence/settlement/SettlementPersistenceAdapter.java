@@ -65,7 +65,8 @@ public class SettlementPersistenceAdapter implements
                 settlementJpaRepository.findGroupsForSettlements(
                         projections.stream()
                                 .map(SettlementJpaRepository.SettlementListProjection::getSettlementId)
-                                .toList()
+                                .toList(),
+                        userId
                 ).stream()
                         .collect(Collectors.groupingBy(
                                 SettlementJpaRepository.SettlementListGroupProjection::getSettlementId,
