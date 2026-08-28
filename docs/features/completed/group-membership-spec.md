@@ -1,5 +1,8 @@
 # 그룹 멤버십·권한 Backend Spec
 
+- Status: Completed
+- Last updated: 2026-08-25
+
 ## 1. 목적과 범위
 
 이 문서는 [그룹 관리 PRD](../../product/group-prd.md)의 초대 코드 가입, OWNER 직접 추가, 멤버 목록, 소유권 이전, 자기 탈퇴와 OWNER 제거 계약을 정의한다. 그룹 정보·이미지·삭제는 [그룹 핵심 기능 Spec](group-core-spec.md), 정산 출처 저장과 종료 차단 조회는 [그룹-정산 연동 Spec](group-settlement-integration-spec.md)을 따른다.

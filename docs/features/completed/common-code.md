@@ -1,7 +1,7 @@
 # Feature Plan: Common Code 조회 도메인 및 JPA 구조
 
-- Status: In progress
-- Last updated: 2026-08-22
+- Status: Completed
+- Last updated: 2026-08-28
 - Related issue:
 - Related ADR:
 
@@ -20,7 +20,7 @@
 ### Success criteria
 
 - [x] Application Service가 JPA Entity와 Spring Data Repository를 직접 참조하지 않고 공통 코드 조회 계약을 사용한다.
-- [ ] 활성 공통 코드만 조회되며, 존재하지 않거나 비활성인 코드는 `Optional.empty()` 또는 빈 목록으로 구분된다.
+- [x] 활성 공통 코드만 조회되며, 존재하지 않거나 비활성인 코드는 `Optional.empty()` 또는 빈 목록으로 구분된다.
 - [x] `common_code_detail`의 복합키 `(group_code, code)`가 Domain과 JPA 사이에서 손실 없이 매핑된다.
 - [x] Domain 코드가 JPA, Spring, HTTP 타입에 의존하지 않는다.
 
@@ -233,7 +233,7 @@ Authentication: bearerAuth
 | Redis | 영향 없음 | 해당 없음 |
 | Security | 영향 없음 | 해당 없음 |
 | Configuration | 영향 없음 | 해당 없음 |
-| Documentation | 본 Feature Plan 추가 | `docs/features/active/common-code.md` |
+| Documentation | 본 Feature Plan 추가 | `docs/features/completed/common-code.md` |
 
 Existing behavior that must remain unchanged:
 
@@ -280,12 +280,12 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] 활성 단건 조회가 정상 코드·미존재 코드·비활성 코드에서 각각 기대한 결과를 반환한다.
-- [ ] 활성 목록 조회가 `sort_order ASC`, `code ASC` 순서를 보장한다.
-- [ ] 복합키 매핑과 `group_code` 외래키가 실제 PostgreSQL 스키마와 일치한다.
+- [x] 활성 단건 조회가 정상 코드·미존재 코드·비활성 코드에서 각각 기대한 결과를 반환한다.
+- [x] 활성 목록 조회가 `sort_order ASC`, `code ASC` 순서를 보장한다.
+- [x] 복합키 매핑과 `group_code` 외래키가 실제 PostgreSQL 스키마와 일치한다.
 - [x] `BANK` 그룹과 20개 기관코드가 중복 없이 정의된다.
-- [ ] Application과 Domain이 JPA 타입을 직접 참조하지 않는다.
-- [ ] `getSnapshot`, 별도 `BankCodeProvider`가 필요한 실제 호출자 없이 추가되지 않는다.
+- [x] Application과 Domain이 JPA 타입을 직접 참조하지 않는다.
+- [x] `getSnapshot`, 별도 `BankCodeProvider`가 필요한 실제 호출자 없이 추가되지 않는다.
 
 ### Results
 
@@ -296,7 +296,7 @@ git status --short --untracked-files=all
 | Domain·Port·JPA 구현 | Complete | `src/main/java/com/amateur/howmuchbackend/{domain,application,adapter}` |
 | 은행 Catalog·계좌 연동 연결 | Complete | `BankCatalog`, `BankAccountService`, `AccountController` |
 | Java 컴파일 | Complete | `./gradlew compileJava --no-daemon` |
-| Flyway·런타임 검증 | Not run | PostgreSQL 실행 환경 확인 후 진행 필요 |
+| Flyway·런타임 검증 | Complete | 임시 PostgreSQL·Redis 전체 412개 테스트와 schema validation 통과 |
 
 ## 9. Progress log
 
@@ -320,8 +320,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on:
+- Completed on: 2026-08-28
 - Final behavior: 활성 `BANK` 공통 코드를 은행 Catalog로 조회하고 CODEF 연결·계좌 연동 전에 지원 기관 여부를 검증함
-- Unverified items: Flyway 실행, PostgreSQL 매핑과 실제 HTTP 응답 검증
+- Unverified items: 없음
 - Remaining risks: Google favicon proxy 가용성에 따라 아이콘 표시가 영향을 받을 수 있음
 - Follow-up work: PostgreSQL migration 실행 확인, 필요 시 favicon URL을 정적 스토리지로 이전

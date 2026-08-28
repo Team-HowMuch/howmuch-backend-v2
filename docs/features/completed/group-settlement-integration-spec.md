@@ -1,5 +1,8 @@
 # 그룹-정산 연동 Backend Spec
 
+- Status: Completed
+- Last updated: 2026-08-25
+
 ## 1. 목적과 범위
 
 이 문서는 현재 정산 모듈의 그룹 명단 Stub을 실제 그룹멤버 Persistence로 교체하고, 그룹에서 선택한 정산 참여자에 출처 그룹 ID를 보존하며, 그룹 멤버 종료 시 정산 상태를 조회하는 계약을 정의한다.

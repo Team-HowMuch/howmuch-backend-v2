@@ -1,11 +1,12 @@
 # Feature Plan: 정산 지출 및 금액 배분
 
-- Status: Draft
-- Last updated: 2026-08-24
+- Status: Completed
+- Last updated: 2026-08-28
 - Related issue: [#29 정산 지출 입력 및 금액 배분](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/29)
+- Follow-up issue: [#194 운영 영수증 OCR Adapter 연동](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/194)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
-- Prerequisites: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](settlement-participants-spec.md)
+- Prerequisites: [정산 초안 및 기본 정보 Spec](settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](settlement-participants-spec.md)
 
 ## 1. Purpose
 
@@ -19,11 +20,11 @@
 
 ### Success criteria
 
-- [ ] 생성자는 DRAFT 정산에 수기 지출을 추가·수정·삭제하고, 결제 내역·OCR 결과를 지출 후보로 불러올 수 있다.
-- [ ] 더치페이는 총액을 참여자 수로 나누고 나머지를 생성자에게 더해 총액과 정확히 일치한다.
-- [ ] 품목별 배분에서 참여자는 같은 품목을 동시에 선택할 수 있고, 각 선택은 1·1/2·1/3·1/4만 허용한다.
-- [ ] 모든 참여자가 품목 선택을 제출했고 각 품목의 배분 합계와 총액이 정확하면, 요청·링크 기능이 불변 Share를 생성할 수 있는 계산 결과를 받는다.
-- [ ] 모든 참여자의 제출 뒤에 합계가 맞지 않으면 Settlement는 SUSPENDED로 전환되고 생성자에게 수정·재요청이 요구된다.
+- [x] 생성자는 DRAFT 정산에 수기 지출을 추가·수정·삭제하고, 결제 내역·OCR 결과를 지출 후보로 불러올 수 있다.
+- [x] 더치페이는 총액을 참여자 수로 나누고 나머지를 생성자에게 더해 총액과 정확히 일치한다.
+- [x] 품목별 배분에서 참여자는 같은 품목을 동시에 선택할 수 있고, 각 선택은 1·1/2·1/3·1/4만 허용한다.
+- [x] 모든 참여자가 품목 선택을 제출했고 각 품목의 배분 합계와 총액이 정확하면, 요청·링크 기능이 불변 Share를 생성할 수 있는 계산 결과를 받는다.
+- [x] 모든 참여자의 제출 뒤에 합계가 맞지 않으면 Settlement는 SUSPENDED로 전환되고 생성자에게 수정·재요청이 요구된다.
 
 ### Out of scope
 
@@ -375,14 +376,14 @@ Existing behavior that must remain unchanged:
 - [x] 공개 품목 배분 API·Swagger·Security 계약을 구현한다.
 - [x] Domain·Application·Web·Persistence·Redis 테스트와 실제 PostgreSQL·Redis HTTP 흐름을 검증한다.
 
-### Follow-up increments
+### Completed increments
 
-- [ ] 지출·배분 방식·품목·선택·제출 Domain 모델과 불변식을 정의한다.
-- [ ] 지출 저장, 참여자 조회, OCR·결제 내역 후보, 배분 결과 전달 Output Port를 정의한다.
-- [ ] 수기 지출 관리, 후보 가져오기, 더치페이 계산, 품목 선택·제출·최종 검증 UseCase를 구현한다.
-- [ ] JPA Entity·Repository·Mapper·Persistence Adapter와 OCR·결제내역 개발 Stub을 구현한다.
-- [ ] 생성자용 Web API와 request-link 참여자 문맥을 받는 공개 품목 선택 API를 구현한다.
-- [ ] 요청 링크 확정과 SUSPENDED 재요청 정책을 통합 검증한다.
+- [x] 지출·배분 방식·품목·선택·제출 Domain 모델과 불변식을 정의한다.
+- [x] 지출 저장, 참여자 조회, OCR·결제 내역 후보, 배분 결과 전달 Output Port를 정의한다.
+- [x] 수기 지출 관리, 후보 가져오기, 더치페이 계산, 품목 선택·제출·최종 검증 UseCase를 구현한다.
+- [x] JPA Entity·Repository·Mapper·Persistence Adapter와 OCR·결제내역 개발 Stub을 구현한다.
+- [x] 생성자용 Web API와 request-link 참여자 문맥을 받는 공개 품목 선택 API를 구현한다.
+- [x] 요청 링크 확정과 SUSPENDED 재요청 정책을 통합 검증한다.
 
 ### Expected commit boundaries
 
@@ -512,8 +513,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on: Pending
-- Final behavior: Pending
-- Unverified items: 전체 구현 전
-- Remaining risks: 운영 OCR 공급자 계약과 품목 분수의 원 단위 반올림 정책이 남아 있다.
-- Follow-up work: 확정 Share의 송금 안내를 구현하고 #159 삭제 정책과 #160 통합 검증을 진행한다.
+- Completed on: 2026-08-24
+- Final behavior: 생성자는 수기·결제내역·개발 OCR 결과로 지출을 구성하고, 더치페이 또는 품목별 할당으로 참여자별 Share를 확정할 수 있다.
+- Unverified items: 운영 프로필의 실제 OCR 제공자 연동
+- Remaining risks: 운영 OCR Adapter는 #194로 분리했고, 품목 금액이 허용 비율로 정확히 나뉘지 않으면 선택을 거부한다.
+- Follow-up work: #194 운영 OCR Adapter 연동

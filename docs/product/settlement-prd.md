@@ -1,7 +1,7 @@
 # PRD: 일회성 정산
 
 - 상태: Draft
-- 마지막 업데이트: 2026-08-21
+- 마지막 업데이트: 2026-08-28
 - 관련 이슈: [#28](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/28), [#27](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#29](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/29), [#26](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/26)
 
 ## 1. 문제와 목표
@@ -128,6 +128,6 @@ CODEF 입금 현황은 `PENDING`, `NEEDS_CONFIRMATION`, `COMPLETED` 같은 입�
 구현 계약과 기술 결정은 다음 Feature Plan 기반 Spec에서 관리한다.
 
 - `docs/features/completed/settlement-core-spec.md`
-- `docs/features/active/settlement-participants-spec.md`
-- `docs/features/active/settlement-expense-allocation-spec.md`
+- `docs/features/completed/settlement-participants-spec.md`
+- `docs/features/completed/settlement-expense-allocation-spec.md`
 - `docs/features/completed/settlement-request-link-spec.md`

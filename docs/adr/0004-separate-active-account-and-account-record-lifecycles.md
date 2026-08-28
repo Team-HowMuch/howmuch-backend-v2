@@ -1,9 +1,9 @@
 # ADR-0004: Separate active Account and Account Record lifecycles
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-24
 - Decision owners: HowMuch Backend
-- Related Feature Plan: [Account deletion and reconnection](../features/active/account-deletion-and-reconnection.md)
+- Related Feature Plan: [Account deletion and reconnection](../features/completed/account-deletion-and-reconnection.md)
 - Supersedes:
 - Superseded by:
 
@@ -114,19 +114,19 @@ Local Account deletion does not call CODEF `/v1/account/delete`. Institution dis
 
 ## Verification
 
-- [ ] Verify every active Account creates or updates exactly one Account Record on the pre-implementation application version.
-- [ ] Verify Account deletion removes `accounts` state while preserving transaction, summary, settlement-expense, snapshot, and Share rows.
-- [ ] Verify a DRAFT receiving-account reference returns a conflict and preserves both the Account and Settlement.
-- [ ] Verify all historical references retain PostgreSQL foreign-key integrity.
-- [ ] Verify relinking creates a new ID and synchronizes the full requested transaction period without moving old rows.
-- [ ] Verify local deletion makes no CODEF delete request.
+- [x] Verify every active Account creates or updates exactly one Account Record on the pre-implementation application version.
+- [x] Verify Account deletion removes `accounts` state while preserving transaction, summary, settlement-expense, snapshot, and Share rows.
+- [x] Verify a DRAFT receiving-account reference returns a conflict and preserves both the Account and Settlement.
+- [x] Verify all historical references retain PostgreSQL foreign-key integrity.
+- [x] Verify relinking creates a new ID and synchronizes the full requested transaction period without moving old rows.
+- [x] Verify local deletion makes no CODEF delete request.
 - [x] Link the related Feature Plan and documentation.
-- [ ] Complete compilation, PostgreSQL migration, concurrency, CODEF Mock, and manual HTTP verification.
+- [x] Complete compilation, PostgreSQL migration, concurrency, CODEF Mock, and HTTP contract verification.
 
 ## References
 
 - [Issue #97: Account deletion and CODEF reconnection policy](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/97)
 - [CODEF account deletion](https://developer.codef.io/common-guide/connected-id/delete)
-- [Account connection Feature Plan](../features/active/codef-bank-account-connection.md)
-- [Account query and transaction Feature Plan](../features/active/account-query-and-transactions.md)
+- [Account connection Feature Plan](../features/completed/codef-bank-account-connection.md)
+- [Account query and transaction Feature Plan](../features/completed/account-query-and-transactions.md)
 - [Settlement receiving account Feature Plan](../features/completed/settlement-receiving-account.md)

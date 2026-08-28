@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-11
 - Decision owners: HowMuch Backend
-- Related Feature Plan: [Hexagonal coding guidelines](../features/active/hexagonal-coding-guidelines.md)
+- Related Feature Plan: [Hexagonal coding guidelines](../features/completed/hexagonal-coding-guidelines.md)
 - Supersedes:
 - Superseded by:
 
@@ -67,4 +67,4 @@
 ## References
 
 - [Architecture](../architecture.md)
-- [Hexagonal coding guidelines Feature Plan](../features/active/hexagonal-coding-guidelines.md)
+- [Hexagonal coding guidelines Feature Plan](../features/completed/hexagonal-coding-guidelines.md)

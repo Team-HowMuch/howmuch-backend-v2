@@ -1,10 +1,10 @@
 # Feature Plan: 정산 삭제 가능 정책 및 삭제 API
 
-- Status: Completed
-- Last updated: 2026-08-25
+- Status: Partially implemented - 참여 진행 후 삭제 차단 보강 대기
+- Last updated: 2026-08-28
 - Related issue: [#159 정산 삭제 가능 정책 및 삭제 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/159)
 - Related parent issue: [#137 정산 수동 중단·재개·삭제 상태 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/137)
-- Related issues: [#136 정산 입금 상태 확인 및 종료 처리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/136), [#158 정산 수동 중단·재개 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/158)
+- Related issues: [#136 정산 입금 상태 확인 및 종료 처리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/136), [#158 정산 수동 중단·재개 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/158), [#193 정산 참여 진행 후 삭제 차단 정책 보강](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/193)
 
 ## 1. 목적
 
@@ -18,14 +18,15 @@
 
 ### 성공 기준
 
-- [ ] 정산 생성자만 정산을 삭제할 수 있다.
-- [ ] `DRAFT`, `REQUESTED`, `SUSPENDED` 상태에서 `SettlementShare`가 없으면 삭제할 수 있다.
-- [ ] `SettlementShare`가 있거나 `AWAITING_DEPOSIT`·`COMPLETED` 상태이면 삭제를 차단한다.
-- [ ] 삭제 허용 시 참여자·지출·품목·선택·제출·더치페이 배분·링크·수령 계좌 스냅샷이 함께 삭제되고 고아 데이터가 남지 않는다.
-- [ ] 삭제 차단 시 데이터가 변경되지 않는다.
-- [ ] 삭제와 상태 변경·입금 확인이 같은 정산 행 잠금으로 직렬화된다.
-- [ ] 반복 삭제·다른 사용자·없는 정산 요청이 일관된 오류를 반환한다.
-- [ ] Swagger와 실제 API 계약이 일치한다.
+- [x] 정산 생성자만 정산을 삭제할 수 있다.
+- [x] 아무도 참여를 시작하지 않은 `DRAFT`, `REQUESTED`, `SUSPENDED` 정산은 삭제할 수 있다.
+- [x] `SettlementShare`가 있거나 `AWAITING_DEPOSIT`·`COMPLETED` 상태이면 삭제를 차단한다.
+- [ ] 품목 선택 또는 제출이 있으면 Share 생성 전이라도 삭제를 차단한다.
+- [x] 삭제 허용 시 참여자·지출·품목·선택·제출·더치페이 배분·링크·수령 계좌 스냅샷이 함께 삭제되고 고아 데이터가 남지 않는다.
+- [x] 삭제 차단 시 데이터가 변경되지 않는다.
+- [x] 삭제와 상태 변경·입금 확인이 같은 정산 행 잠금으로 직렬화된다.
+- [x] 반복 삭제·다른 사용자·없는 정산 요청이 일관된 오류를 반환한다.
+- [x] Swagger와 실제 API 계약이 일치한다.
 
 ### 범위 제외
 
@@ -88,7 +89,7 @@
 
 - 하위 데이터가 없는 DRAFT도 정상 삭제한다.
 - `SUSPENDED` 정산은 Share가 없으면 삭제하고, Share가 있으면 삭제하지 않는다.
-- Share 존재 조회가 false인 `REQUESTED` 정산은 현재 품목 참여 진행 중으로 간주해 삭제할 수 있다.
+- Share가 없어도 품목 선택 또는 제출이 존재하는 `REQUESTED`·`SUSPENDED` 정산은 삭제할 수 없어야 한다. 현재 구현의 이 차이는 #193에서 보강한다.
 - cascade가 실패하면 트랜잭션을 롤백해 Settlement와 하위 데이터가 부분 삭제되지 않도록 한다.
 
 ## 4. 계약
@@ -106,6 +107,7 @@ Web Response: ApiResponse<Void>
 | Port | Purpose | Caller | Expected Adapter |
 |---|---|---|---|
 | `LoadSettlementSharePort.existsBySettlementId` | 송금 단계 도달 여부 확인 | `SettlementService` | `SettlementTransferInstructionPersistenceAdapter` |
+| 품목 참여 진행 조회 계약 (예정) | Share 전 품목 선택·제출 존재 여부 확인 | `SettlementService` | settlement persistence Adapter |
 | `DeleteSettlementPort.delete` | Settlement root 삭제 | `SettlementService` | `SettlementPersistenceAdapter` |
 
 기존 `LoadSettlementPort.findByIdForUpdate`를 재사용한다. `SettlementShare` 전체 목록을 읽지 않고 `exists` 쿼리만 추가한다.
@@ -115,7 +117,7 @@ Web Response: ApiResponse<Void>
 - Decision owned by the Policy: Settlement 상태와 Share 존재 사실을 조합한 삭제 가능 여부
 - Facts loaded by the Service and passed to the Policy: `Settlement.status()`, `hasShares`
 - Why the rule is not an Entity-local invariant: Share는 외부 Persistence Port에서 조회하는 다른 Aggregate 데이터이고, 삭제 정책은 상태와 저장 사실을 함께 판단한다.
-- Future inputs deliberately not implemented yet: #136에서 추가될 Share별 입금 상태·이력은 해당 Port 계약이 확정된 뒤 정책 입력으로 연결한다.
+- Future inputs deliberately not implemented yet: #193에서 품목 선택·제출 존재 여부를 삭제 정책 입력으로 연결한다.
 
 ### Web API
 
@@ -187,6 +189,8 @@ Authentication: bearerAuth
 - [x] Domain·Application·Web 단위 테스트
 - [x] PostgreSQL cascade 통합 테스트 코드 작성
 - [x] PostgreSQL cascade 통합 테스트 실행
+- [ ] #193 품목 선택·제출 존재 조회와 삭제 차단 정책 보강
+- [ ] #193 삭제·품목 참여 동시 요청 통합 검증
 
 ### 예상 커밋 경계
 
@@ -219,6 +223,7 @@ PostgreSQL이 필요한 cascade 통합 테스트는 서비스 상태를 확인�
 - [x] 반복 삭제·동시 상태 변경에서 500/무결성 오류 없음 확인
 - [x] Swagger와 실제 응답 일치 확인
 - [x] 컴파일·관련 테스트·diff 검증 기록
+- [ ] Share 생성 전 품목 선택·제출이 있는 정산의 삭제 차단 확인
 
 ### Results
 
@@ -247,8 +252,8 @@ PostgreSQL이 필요한 cascade 통합 테스트는 서비스 상태를 확인�
 
 ## 11. 완료 기록
 
-- Completed on: 2026-08-25
-- Final behavior: Share가 없는 송금 전 정산만 생성자가 삭제할 수 있고, 삭제 시 정산 소유 하위 데이터는 cascade로 제거된다.
-- Unverified items: 없음
-- Remaining risks: #136 입금 상태 모델 도입 전까지 `SettlementShare` 존재를 송금 단계 기준으로 사용한다.
-- Follow-up work: #136 입금 상태 모델과 삭제 정책 연결
+- Completed on: Pending (#193)
+- Final behavior: Share 이후 삭제 차단과 cascade 삭제는 구현됐지만, Share 전 품목 선택·제출이 있는 정산은 아직 삭제될 수 있다.
+- Unverified items: 품목 선택·제출과 삭제의 동시 요청
+- Remaining risks: 참여자가 입력한 선택·제출 데이터가 Share 생성 전에 생성자 삭제로 제거될 수 있다.
+- Follow-up work: #193 정산 참여 진행 후 삭제 차단 정책 보강

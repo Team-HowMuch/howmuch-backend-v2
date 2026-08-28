@@ -1,5 +1,8 @@
 # 그룹 핵심 기능 Backend Spec
 
+- Status: Completed
+- Last updated: 2026-08-25
+
 ## 1. 목적과 범위
 
 이 문서는 [그룹 관리 PRD](../../product/group-prd.md)의 그룹 생성·목록·상세·수정·삭제·이미지 계약을 백엔드 구현 단위로 정의한다. 멤버 가입·직접 추가·소유권 이전·탈퇴·제거는 [그룹 멤버십·권한 Spec](group-membership-spec.md), 정산 연동은 [그룹-정산 연동 Spec](group-settlement-integration-spec.md)에서 정의한다.

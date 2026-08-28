@@ -1,15 +1,18 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementJpaEntity;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementLinkJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementParticipantJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementShareJpaEntity;
-import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
-import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementLinkJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementParticipantJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementShareJpaRepository;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import org.junit.jupiter.api.AfterEach;
@@ -42,6 +45,9 @@ class SettlementListPersistenceIntegrationTest {
     private SettlementParticipantJpaRepository settlementParticipantJpaRepository;
 
     @Autowired
+    private SettlementLinkJpaRepository settlementLinkJpaRepository;
+
+    @Autowired
     private SettlementShareJpaRepository settlementShareJpaRepository;
 
     @Autowired
@@ -53,6 +59,9 @@ class SettlementListPersistenceIntegrationTest {
     private Long connectionId;
     private Long accountId;
     private UUID receiveSettlementId;
+    private LocalDateTime receiveCreatedAt;
+    private UUID receiveCreatorParticipantId;
+    private UUID receivePayerParticipantId;
     private UUID paySettlementId;
     private UUID payPayerParticipantId;
 
@@ -68,28 +77,31 @@ class SettlementListPersistenceIntegrationTest {
 
         receiveSettlementId = UUID.randomUUID();
         paySettlementId = UUID.randomUUID();
-        settlementJpaRepository.saveAllAndFlush(java.util.List.of(
-                new SettlementJpaEntity(new Settlement(
-                        receiveSettlementId,
-                        creatorId,
-                        "받을 정산",
-                        600L,
-                        SettlementStatus.AWAITING_DEPOSIT,
-                        CREATED_AT,
-                        CREATED_AT
-                )),
-                new SettlementJpaEntity(new Settlement(
-                        paySettlementId,
-                        otherUserId,
-                        "낼 정산",
-                        6_000L,
-                        SettlementAllocationType.DUTCH_PAY,
-                        accountId,
-                        SettlementStatus.AWAITING_DEPOSIT,
-                        CREATED_AT.plusMinutes(1),
-                        CREATED_AT.plusMinutes(1)
-                ))
+        SettlementJpaEntity receiveSettlement = new SettlementJpaEntity(new Settlement(
+                receiveSettlementId,
+                creatorId,
+                "받을 정산",
+                600L,
+                SettlementStatus.AWAITING_DEPOSIT,
+                CREATED_AT,
+                CREATED_AT
         ));
+        SettlementJpaEntity paySettlement = new SettlementJpaEntity(new Settlement(
+                paySettlementId,
+                otherUserId,
+                "낼 정산",
+                6_000L,
+                SettlementAllocationType.DUTCH_PAY,
+                accountId,
+                SettlementStatus.AWAITING_DEPOSIT,
+                CREATED_AT.plusMinutes(1),
+                CREATED_AT.plusMinutes(1)
+        ));
+        settlementJpaRepository.saveAllAndFlush(java.util.List.of(
+                receiveSettlement,
+                paySettlement
+        ));
+        receiveCreatedAt = receiveSettlement.getCreatedAt();
 
         SettlementParticipant receiveCreator = SettlementParticipant.registeredUser(
                 receiveSettlementId, creatorId, "받는 사람", 0, CREATED_AT
@@ -97,6 +109,8 @@ class SettlementListPersistenceIntegrationTest {
         SettlementParticipant receivePayer = SettlementParticipant.registeredUser(
                 receiveSettlementId, otherUserId, "다른 사람", 1, CREATED_AT
         );
+        receiveCreatorParticipantId = receiveCreator.id();
+        receivePayerParticipantId = receivePayer.id();
         SettlementParticipant payCreator = SettlementParticipant.registeredUser(
                 paySettlementId, otherUserId, "다른 사람", 0, CREATED_AT
         );
@@ -148,8 +162,76 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(item.totalAmount()).isEqualTo(600L);
             assertThat(item.participantCount()).isEqualTo(2);
             assertThat(item.completedParticipantCount()).isNull();
+            assertThat(item.requestedAt()).isEqualTo(receiveCreatedAt);
             assertThat(item.amountToPay()).isNull();
         });
+    }
+
+    @Test
+    @DisplayName("RECEIVE는 실제 완납 참여자 수와 링크 생성 시각을 조회한다")
+    void loadsCompletedParticipantCountAndRequestedAt() {
+        RequestFixture request = insertReceiveRequest(600L);
+        insertDeposit(request.shareId(), 300L);
+
+        var partiallyPaid = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS
+        );
+
+        assertThat(partiallyPaid).singleElement().satisfies(item -> {
+            assertThat(item.completedParticipantCount()).isZero();
+            assertThat(item.requestedAt()).isEqualTo(request.requestedAt());
+        });
+
+        insertDeposit(request.shareId(), 300L);
+
+        var fullyPaid = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS
+        );
+
+        assertThat(fullyPaid).singleElement()
+                .extracting(item -> item.completedParticipantCount())
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("RECEIVE 완료 인원에서 생성자 본인 Share를 제외한다")
+    void excludesCreatorShareFromCompletedParticipantCount() {
+        RequestFixture request = insertReceiveRequest(600L);
+        UUID creatorShareId = UUID.randomUUID();
+        settlementShareJpaRepository.saveAndFlush(new SettlementShareJpaEntity(
+                creatorShareId,
+                receiveSettlementId,
+                receiveCreatorParticipantId,
+                100L,
+                CREATED_AT
+        ));
+        insertDeposit(creatorShareId, 100L);
+
+        var creatorOnlyPaid = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS
+        );
+
+        assertThat(creatorOnlyPaid).singleElement()
+                .extracting(item -> item.completedParticipantCount())
+                .isEqualTo(0);
+
+        insertDeposit(request.shareId(), 600L);
+
+        var payerPaid = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS
+        );
+
+        assertThat(payerPaid).singleElement()
+                .extracting(item -> item.completedParticipantCount())
+                .isEqualTo(1);
     }
 
     @Test
@@ -198,6 +280,24 @@ class SettlementListPersistenceIntegrationTest {
 
     private void cleanupFixtures() {
         jdbcTemplate.update("""
+                DELETE FROM settlement_deposits
+                 WHERE settlement_id IN (
+                     SELECT id FROM settlements
+                      WHERE creator_id IN (
+                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
+                      )
+                 )
+                """);
+        jdbcTemplate.update("""
+                DELETE FROM account_transactions
+                 WHERE account_id IN (
+                     SELECT id FROM account_records
+                      WHERE user_id IN (
+                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
+                      )
+                 )
+                """);
+        jdbcTemplate.update("""
                 DELETE FROM settlements
                  WHERE creator_id IN (
                      SELECT id FROM users WHERE identity_key LIKE 'list-%'
@@ -222,6 +322,71 @@ class SettlementListPersistenceIntegrationTest {
                  )
                 """);
         jdbcTemplate.update("DELETE FROM users WHERE identity_key LIKE 'list-%'");
+    }
+
+    private RequestFixture insertReceiveRequest(long shareAmount) {
+        jdbcTemplate.update("""
+                INSERT INTO settlement_receiving_account_snapshots (
+                    settlement_id, source_account_id, organization,
+                    account_number_ciphertext, account_holder, created_at
+                ) VALUES (?, ?, '0020', 'test-snapshot', '받는 사람', ?)
+                """, receiveSettlementId, accountId, CREATED_AT);
+        UUID shareId = UUID.randomUUID();
+        settlementShareJpaRepository.saveAndFlush(new SettlementShareJpaEntity(
+                shareId,
+                receiveSettlementId,
+                receivePayerParticipantId,
+                shareAmount,
+                CREATED_AT
+        ));
+        SettlementLinkJpaEntity link = settlementLinkJpaRepository.saveAndFlush(
+                new SettlementLinkJpaEntity(
+                        UUID.randomUUID(),
+                        receiveSettlementId,
+                        randomExternalKey(),
+                        SettlementLinkStatus.ACTIVE,
+                        LocalDateTime.of(2030, 1, 1, 0, 0)
+                )
+        );
+        return new RequestFixture(shareId, link.getCreatedAt());
+    }
+
+    private void insertDeposit(UUID shareId, long amount) {
+        Long transactionId = jdbcTemplate.queryForObject("""
+                        INSERT INTO account_transactions (
+                            account_id, external_transaction_key, transaction_type, amount,
+                            transacted_at, description, after_balance, created_at, updated_at
+                        ) VALUES (?, ?, 'INCOME', ?, ?, '정산 입금', 100000, ?, ?)
+                        RETURNING id
+                        """,
+                Long.class,
+                accountId,
+                randomExternalKey(),
+                amount,
+                CREATED_AT.plusHours(3),
+                CREATED_AT,
+                CREATED_AT
+        );
+        jdbcTemplate.update("""
+                INSERT INTO settlement_deposits (
+                    id, settlement_id, share_id, source_account_id,
+                    account_transaction_id, matched_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                UUID.randomUUID(),
+                receiveSettlementId,
+                shareId,
+                accountId,
+                transactionId,
+                CREATED_AT.plusHours(3)
+        );
+    }
+
+    private String randomExternalKey() {
+        return UUID.randomUUID().toString().replace("-", "").repeat(2);
+    }
+
+    private record RequestFixture(UUID shareId, LocalDateTime requestedAt) {
     }
 
     private Long insertConnection(Long userId, String uniqueKey) {
