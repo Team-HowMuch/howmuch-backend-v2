@@ -19,7 +19,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
             SELECT
                 settlement.id AS settlementId,
                 settlement.status AS status,
-                COALESCE(link.created_at, settlement.created_at) AT TIME ZONE 'UTC' AS requestedAt,
+                COALESCE(link.created_at, settlement.created_at) AS requestedAt,
                 settlement.total_amount AS totalAmount,
                 creator.name AS requesterName,
                 COUNT(DISTINCT participant.id) AS participantCount,
