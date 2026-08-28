@@ -77,9 +77,9 @@ public class SettlementPersistenceAdapter implements
             SettlementListTab tab
     ) {
         SettlementStatus status = SettlementStatus.valueOf(projection.getStatus());
-        Integer completedParticipantCount = status == SettlementStatus.COMPLETED
-                ? Math.toIntExact(projection.getParticipantCount())
-                : null;
+        Integer completedParticipantCount = projection.getPayableParticipantCount() == null
+                ? null
+                : Math.toIntExact(projection.getCompletedParticipantCount());
         return new SettlementListReadModel(
                 projection.getSettlementId(),
                 status,
