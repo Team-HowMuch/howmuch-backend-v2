@@ -1,11 +1,11 @@
 # Feature Plan: 정산 참여자 선택 및 관리
 
-- Status: In Progress
-- Last updated: 2026-08-23
+- Status: Completed
+- Last updated: 2026-08-28
 - Related issues: [#27 정산 참여자 선택 및 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/27), [#36 정산 참여자 추가·제거 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/36), [#71 정산 참여자 목록 조회 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/71), [#38 정산 참여자 사용자 ID 검색 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/38), [#39 정산 참여자 연락처 일괄 매칭 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/39), [#37 그룹 구성원 조회 Output Port 및 개발 Stub 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/37), [#40 그룹 구성원 기반 정산 참여자 추가 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/40)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
-- Prerequisite: [정산 초안 및 기본 정보 Spec](../completed/settlement-core-spec.md)
+- Prerequisite: [정산 초안 및 기본 정보 Spec](settlement-core-spec.md)
 
 ## 1. Purpose
 
@@ -22,8 +22,8 @@
 - [x] 생성자는 DRAFT 정산에서 자신을 포함한 참여자를 추가·제거할 수 있다.
 - [x] 생성자는 화면 재진입 시 저장된 참여자를 표시 순서대로 다시 조회할 수 있다.
 - [x] 사용자 ID, 연락처, 그룹 구성원이라는 세 경로가 같은 참여자 모델로 저장된다.
-- [ ] 로그인 회원이 공통 링크를 앱에서 열면 사용자 ID로 참여자를 자동 식별할 수 있다.
-- [ ] 비회원 브라우저 흐름에는 표시 이름을 가진 참여자 목록을 제공할 수 있다.
+- [x] 로그인 회원이 공통 링크를 앱에서 열면 사용자 ID로 참여자를 자동 식별할 수 있다.
+- [x] 비회원 브라우저 흐름에는 표시 이름을 가진 참여자 목록을 제공할 수 있다.
 
 ### Out of scope
 
@@ -216,7 +216,7 @@ Authentication: required, creator only
 - Migration pull request: [#80 정산 참여자 영속 스키마 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/80) (Merged)
 - Redis key, TTL, or serialization changes: `settlement:contact-match:quota:requests:{userId}`는 1분, `settlement:contact-match:quota:contacts:{userId}`는 24시간 TTL을 사용하며 숫자만 저장한다.
 - External API or message changes: group 구성원 조회는 `Long groupId`와 활성 `userId` 순서 목록을 반환하는 Output Port로 연결한다.
-- Environment variable or profile changes: `local`, `dev`는 고정 그룹 명단 Stub을 사용하고 `prod`는 실제 group Adapter가 연결되기 전 빈 결과 Adapter로 기동한다.
+- Environment variable or profile changes: 실제 `GroupMemberPersistenceAdapter`가 활성 그룹 구성원을 제공하며 별도 환경별 Stub은 사용하지 않는다.
 
 #36, #71, #38, #39는 기존 V9 스키마와 `users.identity_key`, `users.public_id`를 조회하는 기능이므로 추가 Flyway migration이 필요하지 않다.
 
@@ -272,7 +272,7 @@ Existing behavior that must remain unchanged:
 - [x] #39 연락처 매칭 입력 길이와 사용자별 누적 조회 quota를 적용한다.
 - [x] #37에서 그룹 구성원 조회 Output Port와 개발 Stub을 구현한다.
 - [x] #40에서 그룹 조회·소속 검증과 선택 구성원 추가를 구현한다.
-- [ ] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
+- [x] 요청·링크 Spec과 자동 매칭 계약을 실제 코드로 재검증한다.
 
 ### Expected commit boundaries
 
@@ -333,7 +333,7 @@ git status --short --untracked-files=all
 - [x] 생성자는 본인을 유지한 채 등록 사용자·연락처 참여자를 추가·제거한다.
 - [x] 다른 사용자는 참여자 변경을 할 수 없다.
 - [x] 중복 참여자·생성자 제거·요청됨 이후 수정이 거부된다.
-- [ ] 로그인 회원 링크 진입은 이름 선택 없이 매칭되고, 비회원은 브라우저 이름 선택으로 진행한다.
+- [x] 로그인 회원 링크 진입은 이름 선택 없이 매칭되고, 비회원은 브라우저 이름 선택으로 진행한다.
 
 ### Results
 
@@ -410,8 +410,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on: Pending
-- Final behavior: Pending
+- Completed on: 2026-08-24
+- Final behavior: 생성자는 회원·연락처·그룹 구성원을 정산 참여자로 관리하고, 앱 회원은 공통 링크에서 자동 매칭되며 비회원은 브라우저 표시 이름 선택으로 참여 문맥을 발급받는다.
 - Unverified items: #36 동시 요청의 대기 순서는 별도 부하 테스트하지 않았으며 PostgreSQL 행 잠금과 Unique 제약으로 보호한다.
-- Remaining risks: 실제 group Adapter가 연결되기 전 운영 환경은 그룹 후보를 제공하지 않으며 local·dev Stub은 `groupId`부터 연속된 userId 3명을 명단으로 사용한다.
-- Follow-up work: 요청·링크 Spec의 로그인 회원 자동 매칭과 비회원 브라우저 참여자 선택을 구현한다.
+- Remaining risks: 브라우저 표시 이름 선택은 강한 본인 인증이 아닌 신뢰 기반 MVP다.
+- Follow-up work: 강한 비회원 본인 확인은 실제 요구가 생길 때 별도 기능으로 다룬다.

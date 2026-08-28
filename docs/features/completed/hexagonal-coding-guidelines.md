@@ -1,7 +1,7 @@
 # 기능 계획: group 브랜치 아키텍처 가이드 이식
 
 - 상태: 완료
-- 최종 수정일: 2026-08-20
+- 최종 수정일: 2026-08-28
 - 관련 ADR: [ADR-0001 목적 중심 Port와 Application Policy](../../adr/0001-purpose-oriented-ports.md), [ADR-0002 Framework-neutral StatusCode](../../adr/0002-framework-neutral-status-code.md), [ADR-0003 Capability 중심 Output Port](../../adr/0003-capability-oriented-output-ports.md)
 
 ## 1. 목적

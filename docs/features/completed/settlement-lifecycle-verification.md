@@ -3,7 +3,7 @@
 - Status: Completed
 - Last updated: 2026-08-25
 - Related issue: [#160 정산 수동 중단·재개·삭제 통합 검증](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/160)
-- Related issues: [#158 정산 수동 중단·재개 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/158), [#159 정산 삭제 가능 정책 및 삭제 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/159), [#137 정산 수명주기 상태 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/137)
+- Related issues: [#158 정산 수동 중단·재개 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/158), [#159 정산 삭제 가능 정책 및 삭제 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/159), [#137 정산 수명주기 상태 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/137), [#193 정산 참여 진행 후 삭제 차단 정책 보강](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/193)
 - Related ADR: N/A
 
 ## 1. 목적
@@ -64,7 +64,7 @@ Authentication: bearerAuth
 ## 5. 구현 계획
 
 - [x] #158 Domain·Application·Persistence·Web 계약 구현
-- [x] [#159 Domain·Application·Persistence·Web 계약 구현](settlement-deletion.md)
+- [x] [#159 Domain·Application·Persistence·Web 계약 구현](../active/settlement-deletion.md)
 - [x] 단위·Web·자동 중단 회귀 테스트 작성
 - [x] PostgreSQL cascade·제출 초기화 통합 테스트 작성
 - [x] 누락된 Web 오류 계약 테스트 보강
@@ -123,5 +123,5 @@ git status --short --untracked-files=all
 - Completed on: 2026-08-25
 - Final behavior: #158/#159의 상태 전이·삭제 계약을 PostgreSQL·Redis·전체 테스트·실제 Swagger로 검증했다.
 - Unverified items: 없음
-- Remaining risks: 없음
-- Follow-up work: 없음
+- Remaining risks: #160은 Share 존재를 삭제 차단 기준으로 검증했으며, Share 전 품목 선택·제출 데이터 보호는 포함하지 않았다.
+- Follow-up work: #193 정산 참여 진행 후 삭제 차단 정책 보강

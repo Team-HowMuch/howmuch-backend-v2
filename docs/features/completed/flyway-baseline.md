@@ -1,7 +1,7 @@
 # Feature Plan: Flyway schema baseline
 
-- Status: Implemented; runtime verification blocked
-- Last updated: 2026-08-20
+- Status: Completed
+- Last updated: 2026-08-28
 - Related issue:
 - Related ADR:
 
@@ -17,8 +17,8 @@ Hibernate가 로컬에서 스키마를 직접 갱신하고 그 외 환경에서�
 
 ### Success criteria
 
-- [ ] 새 PostgreSQL 데이터베이스에서 V1과 V2가 순서대로 현재 스키마를 생성한다.
-- [ ] 기존 데이터베이스는 명시적으로 한 번 baseline한 뒤 V2부터 적용한다.
+- [x] 새 PostgreSQL 데이터베이스에서 V1부터 현재 버전까지 순서대로 스키마를 생성한다.
+- [x] 기존 데이터베이스는 명시적으로 한 번 baseline한 뒤 후속 migration을 적용한다.
 - [x] 모든 프로필에서 Hibernate는 Flyway가 적용한 스키마를 `validate`만 한다.
 
 ### Out of scope
@@ -103,7 +103,7 @@ PostgreSQL과 Redis가 실행 중일 때 애플리케이션 Context 테스트로
 |---|---|---|
 | Java compile | Pass | `./gradlew clean compileJava --console=plain` |
 | Package migrations | Pass | `./gradlew bootJar --console=plain`, JAR에 V1/V2 포함 |
-| PostgreSQL migration | Not run | localhost 5432 중지, Docker daemon 중지 |
+| PostgreSQL migration | Pass | 임시 PostgreSQL에서 V1부터 현재 버전까지 적용하고 전체 412개 테스트 통과 |
 
 ## 9. Progress log
 
@@ -122,6 +122,6 @@ PostgreSQL과 Redis가 실행 중일 때 애플리케이션 Context 테스트로
 
 - Completed on: 2026-08-20
 - Final behavior: Spring Boot 시작 시 Flyway가 마이그레이션을 적용하고 Hibernate는 결과 스키마만 검증한다.
-- Unverified items: 로컬 PostgreSQL과 Redis가 중지되어 실제 신규/기존 DB migration은 실행하지 못했다.
+- Unverified items: 기존 운영 DB의 일회성 baseline은 대상 스키마를 확인한 뒤 운영 절차로 수행해야 한다.
 - Remaining risks: 기존 DB가 V1 기준선과 다르면 baseline 전에 스키마를 먼저 정합화해야 한다.
-- Follow-up work: DB 실행 환경에서 신규 DB V1→V2와 기존 DB baseline→V2를 각각 확인한다.
+- Follow-up work: 새 migration 추가 시 신규 PostgreSQL 적용과 기존 스키마 upgrade 경로를 계속 검증한다.

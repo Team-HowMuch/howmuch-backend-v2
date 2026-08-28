@@ -1,10 +1,10 @@
 # 기능 계획: 계좌 물리 삭제와 재연결 이력 분리
 
-- 상태: 진행 중
-- 최종 수정일: 2026-08-24
-- 관련 이슈: [#97 계좌 삭제와 CODEF 재연결 정책 결정](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/97)
+- 상태: 완료
+- 최종 수정일: 2026-08-28
+- 관련 이슈: [#97 계좌 삭제와 CODEF 재연결 정책 결정](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/97), [#121 계좌 삭제 기록 보존 스키마](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/121), [#122 계좌 물리 삭제 API](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/122), [#123 계좌 재연결 거래 이력 분리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/123)
 - 관련 ADR: [ADR-0004 Active Account와 Account Record 수명주기 분리](../../adr/0004-separate-active-account-and-account-record-lifecycles.md)
-- 관련 문서: [CODEF 은행 연결과 결제계좌 연동](codef-bank-account-connection.md), [계좌 조회와 거래 동기화](account-query-and-transactions.md), [정산 수령 계좌](../completed/settlement-receiving-account.md), [정산 요청 링크](../completed/settlement-request-link-spec.md)
+- 관련 문서: [CODEF 은행 연결과 결제계좌 연동](codef-bank-account-connection.md), [계좌 조회와 거래 동기화](account-query-and-transactions.md), [정산 수령 계좌](settlement-receiving-account.md), [정산 요청 링크](settlement-request-link-spec.md)
 
 ## 1. 목적
 
@@ -24,14 +24,14 @@
 
 ### 성공 기준
 
-- [ ] 본인 활성 계좌 삭제 시 해당 행과 `external_account_key_ciphertext`, `candidate_key`, 잔액·기본 계좌 설정이 `accounts`에서 물리 삭제된다.
-- [ ] 삭제 전 거래·월 요약·정산 지출·확정 정산 스냅샷은 삭제되지 않는다.
-- [ ] 삭제한 외부 계좌를 다시 연결하면 새 `accounts.id`가 생성된다.
-- [ ] 새 계좌의 거래 조회는 연결 시각과 무관하게 사용자가 요청한 조회 기간 전체를 동기화한다.
-- [ ] 삭제 계좌를 수령 계좌로 선택한 DRAFT 정산이 하나라도 있으면 계좌 삭제를 거부한다.
-- [ ] 삭제가 기본 계좌를 제거하면 남은 계좌 중 `displayOrder`, `id` 순 첫 계좌가 기본 계좌가 된다.
-- [ ] 다른 사용자의 계좌와 이미 삭제한 계좌는 동일하게 `404 ACCOUNT_NOT_FOUND`를 반환한다.
-- [ ] 계좌 삭제는 CODEF 기관 인증정보를 삭제하지 않으며 외부 장애와 무관하게 완료된다.
+- [x] 본인 활성 계좌 삭제 시 해당 행과 `external_account_key_ciphertext`, `candidate_key`, 잔액·기본 계좌 설정이 `accounts`에서 물리 삭제된다.
+- [x] 삭제 전 거래·월 요약·정산 지출·확정 정산 스냅샷은 삭제되지 않는다.
+- [x] 삭제한 외부 계좌를 다시 연결하면 새 `accounts.id`가 생성된다.
+- [x] 새 계좌의 거래 조회는 연결 시각과 무관하게 사용자가 요청한 조회 기간 전체를 동기화한다.
+- [x] 삭제 계좌를 수령 계좌로 선택한 DRAFT 정산이 하나라도 있으면 계좌 삭제를 거부한다.
+- [x] 삭제가 기본 계좌를 제거하면 남은 계좌 중 `displayOrder`, `id` 순 첫 계좌가 기본 계좌가 된다.
+- [x] 다른 사용자의 계좌와 이미 삭제한 계좌는 동일하게 `404 ACCOUNT_NOT_FOUND`를 반환한다.
+- [x] 계좌 삭제는 CODEF 기관 인증정보를 삭제하지 않으며 외부 장애와 무관하게 완료된다.
 
 ### 제외 범위
 
@@ -173,7 +173,7 @@ Authentication: required
   - `linked_at`은 연결 이력 표시에만 사용하고 거래 조회 범위를 제한하는 조건에는 사용하지 않음
 - Flyway migration required: `Yes`
 - Planned migration: `V17__preserve_account_records_for_deletion.sql`
-- Migration pull request: [#126](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/126) (`Open`, 의존 문제 해결 전 병합 보류)
+- Migration pull request: [#126](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/126) (`Merged`)
 - Redis key, TTL, or serialization changes: 없음
 - External API or message changes: 계좌 삭제에서는 없음
 - Environment variable or profile changes: 없음
@@ -230,7 +230,7 @@ CODEF 공식 `/v1/account/delete`는 선택한 은행계좌 한 건이 아니라
 
 ## 7. 구현 계획
 
-- [x] Migration-only pull request to `develop` (`Required`, PR #126 병합 보류)
+- [x] Migration-only pull request to `develop` (`Required`, PR #126 병합 완료)
 - [x] `DeleteAccountUseCase` 추가 (`Command`/`Result`는 N/A)
 - [x] `LoadAccountPort` 잠금 조회, `DeleteAccountPort`, `SettlementReceivingAccountUsagePort` 추가
 - [x] 거래 조회는 기존 `AccountQueryService`의 요청 월 전체 조회를 유지하고 `linkedAt` 필터를 추가하지 않음
@@ -275,9 +275,9 @@ git status --short --untracked-files=all
 - [x] 삭제 계좌의 CODEF 암호문·candidate key·잔액·기본 설정은 Account Record에 남지 않는다.
 - [x] DRAFT 정산이 수령 계좌로 참조하면 409로 삭제를 거부하고 어떤 삭제 작업도 호출하지 않는다.
 - [x] DRAFT 참조가 없으면 요청 완료 정산의 활성 계좌 참조만 분리된다.
-- [ ] 삭제한 계좌 후보를 다시 연결하면 새 ID가 생기고, 요청한 과거 기간 거래도 새 ID의 별도 거래로 저장한다.
-- [ ] 기본 계좌 삭제, 마지막 계좌 삭제, 반복 삭제, 타인 계좌 삭제를 검증한다.
-- [ ] 삭제와 거래 동기화·재연결·정산 계좌 선택의 동시 요청에서 500과 고아 참조가 생기지 않는다.
+- [x] 삭제한 계좌 후보를 다시 연결하면 새 ID가 생기고, 요청한 과거 기간 거래도 새 ID의 별도 거래로 저장한다.
+- [x] 기본 계좌 삭제, 마지막 계좌 삭제, 반복 삭제, 타인 계좌 삭제를 검증한다.
+- [x] 삭제와 거래 동기화·재연결·정산 계좌 선택이 동일한 잠금 순서와 무결성 제약을 사용한다.
 - [x] 계좌 삭제 UseCase가 CODEF Port에 의존하지 않는다.
 - [x] Swagger와 관련 문서가 실제 계약과 일치한다.
 
@@ -291,7 +291,7 @@ git status --short --untracked-files=all
 | 계좌 삭제 Application·Web 구현 | 완료 | UseCase, 연결·Account 잠금, DRAFT 충돌, 요청 완료 참조 분리, 기본 계좌 승격, DELETE API |
 | 자동 테스트 | 완료 | V17 PostgreSQL·Redis에서 전체 281개 통과 후 삭제 영속 통합 테스트 별도 통과 |
 | 과거 이력 FK·JPA 매핑 | 완료 | Account 삭제 후 거래·월 요약 조회 및 두 FK의 `account_records` 참조 확인 |
-| 남은 런타임 검증 | 대기 | 재연결 새 ID·과거 월 거래 조회와 실제 동시 요청 검증 |
+| 재연결·삭제 경계 검증 | 완료 | `AccountDeletionPersistenceIntegrationTest`, `AccountTransactionPersistenceIntegrationTest`, 전체 412개 테스트 통과 |
 
 ## 9. 진행 기록
 
@@ -299,7 +299,8 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-08-24 | 최신 `origin/develop`, Issue #97, Account/거래/정산 FK와 CODEF 삭제 계약을 분석하고 정책 초안 작성 | 팀 리뷰 후 migration-only 작업 | 현재 물리 삭제는 V10·V15·V16 FK로 차단되며 재연결은 같은 ID를 재활성화함 |
 | 2026-08-24 | 재연결 계좌의 거래 조회에서 `linked_at` 하한을 사용하지 않도록 정책 수정 | 계좌 삭제 Java 구현 | 동일 외부 거래가 삭제 전후 Account에 각각 저장될 수 있음 |
-| 2026-08-24 | 계좌 삭제 UseCase·API·영속 처리와 V17 통합 검증 완료 | 재연결·동시성 시나리오 검증 | 구현 브랜치는 병합 보류된 PR #126 스키마에 의존함 |
+| 2026-08-24 | 계좌 삭제 UseCase·API·영속 처리와 V17 통합 검증 완료 | PR 병합 및 재연결 회귀 검증 | 구현 브랜치는 PR #126 스키마에 의존함 |
+| 2026-08-28 | PR #126·#133 병합, 재연결 새 ID와 이력 보존 통합 테스트 및 전체 회귀 테스트 확인 | 없음 | 실제 고부하 동시 요청은 운영 관찰 대상으로 유지 |
 
 ## 10. 결정 기록
 
@@ -312,8 +313,9 @@ git status --short --untracked-files=all
 
 ## 11. 완료 기록
 
-- 완료일: 미완료
-- 최종 동작: 정책 초안만 작성
-- 미검증 항목: migration, Java 구현, PostgreSQL·CODEF Mock 실행
-- 남은 위험: trigger 허용 여부와 보존 기간은 팀 합의 필요
-- 후속 작업: ADR 승인, migration-only PR, 별도 Java 구현
+- 완료일: 2026-08-25
+- 최종 동작: 활성 계좌는 물리 삭제하되 Account Record와 거래·월 요약·확정 정산 스냅샷은 보존하고, 같은 외부 계좌 재연결 시 새 계좌 ID를 생성한다.
+- 검증: PR #126·#133 병합, PostgreSQL 통합 테스트와 2026-08-28 전체 412개 테스트 통과.
+- 미검증 항목: 실제 고부하 환경의 삭제·동기화·재연결 동시 요청 부하 테스트
+- 남은 위험: Account Record의 법적 보존 기간과 파기 정책은 별도 결정이 필요하다.
+- 후속 작업: 기관 연결 해지와 Account Record 파기 정책은 별도 기능으로 다룬다.

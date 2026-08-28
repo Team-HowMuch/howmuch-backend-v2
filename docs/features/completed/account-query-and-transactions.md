@@ -1,7 +1,7 @@
 # 기능 계획: 연결 계좌 조회와 소비내역
 
-- 상태: 구현 및 검증 완료, migration PR merge 대기
-- 최종 수정일: 2026-08-23
+- 상태: 완료
+- 최종 수정일: 2026-08-28
 - 상위 이슈: [#87 연결 계좌 조회와 소비내역 제공](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/87)
 - 하위 이슈: [#88 스키마](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/88), [#89 기본 계좌·순서](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/89), [#90 목록](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/90), [#91 상세](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/91), [#92 CODEF 거래 Adapter](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/92), [#93 거래 영속화](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/93), [#94 월 요약](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/94), [#95 거래 조회](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/95), [#96 검증](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/96), [#97 삭제 정책](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/97)
 - 관련 기능: [CODEF 은행 연결과 결제계좌 연동](codef-bank-account-connection.md)
@@ -220,7 +220,7 @@ Response item:
   - 활성 기본 계좌를 사용자별 하나로 제한하는 PostgreSQL partial unique index
   - `account_transactions` 생성과 `(account_id, external_transaction_key)` Unique 제약
   - `account_monthly_summaries` 생성과 `(account_id, year_month)` Unique 제약
-- Migration pull request: [#99 build(database): 계좌 표시 정보와 거래 요약 스키마 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/99)
+- Migration pull request: [#104 build: 계좌 표시 정보와 거래 요약 스키마 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/104) (`Merged`)
 - Redis 변경: 없음
 - CODEF:
   - `POST /v1/kr/bank/p/account/transaction-list`
@@ -325,7 +325,7 @@ git status --short --untracked-files=all
 | 항목 | 결과 | 근거 |
 |---|---|---|
 | 설계 근거 조사 | 완료 | 현재 v2 연결 흐름, v1 참고 구현, CODEF 공식 샘플, 개발 Mock 비교 |
-| Flyway migration | 완료 | migration-only PR [#99](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/99), PostgreSQL V1~V10 적용 확인 |
+| Flyway migration | 완료 | migration-only PR [#104](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/104), PostgreSQL V1~V10 적용 확인 |
 | Java 구현 | 완료 | 계좌 목록·상세·거래 API, CODEF Adapter, 거래·요약 Persistence 구현 |
 | 자동 검증 | 완료 | 계좌 Application·Web·CODEF 단위 테스트와 PostgreSQL 통합 테스트, 전체 92개 테스트 통과 |
 | 실행 검증 | 완료 | 개발 Mock과 임시 PostgreSQL에서 연결·연동·목록·상세·거래·반복 조회와 OpenAPI 확인 |
@@ -361,7 +361,7 @@ git status --short --untracked-files=all
 - 완료일: 2026-08-23
 - 최종 동작: 인증 사용자가 연결 계좌를 필터·정렬해 조회하고, 요청 월 요약이 없을 때만 CODEF 수시입출 거래를 적재·집계한 뒤 상세와 최신순 거래내역을 조회한다.
 - 검증: 임시 PostgreSQL에 V1~V10 적용, 전체 92개 테스트, 개발 Mock 기반 실제 HTTP 흐름과 OpenAPI 확인.
-- 배포 전제: migration PR #99가 먼저 `develop`에 merge되어야 한다.
+- 배포 전제: migration PR #104와 구현 PR #100이 `develop`에 병합되었다.
 - 미검증 항목:
 - 남은 위험:
 - 후속 작업:

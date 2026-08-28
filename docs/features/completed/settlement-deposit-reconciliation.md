@@ -1,10 +1,10 @@
 # Feature Plan: 정산 입금 대조 및 종료
 
-- Status: In Progress
-- Last updated: 2026-08-25
+- Status: Completed
+- Last updated: 2026-08-28
 - Related issues: [#136 정산 입금 상태 확인 및 종료 처리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/136), [#154 계약 및 상태 전이 설계](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/154), [#155 입금 상태 및 이력 스키마](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/155), [#156 입금 대조 및 완료 전환](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/156), [#157 Swagger 및 통합 검증](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/157)
 - Related ADR: N/A
-- Prerequisite: [정산 요청 링크 및 Share 확정](../completed/settlement-request-link-spec.md)
+- Prerequisite: [정산 요청 링크 및 Share 확정](settlement-request-link-spec.md)
 
 ## 1. Purpose
 
@@ -274,7 +274,7 @@ Migration PR 단계에서 V1~V20 신규 적용, 기존 V19 데이터 위 V20 적
 - [x] 정상·부분·모호·중복·초과 입금 흐름을 검증했다.
 - [x] 다른 Settlement, Share, 계좌 거래가 연결되지 않음을 검증했다.
 - [x] 모든 납부 대상 Share가 정확히 확인된 경우에만 `COMPLETED`가 됨을 검증했다.
-- [ ] Swagger와 실제 HTTP 응답이 일치한다.
+- [x] Swagger와 실제 HTTP 응답이 일치한다.
 
 ### Results
 
@@ -286,7 +286,7 @@ Migration PR 단계에서 V1~V20 신규 적용, 기존 V19 데이터 위 V20 적
 | Java·HTTP 구현 | Complete | #156 범위의 대조·조회 UseCase, JPA Adapter, API와 Swagger 구현 |
 | 핵심 단위 검증 | Complete | 정상 완료, 부분 입금, 모호·초과·소수 금액 거부, 완료 후 멱등 재조회 |
 | 전체 회귀 검증 | Complete | 임시 PostgreSQL 18.3·Redis 7에서 404개 테스트 전체 통과 후 컨테이너 제거 |
-| 전용 HTTP·Persistence 통합 시나리오 | Pending | #157에서 실제 행 저장, OpenAPI 경로와 오류 응답 고정 |
+| 전용 HTTP·Persistence 통합 시나리오 | Complete | #157 종료, 입금 연결 영속·OpenAPI·오류 응답과 전체 412개 테스트 통과 |
 
 ## 9. Progress log
 
@@ -319,8 +319,8 @@ Migration PR 단계에서 V1~V20 신규 적용, 기존 V19 데이터 위 V20 적
 
 ## 11. Completion record
 
-- Completed on: Pending
-- Final behavior: Pending
+- Completed on: 2026-08-26
+- Final behavior: 생성자가 입금 대조를 실행하면 같은 외부 계좌 생명주기의 중복 거래를 차단하면서 안전하게 일치한 입금만 Share에 연결하고, 모든 납부 대상이 확인되면 정산을 완료한다.
 - Unverified items: 실제 CODEF 입금 설명 필드의 운영 형식과 이름 매칭 성공률
 - Remaining risks: 이름이 없는 거래, 동명이인, 초과 입금은 MVP에서 자동 확인되지 않는다.
-- Follow-up work: #138 정산 상세 납부 현황, 목록의 실제 완료 참여자 수 연결
+- Follow-up work: 목록의 실제 완료 참여자 수는 #192 구현으로 연결한다.

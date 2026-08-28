@@ -1,7 +1,7 @@
 # Feature Plan: CODEF 설정 변경 보호와 로컬 대체 서버
 
-- Status: Implemented and verified
-- Last updated: 2026-08-20
+- Status: Completed
+- Last updated: 2026-08-28
 - Related issue: [#20 외부 계좌 API 연동](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/20)
 - Related plan: [CODEF 은행 연결과 결제계좌 연동](codef-bank-account-connection.md)
 - Related ADR: N/A — CODEF 기능 내부의 운영 안전장치와 개발 도구다.

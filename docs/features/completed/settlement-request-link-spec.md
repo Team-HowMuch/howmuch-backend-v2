@@ -5,7 +5,7 @@
 - Related issue: [#26 정산 요청 링크 및 수금 계좌 설정](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/26)
 - Related ADR: N/A
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
-- Prerequisites: [정산 초안 및 기본 정보 Spec](settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](../active/settlement-participants-spec.md), [정산 지출 및 금액 배분 Spec](../active/settlement-expense-allocation-spec.md)
+- Prerequisites: [정산 초안 및 기본 정보 Spec](settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](settlement-participants-spec.md), [정산 지출 및 금액 배분 Spec](settlement-expense-allocation-spec.md)
 - Completed increment: [정산 수령 계좌 조회와 선택](settlement-receiving-account.md)
 
 ## 1. Purpose
@@ -216,7 +216,7 @@ Response: { shareId, amount, recipientBankCode, recipientAccountNumber }
 Authentication: public link and LinkParticipantContext required
 ~~~
 
-공개 품목 선택 API는 [정산 지출 및 금액 배분 Spec](../active/settlement-expense-allocation-spec.md)의 endpoint를 사용하며, 동일한 Link-Participant-Context를 요구한다. 앱 자동 매칭 성공 시에도 서버가 해당 참여자용 문맥을 발급해 공개 후속 API 권한을 일관되게 처리한다.
+공개 품목 선택 API는 [정산 지출 및 금액 배분 Spec](settlement-expense-allocation-spec.md)의 endpoint를 사용하며, 동일한 Link-Participant-Context를 요구한다. 앱 자동 매칭 성공 시에도 서버가 해당 참여자용 문맥을 발급해 공개 후속 API 권한을 일관되게 처리한다.
 
 ### Persistence and external integrations
 

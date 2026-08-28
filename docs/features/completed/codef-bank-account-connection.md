@@ -1,7 +1,7 @@
 # 기능 계획: CODEF 은행 연결과 결제계좌 연동
 
-- 상태: 구현 및 PostgreSQL 검증 완료
-- 최종 수정일: 2026-08-23
+- 상태: 완료
+- 최종 수정일: 2026-08-28
 - 관련 이슈: [#20 외부 결제수단 API 연동](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/20), [#102 동일 은행 재연결 시 CODEF 인증정보 갱신](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/102), [codef-mock-server #1 기관별 로그인 매핑 수정](https://github.com/Team-HowMuch/codef-mock-server/issues/1)
 - 관련 명세: [Notion `SYNC-001`](https://app.notion.com/p/35a6e559a65082788f0d81a89b1c221f)
 - 관련 ADR: [목적 중심 Port](../../adr/0001-purpose-oriented-ports.md), [Framework-neutral StatusCode](../../adr/0002-framework-neutral-status-code.md), [Capability 중심 Output Port](../../adr/0003-capability-oriented-output-ports.md)

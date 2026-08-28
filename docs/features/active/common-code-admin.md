@@ -1,8 +1,8 @@
 # 기능 계획: 공통 코드 관리자
 
-- 상태: Draft
-- 최종 수정일: 2026-08-23
-- 기준 브랜치: `develop`과 동일한 `c9790fc`
+- 상태: 부분 구현 - 관리자 Persistence 통합·브라우저 E2E 검증 대기
+- 최종 수정일: 2026-08-28
+- 기준 브랜치: `develop`
 - 관련 이슈: #22
 - 관련 ADR: [목적 중심 Port](../../adr/0001-purpose-oriented-ports.md), [Framework-neutral StatusCode](../../adr/0002-framework-neutral-status-code.md), [Capability 중심 Output Port](../../adr/0003-capability-oriented-output-ports.md)
 
@@ -20,16 +20,16 @@
 
 ### 성공 기준
 
-- [ ] `ADMIN` 사용자가 그룹을 검색·조회할 수 있다.
-- [ ] `GET /admin/common-codes`에서 Thymeleaf 관리자 화면을 열 수 있다.
+- [x] `ADMIN` 사용자가 그룹을 검색·조회할 수 있다.
+- [x] `GET /admin/common-codes`에서 Thymeleaf 관리자 화면을 열 수 있다.
 - [ ] 화면에서 기존 로그인 API로 관리자 인증을 하고, 그룹·상세 편집 기능을 사용할 수 있다.
-- [ ] `ADMIN` 사용자가 그룹을 생성하고 `attr1Name`~`attr3Name`을 설정할 수 있다.
-- [ ] `ADMIN` 사용자가 상세 코드의 `name`, `description`, `attr1`~`attr3`, `active`, `sortOrder`를 수정할 수 있다.
-- [ ] 한 화면의 저장 요청으로 그룹 정보와 상세 변경사항이 하나의 트랜잭션에서 저장된다.
-- [ ] 일반 사용자는 관리자 API에 접근할 수 없고 `403 FORBIDDEN`을 받는다.
-- [ ] 동일 그룹을 다른 관리자가 먼저 저장한 경우 기존 변경사항을 덮어쓰지 않고 `409`로 거부한다.
-- [ ] 그룹 또는 상세를 비활성화해도 물리 삭제 없이 기존 참조를 보존한다.
-- [ ] 공개 공통 코드 조회와 `BankCatalog`는 활성 그룹·활성 상세만 반환한다.
+- [x] `ADMIN` 사용자가 그룹을 생성하고 `attr1Name`~`attr3Name`을 설정할 수 있다.
+- [x] `ADMIN` 사용자가 상세 코드의 `name`, `description`, `attr1`~`attr3`, `active`, `sortOrder`를 수정할 수 있다.
+- [x] 한 화면의 저장 요청으로 그룹 정보와 상세 변경사항이 하나의 트랜잭션에서 저장된다.
+- [x] 일반 사용자는 관리자 API에 접근할 수 없고 `403 FORBIDDEN`을 받는다.
+- [x] 동일 그룹을 다른 관리자가 먼저 저장한 경우 기존 변경사항을 덮어쓰지 않고 `409`로 거부한다.
+- [x] 그룹 또는 상세를 비활성화해도 물리 삭제 없이 기존 참조를 보존한다.
+- [x] 공개 공통 코드 조회와 `BankCatalog`는 활성 그룹·활성 상세만 반환한다.
 
 ### 제외 범위
 
@@ -358,7 +358,7 @@ git status --short --untracked-files=all
 | 현재 공통 코드 스키마 확인 | Complete | `V5__create_common_code.sql`, `V6__create_bank_common_code.sql` |
 | 관리자 API 계약 | Complete | `CommonCodeAdminController`, `CommonCodeAdminDocs`, Web DTO |
 | Thymeleaf 관리자 화면 | Complete | `common-codes.html`, `common-codes.js`, `common-codes.css` |
-| PostgreSQL/JPA 매핑 | Pending | PostgreSQL 미기동으로 Hibernate validation 미실행 |
+| PostgreSQL/JPA 매핑 | Complete | 임시 PostgreSQL에서 전체 412개 테스트와 Hibernate schema validation 통과 |
 | 권한·동시성 테스트 | Complete | `CommonCodeAdminServiceTest` |
 
 ## 9. 진행 기록
@@ -367,6 +367,7 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-08-23 | `develop` 병합 결과가 이미 최신 상태임을 확인하고, 선행 공통 코드·`BankCatalog` 구현을 기준으로 관리자 계약을 재작성 | 계약 검토 후 구현 | 별도 프론트엔드 프로젝트 없이 Thymeleaf shell과 REST API 조합으로 구현 |
 | 2026-08-23 | 관리자 API·JPA 매핑·Thymeleaf 화면과 Service 단위 테스트 구현 | PostgreSQL 환경에서 통합 검증 및 브라우저 수동 확인 | 전체 테스트는 PostgreSQL 연결 실패로 통합 테스트 6개가 실행되지 않음 |
+| 2026-08-28 | 임시 PostgreSQL·Redis에서 전체 412개 테스트와 schema validation 통과 확인 | 실제 관리자 브라우저 수동 검증은 필요 시 수행 | 관리자 전용 Persistence 통합 테스트는 별도로 추가하지 않음 |
 
 ## 10. 결정 로그
 
@@ -378,3 +379,11 @@ git status --short --untracked-files=all
 | 2026-08-23 | ADMIN 권한은 Application Service에서 확인 | 현재 JWT Authentication에는 `NO_AUTHORITIES`만 설정되어 있음 | 권한 종류가 늘면 Security authority 구조를 별도 설계 |
 | 2026-08-23 | 관리자 화면은 현재 Spring 앱의 Thymeleaf로 구현 | 별도 프론트엔드 프로젝트와 배포 구성을 만들지 않고 기존 REST 계약을 재사용할 수 있음 | 화면이 복잡해지거나 독립 배포가 필요해지면 별도 frontend로 분리 |
 | 2026-08-23 | 신규 그룹 JPA `revision`은 null로 시작 | `@Version` 값을 미리 넣으면 Hibernate가 detached entity로 판단해 `persist()`를 거부함 | Hibernate가 신규 version을 생성하고 기존 그룹은 DB의 현재 revision을 사용 |
+
+## 11. 완료 기록
+
+- 완료일: 미완료
+- 최종 동작: ADMIN 사용자가 공통 코드 그룹과 상세를 조회·생성·수정하고, 그룹 revision으로 동시 편집 충돌을 방지한다.
+- 검증: Service·Controller 테스트, 임시 PostgreSQL·Redis 전체 412개 테스트와 schema validation 통과. 관리자 전용 Persistence 통합·브라우저 E2E는 미수행.
+- 미검증 항목: 관리자 그룹·상세 저장의 실제 PostgreSQL 통합 테스트와 브라우저 로그인·편집·저장 E2E
+- 남은 위험: 관리자 화면 규모가 커지면 전체 상세 PUT 계약의 payload와 편집 충돌 범위를 재검토해야 한다.

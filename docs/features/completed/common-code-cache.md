@@ -179,7 +179,7 @@ Existing behavior that must remain unchanged:
 - [x] Application Policies: `N/A` — 변경 없음
 - [x] Application Service: `N/A` — 호출 흐름 유지
 - [x] Output Adapters: CommonCode 조회 캐시와 저장 후 무효화
-- [ ] Web Request/Response DTOs, Controllers, and Swagger: `N/A` — API 계약 변경 없음
+- [x] Web Request/Response DTOs, Controllers, and Swagger: `N/A` — API 계약 변경 없음
 - [x] Infra configuration and Bean wiring: `CommonCodeCacheConfig`에서 `@EnableCaching` 활성화 및 Caffeine 자동 설정
 - [x] Documentation and verification results
 

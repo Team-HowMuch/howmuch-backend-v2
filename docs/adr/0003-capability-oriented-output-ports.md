@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-13
 - Decision owners: HowMuch Backend
-- Related Feature Plan: [Hexagonal coding guidelines](../features/active/hexagonal-coding-guidelines.md)
+- Related Feature Plan: [Hexagonal coding guidelines](../features/completed/hexagonal-coding-guidelines.md)
 - Supersedes: The mandatory Load/Save naming rule in [ADR-0001](0001-purpose-oriented-ports.md)
 - Superseded by:
 
