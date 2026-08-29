@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.web.user.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
+import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.RegisterPushTargetWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.UpdateMyProfileRequest;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.response.MyProfileWebResponse;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -57,4 +58,48 @@ public interface UserDocs {
             )
     })
     ApiResponse<MyProfileWebResponse> updateMyProfile(UpdateMyProfileRequest request);
+
+    @Operation(
+            summary = "내 앱 푸시 대상 등록",
+            description = "현재 앱의 Firebase installation ID를 단일 푸시 대상으로 등록합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "앱 푸시 대상 등록 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Firebase installation ID 형식 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "PUSH_TARGET_REGISTRATION_CONFLICT - 동시 등록 충돌"
+            )
+    })
+    ApiResponse<Void> registerPushTarget(RegisterPushTargetWebRequest request);
+
+    @Operation(
+            summary = "내 앱 푸시 대상 해제",
+            description = "현재 로그인한 사용자의 앱 푸시 대상을 해제합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "앱 푸시 대상 해제 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            )
+    })
+    ApiResponse<Void> clearPushTarget();
 }

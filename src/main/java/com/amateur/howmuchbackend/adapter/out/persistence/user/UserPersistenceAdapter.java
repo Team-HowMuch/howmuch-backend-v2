@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.MatchContactUsersPort;
 import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.UserPushTargetStorePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -14,13 +15,19 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
-public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort, SearchUserPort, MatchContactUsersPort {
+public class UserPersistenceAdapter implements
+        LoadUserPort,
+        SaveUserPort,
+        SearchUserPort,
+        MatchContactUsersPort,
+        UserPushTargetStorePort {
     private final UserJpaRepository userJpaRepository;
 
     @Override
@@ -115,6 +122,21 @@ public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort, Searc
         }
     }
 
+    @Override
+    public boolean claim(Long userId, String firebaseInstallationId, LocalDateTime now) {
+        try {
+            userJpaRepository.releaseFcmToken(userId, firebaseInstallationId, now);
+            return userJpaRepository.assignFcmToken(userId, firebaseInstallationId, now) == 1;
+        } catch (DataIntegrityViolationException exception) {
+            throw translateConstraintViolation(exception);
+        }
+    }
+
+    @Override
+    public boolean clear(Long userId, LocalDateTime now) {
+        return userJpaRepository.clearFcmToken(userId, now) == 1;
+    }
+
     private RuntimeException translateConstraintViolation(DataIntegrityViolationException exception) {
         if (hasConstraint(exception, "uk_users_public_id")) {
             return ApplicationException.of(UserStatusCode.PUBLIC_ID_ALREADY_EXISTS, exception);
@@ -122,6 +144,12 @@ public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort, Searc
         if (hasConstraint(exception, "uk_users_phone_number")
                 || hasConstraint(exception, "uk_users_identity_key")) {
             return ApplicationException.of(AuthStatusCode.PHONE_NUMBER_ALREADY_REGISTERED, exception);
+        }
+        if (hasConstraint(exception, "uk_users_fcm_token")) {
+            return ApplicationException.of(
+                    UserStatusCode.PUSH_TARGET_REGISTRATION_CONFLICT,
+                    exception
+            );
         }
         return exception;
     }

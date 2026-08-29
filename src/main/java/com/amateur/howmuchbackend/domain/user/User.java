@@ -23,6 +23,8 @@ public record User(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
+    public static final int MAX_FCM_TARGET_LENGTH = 255;
+
     public static User register(
             String identityKey,
             String name,
@@ -99,4 +101,5 @@ public record User(
                 now
         );
     }
+
 }
