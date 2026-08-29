@@ -54,6 +54,12 @@ class SettlementOpenApiIntegrationTest {
                 "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
                 "viewerRole", "creatorName", "paymentSummary", "participants"
         );
+        assertRequired(
+                document,
+                "SettlementReminderWebResponse",
+                "remindedAt", "nextAvailableAt"
+        );
+        assertRequired(document, "RegisterPushTargetWebRequest", "firebaseInstallationId");
         assertNullable(
                 document,
                 "SettlementListItemWebResponse",
