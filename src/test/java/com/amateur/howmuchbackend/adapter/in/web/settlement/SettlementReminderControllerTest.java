@@ -1,6 +1,8 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
+import com.amateur.howmuchbackend.application.port.in.settlement.RemindAllSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemindSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementBulkReminderResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementReminderResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,21 +29,22 @@ class SettlementReminderControllerTest {
     private static final UUID PARTICIPANT_ID = UUID.fromString("09ac164a-35d6-4549-bff4-b7b4c375d2aa");
     private static final LocalDateTime REMINDED_AT = LocalDateTime.of(2026, 8, 29, 9, 0);
 
-    @Mock private RemindSettlementParticipantUseCase useCase;
+    @Mock private RemindSettlementParticipantUseCase remindUseCase;
+    @Mock private RemindAllSettlementParticipantsUseCase remindAllUseCase;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(
-                new SettlementReminderController(useCase)
+                new SettlementReminderController(remindUseCase, remindAllUseCase)
         ).build();
     }
 
     @Test
     @DisplayName("정산과 참여자 UUID를 전달하고 다음 독촉 가능 시각을 반환한다")
     void remindsParticipant() throws Exception {
-        when(useCase.remind(SETTLEMENT_ID, PARTICIPANT_ID)).thenReturn(
+        when(remindUseCase.remind(SETTLEMENT_ID, PARTICIPANT_ID)).thenReturn(
                 new SettlementReminderResult(REMINDED_AT, REMINDED_AT.plusMinutes(30))
         );
 
@@ -55,6 +58,24 @@ class SettlementReminderControllerTest {
                 .andExpect(jsonPath("$.data.remindedAt").value("2026-08-29T09:00:00"))
                 .andExpect(jsonPath("$.data.nextAvailableAt").value("2026-08-29T09:30:00"));
 
-        verify(useCase).remind(SETTLEMENT_ID, PARTICIPANT_ID);
+        verify(remindUseCase).remind(SETTLEMENT_ID, PARTICIPANT_ID);
+    }
+
+    @Test
+    @DisplayName("미납 참여자 전체 독촉 후 실제 발송 수를 반환한다")
+    void remindsAllParticipants() throws Exception {
+        when(remindAllUseCase.remindAll(SETTLEMENT_ID)).thenReturn(
+                new SettlementBulkReminderResult(3)
+        );
+
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/reminders",
+                        SETTLEMENT_ID
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.sentCount").value(3));
+
+        verify(remindAllUseCase).remindAll(SETTLEMENT_ID);
     }
 }

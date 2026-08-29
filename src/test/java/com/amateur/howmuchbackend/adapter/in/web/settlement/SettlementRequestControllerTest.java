@@ -1,6 +1,8 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementShareLinkUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RequestSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementShareLinkResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestPhase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestResult;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
@@ -17,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,13 +31,17 @@ class SettlementRequestControllerTest {
     private static final LocalDateTime EXPIRES_AT = LocalDateTime.of(2026, 9, 23, 10, 0);
 
     @Mock private RequestSettlementUseCase requestSettlementUseCase;
+    @Mock private GetSettlementShareLinkUseCase getSettlementShareLinkUseCase;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(
-                new SettlementRequestController(requestSettlementUseCase)
+                new SettlementRequestController(
+                        requestSettlementUseCase,
+                        getSettlementShareLinkUseCase
+                )
         ).build();
     }
 
@@ -64,5 +71,27 @@ class SettlementRequestControllerTest {
                 .andExpect(jsonPath("$.data.expiresAt").value("2026-09-23T10:00:00"))
                 .andExpect(jsonPath("$.data.allocationPhase").value("TRANSFER_READY"))
                 .andExpect(jsonPath("$.data.status").value("AWAITING_DEPOSIT"));
+    }
+
+    @Test
+    @DisplayName("진행 중인 정산의 공유 URL과 만료 시각을 반환한다")
+    void getsShareLink() throws Exception {
+        when(getSettlementShareLinkUseCase.get(SETTLEMENT_ID)).thenReturn(
+                new SettlementShareLinkResult(
+                        "https://howmuch.example/settlements/token",
+                        EXPIRES_AT
+                )
+        );
+
+        mockMvc.perform(get(
+                        "/api/v2/settlements/{settlementId}/share-link",
+                        SETTLEMENT_ID
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.url").value(
+                        "https://howmuch.example/settlements/token"
+                ))
+                .andExpect(jsonPath("$.data.expiresAt").value("2026-09-23T10:00:00"));
     }
 }

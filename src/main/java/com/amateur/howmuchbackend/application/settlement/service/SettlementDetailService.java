@@ -137,6 +137,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
             return new SettlementDetailResult.ParticipantPayment(
                     participant.id(),
                     participant.displayName(),
+                    participant.linkedUserId() != null,
                     null,
                     0,
                     SettlementDetailResult.PaymentStatus.NOT_READY
@@ -151,6 +152,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
         return new SettlementDetailResult.ParticipantPayment(
                 participant.id(),
                 participant.displayName(),
+                participant.linkedUserId() != null,
                 share.amount(),
                 confirmedAmount,
                 status

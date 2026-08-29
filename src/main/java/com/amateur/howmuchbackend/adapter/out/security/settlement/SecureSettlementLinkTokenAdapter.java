@@ -33,7 +33,8 @@ public class SecureSettlementLinkTokenAdapter implements SettlementLinkTokenPort
         String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
         return new IssuedSettlementLinkToken(
                 hash(rawToken),
-                properties.baseUrl() + "/" + rawToken,
+                rawToken,
+                url(rawToken),
                 now.plus(properties.ttl())
         );
     }
@@ -50,5 +51,11 @@ public class SecureSettlementLinkTokenAdapter implements SettlementLinkTokenPort
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is not available.", impossible);
         }
+    }
+
+    @Override
+    public String url(String rawToken) {
+        hash(rawToken);
+        return properties.baseUrl() + "/" + rawToken;
     }
 }

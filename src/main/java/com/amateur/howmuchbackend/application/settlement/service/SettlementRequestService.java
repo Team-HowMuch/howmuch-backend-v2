@@ -106,7 +106,7 @@ public class SettlementRequestService implements RequestSettlementUseCase {
                 : requested;
 
         Settlement saved = saveSettlementPort.update(finalized);
-        saveSettlementRequestPort.save(snapshot, shares, link);
+        saveSettlementRequestPort.save(snapshot, shares, link, issuedToken.rawToken());
         return new SettlementRequestResult(
                 saved.id(),
                 issuedToken.url(),

@@ -8,4 +8,6 @@ import java.util.UUID;
 
 public interface SettlementLinkJpaRepository extends JpaRepository<SettlementLinkJpaEntity, UUID> {
     Optional<SettlementLinkJpaEntity> findByTokenHash(String tokenHash);
+
+    Optional<SettlementLinkJpaEntity> findBySettlementId(UUID settlementId);
 }

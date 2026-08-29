@@ -32,8 +32,10 @@ class SecureSettlementLinkTokenAdapterTest {
         );
 
         assertThat(rawToken).hasSize(43).matches("^[A-Za-z0-9_-]+$");
+        assertThat(issued.rawToken()).isEqualTo(rawToken);
         assertThat(issued.tokenHash()).isEqualTo(expectedHash);
         assertThat(issued.url()).startsWith("https://howmuch.example/settlements/");
+        assertThat(adapter.url(rawToken)).isEqualTo(issued.url());
         assertThat(issued.expiresAt()).isEqualTo(NOW.plusDays(7));
     }
 
