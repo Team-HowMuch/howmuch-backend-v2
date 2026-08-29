@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.user;
 
 import com.amateur.howmuchbackend.application.port.in.user.GetMyProfileImageUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.GetMyProfileUseCase;
+import com.amateur.howmuchbackend.application.port.in.user.ManageMyPushTargetUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.UpdateMyProfileUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.command.UpdateMyProfileCommand;
 import com.amateur.howmuchbackend.application.port.in.user.result.MyProfileResult;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -21,9 +23,12 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -41,6 +46,9 @@ class UserControllerTest {
     @Mock
     private UpdateMyProfileUseCase updateMyProfileUseCase;
 
+    @Mock
+    private ManageMyPushTargetUseCase manageMyPushTargetUseCase;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -48,9 +56,14 @@ class UserControllerTest {
         UserController controller = new UserController(
                 getMyProfileUseCase,
                 getMyProfileImageUseCase,
-                updateMyProfileUseCase
+                updateMyProfileUseCase,
+                manageMyPushTargetUseCase
         );
-        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setValidator(validator)
+                .build();
     }
 
     @Test
@@ -85,6 +98,43 @@ class UserControllerTest {
                 ArgumentCaptor.forClass(UpdateMyProfileCommand.class);
         verify(updateMyProfileUseCase).update(commandCaptor.capture());
         assertThat(commandCaptor.getValue().publicId()).isEqualTo("New.ID_1");
+    }
+
+    @Test
+    @DisplayName("Firebase installation ID를 앱 푸시 대상으로 등록한다")
+    void registersPushTarget() throws Exception {
+        mockMvc.perform(put("/api/v2/user/me/push-target")
+                        .contentType("application/json")
+                        .content("""
+                                {"firebaseInstallationId":"firebase-installation-id"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(manageMyPushTargetUseCase).register("firebase-installation-id");
+    }
+
+    @Test
+    @DisplayName("빈 Firebase installation ID는 요청 경계에서 거부한다")
+    void rejectsBlankPushTarget() throws Exception {
+        mockMvc.perform(put("/api/v2/user/me/push-target")
+                        .contentType("application/json")
+                        .content("""
+                                {"firebaseInstallationId":" "}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(manageMyPushTargetUseCase);
+    }
+
+    @Test
+    @DisplayName("앱 푸시 대상을 해제한다")
+    void clearsPushTarget() throws Exception {
+        mockMvc.perform(delete("/api/v2/user/me/push-target"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(manageMyPushTargetUseCase).clear();
     }
 
     private MyProfileResult result(String publicId) {

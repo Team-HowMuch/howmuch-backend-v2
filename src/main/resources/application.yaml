@@ -48,6 +48,9 @@ howmuch:
   profile:
     image:
       storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}
+  notification:
+    firebase:
+      enabled: ${FIREBASE_ENABLED:false}
   codef:
     base-url: ${CODEF_BASE_URL:https://development.codef.io}
     oauth-url: ${CODEF_OAUTH_URL:https://oauth.codef.io/oauth/token}
