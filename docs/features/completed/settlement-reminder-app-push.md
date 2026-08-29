@@ -72,7 +72,7 @@ STL-007과 ALM-STL-002를 충족하려면 앱 회원에게만 동작하는 수�
 
 ### Normal flow
 
-1. 회원 앱이 인증 후 자신의 Firebase installation ID를 등록한다.
+1. 회원 앱이 FCM SDK 등록 콜백에서 받은 Firebase installation ID를 인증 후 등록한다.
 2. 생성자가 미납 참여자 독촉 API를 호출한다.
 3. Application이 정산·참여자·Share·확인 입금액·대상 회원을 조회해 권한과 미납 상태를 검증한다.
 4. Redis Adapter가 `SET NX PX`로 30분 예약을 획득한다.
@@ -163,7 +163,7 @@ Authentication: bearerAuth
 - Planned migration: V23에서 빈 값을 `NULL`로 정리하고 중복 값은 소유자를 추정하지 않고 모두 해제한 뒤 `uk_users_fcm_token`을 추가한다.
 - Migration pull request: [#197](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/197)
 - Redis key, TTL, or serialization changes: `settlement:reminder:{settlementId}:{participantId}`, UUID 문자열, 30분 TTL.
-- External API or message changes: Firebase Admin Java SDK `9.10.0`, FCM 단일 FID 발송.
+- External API or message changes: Firebase Admin Java SDK `9.10.0`, FCM 단일 FID 발송. 클라이언트는 FCM FID 등록 모드를 활성화하고 등록 콜백 값을 전송해야 하며, 일반 Firebase Installations 조회값이나 deprecated registration token을 혼용하지 않는다.
 - Environment variable or profile changes: 운영에서 Application Default Credentials를 위한 `GOOGLE_APPLICATION_CREDENTIALS`와 `FIREBASE_ENABLED=true`. Credential JSON은 저장소에 포함하지 않는다.
 
 ## 5. Design decisions

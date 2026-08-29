@@ -50,6 +50,7 @@ class FirebaseSettlementReminderPushSenderAdapterTest {
         verify(firebaseMessaging).send(messageCaptor.capture());
         assertThat(invoke(messageCaptor.getValue(), "getFid"))
                 .isEqualTo("firebase-installation-id");
+        assertThat(invoke(messageCaptor.getValue(), "getToken")).isNull();
         assertThat(invoke(messageCaptor.getValue(), "getData"))
                 .isEqualTo(Map.of(
                         "type", "SETTLEMENT_REMINDER",

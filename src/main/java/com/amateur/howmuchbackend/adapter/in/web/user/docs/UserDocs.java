@@ -61,7 +61,8 @@ public interface UserDocs {
 
     @Operation(
             summary = "내 앱 푸시 대상 등록",
-            description = "현재 앱의 Firebase installation ID를 단일 푸시 대상으로 등록합니다.",
+            description = "FCM SDK 등록 콜백에서 받은 Firebase installation ID를 "
+                    + "현재 앱의 단일 푸시 대상으로 등록합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
