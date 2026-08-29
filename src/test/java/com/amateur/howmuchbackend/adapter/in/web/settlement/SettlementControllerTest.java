@@ -200,6 +200,7 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data.creatorName").value("최수아"))
                 .andExpect(jsonPath("$.data.viewerRole").value("CREATOR"))
                 .andExpect(jsonPath("$.data.paymentSummary.progressPercent").value(50))
+                .andExpect(jsonPath("$.data.participants[0].linked").value(true))
                 .andExpect(jsonPath("$.data.participants[0].paymentStatus").value("PARTIALLY_PAID"))
                 .andExpect(jsonPath("$.data.creatorId").doesNotExist())
                 .andExpect(jsonPath("$.data.receivingAccountId").doesNotExist());
@@ -796,6 +797,7 @@ class SettlementControllerTest {
                 List.of(new SettlementDetailResult.ParticipantPayment(
                         PARTICIPANT_ID,
                         "김참여",
+                        true,
                         8_000L,
                         4_000,
                         SettlementDetailResult.PaymentStatus.PARTIALLY_PAID

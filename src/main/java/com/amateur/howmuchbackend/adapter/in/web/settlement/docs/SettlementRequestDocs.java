@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementRequestWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementShareLinkWebResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -50,4 +51,35 @@ public interface SettlementRequestDocs {
             )
     })
     ApiResponse<SettlementRequestWebResponse> requestSettlement(UUID settlementId);
+
+    @Operation(
+            summary = "진행 중 정산 공유 링크 조회",
+            description = "정산 생성자가 요청 또는 입금 대기 상태의 활성 공유 URL을 다시 조회합니다. "
+                    + "기존 hash-only 링크 또는 만료 링크는 최초 조회 시 새 링크로 교체합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "공유 링크 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 정산 생성자 아님"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND 또는 SETTLEMENT_LINK_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_SHARE_LINK_NOT_AVAILABLE - 진행 중 활성 링크가 아님"
+            )
+    })
+    ApiResponse<SettlementShareLinkWebResponse> getShareLink(UUID settlementId);
 }

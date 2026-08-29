@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SettlementRequestPersistenceIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 24, 10, 0);
     private static final String ACCOUNT_NUMBER = "1002123456789";
+    private static final String RAW_LINK_TOKEN = "r".repeat(43);
 
     @Autowired private SettlementRequestPersistenceAdapter adapter;
     @Autowired private SettlementPersistenceAdapter settlementPersistenceAdapter;
@@ -59,7 +60,7 @@ class SettlementRequestPersistenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("계좌번호는 암호화하고 참여자별 Share와 token hash만 저장한다")
+    @DisplayName("계좌번호와 공유 토큰은 암호화하고 참여자별 Share와 token hash를 저장한다")
     void savesEncryptedSnapshotSharesAndHashedLink() {
         SettlementReceivingAccountSnapshot snapshot =
                 SettlementReceivingAccountSnapshot.create(
@@ -81,7 +82,7 @@ class SettlementRequestPersistenceIntegrationTest {
                 NOW
         );
 
-        adapter.save(snapshot, shares, link);
+        adapter.save(snapshot, shares, link, RAW_LINK_TOKEN);
 
         String ciphertext = jdbcTemplate.queryForObject(
                 """
@@ -106,6 +107,14 @@ class SettlementRequestPersistenceIntegrationTest {
                 String.class,
                 settlementId
         )).isEqualTo("a".repeat(64));
+        String tokenCiphertext = jdbcTemplate.queryForObject(
+                "SELECT token_ciphertext FROM settlement_links WHERE settlement_id = ?",
+                String.class,
+                settlementId
+        );
+        assertThat(tokenCiphertext).isNotEqualTo(RAW_LINK_TOKEN);
+        assertThat(cipher.decryptSettlementLinkToken(settlementId, tokenCiphertext))
+                .isEqualTo(RAW_LINK_TOKEN);
 
         assertThat(transferInstructionAdapter.findBySettlementId(settlementId))
                 .get()
@@ -168,7 +177,7 @@ class SettlementRequestPersistenceIntegrationTest {
                 NOW.plusDays(30),
                 NOW
         );
-        adapter.save(snapshot, shares, link);
+        adapter.save(snapshot, shares, link, RAW_LINK_TOKEN);
 
         settlementPersistenceAdapter.delete(settlementId);
         settlementJpaRepository.flush();

@@ -13,6 +13,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,7 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @Transactional
 @TestPropertySource(properties = {
-        "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused"
+        "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused",
+        "howmuch.codef.connected-id-encryption-key=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 })
 @DisplayName("공개 정산 링크 조회 영속 흐름")
 class SettlementLinkPersistenceIntegrationTest {
@@ -57,6 +59,21 @@ class SettlementLinkPersistenceIntegrationTest {
         assertThat(loaded.orElseThrow().settlementId()).isEqualTo(settlementId);
         assertThat(loaded.orElseThrow().expiresAt()).isEqualTo(NOW.plusDays(30));
         assertThat(adapter.findByTokenHash("b".repeat(64))).isEmpty();
+
+        LocalDateTime reissuedAt = LocalDateTime.now(ZoneOffset.UTC);
+        adapter.replace(
+                loaded.orElseThrow().reissue(
+                        "b".repeat(64),
+                        reissuedAt.plusDays(30),
+                        reissuedAt
+                ),
+                "r".repeat(43)
+        );
+        entityManager.clear();
+
+        var restored = adapter.findBySettlementId(settlementId).orElseThrow();
+        assertThat(restored.link().tokenHash()).isEqualTo("b".repeat(64));
+        assertThat(restored.rawToken()).isEqualTo("r".repeat(43));
     }
 
     private Long insertUser(String uniqueKey) {

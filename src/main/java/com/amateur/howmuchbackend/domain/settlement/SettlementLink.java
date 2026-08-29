@@ -58,6 +58,25 @@ public record SettlementLink(
         return status == SettlementLinkStatus.ACTIVE && expiresAt.isAfter(now);
     }
 
+    public SettlementLink reissue(
+            String newTokenHash,
+            LocalDateTime newExpiresAt,
+            LocalDateTime now
+    ) {
+        if (status != SettlementLinkStatus.ACTIVE) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND);
+        }
+        return new SettlementLink(
+                id,
+                settlementId,
+                newTokenHash,
+                status,
+                newExpiresAt,
+                createdAt,
+                Objects.requireNonNull(now, "정산 링크 재발급 시각은 필수입니다.")
+        );
+    }
+
     private static void validateTokenHash(String tokenHash) {
         if (tokenHash == null || !TOKEN_HASH_PATTERN.matcher(tokenHash).matches()) {
             throw ApplicationException.of(

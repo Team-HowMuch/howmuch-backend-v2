@@ -30,7 +30,8 @@ public class SettlementRequestPersistenceAdapter implements SaveSettlementReques
     public void save(
             SettlementReceivingAccountSnapshot accountSnapshot,
             List<SettlementShare> shares,
-            SettlementLink link
+            SettlementLink link,
+            String rawLinkToken
     ) {
         accountRepository.findById(accountSnapshot.sourceAccountId())
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
@@ -46,6 +47,9 @@ public class SettlementRequestPersistenceAdapter implements SaveSettlementReques
                     .map(SettlementRequestMapper::toEntity)
                     .toList());
         }
-        linkRepository.saveAndFlush(SettlementRequestMapper.toEntity(link));
+        linkRepository.saveAndFlush(SettlementRequestMapper.toEntity(
+                link,
+                cipher.encryptSettlementLinkToken(link.settlementId(), rawLinkToken)
+        ));
     }
 }

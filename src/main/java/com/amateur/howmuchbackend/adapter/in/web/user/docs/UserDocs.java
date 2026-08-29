@@ -62,7 +62,8 @@ public interface UserDocs {
     @Operation(
             summary = "내 앱 푸시 대상 등록",
             description = "FCM SDK 등록 콜백에서 받은 Firebase installation ID를 "
-                    + "현재 앱의 단일 푸시 대상으로 등록합니다.",
+                    + "현재 앱의 단일 푸시 대상으로 등록합니다. 로그인 또는 세션 복원 직후와 "
+                    + "installation ID 변경 시 호출합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -88,7 +89,8 @@ public interface UserDocs {
 
     @Operation(
             summary = "내 앱 푸시 대상 해제",
-            description = "현재 로그인한 사용자의 앱 푸시 대상을 해제합니다.",
+            description = "현재 로그인한 사용자의 앱 푸시 대상을 해제합니다. "
+                    + "로그아웃 시 인증 토큰을 삭제하기 전에 호출합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({

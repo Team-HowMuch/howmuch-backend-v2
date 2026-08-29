@@ -7,8 +7,11 @@ public interface SettlementLinkTokenPort {
 
     String hash(String rawToken);
 
+    String url(String rawToken);
+
     record IssuedSettlementLinkToken(
             String tokenHash,
+            String rawToken,
             String url,
             LocalDateTime expiresAt
     ) {

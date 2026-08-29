@@ -1,6 +1,8 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.port.in.settlement.RemindAllSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemindSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementBulkReminderResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementReminderResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
@@ -24,11 +26,17 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class SettlementReminderService implements RemindSettlementParticipantUseCase {
+public class SettlementReminderService implements
+        RemindSettlementParticipantUseCase,
+        RemindAllSettlementParticipantsUseCase {
     private static final Duration COOLDOWN = Duration.ofMinutes(30);
 
     private final CurrentActorPort currentActorPort;
@@ -54,12 +62,7 @@ public class SettlementReminderService implements RemindSettlementParticipantUse
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND
                 ));
-        if (participant.linkedUserId() == null
-                || participant.isLinkedTo(settlement.creatorId())) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_LINKED
-            );
-        }
+        validateParticipant(settlement, participant);
 
         SettlementShare share = loadSettlementSharePort
                 .findBySettlementIdAndPayerParticipantId(settlementId, participantId)
@@ -72,20 +75,82 @@ public class SettlementReminderService implements RemindSettlementParticipantUse
                 .filter(amount -> amount.shareId().equals(share.id()))
                 .mapToLong(LoadSettlementDepositSummaryPort.ConfirmedShareAmount::amount)
                 .sum();
-        if (confirmedAmount > 0) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID
-            );
-        }
+        validateUnpaid(share, confirmedAmount);
 
         User target = loadUserPort.findById(participant.linkedUserId())
                 .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
-        if (target.fcmToken() == null || target.fcmToken().isBlank()) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.SETTLEMENT_REMINDER_PUSH_TARGET_NOT_FOUND
-            );
+        validatePushTarget(target);
+
+        return sendReminder(settlementId, participantId, target.fcmToken());
+    }
+
+    @Override
+    public SettlementBulkReminderResult remindAll(UUID settlementId) {
+        Long actorId = currentActorPort.getCurrentActor().userId();
+        Settlement settlement = loadSettlementPort.findById(settlementId)
+                .orElseThrow(() -> ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_NOT_FOUND
+                ));
+        validateSettlement(settlement, actorId);
+
+        List<SettlementParticipant> participants = loadSettlementParticipantPort
+                .findAllBySettlementId(settlementId);
+        Map<UUID, SettlementShare> shareByParticipantId = loadSettlementSharePort
+                .findAllBySettlementId(settlementId)
+                .stream()
+                .collect(Collectors.toMap(
+                        SettlementShare::payerParticipantId,
+                        Function.identity()
+                ));
+        Map<UUID, Long> confirmedByShareId = loadSettlementDepositSummaryPort
+                .findConfirmedShareAmountsBySettlementId(settlementId)
+                .stream()
+                .collect(Collectors.toMap(
+                        LoadSettlementDepositSummaryPort.ConfirmedShareAmount::shareId,
+                        LoadSettlementDepositSummaryPort.ConfirmedShareAmount::amount,
+                        Math::addExact
+                ));
+        List<Long> linkedUserIds = participants.stream()
+                .map(SettlementParticipant::linkedUserId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, User> userById = linkedUserIds.isEmpty()
+                ? Map.of()
+                : loadUserPort.findAllByIds(linkedUserIds).stream()
+                        .collect(Collectors.toMap(User::id, Function.identity()));
+
+        int sentCount = 0;
+        for (SettlementParticipant participant : participants) {
+            try {
+                validateParticipant(settlement, participant);
+                SettlementShare share = shareByParticipantId.get(participant.id());
+                validateUnpaid(
+                        share,
+                        share == null ? 0 : confirmedByShareId.getOrDefault(share.id(), 0L)
+                );
+                User target = userById.get(participant.linkedUserId());
+                if (target == null || !target.active()) {
+                    throw ApplicationException.of(AuthStatusCode.USER_NOT_FOUND);
+                }
+                validatePushTarget(target);
+                sendReminder(settlementId, participant.id(), target.fcmToken());
+                sentCount++;
+            } catch (ApplicationException exception) {
+                if (!isSkippableBulkFailure(exception)) {
+                    throw exception;
+                }
+            }
         }
+        return new SettlementBulkReminderResult(sentCount);
+    }
+
+    private SettlementReminderResult sendReminder(
+            UUID settlementId,
+            UUID participantId,
+            String firebaseInstallationId
+    ) {
 
         LocalDateTime remindedAt = LocalDateTime.now(ZoneOffset.UTC);
         String reservationId = UUID.randomUUID().toString();
@@ -102,7 +167,7 @@ public class SettlementReminderService implements RemindSettlementParticipantUse
 
         try {
             SettlementReminderPushSenderPort.SendResult sendResult = pushSenderPort.send(
-                    target.fcmToken(),
+                    firebaseInstallationId,
                     settlementId
             );
             if (sendResult == SettlementReminderPushSenderPort.SendResult.INVALID_TARGET) {
@@ -116,6 +181,46 @@ public class SettlementReminderService implements RemindSettlementParticipantUse
         }
 
         return new SettlementReminderResult(remindedAt, remindedAt.plus(COOLDOWN));
+    }
+
+    private void validateParticipant(
+            Settlement settlement,
+            SettlementParticipant participant
+    ) {
+        if (participant.linkedUserId() == null
+                || participant.isLinkedTo(settlement.creatorId())) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_LINKED
+            );
+        }
+    }
+
+    private void validateUnpaid(SettlementShare share, long confirmedAmount) {
+        if (share == null || confirmedAmount > 0) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID
+            );
+        }
+    }
+
+    private void validatePushTarget(User target) {
+        if (target.fcmToken() == null || target.fcmToken().isBlank()) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_REMINDER_PUSH_TARGET_NOT_FOUND
+            );
+        }
+    }
+
+    private boolean isSkippableBulkFailure(ApplicationException exception) {
+        return exception.getStatusCode() == AuthStatusCode.USER_NOT_FOUND
+                || exception.getStatusCode()
+                == SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_LINKED
+                || exception.getStatusCode()
+                == SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID
+                || exception.getStatusCode()
+                == SettlementStatusCode.SETTLEMENT_REMINDER_PUSH_TARGET_NOT_FOUND
+                || exception.getStatusCode()
+                == SettlementStatusCode.SETTLEMENT_REMINDER_COOLDOWN_ACTIVE;
     }
 
     private void validateSettlement(Settlement settlement, Long actorId) {

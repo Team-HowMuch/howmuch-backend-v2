@@ -41,15 +41,34 @@ public class SettlementLinkJpaEntity extends BaseTimeJpaEntity {
     @Column(name = "settlement_id", nullable = false, updatable = false)
     private UUID settlementId;
 
-    @Column(name = "token_hash", nullable = false, updatable = false, length = SettlementLink.TOKEN_HASH_LENGTH)
+    @Column(name = "token_hash", nullable = false, length = SettlementLink.TOKEN_HASH_LENGTH)
     private String tokenHash;
+
+    @Column(name = "token_ciphertext", length = 1024)
+    private String tokenCiphertext;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private SettlementLinkStatus status;
 
-    @Column(name = "expires_at", nullable = false, updatable = false)
+    @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
+
+    public SettlementLinkJpaEntity(
+            UUID id,
+            UUID settlementId,
+            String tokenHash,
+            String tokenCiphertext,
+            SettlementLinkStatus status,
+            LocalDateTime expiresAt
+    ) {
+        this.id = id;
+        this.settlementId = settlementId;
+        this.tokenHash = tokenHash;
+        this.tokenCiphertext = tokenCiphertext;
+        this.status = status;
+        this.expiresAt = expiresAt;
+    }
 
     public SettlementLinkJpaEntity(
             UUID id,
@@ -58,10 +77,17 @@ public class SettlementLinkJpaEntity extends BaseTimeJpaEntity {
             SettlementLinkStatus status,
             LocalDateTime expiresAt
     ) {
-        this.id = id;
-        this.settlementId = settlementId;
+        this(id, settlementId, tokenHash, null, status, expiresAt);
+    }
+
+    public void replaceToken(
+            String tokenHash,
+            String tokenCiphertext,
+            LocalDateTime expiresAt
+    ) {
         this.tokenHash = tokenHash;
-        this.status = status;
+        this.tokenCiphertext = tokenCiphertext;
+        this.status = SettlementLinkStatus.ACTIVE;
         this.expiresAt = expiresAt;
     }
 }

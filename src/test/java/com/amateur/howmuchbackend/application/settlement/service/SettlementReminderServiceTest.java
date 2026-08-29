@@ -48,6 +48,7 @@ class SettlementReminderServiceTest {
     private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
     private static final UUID PARTICIPANT_ID = UUID.fromString("09ac164a-35d6-4549-bff4-b7b4c375d2aa");
     private static final UUID SHARE_ID = UUID.fromString("063338bb-bc17-471a-b917-723f37788857");
+    private static final UUID UNLINKED_PARTICIPANT_ID = UUID.fromString("ee3c8674-7d99-4fe3-bf21-154ed54b532a");
     private static final Long CREATOR_ID = 1L;
     private static final Long PAYER_ID = 2L;
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 29, 9, 0);
@@ -96,6 +97,33 @@ class SettlementReminderServiceTest {
                 .isEqualTo(Duration.ofMinutes(30));
         verify(pushSenderPort).send("firebase-installation-id", SETTLEMENT_ID);
         verify(cooldownPort, never()).release(any(), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("전체 독촉은 발송 가능한 미납 회원만 보내고 실제 발송 수를 반환한다")
+    void sendsBulkRemindersToEligibleParticipants() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(participant(), unlinkedParticipant()));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(share()));
+        when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+        when(loadUserPort.findAllByIds(List.of(PAYER_ID))).thenReturn(List.of(user()));
+        when(cooldownPort.reserve(
+                eq(SETTLEMENT_ID),
+                eq(PARTICIPANT_ID),
+                anyString(),
+                eq(Duration.ofMinutes(30))
+        )).thenReturn(true);
+        when(pushSenderPort.send("firebase-installation-id", SETTLEMENT_ID))
+                .thenReturn(SettlementReminderPushSenderPort.SendResult.SENT);
+
+        var result = service.remindAll(SETTLEMENT_ID);
+
+        assertThat(result.sentCount()).isEqualTo(1);
+        verify(pushSenderPort).send("firebase-installation-id", SETTLEMENT_ID);
     }
 
     @Test
@@ -228,6 +256,21 @@ class SettlementReminderServiceTest {
                 null,
                 "참여자",
                 1,
+                NOW,
+                NOW
+        );
+    }
+
+    private SettlementParticipant unlinkedParticipant() {
+        return new SettlementParticipant(
+                UNLINKED_PARTICIPANT_ID,
+                SETTLEMENT_ID,
+                SettlementParticipantSource.CONTACT,
+                null,
+                "c".repeat(64),
+                null,
+                "비회원",
+                2,
                 NOW,
                 NOW
         );

@@ -82,6 +82,22 @@ public class CodefSecretCipher {
                 && ciphertext.startsWith(SETTLEMENT_SNAPSHOT_VERSION);
     }
 
+    public String encryptSettlementLinkToken(UUID settlementId, String rawToken) {
+        return encrypt(
+                SETTLEMENT_SNAPSHOT_VERSION,
+                "settlement-link:" + settlementId,
+                rawToken
+        );
+    }
+
+    public String decryptSettlementLinkToken(UUID settlementId, String ciphertext) {
+        return decrypt(
+                SETTLEMENT_SNAPSHOT_VERSION,
+                "settlement-link:" + settlementId,
+                ciphertext
+        );
+    }
+
     private String encrypt(String version, String aad, String plaintext) {
         byte[] nonce = new byte[NONCE_BYTES];
         SECURE_RANDOM.nextBytes(nonce);

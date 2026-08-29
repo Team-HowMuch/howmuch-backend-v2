@@ -49,6 +49,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,6 +63,7 @@ class SettlementRequestServiceTest {
     private static final UUID PAYER_PARTICIPANT_ID = UUID.fromString("e4049b4f-1c0a-4c63-b88e-3bdaee853679");
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 24, 10, 0);
     private static final LocalDateTime EXPIRES_AT = LocalDateTime.of(2026, 9, 23, 10, 0);
+    private static final String RAW_LINK_TOKEN = "r".repeat(43);
 
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadSettlementPort loadSettlementPort;
@@ -119,7 +121,8 @@ class SettlementRequestServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<SettlementShare>> sharesCaptor = ArgumentCaptor.forClass(List.class);
         verify(saveSettlementRequestPort).save(
-                snapshotCaptor.capture(), sharesCaptor.capture(), any()
+                snapshotCaptor.capture(), sharesCaptor.capture(), any(),
+                eq(RAW_LINK_TOKEN)
         );
         assertThat(snapshotCaptor.getValue().accountNumber()).isEqualTo("1002123456789");
         assertThat(snapshotCaptor.getValue().accountHolder()).isEqualTo("최수아");
@@ -149,7 +152,10 @@ class SettlementRequestServiceTest {
         assertThat(result.allocationPhase()).isEqualTo(SettlementRequestPhase.ITEM_SELECTION);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<SettlementShare>> sharesCaptor = ArgumentCaptor.forClass(List.class);
-        verify(saveSettlementRequestPort).save(any(), sharesCaptor.capture(), any());
+        verify(saveSettlementRequestPort).save(
+                any(), sharesCaptor.capture(), any(),
+                eq(RAW_LINK_TOKEN)
+        );
         assertThat(sharesCaptor.getValue()).isEmpty();
         verify(allocationStorePort, never()).findAllBySettlementId(any());
     }
@@ -176,7 +182,7 @@ class SettlementRequestServiceTest {
                                 SettlementStatusCode.SETTLEMENT_REQUEST_RECEIVING_ACCOUNT_REQUIRED
                         ));
         verify(linkTokenPort, never()).issue(any());
-        verify(saveSettlementRequestPort, never()).save(any(), any(), any());
+        verify(saveSettlementRequestPort, never()).save(any(), any(), any(), any());
     }
 
     @Test
@@ -218,6 +224,7 @@ class SettlementRequestServiceTest {
         when(linkTokenPort.issue(any())).thenReturn(
                 new SettlementLinkTokenPort.IssuedSettlementLinkToken(
                         "a".repeat(64),
+                        RAW_LINK_TOKEN,
                         "https://howmuch.example/settlements/token",
                         EXPIRES_AT
                 )

@@ -44,6 +44,7 @@ public record SettlementDetailResult(
     public record ParticipantPayment(
             UUID participantId,
             String displayName,
+            boolean linked,
             Long expectedAmount,
             long confirmedAmount,
             PaymentStatus paymentStatus

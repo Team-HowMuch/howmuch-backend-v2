@@ -10,6 +10,7 @@ public interface SaveSettlementRequestPort {
     void save(
             SettlementReceivingAccountSnapshot accountSnapshot,
             List<SettlementShare> shares,
-            SettlementLink link
+            SettlementLink link,
+            String rawLinkToken
     );
 }

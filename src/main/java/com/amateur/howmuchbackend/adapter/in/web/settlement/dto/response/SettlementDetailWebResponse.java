@@ -68,11 +68,12 @@ public record SettlementDetailWebResponse(
     }
 
     @Schema(requiredProperties = {
-            "participantId", "displayName", "expectedAmount", "confirmedAmount", "paymentStatus"
+            "participantId", "displayName", "linked", "expectedAmount", "confirmedAmount", "paymentStatus"
     })
     public record ParticipantPayment(
             UUID participantId,
             String displayName,
+            boolean linked,
             @Schema(nullable = true)
             Long expectedAmount,
             long confirmedAmount,
@@ -84,6 +85,7 @@ public record SettlementDetailWebResponse(
             return new ParticipantPayment(
                     result.participantId(),
                     result.displayName(),
+                    result.linked(),
                     result.expectedAmount(),
                     result.confirmedAmount(),
                     result.paymentStatus()

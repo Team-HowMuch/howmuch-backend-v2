@@ -59,11 +59,15 @@ public final class SettlementRequestMapper {
         );
     }
 
-    public static SettlementLinkJpaEntity toEntity(SettlementLink link) {
+    public static SettlementLinkJpaEntity toEntity(
+            SettlementLink link,
+            String tokenCiphertext
+    ) {
         return new SettlementLinkJpaEntity(
                 link.id(),
                 link.settlementId(),
                 link.tokenHash(),
+                tokenCiphertext,
                 link.status(),
                 link.expiresAt()
         );
