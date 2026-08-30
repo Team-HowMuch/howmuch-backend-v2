@@ -32,7 +32,8 @@ public class GroupResultAssembler {
                 memberCount,
                 group.inviteCode(),
                 groupInviteLinkPort.create(group.inviteCode()),
-                member.role()
+                member.role(),
+                group.createdAt()
         );
     }
 

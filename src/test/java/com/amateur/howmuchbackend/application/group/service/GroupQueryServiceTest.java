@@ -79,6 +79,7 @@ class GroupQueryServiceTest {
         assertThat(result.memberCount()).isEqualTo(3);
         assertThat(result.myRole()).isEqualTo(GroupMemberRole.OWNER);
         assertThat(result.inviteCode()).isEqualTo("AB12CD34");
+        assertThat(result.createdAt()).isEqualTo(group.createdAt());
     }
 
     @Test

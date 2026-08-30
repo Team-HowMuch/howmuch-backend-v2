@@ -104,7 +104,8 @@ class GroupOpenApiIntegrationTest {
                 "memberCount",
                 "inviteCode",
                 "inviteUrl",
-                "myRole"
+                "myRole",
+                "createdAt"
         );
         assertSchemaProperties(
                 document,
