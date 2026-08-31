@@ -86,6 +86,7 @@ class SettlementExpenseTest {
     void rejectsUpdateForImportedExpense() {
         SettlementExpense imported = SettlementExpense.paymentHistory(
                 SETTLEMENT_ID,
+                1L,
                 "  transaction-key  ",
                 "카드 결제",
                 42_000,
@@ -94,6 +95,7 @@ class SettlementExpenseTest {
         );
 
         assertThat(imported.sourceReference()).isEqualTo("transaction-key");
+        assertThat(imported.sourceAccountId()).isEqualTo(1L);
         assertThatThrownBy(() -> imported.updateManual("변경", null, NOW.plusMinutes(1)))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
@@ -126,6 +128,7 @@ class SettlementExpenseTest {
                 SETTLEMENT_ID,
                 SettlementExpenseSource.MANUAL,
                 "transaction-key",
+                null,
                 "카드 결제",
                 42_000,
                 0,
@@ -141,6 +144,7 @@ class SettlementExpenseTest {
                 SETTLEMENT_ID,
                 SettlementExpenseSource.PAYMENT_HISTORY,
                 null,
+                1L,
                 "카드 결제",
                 42_000,
                 0,

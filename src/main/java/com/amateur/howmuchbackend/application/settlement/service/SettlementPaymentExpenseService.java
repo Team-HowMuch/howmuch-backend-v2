@@ -69,6 +69,7 @@ public class SettlementPaymentExpenseService implements
                 .findAllBySettlementId(settlement.id())
                 .stream()
                 .filter(expense -> expense.source() == SettlementExpenseSource.PAYMENT_HISTORY)
+                .filter(expense -> accountId.equals(expense.sourceAccountId()))
                 .map(SettlementExpense::sourceReference)
                 .collect(Collectors.toSet());
         return loadAccountTransactionPort.findByAccountIdAndYearMonth(accountId, targetMonth)
@@ -99,11 +100,13 @@ public class SettlementPaymentExpenseService implements
                         SettlementStatusCode.SETTLEMENT_PAYMENT_TRANSACTION_NOT_FOUND
                 ));
         ensureImportable(transaction);
-        if (loadSettlementExpensePort.existsBySettlementIdAndSourceAndSourceReference(
-                settlement.id(),
-                SettlementExpenseSource.PAYMENT_HISTORY,
-                transaction.externalTransactionKey()
-        )) {
+        if (loadSettlementExpensePort
+                .existsBySettlementIdAndSourceAndSourceAccountIdAndSourceReference(
+                        settlement.id(),
+                        SettlementExpenseSource.PAYMENT_HISTORY,
+                        command.accountId(),
+                        transaction.externalTransactionKey()
+                )) {
             throw ApplicationException.of(
                     SettlementStatusCode.SETTLEMENT_EXPENSE_ALREADY_IMPORTED
             );
@@ -111,6 +114,7 @@ public class SettlementPaymentExpenseService implements
 
         SettlementExpense expense = SettlementExpense.paymentHistory(
                 settlement.id(),
+                command.accountId(),
                 transaction.externalTransactionKey(),
                 description(transaction.description()),
                 wonAmount(transaction),

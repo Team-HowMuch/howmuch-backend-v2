@@ -42,6 +42,8 @@ class SettlementExpensePersistenceIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     private Long creatorId;
+    private Long sourceAccountId;
+    private Long otherSourceAccountId;
     private UUID settlementId;
 
     @BeforeEach
@@ -75,6 +77,8 @@ class SettlementExpensePersistenceIntegrationTest {
                 CREATED_AT,
                 CREATED_AT
         );
+        sourceAccountId = insertAccountRecord("결제 계좌");
+        otherSourceAccountId = insertAccountRecord("다른 결제 계좌");
         settlementId = UUID.randomUUID();
         Settlement settlement = new Settlement(
                 settlementId,
@@ -91,6 +95,11 @@ class SettlementExpensePersistenceIntegrationTest {
     @AfterEach
     void tearDown() {
         jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", settlementId);
+        jdbcTemplate.update(
+                "DELETE FROM account_records WHERE id IN (?, ?)",
+                sourceAccountId,
+                otherSourceAccountId
+        );
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", creatorId);
     }
 
@@ -150,10 +159,11 @@ class SettlementExpensePersistenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("V13 외부 참조를 저장하고 같은 정산의 동일 결제내역 중복을 409로 변환한다")
+    @DisplayName("V25 원본 계좌를 저장하고 계좌별 결제내역 중복을 409로 변환한다")
     void savesSourceReferenceAndRejectsDuplicateImport() {
         SettlementExpense imported = SettlementExpense.paymentHistory(
                 settlementId,
+                sourceAccountId,
                 "a".repeat(64),
                 "카드 결제",
                 42_000,
@@ -164,25 +174,58 @@ class SettlementExpensePersistenceIntegrationTest {
         SettlementExpense saved = settlementExpensePersistenceAdapter.save(imported);
 
         assertThat(saved.sourceReference()).isEqualTo("a".repeat(64));
+        assertThat(saved.sourceAccountId()).isEqualTo(sourceAccountId);
         assertThat(settlementExpensePersistenceAdapter
-                .existsBySettlementIdAndSourceAndSourceReference(
+                .existsBySettlementIdAndSourceAndSourceAccountIdAndSourceReference(
                         settlementId,
                         saved.source(),
+                        sourceAccountId,
                         saved.sourceReference()
                 )).isTrue();
+        assertThat(settlementExpensePersistenceAdapter.save(
+                SettlementExpense.paymentHistory(
+                        settlementId,
+                        otherSourceAccountId,
+                        "a".repeat(64),
+                        "다른 계좌의 같은 거래 Key",
+                        42_000,
+                        1,
+                        CREATED_AT
+                )
+        ).sourceAccountId()).isEqualTo(otherSourceAccountId);
         assertThatThrownBy(() -> settlementExpensePersistenceAdapter.save(
                 SettlementExpense.paymentHistory(
                         settlementId,
+                        sourceAccountId,
                         "a".repeat(64),
                         "같은 카드 결제",
                         42_000,
-                        1,
+                        2,
                         CREATED_AT
                 )
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(
                         SettlementStatusCode.SETTLEMENT_EXPENSE_ALREADY_IMPORTED
                 ));
+    }
+
+    private Long insertAccountRecord(String name) {
+        Long id = jdbcTemplate.queryForObject(
+                "SELECT nextval(pg_get_serial_sequence('accounts', 'id'))",
+                Long.class
+        );
+        jdbcTemplate.update("""
+                        INSERT INTO account_records (
+                            id, user_id, organization, type, name, masked_number, currency,
+                            linked_at
+                        ) VALUES (?, ?, '0020', 'DEPOSIT_TRUST', ?, '****0000', 'KRW', ?)
+                        """,
+                id,
+                creatorId,
+                name,
+                CREATED_AT
+        );
+        return id;
     }
 
     private SettlementExpense manualExpense(String description, long amount, int displayOrder) {

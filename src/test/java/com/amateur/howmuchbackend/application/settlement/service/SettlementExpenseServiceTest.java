@@ -273,6 +273,7 @@ class SettlementExpenseServiceTest {
         givenOwnedDraftForUpdate();
         SettlementExpense expense = SettlementExpense.paymentHistory(
                 SETTLEMENT_ID,
+                1L,
                 "transaction-key",
                 "카드 결제",
                 42_000,

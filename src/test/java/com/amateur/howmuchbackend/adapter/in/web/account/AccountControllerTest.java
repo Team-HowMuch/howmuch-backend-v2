@@ -10,10 +10,13 @@ import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUs
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountDetailResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountSummaryResult;
+import com.amateur.howmuchbackend.application.port.in.account.result.AccountTransactionResult;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
+import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -98,6 +102,37 @@ class AccountControllerTest {
                 .andExpect(jsonPath("$.data.yearMonth").value("2026-08"))
                 .andExpect(jsonPath("$.data.monthlyExpenseAmount").value(12500.0000))
                 .andExpect(jsonPath("$.data.expenseCount").value(1));
+    }
+
+    @Test
+    @DisplayName("거래내역에 연결 정산 배열을 반환한다")
+    void getsAccountTransactionsWithSettlements() throws Exception {
+        YearMonth august = YearMonth.of(2026, 8);
+        UUID settlementId = UUID.fromString("13000000-0000-4000-8000-000000001001");
+        when(getAccountTransactionsUseCase.getAccountTransactions(1L, august)).thenReturn(List.of(
+                new AccountTransactionResult(
+                        11L,
+                        AccountTransactionType.EXPENSE,
+                        new BigDecimal("12000"),
+                        LocalDateTime.of(2026, 8, 20, 0, 15),
+                        "식당",
+                        new BigDecimal("100000"),
+                        List.of(new AccountTransactionResult.SettlementSummary(
+                                settlementId,
+                                "점심 정산",
+                                SettlementStatus.AWAITING_DEPOSIT
+                        ))
+                )
+        ));
+
+        mockMvc.perform(get("/api/v2/accounts/1/transactions")
+                        .param("yearMonth", "2026-08"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].settlements[0].settlementId")
+                        .value(settlementId.toString()))
+                .andExpect(jsonPath("$.data[0].settlements[0].title").value("점심 정산"))
+                .andExpect(jsonPath("$.data[0].settlements[0].status")
+                        .value("AWAITING_DEPOSIT"));
     }
 
     @Test

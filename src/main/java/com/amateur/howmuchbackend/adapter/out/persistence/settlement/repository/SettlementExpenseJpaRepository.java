@@ -37,4 +37,11 @@ public interface SettlementExpenseJpaRepository
             SettlementExpenseSource source,
             String sourceReference
     );
+
+    boolean existsBySettlementIdAndSourceAndSourceAccountIdAndSourceReference(
+            UUID settlementId,
+            SettlementExpenseSource source,
+            Long sourceAccountId,
+            String sourceReference
+    );
 }

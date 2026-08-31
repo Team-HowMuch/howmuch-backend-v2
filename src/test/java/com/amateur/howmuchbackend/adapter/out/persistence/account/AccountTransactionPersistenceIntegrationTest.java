@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 @SpringBootTest
 @TestPropertySource(properties = {
@@ -49,6 +50,9 @@ class AccountTransactionPersistenceIntegrationTest {
     private Long userId;
     private Long connectionId;
     private Long accountId;
+    private Long foreignUserId;
+    private Long otherAccountRecordId;
+    private Long foreignAccountRecordId;
 
     @BeforeEach
     void setUp() {
@@ -102,6 +106,28 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        jdbcTemplate.update("""
+                DELETE FROM settlement_expenses
+                 WHERE settlement_id IN (SELECT id FROM settlements WHERE creator_id = ?)
+                """, userId);
+        jdbcTemplate.update("DELETE FROM settlements WHERE creator_id = ?", userId);
+        if (foreignUserId != null) {
+            jdbcTemplate.update("""
+                    DELETE FROM settlement_expenses
+                     WHERE settlement_id IN (SELECT id FROM settlements WHERE creator_id = ?)
+                    """, foreignUserId);
+            jdbcTemplate.update("DELETE FROM settlements WHERE creator_id = ?", foreignUserId);
+            if (foreignAccountRecordId != null) {
+                jdbcTemplate.update(
+                        "DELETE FROM account_records WHERE id = ?",
+                        foreignAccountRecordId
+                );
+            }
+            jdbcTemplate.update("DELETE FROM users WHERE id = ?", foreignUserId);
+        }
+        if (otherAccountRecordId != null) {
+            jdbcTemplate.update("DELETE FROM account_records WHERE id = ?", otherAccountRecordId);
+        }
         jdbcTemplate.update("DELETE FROM account_monthly_summaries WHERE account_id = ?", accountId);
         jdbcTemplate.update("DELETE FROM account_transactions WHERE account_id = ?", accountId);
         jdbcTemplate.update("DELETE FROM accounts WHERE id = ?", accountId);
@@ -145,6 +171,70 @@ class AccountTransactionPersistenceIntegrationTest {
             assertThat(summary.expenseCount()).isZero();
             assertThat(summary.lastUsedAt()).isNull();
         });
+    }
+
+    @Test
+    @DisplayName("거래 Key에 연결된 여러 정산을 생성자와 원본 계좌 범위에서 조회한다")
+    void loadsLinkedSettlementsForTransactions() {
+        String transactionKey = "g".repeat(64);
+        UUID olderSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001001");
+        UUID newerSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001002");
+        UUID foreignSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001003");
+        UUID otherAccountSettlementId = UUID.fromString(
+                "13000000-0000-4000-8000-000000001004"
+        );
+        LocalDateTime older = LocalDateTime.of(2026, 8, 20, 0, 0);
+        LocalDateTime newer = LocalDateTime.of(2026, 8, 21, 0, 0);
+        insertSettlement(olderSettlementId, "점심 정산", "AWAITING_DEPOSIT", older);
+        insertSettlement(newerSettlementId, "여행 정산", "COMPLETED", newer);
+        otherAccountRecordId = insertAccountRecord(userId, "다른 계좌");
+        insertSettlement(
+                otherAccountSettlementId,
+                "다른 계좌 정산",
+                "AWAITING_DEPOSIT",
+                newer.plusHours(1)
+        );
+        foreignUserId = insertUser("foreign-account-transaction");
+        foreignAccountRecordId = insertAccountRecord(foreignUserId, "다른 사용자 계좌");
+        insertSettlement(
+                foreignSettlementId,
+                foreignUserId,
+                "다른 사용자 정산",
+                "AWAITING_DEPOSIT",
+                newer.plusDays(1)
+        );
+        insertPaymentExpense(olderSettlementId, accountId, transactionKey, older);
+        insertPaymentExpense(newerSettlementId, accountId, transactionKey, newer);
+        insertPaymentExpense(
+                otherAccountSettlementId,
+                otherAccountRecordId,
+                transactionKey,
+                newer.plusHours(1)
+        );
+        insertPaymentExpense(
+                foreignSettlementId,
+                foreignAccountRecordId,
+                transactionKey,
+                newer.plusDays(1)
+        );
+
+        var links = adapter.findLinkedSettlements(
+                userId,
+                accountId,
+                List.of(transactionKey, "h".repeat(64))
+        );
+
+        assertThat(links)
+                .extracting(
+                        link -> link.settlementId(),
+                        link -> link.title(),
+                        link -> link.status().name()
+                )
+                .containsExactly(
+                        tuple(newerSettlementId, "여행 정산", "COMPLETED"),
+                        tuple(olderSettlementId, "점심 정산", "AWAITING_DEPOSIT")
+                );
+        assertThat(adapter.findLinkedSettlements(userId, accountId, List.of())).isEmpty();
     }
 
     @Test
@@ -219,6 +309,97 @@ class AccountTransactionPersistenceIntegrationTest {
         return new Transaction(
                 null, accountId, key, type, new BigDecimal(amount), transactedAt, "테스트 거래",
                 new BigDecimal("1000000")
+        );
+    }
+
+    private void insertSettlement(
+            UUID settlementId,
+            String title,
+            String status,
+            LocalDateTime now
+    ) {
+        insertSettlement(settlementId, userId, title, status, now);
+    }
+
+    private void insertSettlement(
+            UUID settlementId,
+            Long creatorId,
+            String title,
+            String status,
+            LocalDateTime now
+    ) {
+        jdbcTemplate.update("""
+                        INSERT INTO settlements (
+                            id, creator_id, title, total_amount, allocation_type, status,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, 10000, 'DUTCH_PAY', ?, ?, ?)
+                """,
+                settlementId,
+                creatorId,
+                title,
+                status,
+                now,
+                now
+        );
+    }
+
+    private Long insertUser(String prefix) {
+        String unique = UUID.randomUUID().toString();
+        LocalDateTime now = LocalDateTime.of(2026, 8, 23, 0, 0);
+        return jdbcTemplate.queryForObject("""
+                        INSERT INTO users (
+                            identity_key, name, public_id, phone_number, pin_hash, phone_verified,
+                            role, active, required_terms_agreed_at, created_at, updated_at
+                        ) VALUES (?, '다른 사용자', ?, ?, 'not-used', TRUE, 'USER', TRUE, ?, ?, ?)
+                        RETURNING id
+                        """,
+                Long.class,
+                prefix + "-" + unique,
+                "foreign_" + unique.replace("-", "").substring(0, 12),
+                "foreign-" + unique.substring(0, 12),
+                now,
+                now,
+                now
+        );
+    }
+
+    private Long insertAccountRecord(Long ownerId, String name) {
+        Long id = jdbcTemplate.queryForObject(
+                "SELECT nextval(pg_get_serial_sequence('accounts', 'id'))",
+                Long.class
+        );
+        jdbcTemplate.update("""
+                        INSERT INTO account_records (
+                            id, user_id, organization, type, name, masked_number, currency,
+                            linked_at
+                        ) VALUES (?, ?, '0020', 'DEPOSIT_TRUST', ?, '****0000', 'KRW', ?)
+                        """,
+                id,
+                ownerId,
+                name,
+                LocalDateTime.of(2026, 8, 23, 0, 0)
+        );
+        return id;
+    }
+
+    private void insertPaymentExpense(
+            UUID settlementId,
+            Long sourceAccountId,
+            String transactionKey,
+            LocalDateTime now
+    ) {
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_expenses (
+                            id, settlement_id, source, source_reference, source_account_id,
+                            description, amount, display_order, created_at, updated_at
+                        ) VALUES (?, ?, 'PAYMENT_HISTORY', ?, ?, '테스트 거래', 10000, 0, ?, ?)
+                        """,
+                UUID.randomUUID(),
+                settlementId,
+                transactionKey,
+                sourceAccountId,
+                now,
+                now
         );
     }
 }
