@@ -7,6 +7,9 @@ import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransact
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetBankCatalogUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.SetDefaultAccountUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.UpdateAccountDisplayOrderUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.command.UpdateAccountDisplayOrderCommand;
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountDetailResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountSummaryResult;
@@ -25,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.http.MediaType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -37,6 +41,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -50,6 +55,8 @@ class AccountControllerTest {
     @Mock private GetAccountDetailUseCase getAccountDetailUseCase;
     @Mock private GetAccountTransactionsUseCase getAccountTransactionsUseCase;
     @Mock private DeleteAccountUseCase deleteAccountUseCase;
+    @Mock private SetDefaultAccountUseCase setDefaultAccountUseCase;
+    @Mock private UpdateAccountDisplayOrderUseCase updateAccountDisplayOrderUseCase;
 
     private MockMvc mockMvc;
 
@@ -62,7 +69,9 @@ class AccountControllerTest {
                 getAccountsUseCase,
                 getAccountDetailUseCase,
                 getAccountTransactionsUseCase,
-                deleteAccountUseCase
+                deleteAccountUseCase,
+                setDefaultAccountUseCase,
+                updateAccountDisplayOrderUseCase
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -150,6 +159,38 @@ class AccountControllerTest {
                 .andExpect(status().isOk());
 
         verify(deleteAccountUseCase).delete(1L);
+    }
+
+    @Test
+    @DisplayName("기본 결제수단을 설정하고 빈 성공 응답을 반환한다")
+    void setsDefaultAccount() throws Exception {
+        mockMvc.perform(patch("/api/v2/accounts/1/default"))
+                .andExpect(status().isOk());
+
+        verify(setDefaultAccountUseCase).setDefault(1L);
+    }
+
+    @Test
+    @DisplayName("계좌 표시 순서를 변경하고 빈 성공 응답을 반환한다")
+    void updatesAccountDisplayOrder() throws Exception {
+        mockMvc.perform(patch("/api/v2/accounts/1/display-order")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayOrder\":2}"))
+                .andExpect(status().isOk());
+
+        verify(updateAccountDisplayOrderUseCase).updateDisplayOrder(
+                new UpdateAccountDisplayOrderCommand(1L, 2)
+        );
+    }
+
+    @Test
+    @DisplayName("음수 표시 순서는 INVALID_ARGUMENT로 거절한다")
+    void rejectsNegativeDisplayOrder() throws Exception {
+        mockMvc.perform(patch("/api/v2/accounts/1/display-order")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayOrder\":-1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
     }
 
     @Test
