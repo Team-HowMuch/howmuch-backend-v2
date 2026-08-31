@@ -72,17 +72,32 @@ class SettlementItemAllocationServiceTest {
 
     @BeforeEach
     void setUp() {
+        SettlementItemAllocationPolicy policy = new SettlementItemAllocationPolicy();
+        SettlementItemAllocationStateLoader stateLoader = new SettlementItemAllocationStateLoader(
+                loadSettlementPort,
+                loadSettlementParticipantPort,
+                loadSettlementItemPort
+        );
+        SettlementItemAllocationWriter writer = new SettlementItemAllocationWriter(
+                stateLoader,
+                loadSettlementParticipantPort,
+                allocationStorePort,
+                saveSettlementSharePort,
+                saveSettlementPort,
+                policy
+        );
+        SettlementItemAllocationReader reader = new SettlementItemAllocationReader(
+                stateLoader,
+                loadSettlementParticipantPort,
+                allocationStorePort,
+                policy
+        );
         service = new SettlementItemAllocationService(
                 linkTokenPort,
                 loadSettlementLinkPort,
                 loadParticipantContextPort,
-                loadSettlementPort,
-                saveSettlementPort,
-                loadSettlementParticipantPort,
-                loadSettlementItemPort,
-                allocationStorePort,
-                saveSettlementSharePort,
-                new SettlementItemAllocationPolicy()
+                writer,
+                reader
         );
     }
 
@@ -90,6 +105,8 @@ class SettlementItemAllocationServiceTest {
     @DisplayName("마지막 제출에서 품목 배분이 정확하면 Share를 고정하고 입금 대기로 전환한다")
     void finalizesSharesOnLastExactSubmission() {
         arrangeRequestedAccess();
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
         List<SettlementItemSelection> selections = exactSelections();
         List<SettlementItemSubmission> submissions = allSubmissions();
         when(allocationStorePort.findSubmission(SETTLEMENT_ID, FIRST_PARTICIPANT_ID))
@@ -115,6 +132,8 @@ class SettlementItemAllocationServiceTest {
     @DisplayName("마지막 제출 후 미배분 품목이 남으면 Share 없이 중단한다")
     void suspendsWithoutSharesWhenAllocationIsIncomplete() {
         arrangeRequestedAccess();
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.SUSPENDED)));
         when(allocationStorePort.findSubmission(SETTLEMENT_ID, FIRST_PARTICIPANT_ID))
                 .thenReturn(Optional.empty());
         when(allocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of(
