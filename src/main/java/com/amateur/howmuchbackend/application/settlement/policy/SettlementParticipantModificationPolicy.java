@@ -19,4 +19,10 @@ public class SettlementParticipantModificationPolicy {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED);
         }
     }
+
+    public void validateRename(Settlement settlement, SettlementParticipant participant) {
+        if (participant.isLinkedTo(settlement.creatorId())) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED);
+        }
+    }
 }

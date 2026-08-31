@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.docs.SettlementDocs;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.RenameSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.MatchSettlementContactsWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SearchSettlementParticipantWebRequest;
@@ -26,6 +27,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.RenameSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ResumeSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SuspendSettlementUseCase;
@@ -60,6 +62,7 @@ public class SettlementController implements SettlementDocs {
     private final UpdateSettlementDraftUseCase updateSettlementDraftUseCase;
     private final AddSettlementParticipantUseCase addSettlementParticipantUseCase;
     private final RemoveSettlementParticipantUseCase removeSettlementParticipantUseCase;
+    private final RenameSettlementParticipantUseCase renameSettlementParticipantUseCase;
     private final SuspendSettlementUseCase suspendSettlementUseCase;
     private final ResumeSettlementUseCase resumeSettlementUseCase;
     private final GetSettlementParticipantsUseCase getSettlementParticipantsUseCase;
@@ -239,6 +242,22 @@ public class SettlementController implements SettlementDocs {
     ) {
         removeSettlementParticipantUseCase.remove(settlementId, participantId);
         return ApiResponse.success();
+    }
+
+    @Override
+    @PatchMapping("/{settlementId}/participants/{participantId}")
+    public ApiResponse<SettlementParticipantWebResponse> renameSettlementParticipant(
+            @PathVariable UUID settlementId,
+            @PathVariable UUID participantId,
+            @Valid @RequestBody RenameSettlementParticipantWebRequest request
+    ) {
+        return ApiResponse.success(SettlementParticipantWebResponse.from(
+                renameSettlementParticipantUseCase.rename(
+                        settlementId,
+                        participantId,
+                        request.displayName()
+                )
+        ));
     }
 
 }

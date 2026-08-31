@@ -10,6 +10,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementPa
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementParticipantsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.RenameSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.MatchSettlementContactsCommand;
@@ -64,6 +65,7 @@ import java.util.stream.Collectors;
 public class SettlementParticipantService implements
         AddSettlementParticipantUseCase,
         RemoveSettlementParticipantUseCase,
+        RenameSettlementParticipantUseCase,
         GetSettlementParticipantsUseCase,
         GetSettlementParticipantAvatarUseCase,
         SearchSettlementParticipantUseCase,
@@ -112,6 +114,26 @@ public class SettlementParticipantService implements
         SettlementParticipant saved = saveSettlementParticipantPort.save(participant);
         invalidateAllocation(settlement);
         return SettlementParticipantResult.of(saved, resolved.publicId());
+    }
+
+    @Override
+    @Transactional
+    public SettlementParticipantResult rename(
+            UUID settlementId,
+            UUID participantId,
+            String displayName
+    ) {
+        Settlement settlement = loadOwnedEditableSettlement(settlementId);
+        SettlementParticipant participant = loadSettlementParticipantPort
+                .findBySettlementIdAndId(settlement.id(), participantId)
+                .orElseThrow(() -> ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND
+                ));
+        modificationPolicy.validateRename(settlement, participant);
+        SettlementParticipant renamed = saveSettlementParticipantPort.save(
+                participant.rename(displayName, LocalDateTime.now(ZoneOffset.UTC))
+        );
+        return SettlementParticipantResult.of(renamed, resolvePublicId(renamed));
     }
 
     @Override
@@ -375,6 +397,18 @@ public class SettlementParticipantService implements
                 settlementId,
                 candidate.identityKey()
         );
+    }
+
+    private String resolvePublicId(SettlementParticipant participant) {
+        Long linkedUserId = participant.linkedUserId();
+        if (linkedUserId == null) {
+            return null;
+        }
+        return loadUserPort.findAllByIds(Set.of(linkedUserId))
+                .stream()
+                .findFirst()
+                .map(User::publicId)
+                .orElse(null);
     }
 
     private Map<Long, User> loadLinkedUsers(List<SettlementParticipant> participants) {

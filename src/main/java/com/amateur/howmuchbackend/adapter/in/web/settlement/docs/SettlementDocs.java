@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.RenameSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.MatchSettlementContactsWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SearchSettlementParticipantWebRequest;
@@ -541,4 +542,45 @@ public interface SettlementDocs {
             )
     })
     ApiResponse<Void> removeSettlementParticipant(UUID settlementId, UUID participantId);
+
+    @Operation(
+            summary = "정산 참여자 이름 수정",
+            description = "현재 로그인한 생성자가 DRAFT 정산의 참여자를 이 정산에서 부를 이름으로 바꿉니다. "
+                    + "연락처에 없어 자동 생성된 참여자를 구분하기 위한 기능이며, "
+                    + "가입 회원 참여자에게 적용해도 해당 회원의 계정 이름은 바뀌지 않습니다. "
+                    + "정산 생성자 자신의 이름은 바꿀 수 없습니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "정산 참여자 이름 수정 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_SETTLEMENT_PARTICIPANT_DISPLAY_NAME - 표시 이름 형식 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "SETTLEMENT_NOT_FOUND 또는 SETTLEMENT_PARTICIPANT_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED"
+            )
+    })
+    ApiResponse<SettlementParticipantWebResponse> renameSettlementParticipant(
+            UUID settlementId,
+            UUID participantId,
+            RenameSettlementParticipantWebRequest request
+    );
 }
