@@ -123,7 +123,10 @@ memberCount: int
 inviteCode: String
 inviteUrl: String
 myRole: OWNER | MEMBER
+createdAt: LocalDateTime
 ```
+
+- `createdAt`은 그룹의 최초 생성 시각이며 서버 내부 UTC 값을 공통 JSON 시각 규칙으로 직렬화한다.
 
 ### 4.2 Output Port
 
@@ -169,7 +172,7 @@ Form fields:
 | `image` | 아니오 | JPEG·PNG·WebP, 최대 5 MiB |
 
 - 성공: `201 Created`, `ApiResponse<GroupDetailWebResponse>`
-- 생성 결과에는 초대 코드·링크와 `myRole=OWNER`가 포함된다.
+- 생성 결과에는 초대 코드·링크, `myRole=OWNER`, 그룹 최초 생성 시각 `createdAt`이 포함된다.
 
 ### 5.2 내 그룹 목록
 
@@ -193,6 +196,7 @@ Authorization: Bearer {accessToken}
 - 성공: `200 OK`, `ApiResponse<GroupDetailWebResponse>`
 - `memberCount`는 `ACTIVE` 멤버 수다.
 - 초대 정보는 OWNER와 MEMBER 모두 볼 수 있다.
+- `createdAt`은 그룹의 최초 생성 시각이다.
 
 ### 5.4 그룹 설정 수정
 
@@ -213,6 +217,7 @@ Form fields:
 
 - OWNER만 호출할 수 있다.
 - 성공: `200 OK`, 변경 후 `GroupDetailWebResponse`
+- `createdAt`은 설정 수정 시각이 아니라 그룹의 최초 생성 시각을 유지한다.
 
 ### 5.5 그룹 삭제
 

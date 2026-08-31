@@ -57,6 +57,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 @DisplayName("그룹 Controller")
 class GroupControllerTest {
+    private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 25, 6, 0);
+
     @Mock private CreateGroupUseCase createGroupUseCase;
     @Mock private GetMyGroupsUseCase getMyGroupsUseCase;
     @Mock private GetGroupUseCase getGroupUseCase;
@@ -121,6 +123,16 @@ class GroupControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].groupId").value(20))
                 .andExpect(jsonPath("$.data[1].imageUrl").isEmpty());
+    }
+
+    @Test
+    @DisplayName("그룹 상세에 생성일을 반환한다")
+    void getsGroupWithCreatedAt() throws Exception {
+        when(getGroupUseCase.get(10L)).thenReturn(detail("여행", "메모", null));
+
+        mockMvc.perform(get("/api/v2/groups/{groupId}", 10L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdAt").value("2026-08-25T06:00:00"));
     }
 
     @Test
@@ -276,7 +288,8 @@ class GroupControllerTest {
                 1,
                 "AB12CD34",
                 "https://howmuch.app/groups/join?code=AB12CD34",
-                GroupMemberRole.OWNER
+                GroupMemberRole.OWNER,
+                CREATED_AT
         );
     }
 
