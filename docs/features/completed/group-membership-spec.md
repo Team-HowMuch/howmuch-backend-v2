@@ -195,6 +195,7 @@ Content-Type: application/json
 
 - 성공: `200 OK`, `GroupDetailWebResponse`
 - 재가입 성공도 같은 응답을 사용한다.
+- `createdAt`은 가입 또는 재가입 시각이 아니라 그룹의 최초 생성 시각이다.
 
 ### 7.2 멤버 목록
 
