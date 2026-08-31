@@ -176,6 +176,36 @@ class SettlementDepositServiceTest {
     }
 
     @Test
+    @DisplayName("삭제된 수취 계좌는 잠금 대상 없이 불변 스냅샷으로 입금 대조를 완료한다")
+    void reconcilesDeletedReceivingAccountFromSnapshot() {
+        Settlement awaitingSettlement = settlement(SettlementStatus.AWAITING_DEPOSIT);
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(awaitingSettlement));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(awaitingSettlement));
+        when(loadAccountPort.findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID))
+                .thenReturn(Optional.empty());
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(snapshot()));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(shares());
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        Transaction savedTransaction = transaction("6000");
+        arrangeFetchedTransaction(savedTransaction);
+        when(saveSettlementPort.update(any(Settlement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.reconcile(SETTLEMENT_ID);
+
+        assertThat(result.status()).isEqualTo(SettlementStatus.COMPLETED);
+        assertThat(result.confirmedAmount()).isEqualTo(6_000);
+        verify(loadAccountPort).findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID);
+        verify(saveTransactionPort).saveAllIgnoringDuplicates(anyList());
+        verify(depositStorePort).saveAll(anyList());
+    }
+
+    @Test
     @DisplayName("부분 입금은 확인 금액만 누적하고 정산을 입금 대기 상태로 유지한다")
     void keepsAwaitingDepositAfterPartialPayment() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);

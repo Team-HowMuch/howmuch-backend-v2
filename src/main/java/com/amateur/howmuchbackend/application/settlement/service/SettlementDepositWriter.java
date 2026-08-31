@@ -11,7 +11,6 @@ import com.amateur.howmuchbackend.application.settlement.policy.SettlementDeposi
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import com.amateur.howmuchbackend.domain.account.Transaction;
-import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementDeposit;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
@@ -52,10 +51,9 @@ class SettlementDepositWriter {
             LocalDateTime now
     ) {
         loadAccountPort.findActiveByIdAndUserIdForUpdate(
-                        expectedSnapshot.sourceAccountId(),
-                        userId
-                )
-                .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
+                expectedSnapshot.sourceAccountId(),
+                userId
+        );
         Settlement settlement = loadSettlementPort.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_NOT_FOUND
