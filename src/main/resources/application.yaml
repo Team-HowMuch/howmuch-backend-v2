@@ -14,6 +14,8 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    hikari:
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:3s}
 
   jpa:
     open-in-view: false
@@ -34,6 +36,8 @@ spring:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=60s
 howmuch:
+  persistence:
+    lock-timeout: ${DB_LOCK_TIMEOUT:500ms}
   group:
     image:
       storage-dir: ${GROUP_IMAGE_STORAGE_DIR:./uploads/group-images}

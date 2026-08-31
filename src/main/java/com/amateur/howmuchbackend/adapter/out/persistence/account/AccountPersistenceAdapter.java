@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.out.persistence.account;
 import com.amateur.howmuchbackend.adapter.out.persistence.account.entity.AccountJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.account.mapper.AccountMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.account.repository.AccountJpaRepository;
+import com.amateur.howmuchbackend.adapter.out.persistence.common.PostgresLockTimeoutConfigurer;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.repository.ExternalConnectionJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.user.UserJpaRepository;
@@ -29,6 +30,7 @@ public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPo
     private final UserJpaRepository userRepository;
     private final ExternalConnectionJpaRepository connectionRepository;
     private final CodefSecretCipher cipher;
+    private final PostgresLockTimeoutConfigurer lockTimeoutConfigurer;
 
     @Override
     @Transactional(readOnly = true)
@@ -54,6 +56,7 @@ public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPo
     @Override
     @Transactional
     public Optional<Account> findActiveByIdAndUserIdForUpdate(Long accountId, Long userId) {
+        lockTimeoutConfigurer.apply();
         return accountRepository.findActiveByIdAndUserIdForUpdate(accountId, userId)
                 .map(this::toDomainWithAccountKey);
     }

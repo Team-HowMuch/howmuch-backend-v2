@@ -4,9 +4,14 @@ import com.amateur.howmuchbackend.common.data.BaseResponse;
 import com.amateur.howmuchbackend.common.data.ErrorResponse;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -14,7 +19,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.sql.SQLException;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(ApplicationException.class)
@@ -71,6 +78,40 @@ public class GlobalExceptionHandler {
                 CommonStatusCode.CONCURRENT_UPDATE.getMessage()
         );
         return ResponseEntity.status(error.status()).body(new BaseResponse<>(false, null, error));
+    }
+
+    @ExceptionHandler({
+            PessimisticLockingFailureException.class,
+            DataAccessResourceFailureException.class,
+            CannotCreateTransactionException.class
+    })
+    public ResponseEntity<BaseResponse<ErrorResponse>> handleTemporaryPersistenceFailure(
+            RuntimeException exception
+    ) {
+        log.warn(
+                "Temporary persistence failure type={} sqlState={}",
+                exception.getClass().getSimpleName(),
+                findSqlState(exception)
+        );
+        ErrorResponse error = ErrorResponse.of(
+                CommonStatusCode.TEMPORARILY_UNAVAILABLE.getStatus(),
+                CommonStatusCode.TEMPORARILY_UNAVAILABLE.getCode(),
+                CommonStatusCode.TEMPORARILY_UNAVAILABLE.getMessage()
+        );
+        return ResponseEntity.status(error.status())
+                .header(HttpHeaders.RETRY_AFTER, "1")
+                .body(new BaseResponse<>(false, null, error));
+    }
+
+    private String findSqlState(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof SQLException sqlException) {
+                return sqlException.getSQLState();
+            }
+            current = current.getCause();
+        }
+        return "unknown";
     }
 
     @ExceptionHandler(Exception.class)

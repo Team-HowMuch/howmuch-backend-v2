@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
+import com.amateur.howmuchbackend.adapter.out.persistence.common.PostgresLockTimeoutConfigurer;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.SettlementMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
@@ -29,6 +30,7 @@ public class SettlementPersistenceAdapter implements
         DeleteSettlementPort,
         SettlementReceivingAccountUsagePort {
     private final SettlementJpaRepository settlementJpaRepository;
+    private final PostgresLockTimeoutConfigurer lockTimeoutConfigurer;
 
     @Override
     public Settlement save(Settlement settlement) {
@@ -44,6 +46,7 @@ public class SettlementPersistenceAdapter implements
 
     @Override
     public Optional<Settlement> findByIdForUpdate(UUID settlementId) {
+        lockTimeoutConfigurer.apply();
         return settlementJpaRepository.findByIdForUpdate(settlementId).map(SettlementMapper::toDomain);
     }
 
