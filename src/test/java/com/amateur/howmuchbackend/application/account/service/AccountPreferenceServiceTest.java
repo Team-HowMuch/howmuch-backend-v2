@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.account.service;
 
+import com.amateur.howmuchbackend.application.account.policy.AccountDisplayOrderPolicy;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.command.UpdateAccountDisplayOrderCommand;
 import com.amateur.howmuchbackend.application.port.out.account.AccountPreferenceStorePort;
@@ -60,11 +61,13 @@ class AccountPreferenceServiceTest {
     void rejectsDisplayOrderOutsideActiveAccountRange() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
-        assertThatThrownBy(() -> service().updateDisplayOrder(
-                new UpdateAccountDisplayOrderCommand(10L, 2)
-        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
-                assertThat(exception.getStatusCode())
-                        .isEqualTo(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER));
+        for (int displayOrder : List.of(-1, 2)) {
+            assertThatThrownBy(() -> service().updateDisplayOrder(
+                    new UpdateAccountDisplayOrderCommand(10L, displayOrder)
+            )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                    assertThat(exception.getStatusCode())
+                            .isEqualTo(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER));
+        }
 
         verify(accountPreferenceStorePort, never()).updateDisplayOrders(
                 org.mockito.ArgumentMatchers.any(),
@@ -93,7 +96,8 @@ class AccountPreferenceServiceTest {
         return new AccountPreferenceService(
                 currentActorPort,
                 loadAccountPort,
-                accountPreferenceStorePort
+                accountPreferenceStorePort,
+                new AccountDisplayOrderPolicy()
         );
     }
 

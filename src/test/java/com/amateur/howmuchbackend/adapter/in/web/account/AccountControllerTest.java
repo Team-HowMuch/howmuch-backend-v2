@@ -184,13 +184,17 @@ class AccountControllerTest {
     }
 
     @Test
-    @DisplayName("음수 표시 순서는 INVALID_ARGUMENT로 거절한다")
+    @DisplayName("음수 표시 순서는 INVALID_ACCOUNT_DISPLAY_ORDER로 거절한다")
     void rejectsNegativeDisplayOrder() throws Exception {
+        doThrow(ApplicationException.of(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER))
+                .when(updateAccountDisplayOrderUseCase)
+                .updateDisplayOrder(new UpdateAccountDisplayOrderCommand(1L, -1));
+
         mockMvc.perform(patch("/api/v2/accounts/1/display-order")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"displayOrder\":-1}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+                .andExpect(jsonPath("$.error.code").value("INVALID_ACCOUNT_DISPLAY_ORDER"));
     }
 
     @Test

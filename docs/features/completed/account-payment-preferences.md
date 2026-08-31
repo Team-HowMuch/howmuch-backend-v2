@@ -61,14 +61,14 @@ Response: ApiResponse<Void>
 ```
 
 - `UpdateAccountDisplayOrderWebRequest -> UpdateAccountDisplayOrderCommand`
-- `AccountPreferenceService -> LoadAccountPort + AccountPreferenceStorePort`
+- `AccountPreferenceService -> AccountDisplayOrderPolicy + LoadAccountPort + AccountPreferenceStorePort`
 - Authentication: `bearerAuth`
 - Flyway migration required: No. 기존 `accounts.is_default`, `accounts.display_order`를 사용한다.
 
 ## 4. Design decisions
 
 - 기본 계좌는 같은 트랜잭션에서 기존 값을 해제한 뒤 대상을 설정해 partial unique index 충돌을 피한다.
-- 순서 계산은 Application에서 수행하고 Adapter는 계산된 계좌 ID 순서를 저장한다.
+- 다중 계좌의 순서 검증·계산은 `AccountDisplayOrderPolicy`가 수행하고 Adapter는 계산된 계좌 ID 순서를 저장한다.
 - 별도 응답 DTO는 만들지 않는다. 변경 후 목록은 기존 `GET /api/v2/accounts`로 조회한다.
 
 ## 5. Impact surface
@@ -76,7 +76,7 @@ Response: ApiResponse<Void>
 | Area | Impact |
 |---|---|
 | API | Account Controller·Swagger에 PATCH 2개 추가 |
-| Application | UseCase 2개, Command 1개, Service 1개 추가 |
+| Application | UseCase 2개, Command 1개, Service 1개, Policy 1개 추가 |
 | Domain | 잘못된 표시 순서 StatusCode 추가 |
 | Persistence | 활성 계좌 잠금 조회, 기본 여부·순서 update 추가 |
 | Database | 기존 컬럼·제약 재사용, migration 없음 |
