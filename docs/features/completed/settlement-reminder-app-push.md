@@ -125,7 +125,7 @@ Result -> Web Response DTO: SettlementReminderWebResponse
 | 기존 `LoadUserPort` | 독촉 대상 회원과 FID 조회 | 독촉 Service | 기존 user Persistence Adapter |
 | `UserPushTargetStorePort` | FID 소유권 이전·등록·해제 | 사용자 Service | 기존 user Persistence Adapter |
 | `SettlementReminderCooldownPort` | 동시 요청 예약, 실패 예약 조건부 해제 | 독촉 Service | Redis Adapter |
-| `SettlementReminderPushSenderPort` | 앱 푸시 전달 | 독촉 Service | Firebase Admin Adapter |
+| `SettlementPushSenderPort` | 앱 푸시 전달 | 독촉 Service | Firebase Admin Adapter |
 
 ### Application Policy
 

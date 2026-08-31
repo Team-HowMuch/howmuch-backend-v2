@@ -10,7 +10,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReminderCooldownPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReminderPushSenderPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
@@ -46,7 +46,7 @@ public class SettlementReminderService implements
     private final LoadSettlementDepositSummaryPort loadSettlementDepositSummaryPort;
     private final LoadUserPort loadUserPort;
     private final SettlementReminderCooldownPort cooldownPort;
-    private final SettlementReminderPushSenderPort pushSenderPort;
+    private final SettlementPushSenderPort pushSenderPort;
 
     @Override
     public SettlementReminderResult remind(UUID settlementId, UUID participantId) {
@@ -166,11 +166,11 @@ public class SettlementReminderService implements
         }
 
         try {
-            SettlementReminderPushSenderPort.SendResult sendResult = pushSenderPort.send(
+            SettlementPushSenderPort.SendResult sendResult = pushSenderPort.sendReminder(
                     firebaseInstallationId,
                     settlementId
             );
-            if (sendResult == SettlementReminderPushSenderPort.SendResult.INVALID_TARGET) {
+            if (sendResult == SettlementPushSenderPort.SendResult.INVALID_TARGET) {
                 throw ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_REMINDER_PUSH_TARGET_NOT_FOUND
                 );

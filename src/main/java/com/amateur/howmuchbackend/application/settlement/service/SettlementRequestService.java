@@ -15,6 +15,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementRequestPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDutchPayAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementRequestPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -31,18 +32,23 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class SettlementRequestService implements RequestSettlementUseCase {
     private final CurrentActorPort currentActorPort;
@@ -58,6 +64,7 @@ public class SettlementRequestService implements RequestSettlementUseCase {
     private final SettlementLinkTokenPort linkTokenPort;
     private final SaveSettlementRequestPort saveSettlementRequestPort;
     private final LockGroupMemberRosterPort lockGroupMemberRosterPort;
+    private final SettlementPushSenderPort pushSenderPort;
 
     @Override
     @Transactional
@@ -107,6 +114,12 @@ public class SettlementRequestService implements RequestSettlementUseCase {
 
         Settlement saved = saveSettlementPort.update(finalized);
         saveSettlementRequestPort.save(snapshot, shares, link, issuedToken.rawToken());
+        scheduleParticipationNotifications(
+                saved.id(),
+                saved.creatorId(),
+                issuedToken.url(),
+                participants
+        );
         return new SettlementRequestResult(
                 saved.id(),
                 issuedToken.url(),
@@ -116,6 +129,81 @@ public class SettlementRequestService implements RequestSettlementUseCase {
                         : SettlementRequestPhase.ITEM_SELECTION,
                 saved.status()
         );
+    }
+
+    private void scheduleParticipationNotifications(
+            UUID settlementId,
+            Long creatorId,
+            String shareLink,
+            List<SettlementParticipant> participants
+    ) {
+        List<Long> targetUserIds = participants.stream()
+                .map(SettlementParticipant::linkedUserId)
+                .filter(Objects::nonNull)
+                .filter(userId -> !userId.equals(creatorId))
+                .distinct()
+                .toList();
+        if (targetUserIds.isEmpty()) {
+            return;
+        }
+
+        List<User> targets;
+        try {
+            targets = loadUserPort.findAllByIds(targetUserIds);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Failed to load settlement participation notification targets. settlementId={}",
+                    settlementId,
+                    exception
+            );
+            return;
+        }
+
+        Runnable send = () -> sendParticipationNotifications(settlementId, shareLink, targets);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            send.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                send.run();
+            }
+        });
+    }
+
+    private void sendParticipationNotifications(
+            UUID settlementId,
+            String shareLink,
+            List<User> targets
+    ) {
+        for (User target : targets) {
+            if (!target.active() || target.fcmToken() == null || target.fcmToken().isBlank()) {
+                continue;
+            }
+            try {
+                SettlementPushSenderPort.SendResult result = pushSenderPort
+                        .sendParticipationRequest(
+                                target.fcmToken(),
+                                settlementId,
+                                shareLink
+                        );
+                if (result == SettlementPushSenderPort.SendResult.INVALID_TARGET) {
+                    log.warn(
+                            "Invalid settlement participation push target. settlementId={}, userId={}",
+                            settlementId,
+                            target.id()
+                    );
+                }
+            } catch (RuntimeException exception) {
+                log.warn(
+                        "Failed to send settlement participation notification. settlementId={}, userId={}",
+                        settlementId,
+                        target.id(),
+                        exception
+                );
+            }
+        }
     }
 
     private void validateActiveGroupMembers(List<SettlementParticipant> participants) {
