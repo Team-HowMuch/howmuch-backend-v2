@@ -17,6 +17,7 @@ public final class SettlementExpenseMapper {
                 entity.getSettlementId(),
                 entity.getSource(),
                 entity.getSourceReference(),
+                entity.getSourceAccountId(),
                 entity.getDescription(),
                 entity.getAmount(),
                 entity.getDisplayOrder(),

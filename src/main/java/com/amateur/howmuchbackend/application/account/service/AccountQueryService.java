@@ -112,8 +112,9 @@ public class AccountQueryService
                 yearMonth
         );
         Map<String, List<LoadAccountTransactionPort.LinkedSettlement>> settlementsByTransactionKey =
-                loadTransactionPort.findLinkedSettlements(
+                        loadTransactionPort.findLinkedSettlements(
                                 account.userId(),
+                                account.id(),
                                 transactions.stream()
                                         .map(Transaction::externalTransactionKey)
                                         .toList()

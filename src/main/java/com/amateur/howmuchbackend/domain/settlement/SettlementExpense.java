@@ -12,6 +12,7 @@ public record SettlementExpense(
         UUID settlementId,
         SettlementExpenseSource source,
         String sourceReference,
+        Long sourceAccountId,
         String description,
         long amount,
         int displayOrder,
@@ -36,6 +37,7 @@ public record SettlementExpense(
                 settlementId,
                 source,
                 null,
+                null,
                 description,
                 amount,
                 displayOrder,
@@ -49,6 +51,7 @@ public record SettlementExpense(
         Objects.requireNonNull(settlementId, "정산 ID는 필수입니다.");
         Objects.requireNonNull(source, "정산 지출 원본은 필수입니다.");
         sourceReference = normalizeSourceReference(source, sourceReference);
+        sourceAccountId = normalizeSourceAccountId(source, sourceAccountId);
         description = normalizeDescription(description);
         validateAmount(amount);
         validateDisplayOrder(displayOrder);
@@ -67,6 +70,7 @@ public record SettlementExpense(
                 settlementId,
                 SettlementExpenseSource.MANUAL,
                 null,
+                null,
                 description,
                 amount,
                 displayOrder,
@@ -77,6 +81,7 @@ public record SettlementExpense(
 
     public static SettlementExpense paymentHistory(
             UUID settlementId,
+            Long sourceAccountId,
             String sourceReference,
             String description,
             long amount,
@@ -84,11 +89,13 @@ public record SettlementExpense(
             LocalDateTime now
     ) {
         Objects.requireNonNull(now, "결제내역 지출 생성 시각은 필수입니다.");
+        validatePaymentSourceAccountId(sourceAccountId);
         return new SettlementExpense(
                 UUID.randomUUID(),
                 settlementId,
                 SettlementExpenseSource.PAYMENT_HISTORY,
                 sourceReference,
+                sourceAccountId,
                 description,
                 amount,
                 displayOrder,
@@ -111,6 +118,7 @@ public record SettlementExpense(
                 settlementId,
                 SettlementExpenseSource.RECEIPT_OCR,
                 sourceReference,
+                null,
                 description,
                 amount,
                 displayOrder,
@@ -135,6 +143,7 @@ public record SettlementExpense(
                 settlementId,
                 source,
                 sourceReference,
+                sourceAccountId,
                 newDescription == null ? description : newDescription,
                 newAmount == null ? amount : newAmount,
                 displayOrder,
@@ -178,6 +187,34 @@ public record SettlementExpense(
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_DESCRIPTION);
         }
         return normalized;
+    }
+
+    private static Long normalizeSourceAccountId(
+            SettlementExpenseSource source,
+            Long sourceAccountId
+    ) {
+        if (source != SettlementExpenseSource.PAYMENT_HISTORY) {
+            if (sourceAccountId != null) {
+                throw ApplicationException.of(
+                        SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_SOURCE_REFERENCE
+                );
+            }
+            return null;
+        }
+        if (sourceAccountId != null && sourceAccountId <= 0) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_SOURCE_REFERENCE
+            );
+        }
+        return sourceAccountId;
+    }
+
+    private static void validatePaymentSourceAccountId(Long sourceAccountId) {
+        if (sourceAccountId == null || sourceAccountId <= 0) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_SOURCE_REFERENCE
+            );
+        }
     }
 
     private static void validateAmount(long amount) {

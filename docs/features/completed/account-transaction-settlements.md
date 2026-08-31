@@ -13,7 +13,7 @@
 
 ### Why now
 
-계좌 거래와 정산 지출의 연결은 이미 `settlement_expenses.source_reference`에 저장되어 있다. 저장된 관계를 기존 거래내역 API에서 제공하면 새 화면 전용 API 없이 현재 UI 구조를 유지할 수 있다.
+계좌 거래와 정산 지출의 연결은 `settlement_expenses.source_account_id`와 `source_reference`에 저장된다. 저장된 관계를 기존 거래내역 API에서 제공하면 새 화면 전용 API 없이 현재 UI 구조를 유지할 수 있다.
 
 ### Success criteria
 
@@ -42,7 +42,7 @@
 
 | Term | Meaning | Code representation |
 |---|---|---|
-| 연결 정산 | 계좌 거래의 `externalTransactionKey`를 `PAYMENT_HISTORY` 지출 원본으로 사용한 정산 | `settlement_expenses.source_reference` |
+| 연결 정산 | 계좌와 `externalTransactionKey`가 모두 일치하는 `PAYMENT_HISTORY` 지출의 정산 | `settlement_expenses.source_account_id`, `source_reference` |
 | 정산 요약 | 계좌 거래 행에서 표시할 최소 정산 정보 | `settlementId`, `title`, `status` |
 
 ### Actors and UseCases
@@ -58,6 +58,7 @@
 - Rules that must always hold:
   - 활성 계좌 소유권을 먼저 검증한다.
   - `PAYMENT_HISTORY` 지출만 계좌 거래 연결로 해석한다.
+  - 요청 계좌와 `source_account_id`가 같은 지출만 연결로 해석한다.
   - 현재 계좌 소유자가 생성한 정산만 반환한다.
   - 동일 거래·정산 조합은 한 번만 반환한다.
 - Invalid states: 다른 사용자의 정산 또는 다른 계좌 거래를 연결 정보로 노출하는 상태.
@@ -68,7 +69,7 @@
 
 1. 사용자가 기존 계좌 거래내역 API를 호출한다.
 2. Application이 계좌 소유권을 검증하고 기존 월 거래 동기화·조회 흐름을 실행한다.
-3. 거래의 `externalTransactionKey` 목록으로 연결 정산을 한 번에 조회한다.
+3. 계좌 ID와 거래의 `externalTransactionKey` 목록으로 연결 정산을 한 번에 조회한다.
 4. 거래별로 연결 정산 요약을 묶어 기존 거래 응답에 `settlements`를 추가한다.
 
 ### Failure flow
@@ -138,10 +139,10 @@ Errors: 기존 계좌 거래내역 오류와 동일
 
 ### Persistence and external integrations
 
-- Database Entity, constraint, or query changes: 스키마 변경 없이 `account_transactions.external_transaction_key`, `settlement_expenses.source_reference`, `settlements`를 조회한다.
-- Flyway migration required (`Yes` / `No`): No
-- Planned migration: N/A
-- Migration pull request: N/A
+- Database Entity, constraint, or query changes: `settlement_expenses.source_account_id`를 저장하고 계좌 ID와 거래 Key를 함께 조회한다.
+- Flyway migration required (`Yes` / `No`): Yes
+- Planned migration: `V25__add_settlement_expense_source_account.sql`
+- Migration pull request: [#211](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/211) (merged)
 - Redis key, TTL, or serialization changes: 없음.
 - External API or message changes: 없음.
 - Environment variable or profile changes: 없음.
@@ -161,7 +162,7 @@ Errors: 기존 계좌 거래내역 오류와 동일
 - Selected approach: 월 거래 Key를 `IN` 조건으로 한 번 조회하고 Application에서 Key별로 그룹화한다.
 - Reason for selection: 기존 API와 Port를 최소 확장하며 다중 정산 연결을 보존한다.
 - Alternatives considered: 별도 endpoint는 현재 화면에 중복 조회가 필요해 제외한다. 단일 `settlementId`는 현재 DB 제약과 맞지 않아 제외한다.
-- Trade-offs and limits: `source_reference` 단독 인덱스는 없다. 실제 성능 문제가 측정되면 별도 migration으로 인덱스를 추가한다.
+- Trade-offs and limits: 원본 계좌를 확정할 수 없는 기존 지출은 `source_account_id = NULL`로 남기고 거래 응답에 연결하지 않는다.
 
 ## 6. Impact surface
 
@@ -169,8 +170,8 @@ Errors: 기존 계좌 거래내역 오류와 동일
 |---|---|---|
 | API | 거래 응답에 `settlements` 추가 | `AccountTransactionWebResponse`, `AccountDocs` |
 | Application | 거래별 정산 요약 조립 | `AccountQueryService`, `AccountTransactionResult` |
-| Domain | 변경 없음 | 기존 `Transaction`, `SettlementStatus` |
-| Persistence | 거래 Key 기준 연결 정산 일괄 조회 | `LoadAccountTransactionPort`, account persistence query |
+| Domain | 결제내역 지출에 원본 계좌 ID 보존 | `SettlementExpense` |
+| Persistence | 계좌 ID와 거래 Key 기준 연결 정산 일괄 조회 | `LoadAccountTransactionPort`, account persistence query |
 | Redis | 변경 없음 | N/A |
 | Security | 계좌 소유자와 정산 생성자 ID를 함께 제한 | 기존 `CurrentActorPort`, 신규 query 조건 |
 | Configuration | 변경 없음 | N/A |
@@ -180,11 +181,11 @@ Existing behavior that must remain unchanged:
 
 - CODEF 최초 조회·저장과 월 요약 캐시.
 - 거래 정렬 `transactedAt DESC, id DESC`.
-- 정산 결제내역 가져오기와 동일 정산 중복 방지.
+- 정산 결제내역 가져오기와 동일 계좌·거래 Key 중복 방지.
 
 ## 7. Implementation plan
 
-- [x] Migration-only pull request to `develop` (`N/A`: 스키마 변경 없음)
+- [x] Migration-only pull request to `develop` ([#211](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/211))
 - [x] UseCase and Application Command/Result (`기존 UseCase, Result 확장`)
 - [x] Required Output Ports
 - [x] Domain models and rules (`N/A`: 변경 없음)
@@ -199,6 +200,7 @@ Existing behavior that must remain unchanged:
 
 ```text
 feat(account): 계좌 거래내역에 연결 정산 정보 반환
+fix(account): 정산 연결 조회를 원본 계좌로 제한
 ```
 
 ## 8. Verification
@@ -207,7 +209,7 @@ feat(account): 계좌 거래내역에 연결 정산 정보 반환
 
 ```bash
 ./gradlew compileJava
-./gradlew test --tests '*AccountQueryServiceTest' --tests '*AccountControllerTest' --tests '*AccountTransactionPersistenceIntegrationTest'
+./gradlew test --tests '*AccountQueryServiceTest' --tests '*AccountControllerTest' --tests '*AccountTransactionPersistenceIntegrationTest' --tests '*SettlementPaymentExpenseServiceTest' --tests '*SettlementExpensePersistenceIntegrationTest'
 ./gradlew test
 git diff --check
 git status --short --untracked-files=all
@@ -216,7 +218,7 @@ git status --short --untracked-files=all
 ### Completion criteria
 
 - [x] Purpose의 다중·미연결 정산 응답을 검증한다.
-- [x] 계좌·정산 소유권과 빈 거래 경계를 검증한다.
+- [x] 계좌·정산 소유권, 동일 거래 Key의 계좌 격리와 빈 거래 경계를 검증한다.
 - [x] Swagger와 실제 JSON 계약이 일치한다.
 - [x] 미검증 범위를 기록한다.
 

@@ -64,12 +64,17 @@ public class AccountTransactionPersistenceAdapter
     @Transactional(readOnly = true)
     public List<LinkedSettlement> findLinkedSettlements(
             Long creatorId,
+            Long accountId,
             List<String> externalTransactionKeys
     ) {
         if (externalTransactionKeys.isEmpty()) {
             return List.of();
         }
-        return transactionRepository.findLinkedSettlements(creatorId, externalTransactionKeys)
+        return transactionRepository.findLinkedSettlements(
+                        creatorId,
+                        accountId,
+                        externalTransactionKeys
+                )
                 .stream()
                 .map(projection -> new LinkedSettlement(
                         projection.getExternalTransactionKey(),

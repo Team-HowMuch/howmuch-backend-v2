@@ -72,6 +72,22 @@ public class SettlementExpensePersistenceAdapter implements
     }
 
     @Override
+    public boolean existsBySettlementIdAndSourceAndSourceAccountIdAndSourceReference(
+            UUID settlementId,
+            SettlementExpenseSource source,
+            Long sourceAccountId,
+            String sourceReference
+    ) {
+        return settlementExpenseJpaRepository
+                .existsBySettlementIdAndSourceAndSourceAccountIdAndSourceReference(
+                        settlementId,
+                        source,
+                        sourceAccountId,
+                        sourceReference
+                );
+    }
+
+    @Override
     public SettlementExpense save(SettlementExpense expense) {
         try {
             return SettlementExpenseMapper.toDomain(
@@ -80,10 +96,11 @@ public class SettlementExpensePersistenceAdapter implements
                     )
             );
         } catch (DataIntegrityViolationException exception) {
-            if (hasConstraint(
-                    exception,
-                    "uk_settlement_expenses_settlement_source_reference"
-            )) {
+            if (hasConstraint(exception, "uk_settlement_expenses_settlement_source_reference")
+                    || hasConstraint(
+                            exception,
+                            "uk_settlement_expenses_payment_account_source_reference"
+                    )) {
                 if (expense.source() == SettlementExpenseSource.RECEIPT_OCR) {
                     throw ApplicationException.of(
                             SettlementStatusCode.SETTLEMENT_RECEIPT_ALREADY_IMPORTED,

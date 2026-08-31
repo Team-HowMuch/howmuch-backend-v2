@@ -33,6 +33,7 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
               JOIN settlements settlement ON settlement.id = expense.settlement_id
              WHERE settlement.creator_id = :creatorId
                AND expense.source = 'PAYMENT_HISTORY'
+               AND expense.source_account_id = :accountId
                AND expense.source_reference IN (:externalTransactionKeys)
              ORDER BY expense.source_reference,
                       settlement.created_at DESC,
@@ -40,6 +41,7 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
             """, nativeQuery = true)
     List<LinkedSettlementProjection> findLinkedSettlements(
             @Param("creatorId") Long creatorId,
+            @Param("accountId") Long accountId,
             @Param("externalTransactionKeys") Collection<String> externalTransactionKeys
     );
 

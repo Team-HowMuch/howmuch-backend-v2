@@ -49,6 +49,7 @@ import static org.mockito.Mockito.when;
 class SettlementPaymentExpenseServiceTest {
     private static final Long CREATOR_ID = 1L;
     private static final Long ACCOUNT_ID = 10L;
+    private static final Long OTHER_ACCOUNT_ID = 11L;
     private static final Long TRANSACTION_ID = 20L;
     private static final UUID SETTLEMENT_ID = UUID.fromString(
             "44c9323d-6a65-4a93-aeaa-ef8f24341c8a"
@@ -139,7 +140,10 @@ class SettlementPaymentExpenseServiceTest {
         when(getAccountTransactionsUseCase.getAccountTransactions(ACCOUNT_ID, TARGET_MONTH))
                 .thenReturn(List.of());
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of(importedExpense("imported-key")));
+                .thenReturn(List.of(
+                        importedExpense(ACCOUNT_ID, "imported-key"),
+                        importedExpense(OTHER_ACCOUNT_ID, "available-key")
+                ));
         when(loadAccountTransactionPort.findByAccountIdAndYearMonth(ACCOUNT_ID, TARGET_MONTH))
                 .thenReturn(List.of(imported, available, income));
 
@@ -169,11 +173,13 @@ class SettlementPaymentExpenseServiceTest {
                 .thenReturn(Optional.of(account()));
         when(loadAccountTransactionPort.findByAccountIdAndId(ACCOUNT_ID, TRANSACTION_ID))
                 .thenReturn(Optional.of(transaction));
-        when(loadSettlementExpensePort.existsBySettlementIdAndSourceAndSourceReference(
-                SETTLEMENT_ID,
-                SettlementExpenseSource.PAYMENT_HISTORY,
-                "transaction-key"
-        )).thenReturn(false);
+        when(loadSettlementExpensePort
+                .existsBySettlementIdAndSourceAndSourceAccountIdAndSourceReference(
+                        SETTLEMENT_ID,
+                        SettlementExpenseSource.PAYMENT_HISTORY,
+                        ACCOUNT_ID,
+                        "transaction-key"
+                )).thenReturn(false);
         when(loadSettlementExpensePort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(2);
         when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(8_000L);
         when(saveSettlementExpensePort.save(any(SettlementExpense.class)))
@@ -193,6 +199,7 @@ class SettlementPaymentExpenseServiceTest {
                 SettlementExpenseSource.PAYMENT_HISTORY
         );
         assertThat(captor.getValue().sourceReference()).isEqualTo("transaction-key");
+        assertThat(captor.getValue().sourceAccountId()).isEqualTo(ACCOUNT_ID);
         assertThat(captor.getValue().description()).isEqualTo("결제내역");
         assertThat(captor.getValue().displayOrder()).isEqualTo(2);
         assertThat(result.totalExpenseAmount()).isEqualTo(50_000);
@@ -213,11 +220,13 @@ class SettlementPaymentExpenseServiceTest {
                 .thenReturn(Optional.of(account()));
         when(loadAccountTransactionPort.findByAccountIdAndId(ACCOUNT_ID, TRANSACTION_ID))
                 .thenReturn(Optional.of(transaction));
-        when(loadSettlementExpensePort.existsBySettlementIdAndSourceAndSourceReference(
-                SETTLEMENT_ID,
-                SettlementExpenseSource.PAYMENT_HISTORY,
-                "transaction-key"
-        )).thenReturn(true);
+        when(loadSettlementExpensePort
+                .existsBySettlementIdAndSourceAndSourceAccountIdAndSourceReference(
+                        SETTLEMENT_ID,
+                        SettlementExpenseSource.PAYMENT_HISTORY,
+                        ACCOUNT_ID,
+                        "transaction-key"
+                )).thenReturn(true);
 
         assertThatThrownBy(() -> service.importExpense(
                 SETTLEMENT_ID,
@@ -316,9 +325,10 @@ class SettlementPaymentExpenseServiceTest {
         );
     }
 
-    private SettlementExpense importedExpense(String sourceReference) {
+    private SettlementExpense importedExpense(Long sourceAccountId, String sourceReference) {
         return SettlementExpense.paymentHistory(
                 SETTLEMENT_ID,
+                sourceAccountId,
                 sourceReference,
                 "점심",
                 12_000,

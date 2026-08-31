@@ -18,6 +18,7 @@ public interface LoadAccountTransactionPort {
 
     List<LinkedSettlement> findLinkedSettlements(
             Long creatorId,
+            Long accountId,
             List<String> externalTransactionKeys
     );
 
