@@ -28,6 +28,18 @@ ALTER TABLE settlement_expenses
         source_account_id IS NULL OR source = 'PAYMENT_HISTORY'
     );
 
+ALTER TABLE settlement_expenses
+    DROP CONSTRAINT uk_settlement_expenses_settlement_source_reference;
+
+CREATE UNIQUE INDEX uk_settlement_expenses_settlement_source_reference
+    ON settlement_expenses (settlement_id, source, source_reference)
+    WHERE source_account_id IS NULL
+      AND source IN ('PAYMENT_HISTORY', 'RECEIPT_OCR');
+
+CREATE UNIQUE INDEX uk_settlement_expenses_payment_account_source_reference
+    ON settlement_expenses (settlement_id, source_account_id, source_reference)
+    WHERE source = 'PAYMENT_HISTORY' AND source_account_id IS NOT NULL;
+
 CREATE INDEX idx_settlement_expenses_source_account_reference
     ON settlement_expenses (source_account_id, source_reference)
     WHERE source = 'PAYMENT_HISTORY' AND source_account_id IS NOT NULL;
