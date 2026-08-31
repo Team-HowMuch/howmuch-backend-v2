@@ -64,13 +64,15 @@ public class SettlementReceivingAccountService implements
     ) {
         validateCommand(command);
         CurrentActor actor = currentActorPort.getCurrentActor();
-        Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
-        settlement.ensureReceivingAccountEditable();
+        Settlement candidate = loadOwnedSettlement(settlementId, actor.userId());
+        candidate.ensureReceivingAccountEditable();
         Account account = loadAccountPort.findActiveByIdAndUserIdForUpdate(
                         command.receivingAccountId(), actor.userId()
                 )
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
         validateReceivingAccount(account);
+        Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
+        settlement.ensureReceivingAccountEditable();
         Settlement updated = settlement.selectReceivingAccount(
                 account.id(), LocalDateTime.now(ZoneOffset.UTC)
         );

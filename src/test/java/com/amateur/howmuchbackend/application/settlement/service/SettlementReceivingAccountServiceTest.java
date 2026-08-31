@@ -20,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -92,6 +94,7 @@ class SettlementReceivingAccountServiceTest {
         authenticate();
         Settlement settlement = draft();
         Account account = account(7L, true, 0, AccountType.DEPOSIT_TRUST, "11", "KRW");
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
         when(loadAccountPort.findActiveByIdAndUserIdForUpdate(7L, USER_ID)).thenReturn(Optional.of(account));
         when(saveSettlementPort.update(any(Settlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -104,13 +107,16 @@ class SettlementReceivingAccountServiceTest {
         verify(saveSettlementPort).update(captor.capture());
         assertThat(captor.getValue().receivingAccountId()).isEqualTo(7L);
         assertThat(result.receivingAccountId()).isEqualTo(7L);
+        InOrder lockOrder = inOrder(loadAccountPort, loadSettlementPort);
+        lockOrder.verify(loadAccountPort).findActiveByIdAndUserIdForUpdate(7L, USER_ID);
+        lockOrder.verify(loadSettlementPort).findByIdForUpdate(SETTLEMENT_ID);
     }
 
     @Test
     @DisplayName("타인 또는 비활성 계좌를 노출하지 않도록 없는 계좌와 같은 오류로 거부한다")
     void rejectsUnknownOwnedAccount() {
         authenticate();
-        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(loadAccountPort.findActiveByIdAndUserIdForUpdate(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.select(
@@ -127,7 +133,7 @@ class SettlementReceivingAccountServiceTest {
         Account foreignAccount = account(
                 7L, true, 0, AccountType.FOREIGN_CURRENCY, "11", "USD"
         );
-        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(loadAccountPort.findActiveByIdAndUserIdForUpdate(7L, USER_ID))
                 .thenReturn(Optional.of(foreignAccount));
 
@@ -145,7 +151,7 @@ class SettlementReceivingAccountServiceTest {
     void rejectsSelectionOutsideDraft() {
         authenticate();
         Settlement requested = draft().request(CREATED_AT.plusMinutes(1));
-        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(requested));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(requested));
 
         assertThatThrownBy(() -> service.select(
                 SETTLEMENT_ID, new SelectSettlementReceivingAccountCommand(7L)
