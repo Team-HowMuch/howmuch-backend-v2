@@ -5,33 +5,21 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementDepositSummaryUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ReconcileSettlementDepositsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDepositSummaryResult;
-import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
-import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
-import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
-import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
-import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
-import com.amateur.howmuchbackend.application.settlement.policy.SettlementDepositMatchingPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
-import com.amateur.howmuchbackend.domain.settlement.SettlementDeposit;
-import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
-import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,14 +27,8 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -57,28 +39,20 @@ public class SettlementDepositService implements
 
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
-    private final SaveSettlementPort saveSettlementPort;
-    private final LoadSettlementSharePort loadSettlementSharePort;
-    private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
-    private final SettlementDepositStorePort depositStorePort;
-    private final LoadAccountPort loadAccountPort;
-    private final LoadAccountTransactionPort loadTransactionPort;
-    private final SaveAccountTransactionPort saveTransactionPort;
     private final ExternalConnectionStorePort connectionStorePort;
     private final BankTransactionPort bankTransactionPort;
-    private final SettlementDepositMatchingPolicy matchingPolicy;
+    private final SettlementDepositWriter writer;
+    private final SettlementDepositReader reader;
 
     @Override
-    @Transactional
     public SettlementDepositSummaryResult reconcile(UUID settlementId) {
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
         ensureAvailable(settlement.status());
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         if (settlement.status() == SettlementStatus.COMPLETED) {
-            DepositData data = loadData(settlement, now);
-            return summarize(settlement, data.payableShares(), data.confirmedAmounts());
+            return reader.read(settlementId, actor.userId(), now);
         }
 
         SettlementReceivingAccountSnapshot snapshot = loadSnapshot(settlement.id());
@@ -86,124 +60,24 @@ public class SettlementDepositService implements
                 .orElseThrow(() -> ApplicationException.of(
                         ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND
                 ));
-        List<Transaction> fetchedTransactions = fetchTransactions(
-                connection,
+        List<Transaction> fetchedTransactions = fetchTransactions(connection, snapshot, now);
+        return writer.reconcile(
+                settlementId,
+                actor.userId(),
                 snapshot,
+                fetchedTransactions,
                 now
         );
-        loadAccountPort.findActiveByIdAndUserIdForUpdate(
-                snapshot.sourceAccountId(),
-                actor.userId()
-        );
-        Settlement lockedSettlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
-        ensureAvailable(lockedSettlement.status());
-        DepositData data = loadData(lockedSettlement, now);
-        if (lockedSettlement.status() == SettlementStatus.COMPLETED) {
-            return summarize(lockedSettlement, data.payableShares(), data.confirmedAmounts());
-        }
-        saveTransactionPort.saveAllIgnoringDuplicates(fetchedTransactions);
-
-        List<Transaction> transactions = loadTransactionPort.findIncomeByAccountIdBetween(
-                data.snapshot().sourceAccountId(),
-                data.snapshot().createdAt(),
-                now
-        );
-        Map<Long, Transaction> transactionById = transactions.stream()
-                .collect(Collectors.toMap(Transaction::id, Function.identity()));
-        List<SettlementDeposit> existingDeposits =
-                depositStorePort.findAllBySettlementId(lockedSettlement.id());
-        Map<UUID, Long> confirmedAmounts = confirmedAmounts(existingDeposits, transactionById);
-        Map<UUID, PayableShare> currentPayableByShareId = data.payableShares().stream()
-                .collect(Collectors.toMap(payable -> payable.share().id(), Function.identity()));
-        List<SettlementDepositStorePort.PayableDepositCandidate> accountCandidates =
-                depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
-                        actor.userId(),
-                        data.snapshot().sourceAccountId(),
-                        data.snapshot().organization(),
-                        data.snapshot().accountNumber()
-                );
-        Set<String> matchedTransactionKeys = new HashSet<>(
-                depositStorePort.findMatchedExternalTransactionKeysByReceivingAccount(
-                        actor.userId(),
-                        data.snapshot().sourceAccountId(),
-                        data.snapshot().organization(),
-                        data.snapshot().accountNumber(),
-                        transactions.stream()
-                                .map(Transaction::externalTransactionKey)
-                                .collect(Collectors.toSet())
-                )
-        );
-        List<SettlementDeposit> newDeposits = new ArrayList<>();
-
-        for (Transaction transaction : transactions) {
-            if (matchedTransactionKeys.contains(transaction.externalTransactionKey())) {
-                continue;
-            }
-            List<SettlementDepositMatchingPolicy.PayableShare> candidates = accountCandidates
-                    .stream()
-                    .map(candidate -> toMatchingCandidate(
-                            candidate,
-                            currentPayableByShareId.get(candidate.shareId()),
-                            confirmedAmounts
-                    ))
-                    .filter(candidate -> candidate.remainingAmount() > 0)
-                    .toList();
-            matchingPolicy.match(transaction, candidates)
-                    .filter(currentPayableByShareId::containsKey)
-                    .ifPresent(shareId -> {
-                        SettlementDeposit deposit = SettlementDeposit.create(
-                                lockedSettlement.id(),
-                                shareId,
-                                data.snapshot().sourceAccountId(),
-                                transaction.id(),
-                                now
-                        );
-                        newDeposits.add(deposit);
-                        matchedTransactionKeys.add(transaction.externalTransactionKey());
-                        confirmedAmounts.merge(
-                                shareId,
-                                transaction.amount().longValueExact(),
-                                Math::addExact
-                        );
-                    });
-        }
-        depositStorePort.saveAll(newDeposits);
-
-        Settlement result = allCompleted(data.payableShares(), confirmedAmounts)
-                ? saveSettlementPort.update(lockedSettlement.complete(now))
-                : lockedSettlement;
-        return summarize(result, data.payableShares(), confirmedAmounts);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public SettlementDepositSummaryResult get(UUID settlementId) {
         CurrentActor actor = currentActorPort.getCurrentActor();
-        Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
-        ensureAvailable(settlement.status());
-        DepositData data = loadData(settlement, LocalDateTime.now(ZoneOffset.UTC));
-        return summarize(settlement, data.payableShares(), data.confirmedAmounts());
-    }
-
-    private DepositData loadData(Settlement settlement, LocalDateTime now) {
-        SettlementReceivingAccountSnapshot snapshot = loadSnapshot(settlement.id());
-        List<PayableShare> payableShares = payableShares(
-                settlement,
-                loadSettlementSharePort.findAllBySettlementId(settlement.id()),
-                loadSettlementParticipantPort.findAllBySettlementId(settlement.id())
+        return reader.read(
+                settlementId,
+                actor.userId(),
+                LocalDateTime.now(ZoneOffset.UTC)
         );
-        List<Transaction> transactions = loadTransactionPort.findIncomeByAccountIdBetween(
-                snapshot.sourceAccountId(),
-                snapshot.createdAt(),
-                now
-        );
-        Map<Long, Transaction> transactionById = transactions.stream()
-                .collect(Collectors.toMap(Transaction::id, Function.identity()));
-        Map<UUID, Long> confirmedAmounts = confirmedAmounts(
-                depositStorePort.findAllBySettlementId(settlement.id()),
-                transactionById
-        );
-        return new DepositData(snapshot, payableShares, confirmedAmounts);
     }
 
     private SettlementReceivingAccountSnapshot loadSnapshot(UUID settlementId) {
@@ -255,122 +129,11 @@ public class SettlementDepositService implements
         return List.copyOf(result);
     }
 
-    private List<PayableShare> payableShares(
-            Settlement settlement,
-            List<SettlementShare> shares,
-            List<SettlementParticipant> participants
-    ) {
-        Map<UUID, SettlementParticipant> participantById = participants.stream()
-                .collect(Collectors.toMap(SettlementParticipant::id, Function.identity()));
-        return shares.stream()
-                .map(share -> {
-                    SettlementParticipant participant = participantById.get(share.payerParticipantId());
-                    if (participant == null) {
-                        throw ApplicationException.of(
-                                SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND
-                        );
-                    }
-                    return new PayableShare(share, participant.displayName(), participant.linkedUserId());
-                })
-                .filter(payable -> !settlement.creatorId().equals(payable.linkedUserId()))
-                .toList();
-    }
-
-    private SettlementDepositMatchingPolicy.PayableShare toMatchingCandidate(
-            SettlementDepositStorePort.PayableDepositCandidate candidate,
-            PayableShare currentPayable,
-            Map<UUID, Long> confirmedAmounts
-    ) {
-        long remainingAmount = currentPayable == null
-                ? candidate.remainingAmount()
-                : Math.max(0L, currentPayable.share().amount()
-                        - confirmedAmounts.getOrDefault(candidate.shareId(), 0L));
-        return new SettlementDepositMatchingPolicy.PayableShare(
-                candidate.shareId(),
-                candidate.payerName(),
-                remainingAmount,
-                candidate.snapshotCreatedAt()
-        );
-    }
-
-    private Map<UUID, Long> confirmedAmounts(
-            List<SettlementDeposit> deposits,
-            Map<Long, Transaction> transactionById
-    ) {
-        Map<UUID, Long> result = new HashMap<>();
-        for (SettlementDeposit deposit : deposits) {
-            Transaction transaction = transactionById.get(deposit.accountTransactionId());
-            if (transaction == null) {
-                throw ApplicationException.of(
-                        SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND
-                );
-            }
-            long amount;
-            try {
-                amount = transaction.amount().longValueExact();
-                result.merge(deposit.shareId(), amount, Math::addExact);
-            } catch (ArithmeticException exception) {
-                throw ApplicationException.of(
-                        SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND,
-                        exception
-                );
-            }
-        }
-        return result;
-    }
-
-    private boolean allCompleted(
-            List<PayableShare> payableShares,
-            Map<UUID, Long> confirmedAmounts
-    ) {
-        return payableShares.stream().allMatch(payable ->
-                confirmedAmounts.getOrDefault(payable.share().id(), 0L)
-                        == payable.share().amount()
-        );
-    }
-
-    private SettlementDepositSummaryResult summarize(
-            Settlement settlement,
-            List<PayableShare> payableShares,
-            Map<UUID, Long> confirmedAmounts
-    ) {
-        long expectedAmount = payableShares.stream()
-                .mapToLong(payable -> payable.share().amount())
-                .sum();
-        long confirmedAmount = payableShares.stream()
-                .mapToLong(payable -> confirmedAmounts.getOrDefault(payable.share().id(), 0L))
-                .sum();
-        int completedCount = Math.toIntExact(payableShares.stream()
-                .filter(payable -> confirmedAmounts.getOrDefault(payable.share().id(), 0L)
-                        == payable.share().amount())
-                .count());
-        return new SettlementDepositSummaryResult(
-                settlement.id(),
-                settlement.status(),
-                expectedAmount,
-                confirmedAmount,
-                payableShares.size(),
-                completedCount
-        );
-    }
-
     private Settlement loadOwnedSettlement(UUID settlementId, Long userId) {
         Settlement settlement = loadSettlementPort.findById(settlementId)
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_NOT_FOUND
                 ));
-        return verifyOwnership(settlement, userId);
-    }
-
-    private Settlement loadOwnedSettlementForUpdate(UUID settlementId, Long userId) {
-        Settlement settlement = loadSettlementPort.findByIdForUpdate(settlementId)
-                .orElseThrow(() -> ApplicationException.of(
-                        SettlementStatusCode.SETTLEMENT_NOT_FOUND
-                ));
-        return verifyOwnership(settlement, userId);
-    }
-
-    private Settlement verifyOwnership(Settlement settlement, Long userId) {
         if (!settlement.isCreatedBy(userId)) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
         }
@@ -390,19 +153,5 @@ public class SettlementDepositService implements
         return utcDateTime.atZone(ZoneOffset.UTC)
                 .withZoneSameInstant(SEOUL)
                 .toLocalDate();
-    }
-
-    private record PayableShare(
-            SettlementShare share,
-            String payerName,
-            Long linkedUserId
-    ) {
-    }
-
-    private record DepositData(
-            SettlementReceivingAccountSnapshot snapshot,
-            List<PayableShare> payableShares,
-            Map<UUID, Long> confirmedAmounts
-    ) {
     }
 }

@@ -14,6 +14,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementDepositMatchingPolicy;
+import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
@@ -47,6 +48,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -82,20 +84,32 @@ class SettlementDepositServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SettlementDepositService(
-                currentActorPort,
+        SettlementDepositReader reader = new SettlementDepositReader(
                 loadSettlementPort,
-                saveSettlementPort,
                 loadSettlementSharePort,
                 loadSettlementParticipantPort,
                 loadSnapshotPort,
-                depositStorePort,
-                loadAccountPort,
                 loadTransactionPort,
+                depositStorePort
+        );
+        SettlementDepositWriter writer = new SettlementDepositWriter(
+                loadAccountPort,
+                loadSettlementPort,
                 saveTransactionPort,
+                loadTransactionPort,
+                depositStorePort,
+                saveSettlementPort,
+                new SettlementDepositMatchingPolicy(),
+                reader
+        );
+        service = new SettlementDepositService(
+                currentActorPort,
+                loadSettlementPort,
+                loadSnapshotPort,
                 connectionStorePort,
                 bankTransactionPort,
-                new SettlementDepositMatchingPolicy()
+                writer,
+                reader
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
     }
@@ -126,9 +140,17 @@ class SettlementDepositServiceTest {
         });
         verify(saveSettlementPort).update(any(Settlement.class));
         InOrder accountUpdateOrder = inOrder(
+                bankTransactionPort,
                 loadAccountPort,
                 loadSettlementPort,
                 saveTransactionPort
+        );
+        accountUpdateOrder.verify(bankTransactionPort).fetch(
+                eq("CID-1"),
+                eq("0020"),
+                eq("1002123456789"),
+                any(LocalDate.class),
+                any(LocalDate.class)
         );
         accountUpdateOrder.verify(loadAccountPort)
                 .findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID);
@@ -282,6 +304,8 @@ class SettlementDepositServiceTest {
         if (status != SettlementStatus.COMPLETED) {
             when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                     .thenReturn(Optional.of(settlement(status)));
+            when(loadAccountPort.findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID))
+                    .thenReturn(Optional.of(mock(Account.class)));
         }
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
