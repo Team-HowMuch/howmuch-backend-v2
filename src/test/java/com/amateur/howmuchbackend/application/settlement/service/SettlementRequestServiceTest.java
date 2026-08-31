@@ -14,6 +14,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementRequestPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDutchPayAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementRequestPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -39,6 +40,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -52,6 +55,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,6 +81,7 @@ class SettlementRequestServiceTest {
     @Mock private SettlementLinkTokenPort linkTokenPort;
     @Mock private SaveSettlementRequestPort saveSettlementRequestPort;
     @Mock private LockGroupMemberRosterPort lockGroupMemberRosterPort;
+    @Mock private SettlementPushSenderPort pushSenderPort;
 
     private SettlementRequestService service;
 
@@ -95,39 +100,62 @@ class SettlementRequestServiceTest {
                 new SettlementRequestPolicy(),
                 linkTokenPort,
                 saveSettlementRequestPort,
-                lockGroupMemberRosterPort
+                lockGroupMemberRosterPort,
+                pushSenderPort
         );
     }
 
     @Test
     @DisplayName("더치페이는 Share와 계좌 스냅샷을 고정하고 입금 대기 상태로 전환한다")
     void requestsDutchPaySettlement() {
-        arrangeCommon(SettlementAllocationType.DUTCH_PAY);
-        when(allocationStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
-                allocation(CREATOR_PARTICIPANT_ID, 4_000),
-                allocation(PAYER_PARTICIPANT_ID, 6_000)
-        ));
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            arrangeCommon(SettlementAllocationType.DUTCH_PAY);
+            when(allocationStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                    allocation(CREATOR_PARTICIPANT_ID, 4_000),
+                    allocation(PAYER_PARTICIPANT_ID, 6_000)
+            ));
+            when(loadUserPort.findAllByIds(List.of(2L))).thenReturn(List.of(payerUser()));
+            when(pushSenderPort.sendParticipationRequest(
+                    "firebase-installation-id",
+                    SETTLEMENT_ID,
+                    "https://howmuch.example/settlements/token"
+            )).thenReturn(SettlementPushSenderPort.SendResult.SENT);
 
-        var result = service.request(SETTLEMENT_ID);
+            var result = service.request(SETTLEMENT_ID);
 
-        ArgumentCaptor<Settlement> settlementCaptor = ArgumentCaptor.forClass(Settlement.class);
-        verify(saveSettlementPort).update(settlementCaptor.capture());
-        assertThat(settlementCaptor.getValue().status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
-        assertThat(result.allocationPhase()).isEqualTo(SettlementRequestPhase.TRANSFER_READY);
-        assertThat(result.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+            ArgumentCaptor<Settlement> settlementCaptor = ArgumentCaptor.forClass(Settlement.class);
+            verify(saveSettlementPort).update(settlementCaptor.capture());
+            assertThat(settlementCaptor.getValue().status())
+                    .isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+            assertThat(result.allocationPhase()).isEqualTo(SettlementRequestPhase.TRANSFER_READY);
+            assertThat(result.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
 
-        ArgumentCaptor<SettlementReceivingAccountSnapshot> snapshotCaptor =
-                ArgumentCaptor.forClass(SettlementReceivingAccountSnapshot.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<SettlementShare>> sharesCaptor = ArgumentCaptor.forClass(List.class);
-        verify(saveSettlementRequestPort).save(
-                snapshotCaptor.capture(), sharesCaptor.capture(), any(),
-                eq(RAW_LINK_TOKEN)
-        );
-        assertThat(snapshotCaptor.getValue().accountNumber()).isEqualTo("1002123456789");
-        assertThat(snapshotCaptor.getValue().accountHolder()).isEqualTo("최수아");
-        assertThat(sharesCaptor.getValue()).extracting(SettlementShare::amount)
-                .containsExactly(4_000L, 6_000L);
+            ArgumentCaptor<SettlementReceivingAccountSnapshot> snapshotCaptor =
+                    ArgumentCaptor.forClass(SettlementReceivingAccountSnapshot.class);
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<SettlementShare>> sharesCaptor = ArgumentCaptor.forClass(List.class);
+            verify(saveSettlementRequestPort).save(
+                    snapshotCaptor.capture(), sharesCaptor.capture(), any(),
+                    eq(RAW_LINK_TOKEN)
+            );
+            assertThat(snapshotCaptor.getValue().accountNumber()).isEqualTo("1002123456789");
+            assertThat(snapshotCaptor.getValue().accountHolder()).isEqualTo("최수아");
+            assertThat(sharesCaptor.getValue()).extracting(SettlementShare::amount)
+                    .containsExactly(4_000L, 6_000L);
+
+            verifyNoInteractions(pushSenderPort);
+            TransactionSynchronizationManager.getSynchronizations().forEach(
+                    TransactionSynchronization::afterCommit
+            );
+            verify(pushSenderPort).sendParticipationRequest(
+                    "firebase-installation-id",
+                    SETTLEMENT_ID,
+                    "https://howmuch.example/settlements/token"
+            );
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
@@ -342,6 +370,29 @@ class SettlementRequestServiceTest {
                 "01012345678",
                 "pin-hash",
                 null,
+                null,
+                true,
+                UserRole.USER,
+                true,
+                null,
+                CREATED_AT,
+                null,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private User payerUser() {
+        return new User(
+                2L,
+                "payer-identity-key",
+                "민선영",
+                "payer_user",
+                null,
+                null,
+                "01087654321",
+                "pin-hash",
+                "firebase-installation-id",
                 null,
                 true,
                 UserRole.USER,

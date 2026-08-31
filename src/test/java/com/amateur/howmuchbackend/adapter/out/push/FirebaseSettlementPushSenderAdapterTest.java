@@ -1,6 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.push;
 
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReminderPushSenderPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -23,35 +23,51 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Firebase 정산 독촉 푸시 Adapter")
-class FirebaseSettlementReminderPushSenderAdapterTest {
+@DisplayName("Firebase 정산 푸시 Adapter")
+class FirebaseSettlementPushSenderAdapterTest {
     private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
+    private static final String SHARE_LINK = "https://howmuch.example/settlements/link-token";
 
     @Mock private ObjectProvider<FirebaseMessaging> firebaseMessagingProvider;
     @Mock private FirebaseMessaging firebaseMessaging;
 
     @Test
-    @DisplayName("앱 라우팅에 필요한 FID와 정산 식별자만 FCM에 전달한다")
-    void sendsPrivacySafeReminderPayload() throws Exception {
+    @DisplayName("참여와 독촉 알림은 개인정보 없이 앱 라우팅 데이터만 전달한다")
+    void sendsPrivacySafeSettlementPayloads() throws Exception {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
         when(firebaseMessaging.send(any(Message.class))).thenReturn("message-id");
-        var adapter = new FirebaseSettlementReminderPushSenderAdapter(
-                firebaseMessagingProvider
+        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
+
+        var participationResult = adapter.sendParticipationRequest(
+                "firebase-installation-id",
+                SETTLEMENT_ID,
+                SHARE_LINK
+        );
+        var reminderResult = adapter.sendReminder(
+                "firebase-installation-id",
+                SETTLEMENT_ID
         );
 
-        var result = adapter.send("firebase-installation-id", SETTLEMENT_ID);
-
-        assertThat(result).isEqualTo(SettlementReminderPushSenderPort.SendResult.SENT);
+        assertThat(participationResult).isEqualTo(SettlementPushSenderPort.SendResult.SENT);
+        assertThat(reminderResult).isEqualTo(SettlementPushSenderPort.SendResult.SENT);
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
-        verify(firebaseMessaging).send(messageCaptor.capture());
-        assertThat(invoke(messageCaptor.getValue(), "getFid"))
+        verify(firebaseMessaging, times(2)).send(messageCaptor.capture());
+        Message participationMessage = messageCaptor.getAllValues().getFirst();
+        assertThat(invoke(participationMessage, "getFid"))
                 .isEqualTo("firebase-installation-id");
-        assertThat(invoke(messageCaptor.getValue(), "getToken")).isNull();
-        assertThat(invoke(messageCaptor.getValue(), "getData"))
+        assertThat(invoke(participationMessage, "getToken")).isNull();
+        assertThat(invoke(participationMessage, "getData"))
+                .isEqualTo(Map.of(
+                        "type", "SETTLEMENT_PARTICIPATION",
+                        "settlementId", SETTLEMENT_ID.toString(),
+                        "shareLink", SHARE_LINK
+                ));
+        assertThat(invoke(messageCaptor.getAllValues().getLast(), "getData"))
                 .isEqualTo(Map.of(
                         "type", "SETTLEMENT_REMINDER",
                         "settlementId", SETTLEMENT_ID.toString()
@@ -62,15 +78,15 @@ class FirebaseSettlementReminderPushSenderAdapterTest {
     @DisplayName("Firebase가 비활성화된 환경은 성공으로 가장하지 않는다")
     void rejectsWhenFirebaseIsDisabled() {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(null);
-        var adapter = new FirebaseSettlementReminderPushSenderAdapter(
-                firebaseMessagingProvider
-        );
+        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
 
-        assertThatThrownBy(() -> adapter.send("firebase-installation-id", SETTLEMENT_ID))
-                .isInstanceOfSatisfying(ApplicationException.class, exception ->
-                        assertThat(exception.getStatusCode()).isEqualTo(
-                                SettlementStatusCode.SETTLEMENT_REMINDER_DELIVERY_UNAVAILABLE
-                        ));
+        assertThatThrownBy(() -> adapter.sendReminder(
+                "firebase-installation-id",
+                SETTLEMENT_ID
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.SETTLEMENT_REMINDER_DELIVERY_UNAVAILABLE
+                ));
     }
 
     @Test
@@ -80,12 +96,10 @@ class FirebaseSettlementReminderPushSenderAdapterTest {
         when(exception.getMessagingErrorCode()).thenReturn(MessagingErrorCode.UNREGISTERED);
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
         when(firebaseMessaging.send(any(Message.class))).thenThrow(exception);
-        var adapter = new FirebaseSettlementReminderPushSenderAdapter(
-                firebaseMessagingProvider
-        );
+        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
 
-        assertThat(adapter.send("expired-installation-id", SETTLEMENT_ID))
-                .isEqualTo(SettlementReminderPushSenderPort.SendResult.INVALID_TARGET);
+        assertThat(adapter.sendReminder("expired-installation-id", SETTLEMENT_ID))
+                .isEqualTo(SettlementPushSenderPort.SendResult.INVALID_TARGET);
     }
 
     private Object invoke(Message message, String methodName) throws Exception {

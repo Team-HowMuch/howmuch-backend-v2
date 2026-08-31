@@ -103,7 +103,7 @@ Result -> Web Response DTO: SettlementShareLinkWebResponse.from(result)
 |---|---|---|---|
 | 기존 settlement/user Load Ports | 대상과 납부·FID 조회 | 일괄 독촉 Service | 기존 Persistence Adapters |
 | 기존 `SettlementReminderCooldownPort` | 참여자별 30분 예약 | 일괄 독촉 Service | 기존 Redis Adapter |
-| 기존 `SettlementReminderPushSenderPort` | FCM 발송 | 일괄 독촉 Service | 기존 Firebase Adapter |
+| 기존 `SettlementPushSenderPort` | FCM 발송 | 일괄 독촉 Service | 기존 Firebase Adapter |
 | 공유 링크 조회·갱신 Port | 링크 암호문 조회와 legacy 재발급 저장 | 공유 링크 Service | Settlement Persistence Adapter |
 
 ### Application Policy

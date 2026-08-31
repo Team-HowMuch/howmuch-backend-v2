@@ -7,7 +7,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReminderCooldownPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReminderPushSenderPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -60,7 +60,7 @@ class SettlementReminderServiceTest {
     @Mock private LoadSettlementDepositSummaryPort loadSettlementDepositSummaryPort;
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementReminderCooldownPort cooldownPort;
-    @Mock private SettlementReminderPushSenderPort pushSenderPort;
+    @Mock private SettlementPushSenderPort pushSenderPort;
 
     private SettlementReminderService service;
 
@@ -88,14 +88,14 @@ class SettlementReminderServiceTest {
                 anyString(),
                 eq(Duration.ofMinutes(30))
         )).thenReturn(true);
-        when(pushSenderPort.send("firebase-installation-id", SETTLEMENT_ID))
-                .thenReturn(SettlementReminderPushSenderPort.SendResult.SENT);
+        when(pushSenderPort.sendReminder("firebase-installation-id", SETTLEMENT_ID))
+                .thenReturn(SettlementPushSenderPort.SendResult.SENT);
 
         var result = service.remind(SETTLEMENT_ID, PARTICIPANT_ID);
 
         assertThat(Duration.between(result.remindedAt(), result.nextAvailableAt()))
                 .isEqualTo(Duration.ofMinutes(30));
-        verify(pushSenderPort).send("firebase-installation-id", SETTLEMENT_ID);
+        verify(pushSenderPort).sendReminder("firebase-installation-id", SETTLEMENT_ID);
         verify(cooldownPort, never()).release(any(), any(), anyString());
     }
 
@@ -117,13 +117,13 @@ class SettlementReminderServiceTest {
                 anyString(),
                 eq(Duration.ofMinutes(30))
         )).thenReturn(true);
-        when(pushSenderPort.send("firebase-installation-id", SETTLEMENT_ID))
-                .thenReturn(SettlementReminderPushSenderPort.SendResult.SENT);
+        when(pushSenderPort.sendReminder("firebase-installation-id", SETTLEMENT_ID))
+                .thenReturn(SettlementPushSenderPort.SendResult.SENT);
 
         var result = service.remindAll(SETTLEMENT_ID);
 
         assertThat(result.sentCount()).isEqualTo(1);
-        verify(pushSenderPort).send("firebase-installation-id", SETTLEMENT_ID);
+        verify(pushSenderPort).sendReminder("firebase-installation-id", SETTLEMENT_ID);
     }
 
     @Test
@@ -172,7 +172,7 @@ class SettlementReminderServiceTest {
                 anyString(),
                 eq(Duration.ofMinutes(30))
         )).thenReturn(true);
-        when(pushSenderPort.send("firebase-installation-id", SETTLEMENT_ID))
+        when(pushSenderPort.sendReminder("firebase-installation-id", SETTLEMENT_ID))
                 .thenThrow(ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_REMINDER_DELIVERY_FAILED
                 ));
