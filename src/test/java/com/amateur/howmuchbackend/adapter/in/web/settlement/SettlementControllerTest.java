@@ -42,6 +42,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
@@ -60,6 +61,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -392,6 +394,26 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.status").value(409))
                 .andExpect(jsonPath("$.error.code").value("CONCURRENT_UPDATE"));
+    }
+
+    @Test
+    @DisplayName("잠금 획득 실패를 재시도 가능한 503 TEMPORARILY_UNAVAILABLE로 반환한다")
+    void returnsServiceUnavailableForLockFailure() throws Exception {
+        when(updateSettlementDraftUseCase.update(eq(SETTLEMENT_ID), any(UpdateSettlementDraftCommand.class)))
+                .thenThrow(new PessimisticLockingFailureException("lock timeout"));
+
+        mockMvc.perform(patch("/api/v2/settlements/{settlementId}", SETTLEMENT_ID)
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "totalAmount": 20000
+                                }
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "1"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.status").value(503))
+                .andExpect(jsonPath("$.error.code").value("TEMPORARILY_UNAVAILABLE"));
     }
 
     @Test

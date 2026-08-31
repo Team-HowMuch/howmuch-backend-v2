@@ -14,6 +14,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementDepositMatchingPolicy;
+import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
@@ -43,10 +44,12 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -82,20 +85,32 @@ class SettlementDepositServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SettlementDepositService(
-                currentActorPort,
+        SettlementDepositReader reader = new SettlementDepositReader(
                 loadSettlementPort,
-                saveSettlementPort,
                 loadSettlementSharePort,
                 loadSettlementParticipantPort,
                 loadSnapshotPort,
-                depositStorePort,
-                loadAccountPort,
                 loadTransactionPort,
+                depositStorePort
+        );
+        SettlementDepositWriter writer = new SettlementDepositWriter(
+                loadAccountPort,
+                loadSettlementPort,
                 saveTransactionPort,
+                loadTransactionPort,
+                depositStorePort,
+                saveSettlementPort,
+                new SettlementDepositMatchingPolicy(),
+                reader
+        );
+        service = new SettlementDepositService(
+                currentActorPort,
+                loadSettlementPort,
+                loadSnapshotPort,
                 connectionStorePort,
                 bankTransactionPort,
-                new SettlementDepositMatchingPolicy()
+                writer,
+                reader
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
     }
@@ -126,9 +141,17 @@ class SettlementDepositServiceTest {
         });
         verify(saveSettlementPort).update(any(Settlement.class));
         InOrder accountUpdateOrder = inOrder(
+                bankTransactionPort,
                 loadAccountPort,
                 loadSettlementPort,
                 saveTransactionPort
+        );
+        accountUpdateOrder.verify(bankTransactionPort).fetch(
+                eq("CID-1"),
+                eq("0020"),
+                eq("1002123456789"),
+                any(LocalDate.class),
+                any(LocalDate.class)
         );
         accountUpdateOrder.verify(loadAccountPort)
                 .findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID);
@@ -150,6 +173,36 @@ class SettlementDepositServiceTest {
                         "1002123456789",
                         Set.of(savedTransaction.externalTransactionKey())
                 );
+    }
+
+    @Test
+    @DisplayName("삭제된 수취 계좌는 잠금 대상 없이 불변 스냅샷으로 입금 대조를 완료한다")
+    void reconcilesDeletedReceivingAccountFromSnapshot() {
+        Settlement awaitingSettlement = settlement(SettlementStatus.AWAITING_DEPOSIT);
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(awaitingSettlement));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(awaitingSettlement));
+        when(loadAccountPort.findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID))
+                .thenReturn(Optional.empty());
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(snapshot()));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(shares());
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        Transaction savedTransaction = transaction("6000");
+        arrangeFetchedTransaction(savedTransaction);
+        when(saveSettlementPort.update(any(Settlement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.reconcile(SETTLEMENT_ID);
+
+        assertThat(result.status()).isEqualTo(SettlementStatus.COMPLETED);
+        assertThat(result.confirmedAmount()).isEqualTo(6_000);
+        verify(loadAccountPort).findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID);
+        verify(saveTransactionPort).saveAllIgnoringDuplicates(anyList());
+        verify(depositStorePort).saveAll(anyList());
     }
 
     @Test
@@ -240,6 +293,33 @@ class SettlementDepositServiceTest {
     }
 
     @Test
+    @DisplayName("외부 거래 조회 장애는 계좌와 정산 잠금을 획득하기 전에 전파한다")
+    void externalFailureDoesNotAcquireDatabaseLocks() {
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(snapshot()));
+        when(connectionStorePort.findActiveByUserId(CREATOR_ID))
+                .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
+        when(bankTransactionPort.fetch(
+                eq("CID-1"),
+                eq("0020"),
+                eq("1002123456789"),
+                any(LocalDate.class),
+                any(LocalDate.class)
+        )).thenThrow(new IllegalStateException("injected external failure"));
+
+        assertThatThrownBy(() -> service.reconcile(SETTLEMENT_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("injected external failure");
+
+        verify(loadAccountPort, never())
+                .findActiveByIdAndUserIdForUpdate(any(), any());
+        verify(loadSettlementPort, never()).findByIdForUpdate(any());
+        verifyNoInteractions(saveTransactionPort, depositStorePort, saveSettlementPort);
+    }
+
+    @Test
     @DisplayName("계좌 잠금 대기 중 완료된 정산은 잠금 후 상태를 재검증해 저장하지 않는다")
     void rechecksCompletedStatusAfterAccountLock() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
@@ -282,6 +362,8 @@ class SettlementDepositServiceTest {
         if (status != SettlementStatus.COMPLETED) {
             when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                     .thenReturn(Optional.of(settlement(status)));
+            when(loadAccountPort.findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID))
+                    .thenReturn(Optional.of(mock(Account.class)));
         }
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));

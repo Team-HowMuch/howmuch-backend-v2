@@ -14,7 +14,8 @@ public enum CommonStatusCode implements StatusCode {
     UNAUTHORIZED("인증이 필요합니다", 401),
     FORBIDDEN("권한이 없습니다", 403),
     CONCURRENT_UPDATE("다른 요청에서 먼저 수정되었습니다. 최신 정보를 조회한 후 다시 시도해 주세요.", 409),
-    TOO_MANY_REQUEST("너무 많은 요청이 들어왔습니다", 429);
+    TOO_MANY_REQUEST("너무 많은 요청이 들어왔습니다", 429),
+    TEMPORARILY_UNAVAILABLE("다른 작업을 처리 중입니다. 잠시 후 다시 시도해 주세요.", 503);
 
 
     private final String message;
