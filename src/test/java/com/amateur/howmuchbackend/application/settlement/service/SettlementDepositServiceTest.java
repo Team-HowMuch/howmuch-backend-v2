@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -259,6 +260,33 @@ class SettlementDepositServiceTest {
         assertThat(result.confirmedAmount()).isEqualTo(6_000);
         verify(depositStorePort, never()).saveAll(anyList());
         verifyNoInteractions(connectionStorePort, bankTransactionPort, saveTransactionPort, saveSettlementPort);
+    }
+
+    @Test
+    @DisplayName("외부 거래 조회 장애는 계좌와 정산 잠금을 획득하기 전에 전파한다")
+    void externalFailureDoesNotAcquireDatabaseLocks() {
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(snapshot()));
+        when(connectionStorePort.findActiveByUserId(CREATOR_ID))
+                .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
+        when(bankTransactionPort.fetch(
+                eq("CID-1"),
+                eq("0020"),
+                eq("1002123456789"),
+                any(LocalDate.class),
+                any(LocalDate.class)
+        )).thenThrow(new IllegalStateException("injected external failure"));
+
+        assertThatThrownBy(() -> service.reconcile(SETTLEMENT_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("injected external failure");
+
+        verify(loadAccountPort, never())
+                .findActiveByIdAndUserIdForUpdate(any(), any());
+        verify(loadSettlementPort, never()).findByIdForUpdate(any());
+        verifyNoInteractions(saveTransactionPort, depositStorePort, saveSettlementPort);
     }
 
     @Test
