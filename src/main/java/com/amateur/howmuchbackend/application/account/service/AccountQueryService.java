@@ -107,8 +107,35 @@ public class AccountQueryService
         Account account = ownedAccount(accountId);
         YearMonth yearMonth = yearMonth(requestedYearMonth);
         summary(account, yearMonth);
-        return loadTransactionPort.findByAccountIdAndYearMonth(account.id(), yearMonth).stream()
-                .map(AccountTransactionResult::from)
+        List<Transaction> transactions = loadTransactionPort.findByAccountIdAndYearMonth(
+                account.id(),
+                yearMonth
+        );
+        Map<String, List<LoadAccountTransactionPort.LinkedSettlement>> settlementsByTransactionKey =
+                loadTransactionPort.findLinkedSettlements(
+                                account.userId(),
+                                transactions.stream()
+                                        .map(Transaction::externalTransactionKey)
+                                        .toList()
+                        ).stream()
+                        .collect(Collectors.groupingBy(
+                                LoadAccountTransactionPort.LinkedSettlement::externalTransactionKey
+                        ));
+        return transactions.stream()
+                .map(transaction -> AccountTransactionResult.from(
+                        transaction,
+                        settlementsByTransactionKey
+                                .getOrDefault(
+                                        transaction.externalTransactionKey(),
+                                        List.of()
+                                ).stream()
+                                .map(link -> new AccountTransactionResult.SettlementSummary(
+                                        link.settlementId(),
+                                        link.title(),
+                                        link.status()
+                                ))
+                                .toList()
+                ))
                 .toList();
     }
 

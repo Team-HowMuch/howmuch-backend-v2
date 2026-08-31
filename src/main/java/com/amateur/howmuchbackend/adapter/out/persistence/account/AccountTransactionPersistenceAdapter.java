@@ -9,6 +9,7 @@ import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransa
 import com.amateur.howmuchbackend.domain.account.AccountMonthlySummary;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.account.Transaction;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,6 +57,26 @@ public class AccountTransactionPersistenceAdapter
                         accountId, start, monthStartUtc(yearMonth.plusMonths(1))
                 ).stream()
                 .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LinkedSettlement> findLinkedSettlements(
+            Long creatorId,
+            List<String> externalTransactionKeys
+    ) {
+        if (externalTransactionKeys.isEmpty()) {
+            return List.of();
+        }
+        return transactionRepository.findLinkedSettlements(creatorId, externalTransactionKeys)
+                .stream()
+                .map(projection -> new LinkedSettlement(
+                        projection.getExternalTransactionKey(),
+                        projection.getSettlementId(),
+                        projection.getTitle(),
+                        SettlementStatus.valueOf(projection.getStatus())
+                ))
                 .toList();
     }
 

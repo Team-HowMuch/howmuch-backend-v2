@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface AccountTransactionJpaRepository extends JpaRepository<AccountTransactionJpaEntity, Long> {
     List<AccountTransactionJpaEntity>
@@ -22,6 +23,25 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
     );
 
     Optional<AccountTransactionJpaEntity> findByAccountIdAndId(Long accountId, Long transactionId);
+
+    @Query(value = """
+            SELECT expense.source_reference AS "externalTransactionKey",
+                   settlement.id AS "settlementId",
+                   settlement.title AS title,
+                   settlement.status AS status
+              FROM settlement_expenses expense
+              JOIN settlements settlement ON settlement.id = expense.settlement_id
+             WHERE settlement.creator_id = :creatorId
+               AND expense.source = 'PAYMENT_HISTORY'
+               AND expense.source_reference IN (:externalTransactionKeys)
+             ORDER BY expense.source_reference,
+                      settlement.created_at DESC,
+                      settlement.id DESC
+            """, nativeQuery = true)
+    List<LinkedSettlementProjection> findLinkedSettlements(
+            @Param("creatorId") Long creatorId,
+            @Param("externalTransactionKeys") Collection<String> externalTransactionKeys
+    );
 
     List<AccountTransactionJpaEntity>
     findByAccountIdAndTypeAndTransactedAtGreaterThanEqualAndTransactedAtLessThanEqualOrderByTransactedAtAscIdAsc(
@@ -81,5 +101,15 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
         Long getExpenseCount();
 
         LocalDateTime getLastUsedAt();
+    }
+
+    interface LinkedSettlementProjection {
+        String getExternalTransactionKey();
+
+        UUID getSettlementId();
+
+        String getTitle();
+
+        String getStatus();
     }
 }

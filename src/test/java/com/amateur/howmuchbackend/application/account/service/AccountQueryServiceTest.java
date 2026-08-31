@@ -19,6 +19,7 @@ import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.account.AccountType;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -157,6 +159,50 @@ class AccountQueryServiceTest {
     }
 
     @Test
+    @DisplayName("거래별로 연결된 여러 정산을 반환하고 미연결 거래는 빈 목록을 반환한다")
+    void returnsLinkedSettlementsWithTransactions() {
+        Account account = account(1L, "0020", true, 0);
+        AccountMonthlySummary summary = new AccountMonthlySummary(
+                10L, account.id(), AUGUST, new BigDecimal("30000"), 2,
+                LocalDateTime.of(2026, 8, 21, 0, 15)
+        );
+        Transaction linked = transaction(11L, account.id(), "a".repeat(64), "12000", 20);
+        Transaction unlinked = transaction(12L, account.id(), "b".repeat(64), "18000", 21);
+        UUID firstSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001001");
+        UUID secondSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001002");
+        when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID))
+                .thenReturn(Optional.of(account));
+        when(loadTransactionPort.findSummary(account.id(), AUGUST)).thenReturn(Optional.of(summary));
+        when(loadTransactionPort.findByAccountIdAndYearMonth(account.id(), AUGUST))
+                .thenReturn(List.of(unlinked, linked));
+        when(loadTransactionPort.findLinkedSettlements(
+                USER_ID,
+                List.of(unlinked.externalTransactionKey(), linked.externalTransactionKey())
+        )).thenReturn(List.of(
+                new LoadAccountTransactionPort.LinkedSettlement(
+                        linked.externalTransactionKey(),
+                        firstSettlementId,
+                        "점심 정산",
+                        SettlementStatus.AWAITING_DEPOSIT
+                ),
+                new LoadAccountTransactionPort.LinkedSettlement(
+                        linked.externalTransactionKey(),
+                        secondSettlementId,
+                        "여행 정산",
+                        SettlementStatus.COMPLETED
+                )
+        ));
+
+        var result = service.getAccountTransactions(account.id(), AUGUST);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.getFirst().settlements()).isEmpty();
+        assertThat(result.getLast().settlements())
+                .extracting(settlement -> settlement.settlementId())
+                .containsExactly(firstSettlementId, secondSettlementId);
+    }
+
+    @Test
     @DisplayName("연결 잠금 전에 계좌가 삭제되면 CODEF 조회 없이 404로 종료한다")
     void rejectsAccountDeletedBeforeTransactionFetch() {
         Account account = account(1L, "0020", true, 0);
@@ -206,6 +252,25 @@ class AccountQueryServiceTest {
                 id, USER_ID, 7L, organization, "candidate-" + id, "1002123456789",
                 AccountType.DEPOSIT_TRUST, "생활비 통장", "****6789", new BigDecimal("1250000"),
                 "KRW", true, "11", isDefault, displayOrder
+        );
+    }
+
+    private Transaction transaction(
+            Long id,
+            Long accountId,
+            String externalTransactionKey,
+            String amount,
+            int day
+    ) {
+        return new Transaction(
+                id,
+                accountId,
+                externalTransactionKey,
+                AccountTransactionType.EXPENSE,
+                new BigDecimal(amount),
+                LocalDateTime.of(2026, 8, day, 0, 15),
+                "테스트 거래",
+                new BigDecimal("1000000")
         );
     }
 }
