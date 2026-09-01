@@ -110,7 +110,8 @@ class SettlementItemAllocationAtomicityIntegrationTest {
         assertThatThrownBy(() -> writer.submit(
                 settlementId,
                 creatorParticipantId,
-                NOW.plusMinutes(1)
+                NOW.plusMinutes(1),
+                SettlementItemAllocationEntry.LINK
         )).isInstanceOf(IllegalStateException.class)
                 .hasMessage("injected share failure");
 

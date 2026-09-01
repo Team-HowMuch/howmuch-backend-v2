@@ -27,6 +27,8 @@ public class SettlementItemAllocationService implements
         SaveSettlementItemSelectionUseCase,
         RemoveSettlementItemSelectionUseCase,
         SubmitSettlementItemAllocationUseCase {
+    private static final SettlementItemAllocationEntry ENTRY = SettlementItemAllocationEntry.LINK;
+
     private final SettlementLinkTokenPort linkTokenPort;
     private final LoadSettlementLinkPort loadSettlementLinkPort;
     private final LoadSettlementParticipantContextPort loadParticipantContextPort;
@@ -45,7 +47,7 @@ public class SettlementItemAllocationService implements
                 participantId,
                 now()
         );
-        return reader.read(access.settlementId(), participantId);
+        return reader.read(access.settlementId(), participantId, ENTRY);
     }
 
     @Override
@@ -58,8 +60,8 @@ public class SettlementItemAllocationService implements
     ) {
         LocalDateTime now = now();
         AccessContext access = resolveAccess(rawLinkToken, participantContextToken, participantId, now);
-        writer.save(access.settlementId(), participantId, itemId, command, now);
-        return reader.read(access.settlementId(), participantId);
+        writer.save(access.settlementId(), participantId, itemId, command, now, ENTRY);
+        return reader.read(access.settlementId(), participantId, ENTRY);
     }
 
     @Override
@@ -75,8 +77,8 @@ public class SettlementItemAllocationService implements
                 participantId,
                 now()
         );
-        writer.remove(access.settlementId(), participantId, itemId);
-        return reader.read(access.settlementId(), participantId);
+        writer.remove(access.settlementId(), participantId, itemId, ENTRY);
+        return reader.read(access.settlementId(), participantId, ENTRY);
     }
 
     @Override
@@ -87,8 +89,8 @@ public class SettlementItemAllocationService implements
     ) {
         LocalDateTime now = now();
         AccessContext access = resolveAccess(rawLinkToken, participantContextToken, participantId, now);
-        writer.submit(access.settlementId(), participantId, now);
-        return reader.read(access.settlementId(), participantId);
+        writer.submit(access.settlementId(), participantId, now, ENTRY);
+        return reader.read(access.settlementId(), participantId, ENTRY);
     }
 
     private AccessContext resolveAccess(

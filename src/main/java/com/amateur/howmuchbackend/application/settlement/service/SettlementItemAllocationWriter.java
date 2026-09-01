@@ -37,10 +37,11 @@ class SettlementItemAllocationWriter {
             UUID participantId,
             UUID itemId,
             SaveSettlementItemSelectionCommand command,
-            LocalDateTime now
+            LocalDateTime now,
+            SettlementItemAllocationEntry entry
     ) {
-        var state = stateLoader.load(settlementId, participantId, true);
-        ensureSelectionEditable(state);
+        var state = stateLoader.load(settlementId, participantId, true, entry);
+        ensureSelectionEditable(state, entry);
         if (command == null || command.fraction() == null) {
             throw ApplicationException.of(
                     SettlementStatusCode.INVALID_SETTLEMENT_ITEM_ALLOCATION_FRACTION
@@ -69,9 +70,14 @@ class SettlementItemAllocationWriter {
     }
 
     @Transactional
-    public void remove(UUID settlementId, UUID participantId, UUID itemId) {
-        var state = stateLoader.load(settlementId, participantId, true);
-        ensureSelectionEditable(state);
+    public void remove(
+            UUID settlementId,
+            UUID participantId,
+            UUID itemId,
+            SettlementItemAllocationEntry entry
+    ) {
+        var state = stateLoader.load(settlementId, participantId, true, entry);
+        ensureSelectionEditable(state, entry);
         findItem(state.items(), itemId);
         SettlementItemSelection selection = allocationStorePort
                 .findSelection(settlementId, itemId, participantId)
@@ -82,15 +88,25 @@ class SettlementItemAllocationWriter {
     }
 
     @Transactional
-    public void submit(UUID settlementId, UUID participantId, LocalDateTime now) {
-        var state = stateLoader.load(settlementId, participantId, true);
-        ensureSelectionEditable(state);
+    public void submit(
+            UUID settlementId,
+            UUID participantId,
+            LocalDateTime now,
+            SettlementItemAllocationEntry entry
+    ) {
+        var state = stateLoader.load(settlementId, participantId, true, entry);
+        ensureSelectionEditable(state, entry);
         allocationStorePort.saveSubmission(SettlementItemSubmission.submit(
                 settlementId,
                 participantId,
                 now
         ));
 
+        // DRAFT는 알림 발송 전이라 확정하지 않는다. 확정하면 REQUESTED를 건너뛰고
+        // AWAITING_DEPOSIT이 되어 참여자가 링크로 몫을 고를 기회를 잃는다.
+        if (state.settlement().status() != SettlementStatus.REQUESTED) {
+            return;
+        }
         List<SettlementParticipant> participants = loadSettlementParticipantPort
                 .findAllBySettlementId(settlementId);
         List<SettlementItemSubmission> submissions = allocationStorePort
@@ -115,8 +131,11 @@ class SettlementItemAllocationWriter {
         saveSettlementPort.update(state.settlement().suspend(now));
     }
 
-    private void ensureSelectionEditable(SettlementItemAllocationStateLoader.State state) {
-        if (state.settlement().status() != SettlementStatus.REQUESTED) {
+    private void ensureSelectionEditable(
+            SettlementItemAllocationStateLoader.State state,
+            SettlementItemAllocationEntry entry
+    ) {
+        if (!isEditableStatus(state.settlement().status(), entry)) {
             throw ApplicationException.of(
                     SettlementStatusCode.SETTLEMENT_ITEM_SELECTION_NOT_EDITABLE
             );
@@ -129,6 +148,18 @@ class SettlementItemAllocationWriter {
                     SettlementStatusCode.SETTLEMENT_ITEM_SUBMISSION_ALREADY_EXISTS
             );
         }
+    }
+
+    /** 생성자는 알림 발송 전 DRAFT에서 고르고, 링크는 요청 이후에만 고친다. */
+    private boolean isEditableStatus(
+            SettlementStatus status,
+            SettlementItemAllocationEntry entry
+    ) {
+        if (entry == SettlementItemAllocationEntry.CREATOR
+                && status == SettlementStatus.DRAFT) {
+            return true;
+        }
+        return status == SettlementStatus.REQUESTED;
     }
 
     private SettlementItem findItem(List<SettlementItem> items, UUID itemId) {
