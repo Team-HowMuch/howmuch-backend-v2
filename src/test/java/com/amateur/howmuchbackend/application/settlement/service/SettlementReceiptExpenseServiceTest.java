@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementReceiptExpenseCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.ImportSettlementReceiptExpenseCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementReceiptExpenseMutationResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,6 +42,7 @@ class SettlementReceiptExpenseServiceTest {
             "44c9323d-6a65-4a93-aeaa-ef8f24341c8a"
     );
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 23, 20, 0);
+    private static final LocalDateTime PAID_AT = LocalDateTime.of(2026, 8, 31, 17, 40);
 
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadSettlementPort loadSettlementPort;
@@ -60,6 +63,78 @@ class SettlementReceiptExpenseServiceTest {
                 extractReceiptItemsPort,
                 receiptExpenseWriter
         );
+    }
+
+    @Test
+    @DisplayName("앱 영수증 품목의 행 금액 합계를 서버에서 계산해 Writer에 전달한다")
+    void createsSubmittedReceiptWithServerCalculatedTotal() {
+        CreateSettlementReceiptExpenseCommand command =
+                new CreateSettlementReceiptExpenseCommand(
+                        "  receipt-app-1  ",
+                        "  롯데리아  ",
+                        PAID_AT,
+                        List.of(
+                                new CreateSettlementReceiptExpenseCommand.Item(
+                                        "  불고기버거  ",
+                                        2,
+                                        10_000
+                                ),
+                                new CreateSettlementReceiptExpenseCommand.Item(
+                                        "감자튀김",
+                                        1,
+                                        3_000
+                                )
+                        )
+                );
+        ExtractReceiptItemsPort.ReceiptExtraction extraction =
+                new ExtractReceiptItemsPort.ReceiptExtraction(
+                        "롯데리아",
+                        13_000,
+                        List.of(
+                                new ExtractReceiptItemsPort.ReceiptItem("불고기버거", 2, 10_000),
+                                new ExtractReceiptItemsPort.ReceiptItem("감자튀김", 1, 3_000)
+                        )
+                );
+        SettlementReceiptExpenseMutationResult expected =
+                new SettlementReceiptExpenseMutationResult(null, List.of(), 13_000);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(receiptExpenseWriter.write(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                "receipt-app-1",
+                PAID_AT,
+                extraction
+        )).thenReturn(expected);
+
+        assertThat(service.create(SETTLEMENT_ID, command)).isSameAs(expected);
+        verifyNoInteractions(extractReceiptItemsPort, loadSettlementPort);
+    }
+
+    @Test
+    @DisplayName("앱 영수증 품목 합계 overflow를 잘못된 요청으로 거부한다")
+    void rejectsSubmittedReceiptTotalOverflow() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        CreateSettlementReceiptExpenseCommand command =
+                new CreateSettlementReceiptExpenseCommand(
+                        "receipt-app-1",
+                        "롯데리아",
+                        null,
+                        List.of(
+                                new CreateSettlementReceiptExpenseCommand.Item(
+                                        "품목1",
+                                        1,
+                                        Long.MAX_VALUE
+                                ),
+                                new CreateSettlementReceiptExpenseCommand.Item("품목2", 1, 1)
+                        )
+                );
+
+        assertThatThrownBy(() -> service.create(SETTLEMENT_ID, command))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(
+                                SettlementStatusCode.INVALID_SETTLEMENT_RECEIPT_IMPORT_REQUEST
+                        ));
+        verifyNoInteractions(receiptExpenseWriter);
     }
 
     @Test

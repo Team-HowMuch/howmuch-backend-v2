@@ -23,7 +23,7 @@ public enum SettlementStatusCode implements StatusCode {
     INVALID_SETTLEMENT_EXPENSE_TOTAL("정산 지출 누적액이 허용 범위를 초과했습니다.", 400),
     INVALID_SETTLEMENT_EXPENSE_ORDER("정산 지출 표시 순서는 0 이상이어야 합니다.", 400),
     INVALID_SETTLEMENT_EXPENSE_UPDATE("수정할 정산 지출 설명 또는 금액이 필요합니다.", 400),
-    INVALID_SETTLEMENT_RECEIPT_IMPORT_REQUEST("가져올 OCR 영수증 참조가 올바르지 않습니다.", 400),
+    INVALID_SETTLEMENT_RECEIPT_IMPORT_REQUEST("영수증 등록 요청이 올바르지 않습니다.", 400),
     INVALID_SETTLEMENT_ITEM_NAME("정산 품목 이름은 1자 이상 500자 이하여야 합니다.", 400),
     INVALID_SETTLEMENT_ITEM_QUANTITY("정산 품목 수량은 1개 이상이어야 합니다.", 400),
     INVALID_SETTLEMENT_ITEM_AMOUNT("정산 품목 금액은 1원 이상이어야 합니다.", 400),

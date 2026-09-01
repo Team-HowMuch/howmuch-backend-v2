@@ -16,6 +16,7 @@ public record SettlementDetailResult(
         LocalDateTime createdAt,
         ViewerRole viewerRole,
         String creatorName,
+        PaymentInfo paymentInfo,
         PaymentSummary paymentSummary,
         List<ParticipantPayment> participants
 ) {
@@ -29,6 +30,13 @@ public record SettlementDetailResult(
         UNPAID,
         PARTIALLY_PAID,
         PAID
+    }
+
+    public record PaymentInfo(
+            long amount,
+            String storeName,
+            LocalDateTime paidAt
+    ) {
     }
 
     public record PaymentSummary(

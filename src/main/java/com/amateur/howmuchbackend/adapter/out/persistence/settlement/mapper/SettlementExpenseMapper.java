@@ -20,6 +20,7 @@ public final class SettlementExpenseMapper {
                 entity.getSourceAccountId(),
                 entity.getDescription(),
                 entity.getAmount(),
+                entity.getPaidAt(),
                 entity.getDisplayOrder(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()

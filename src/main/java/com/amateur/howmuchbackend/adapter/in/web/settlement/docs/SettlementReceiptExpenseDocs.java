@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.CreateSettlementReceiptExpenseWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.ImportSettlementReceiptExpenseWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementItemListWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementReceiptExpenseMutationWebResponse;
@@ -15,6 +16,42 @@ import java.util.UUID;
 
 @Tag(name = "Settlement Receipt Expense", description = "OCR 영수증 정산 지출·품목 API")
 public interface SettlementReceiptExpenseDocs {
+    @Operation(
+            summary = "앱 OCR 영수증 정산 지출 등록",
+            description = "DRAFT 정산의 생성자가 앱에서 인식한 상호명, 결제 시각, 품목을 "
+                    + "등록합니다. amount는 수량을 반영한 품목 행의 전체 금액이며, 서버가 "
+                    + "품목 금액 합계로 지출 총액을 계산해 지출과 품목을 원자적으로 저장합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "영수증 지출 등록 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_ARGUMENT, INVALID_SETTLEMENT_RECEIPT_IMPORT_REQUEST "
+                            + "또는 INVALID_SETTLEMENT_EXPENSE_TOTAL"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "SETTLEMENT_ACCESS_DENIED - 접근 권한 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "SETTLEMENT_NOT_FOUND"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_RECEIPT_ALREADY_IMPORTED"
+            )
+    })
+    ApiResponse<SettlementReceiptExpenseMutationWebResponse> createReceiptExpense(
+            @Parameter(description = "정산 ID") UUID settlementId,
+            @Valid CreateSettlementReceiptExpenseWebRequest request
+    );
+
     @Operation(
             summary = "OCR 영수증 정산 지출 가져오기",
             description = "DRAFT 정산의 생성자가 외부 OCR 결과 참조로 영수증 지출과 품목을 "

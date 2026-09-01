@@ -52,8 +52,9 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementDetailWebResponse",
                 "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
-                "viewerRole", "creatorName", "paymentSummary", "participants"
+                "viewerRole", "creatorName", "paymentInfo", "paymentSummary", "participants"
         );
+        assertRequired(document, "PaymentInfo", "amount", "storeName", "paidAt");
         assertRequired(
                 document,
                 "SettlementReminderWebResponse",
@@ -75,6 +76,7 @@ class SettlementOpenApiIntegrationTest {
         );
         assertNullable(document, "SettlementListGroupSummaryWebResponse", "groupImageUrl");
         assertNullable(document, "SettlementDetailWebResponse", "allocationType");
+        assertNullable(document, "PaymentInfo", "storeName", "paidAt");
     }
 
     private void assertRequired(JsonNode document, String schemaName, String... propertyNames) {
