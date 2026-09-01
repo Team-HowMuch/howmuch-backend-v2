@@ -48,7 +48,9 @@ class SettlementTransferInstructionControllerTest {
                         PARTICIPANT_ID,
                         SHARE_ID,
                         6_000,
+                        "최수아",
                         "0020",
+                        "우리은행",
                         "1002123456789",
                         List.of(new SettlementTransferInstructionResult.TransferLink(
                                 "TOSS",

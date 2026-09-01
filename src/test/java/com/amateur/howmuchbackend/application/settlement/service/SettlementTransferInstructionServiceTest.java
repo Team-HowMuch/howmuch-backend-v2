@@ -7,6 +7,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementTransferLinkPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -56,6 +57,7 @@ class SettlementTransferInstructionServiceTest {
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
     @Mock private LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
     @Mock private SettlementTransferLinkPort transferLinkPort;
+    @Mock private BankCatalog bankCatalog;
 
     private SettlementTransferInstructionService service;
 
@@ -69,7 +71,8 @@ class SettlementTransferInstructionServiceTest {
                         loadSettlementPort,
                         loadSettlementSharePort,
                         loadSnapshotPort,
-                        List.of(transferLinkPort)
+                        List.of(transferLinkPort),
+                        bankCatalog
                 )
         );
     }
@@ -98,13 +101,17 @@ class SettlementTransferInstructionServiceTest {
                         "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
                                 + "&accountNo=1002123456789&amount=6000"
                 )));
+        when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("우리은행"));
 
         var result = service.get(RAW_TOKEN, CONTEXT_ID);
 
         assertThat(result.participantId()).isEqualTo(PARTICIPANT_ID);
         assertThat(result.shareId()).isEqualTo(SHARE_ID);
         assertThat(result.amount()).isEqualTo(6_000);
+        // 화면이 "OO님에게 N원을 보내주세요"를 그리려면 예금주와 은행 이름이 필요하다.
+        assertThat(result.recipientName()).isEqualTo("최수아");
         assertThat(result.recipientBankCode()).isEqualTo("0020");
+        assertThat(result.recipientBankName()).isEqualTo("우리은행");
         assertThat(result.recipientAccountNumber()).isEqualTo("1002123456789");
         assertThat(result.transferLinks()).containsExactly(
                 new SettlementTransferInstructionResult.TransferLink(
@@ -113,6 +120,36 @@ class SettlementTransferInstructionServiceTest {
                                 + "&accountNo=1002123456789&amount=6000"
                 )
         );
+    }
+
+    @Test
+    @DisplayName("은행 이름을 찾지 못하면 코드를 그대로 돌려준다")
+    void fallsBackToBankCodeWhenNameIsUnknown() {
+        arrangeLinkAndContext();
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(
+                SETTLEMENT_ID,
+                PARTICIPANT_ID
+        )).thenReturn(Optional.of(new SettlementShare(
+                SHARE_ID,
+                SETTLEMENT_ID,
+                PARTICIPANT_ID,
+                6_000,
+                CREATED_AT
+        )));
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(snapshot()));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+                .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
+                        "TOSS",
+                        "supertoss://send?bank=x&accountNo=1002123456789&amount=6000"
+                )));
+        when(bankCatalog.findBankName("0020")).thenReturn(Optional.empty());
+
+        var result = service.get(RAW_TOKEN, CONTEXT_ID);
+
+        assertThat(result.recipientBankName()).isEqualTo("0020");
     }
 
     @Test

@@ -10,7 +10,9 @@ public record SettlementTransferInstructionWebResponse(
         UUID participantId,
         UUID shareId,
         long amount,
+        String recipientName,
         String recipientBankCode,
+        String recipientBankName,
         String recipientAccountNumber,
         List<TransferLinkWebResponse> transferLinks
 ) {
@@ -22,7 +24,9 @@ public record SettlementTransferInstructionWebResponse(
                 result.participantId(),
                 result.shareId(),
                 result.amount(),
+                result.recipientName(),
                 result.recipientBankCode(),
+                result.recipientBankName(),
                 result.recipientAccountNumber(),
                 result.transferLinks().stream()
                         .map(link -> new TransferLinkWebResponse(link.provider(), link.url()))
