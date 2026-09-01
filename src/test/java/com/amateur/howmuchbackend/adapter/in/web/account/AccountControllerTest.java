@@ -7,8 +7,10 @@ import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransact
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetBankCatalogUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.ReplaceAccountDisplayOrdersUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.SetDefaultAccountUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.UpdateAccountDisplayOrderUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.command.ReplaceAccountDisplayOrdersCommand;
 import com.amateur.howmuchbackend.application.port.in.account.command.UpdateAccountDisplayOrderCommand;
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountDetailResult;
@@ -57,6 +59,7 @@ class AccountControllerTest {
     @Mock private DeleteAccountUseCase deleteAccountUseCase;
     @Mock private SetDefaultAccountUseCase setDefaultAccountUseCase;
     @Mock private UpdateAccountDisplayOrderUseCase updateAccountDisplayOrderUseCase;
+    @Mock private ReplaceAccountDisplayOrdersUseCase replaceAccountDisplayOrdersUseCase;
 
     private MockMvc mockMvc;
 
@@ -71,7 +74,8 @@ class AccountControllerTest {
                 getAccountTransactionsUseCase,
                 deleteAccountUseCase,
                 setDefaultAccountUseCase,
-                updateAccountDisplayOrderUseCase
+                updateAccountDisplayOrderUseCase,
+                replaceAccountDisplayOrdersUseCase
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -195,6 +199,33 @@ class AccountControllerTest {
                         .content("{\"displayOrder\":-1}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_ACCOUNT_DISPLAY_ORDER"));
+    }
+
+    @Test
+    @DisplayName("일괄 저장 경로가 단건 이동 경로와 겹치지 않고 순서 배열을 Command로 전달한다")
+    void replacesAccountDisplayOrders() throws Exception {
+        mockMvc.perform(patch("/api/v2/accounts/display-order")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountIds\":[11,12,10]}"))
+                .andExpect(status().isOk());
+
+        verify(replaceAccountDisplayOrdersUseCase).replaceDisplayOrders(
+                new ReplaceAccountDisplayOrdersCommand(List.of(11L, 12L, 10L))
+        );
+    }
+
+    @Test
+    @DisplayName("활성 계좌가 빠진 순서는 INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST로 거절한다")
+    void rejectsIncompleteDisplayOrderRequest() throws Exception {
+        doThrow(ApplicationException.of(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST))
+                .when(replaceAccountDisplayOrdersUseCase)
+                .replaceDisplayOrders(new ReplaceAccountDisplayOrdersCommand(List.of(10L)));
+
+        mockMvc.perform(patch("/api/v2/accounts/display-order")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountIds\":[10]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST"));
     }
 
     @Test

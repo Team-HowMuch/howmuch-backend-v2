@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.account.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.ConnectBankWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.LinkBankAccountsWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.ReplaceAccountDisplayOrdersWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.UpdateAccountDisplayOrderWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.BankCatalogWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.BankConnectionWebResponse;
@@ -70,7 +71,35 @@ public interface AccountDocs {
     ApiResponse<Void> setDefaultAccount(Long accountId);
 
     @Operation(
-            summary = "계좌 표시 순서 변경",
+            summary = "계좌 표시 순서 일괄 저장",
+            description = "소유한 활성 계좌 전체의 순서를 한 트랜잭션에서 저장합니다. "
+                    + "배열 순서가 곧 0부터의 표시 순서이며, 하나라도 어긋나면 아무것도 저장되지 않습니다. "
+                    + "활성 계좌가 빠지거나 중복되거나 소유하지 않은 계좌가 있으면 "
+                    + "INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST를 반환합니다. "
+                    + "기본 계좌 여부는 표시 순서와 독립이라 배열 순서를 그대로 따릅니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "저장 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_ARGUMENT 또는 INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "UNAUTHORIZED - 인증 필요"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "503",
+                    description = "TEMPORARILY_UNAVAILABLE - 계좌 잠금 대기 초과"
+            )
+    })
+    ApiResponse<Void> replaceAccountDisplayOrders(
+            ReplaceAccountDisplayOrdersWebRequest request
+    );
+
+    @Operation(
+            summary = "계좌 표시 순서 변경 (단건 이동)",
             description = "소유한 활성 계좌를 0 기반 표시 위치로 이동하고 전체 순서를 다시 정렬합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )

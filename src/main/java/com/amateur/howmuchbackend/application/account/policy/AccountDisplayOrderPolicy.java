@@ -7,7 +7,10 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 public class AccountDisplayOrderPolicy {
@@ -27,5 +30,30 @@ public class AccountDisplayOrderPolicy {
         orderedIds.remove(target.id());
         orderedIds.add(displayOrder, target.id());
         return List.copyOf(orderedIds);
+    }
+
+    /**
+     * 일괄 저장 요청이 활성 계좌 전체를 정확히 한 번씩 덮는지 확인하고 저장할 순서를 돌려준다.
+     * 빠진 계좌가 있으면 그 계좌만 옛 displayOrder를 유지해 순서 값이 중복되므로 전원 포함을 강제한다.
+     */
+    public List<Long> validateReplacement(List<Account> accounts, List<Long> accountIds) {
+        if (accountIds == null || accountIds.size() != accounts.size()) {
+            throw ApplicationException.of(
+                    AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST
+            );
+        }
+
+        Set<Long> ownedIds = accounts.stream()
+                .map(Account::id)
+                .collect(Collectors.toUnmodifiableSet());
+        Set<Long> seenIds = new HashSet<>();
+        for (Long accountId : accountIds) {
+            if (accountId == null || !ownedIds.contains(accountId) || !seenIds.add(accountId)) {
+                throw ApplicationException.of(
+                        AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST
+                );
+            }
+        }
+        return List.copyOf(accountIds);
     }
 }
