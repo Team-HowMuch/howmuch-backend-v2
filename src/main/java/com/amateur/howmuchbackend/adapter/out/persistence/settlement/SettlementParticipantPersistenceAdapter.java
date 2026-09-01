@@ -45,6 +45,18 @@ public class SettlementParticipantPersistenceAdapter implements
     }
 
     @Override
+    public SettlementParticipant update(SettlementParticipant participant) {
+        var entity = settlementParticipantJpaRepository.findById(participant.id())
+                .orElseThrow(() -> ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND
+                ));
+        entity.updateFrom(participant);
+        return SettlementParticipantMapper.toDomain(
+                settlementParticipantJpaRepository.save(entity)
+        );
+    }
+
+    @Override
     public List<SettlementParticipant> findAllBySettlementId(UUID settlementId) {
         return settlementParticipantJpaRepository
                 .findAllBySettlementIdOrderByDisplayOrderAsc(settlementId)

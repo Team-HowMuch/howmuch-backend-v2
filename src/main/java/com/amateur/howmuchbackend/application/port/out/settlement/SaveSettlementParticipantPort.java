@@ -4,4 +4,6 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 
 public interface SaveSettlementParticipantPort {
     SettlementParticipant save(SettlementParticipant participant);
+
+    SettlementParticipant update(SettlementParticipant participant);
 }
