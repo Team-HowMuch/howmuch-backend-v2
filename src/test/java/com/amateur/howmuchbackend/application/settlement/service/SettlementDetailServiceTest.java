@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
@@ -11,6 +12,7 @@ import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
@@ -51,6 +53,7 @@ class SettlementDetailServiceTest {
 
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadSettlementPort loadSettlementPort;
+    @Mock private LoadSettlementExpensePort loadSettlementExpensePort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
     @Mock private LoadSettlementDepositSummaryPort loadDepositSummaryPort;
@@ -63,6 +66,7 @@ class SettlementDetailServiceTest {
         service = new SettlementDetailService(
                 currentActorPort,
                 loadSettlementPort,
+                loadSettlementExpensePort,
                 loadSettlementParticipantPort,
                 loadSettlementSharePort,
                 loadDepositSummaryPort,
@@ -79,6 +83,9 @@ class SettlementDetailServiceTest {
 
         assertThat(result.viewerRole()).isEqualTo(SettlementDetailResult.ViewerRole.CREATOR);
         assertThat(result.creatorName()).isEqualTo("생성자");
+        assertThat(result.paymentInfo()).isEqualTo(
+                new SettlementDetailResult.PaymentInfo(1_400, null, null)
+        );
         assertThat(result.paymentSummary()).isEqualTo(
                 new SettlementDetailResult.PaymentSummary(1_000, 700, 300, 70, 2, 2, 1)
         );
@@ -94,6 +101,29 @@ class SettlementDetailServiceTest {
                         "연락처",
                         SettlementDetailResult.PaymentStatus.PAID
                 )
+        );
+    }
+
+    @Test
+    @DisplayName("단일 영수증 정산의 총액과 상호명과 결제일을 반환한다")
+    void returnsReceiptPaymentInfo() {
+        LocalDateTime paidAt = LocalDateTime.of(2026, 8, 25, 19, 30);
+        givenSettlement(CREATOR_ID);
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(SettlementExpense.receiptOcr(
+                        SETTLEMENT_ID,
+                        "receipt-app-1",
+                        "롯데리아",
+                        1_400,
+                        paidAt,
+                        0,
+                        NOW
+                )));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.paymentInfo()).isEqualTo(
+                new SettlementDetailResult.PaymentInfo(1_400, "롯데리아", paidAt)
         );
     }
 
@@ -147,7 +177,11 @@ class SettlementDetailServiceTest {
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
-        verifyNoInteractions(loadSettlementSharePort, loadDepositSummaryPort);
+        verifyNoInteractions(
+                loadSettlementExpensePort,
+                loadSettlementSharePort,
+                loadDepositSummaryPort
+        );
     }
 
     @Test

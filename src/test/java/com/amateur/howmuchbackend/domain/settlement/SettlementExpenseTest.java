@@ -17,6 +17,7 @@ class SettlementExpenseTest {
             "44c9323d-6a65-4a93-aeaa-ef8f24341c8a"
     );
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 23, 9, 0);
+    private static final LocalDateTime PAID_AT = LocalDateTime.of(2026, 8, 22, 19, 30);
 
     @Test
     @DisplayName("수동 지출 설명의 앞뒤 공백을 제거하고 양수 금액을 보존한다")
@@ -111,6 +112,7 @@ class SettlementExpenseTest {
                 "  receipt-demo  ",
                 "OCR 영수증",
                 30_000,
+                PAID_AT,
                 0,
                 NOW
         );
@@ -118,6 +120,7 @@ class SettlementExpenseTest {
         assertThat(expense.source()).isEqualTo(SettlementExpenseSource.RECEIPT_OCR);
         assertThat(expense.sourceReference()).isEqualTo("receipt-demo");
         assertThat(expense.amount()).isEqualTo(30_000);
+        assertThat(expense.paidAt()).isEqualTo(PAID_AT);
     }
 
     @Test
