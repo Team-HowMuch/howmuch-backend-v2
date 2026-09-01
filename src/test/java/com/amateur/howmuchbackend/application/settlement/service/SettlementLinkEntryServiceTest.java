@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestPhase;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.IssueSettlementParticipantContextPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementLinkPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
@@ -13,6 +14,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLink
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
@@ -51,6 +53,7 @@ class SettlementLinkEntryServiceTest {
     private static final UUID PAYER_PARTICIPANT_ID = UUID.fromString("e4049b4f-1c0a-4c63-b88e-3bdaee853679");
     private static final UUID CONTEXT_ID = UUID.fromString("074dc83c-f0aa-4bf6-8f6b-d17a415620c7");
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 24, 10, 0);
+    private static final LocalDateTime PAID_AT = LocalDateTime.of(2026, 8, 24, 19, 30);
 
     @Mock private SettlementLinkTokenPort linkTokenPort;
     @Mock private LoadSettlementLinkPort loadSettlementLinkPort;
@@ -58,6 +61,7 @@ class SettlementLinkEntryServiceTest {
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
     @Mock private CurrentActorPort currentActorPort;
+    @Mock private LoadSettlementExpensePort loadSettlementExpensePort;
     @Mock private IssueSettlementParticipantContextPort issueParticipantContextPort;
 
     private SettlementLinkEntryService service;
@@ -71,6 +75,7 @@ class SettlementLinkEntryServiceTest {
                 loadSettlementParticipantPort,
                 loadSettlementSharePort,
                 currentActorPort,
+                loadSettlementExpensePort,
                 issueParticipantContextPort
         );
     }
@@ -171,6 +176,51 @@ class SettlementLinkEntryServiceTest {
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND));
         verify(loadSettlementParticipantPort, never()).findAllBySettlementId(any());
+    }
+
+    @Test
+    @DisplayName("영수증 정산이면 상호명과 결제일을 함께 준다")
+    void exposesReceiptStoreNameAndPaidAt() {
+        arrangeItemAllocationAccess();
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
+                List.of(SettlementExpense.receiptOcr(
+                        SETTLEMENT_ID,
+                        "ocr-1",
+                        "행복식당",
+                        10_000,
+                        PAID_AT,
+                        0,
+                        CREATED_AT
+                ))
+        );
+        when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
+
+        var result = service.resolve(RAW_TOKEN);
+
+        assertThat(result.storeName()).isEqualTo("행복식당");
+        assertThat(result.paidAt()).isEqualTo(PAID_AT);
+    }
+
+    @Test
+    @DisplayName("영수증이 두 건 이상이면 어느 가게인지 정할 수 없어 비운다")
+    void leavesReceiptInfoEmptyWhenAmbiguous() {
+        arrangeItemAllocationAccess();
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
+                List.of(
+                        SettlementExpense.receiptOcr(
+                                SETTLEMENT_ID, "ocr-1", "행복식당", 6_000, PAID_AT, 0, CREATED_AT
+                        ),
+                        SettlementExpense.receiptOcr(
+                                SETTLEMENT_ID, "ocr-2", "카페", 4_000, PAID_AT, 1, CREATED_AT
+                        )
+                )
+        );
+        when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
+
+        var result = service.resolve(RAW_TOKEN);
+
+        assertThat(result.storeName()).isNull();
+        assertThat(result.paidAt()).isNull();
     }
 
     private void arrangeDutchPayAccess() {

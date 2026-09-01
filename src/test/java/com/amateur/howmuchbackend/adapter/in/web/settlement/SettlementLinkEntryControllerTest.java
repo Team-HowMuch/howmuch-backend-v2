@@ -54,6 +54,8 @@ class SettlementLinkEntryControllerTest {
                 new SettlementLinkEntryResult(
                         SETTLEMENT_ID,
                         "회식 정산",
+                        "행복식당",
+                        LocalDateTime.of(2026, 8, 24, 19, 30),
                         10_000,
                         2,
                         SettlementRequestPhase.TRANSFER_READY,
