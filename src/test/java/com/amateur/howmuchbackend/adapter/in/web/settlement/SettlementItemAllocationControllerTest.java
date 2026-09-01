@@ -146,6 +146,7 @@ class SettlementItemAllocationControllerTest {
                                 PARTICIPANT_ID,
                                 "최수아",
                                 SettlementItemAllocationFraction.HALF,
+                                1,
                                 500
                         ))
                 )),
