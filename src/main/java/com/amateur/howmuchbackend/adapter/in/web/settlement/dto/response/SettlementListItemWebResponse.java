@@ -23,8 +23,9 @@ public record SettlementListItemWebResponse(
         Integer participantCount,
         @Schema(
                 nullable = true,
-                description = "납부 대상 인원. 생성자를 제외한다. completedParticipantCount와 "
-                        + "같은 기준이므로 진행률의 분모로 쓴다."
+                description = "납부 대상 인원. 참여자 중 돈을 받는 생성자를 제외한 수이며 "
+                        + "정산 상세의 payableParticipantCount와 항상 같다. 진행률의 분모로 쓴다. "
+                        + "Share 생성 전(품목별 정산에서 전원 제출 전)에도 실제 인원을 반환한다."
         )
         Integer payableParticipantCount,
         @Schema(nullable = true, description = "납부를 마친 인원. 생성자를 제외한다.")
