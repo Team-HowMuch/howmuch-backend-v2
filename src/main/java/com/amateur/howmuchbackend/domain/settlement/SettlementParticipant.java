@@ -189,9 +189,11 @@ public record SettlementParticipant(
                     && phoneHash == null
                     && sourceGroupId != null
                     && sourceGroupId > 0;
+            // 연락처에 없는 사람은 이름만으로 추가할 수 있어 셋 다 비어 있을 수 있다.
             case CONTACT -> sourceGroupId == null
                     && ((hasValidLinkedUser && phoneHash == null)
-                    || (linkedUserId == null && hasValidPhoneHash));
+                    || (linkedUserId == null && hasValidPhoneHash)
+                    || (linkedUserId == null && phoneHash == null));
         };
         if (!valid) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_PARTICIPANT_IDENTITY);

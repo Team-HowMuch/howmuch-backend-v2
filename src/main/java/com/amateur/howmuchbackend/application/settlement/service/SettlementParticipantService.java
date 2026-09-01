@@ -497,9 +497,19 @@ public class SettlementParticipantService implements
     private ResolvedParticipant resolveContact(AddSettlementParticipantCommand command) {
         if (command.groupId() != null
                 || command.publicId() != null
-                || command.displayName() == null
-                || command.phoneNumber() == null) {
+                || command.displayName() == null) {
             throw invalidAddRequest();
+        }
+        // 연락처에 없는 사람은 전화번호 없이 이름만으로 추가한다.
+        if (command.phoneNumber() == null) {
+            return new ResolvedParticipant(
+                    SettlementParticipantSource.CONTACT,
+                    null,
+                    null,
+                    null,
+                    command.displayName(),
+                    null
+            );
         }
         String phoneHash = identityPolicy.phoneHash(command.phoneNumber());
         User linkedUser = loadUserPort.findByIdentityKey(phoneHash)
