@@ -164,6 +164,35 @@ class SettlementMemberTransferInstructionServiceTest {
     }
 
     @Test
+    @DisplayName("아무도 안 고른 품목이 남아 멈춰도 내 몫은 보낼 수 있다")
+    void allowsTransferWhileSuspended() {
+        arrangeActor(MY_USER_ID);
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.SUSPENDED)));
+        arrangeParticipants();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(
+                SETTLEMENT_ID,
+                MY_PARTICIPANT_ID
+        )).thenReturn(Optional.of(new SettlementShare(
+                SHARE_ID,
+                SETTLEMENT_ID,
+                MY_PARTICIPANT_ID,
+                6_000,
+                CREATED_AT
+        )));
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(snapshot()));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+                .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
+                        "TOSS",
+                        "supertoss://send?accountNo=1002123456789&amount=6000"
+                )));
+
+        assertThat(service.getMyTransferInstruction(SETTLEMENT_ID).amount())
+                .isEqualTo(6_000);
+    }
+
+    @Test
     @DisplayName("내 Share가 아직 없으면 보낼 금액이 없다")
     void rejectsWhenMyShareIsMissing() {
         arrangeActor(MY_USER_ID);
