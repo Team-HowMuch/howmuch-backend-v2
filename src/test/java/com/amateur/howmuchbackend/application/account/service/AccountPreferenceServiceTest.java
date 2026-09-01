@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.account.service;
 
 import com.amateur.howmuchbackend.application.account.policy.AccountDisplayOrderPolicy;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.in.account.command.ReplaceAccountDisplayOrdersCommand;
 import com.amateur.howmuchbackend.application.port.in.account.command.UpdateAccountDisplayOrderCommand;
 import com.amateur.howmuchbackend.application.port.out.account.AccountPreferenceStorePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
@@ -85,6 +86,83 @@ class AccountPreferenceServiceTest {
                                 .isEqualTo(AccountStatusCode.ACCOUNT_NOT_FOUND));
 
         verify(accountPreferenceStorePort, never()).setDefault(USER_ID, 99L);
+    }
+
+    @Test
+    void savesWholeOrderExactlyAsRequested() {
+        givenAccounts(
+                account(10L, true, 0),
+                account(11L, false, 1),
+                account(12L, false, 2)
+        );
+
+        service().replaceDisplayOrders(
+                new ReplaceAccountDisplayOrdersCommand(List.of(11L, 12L, 10L))
+        );
+
+        verify(accountPreferenceStorePort).updateDisplayOrders(
+                USER_ID,
+                List.of(11L, 12L, 10L)
+        );
+    }
+
+    @Test
+    void keepsDefaultAccountWhereTheUserPutIt() {
+        givenAccounts(account(10L, true, 0), account(11L, false, 1));
+
+        service().replaceDisplayOrders(
+                new ReplaceAccountDisplayOrdersCommand(List.of(11L, 10L))
+        );
+
+        verify(accountPreferenceStorePort).updateDisplayOrders(USER_ID, List.of(11L, 10L));
+    }
+
+    @Test
+    void rejectsOrderMissingAnActiveAccount() {
+        givenAccounts(account(10L, true, 0), account(11L, false, 1));
+
+        assertThatThrownBy(() -> service().replaceDisplayOrders(
+                new ReplaceAccountDisplayOrdersCommand(List.of(10L))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST));
+
+        verify(accountPreferenceStorePort, never()).updateDisplayOrders(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void rejectsDuplicatedAccountInOrder() {
+        givenAccounts(account(10L, true, 0), account(11L, false, 1));
+
+        assertThatThrownBy(() -> service().replaceDisplayOrders(
+                new ReplaceAccountDisplayOrdersCommand(List.of(10L, 10L))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST));
+
+        verify(accountPreferenceStorePort, never()).updateDisplayOrders(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void rejectsOrderContainingAccountTheUserDoesNotOwn() {
+        givenAccounts(account(10L, true, 0), account(11L, false, 1));
+
+        assertThatThrownBy(() -> service().replaceDisplayOrders(
+                new ReplaceAccountDisplayOrdersCommand(List.of(10L, 99L))
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST));
+
+        verify(accountPreferenceStorePort, never()).updateDisplayOrders(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     private void givenAccounts(Account... accounts) {
