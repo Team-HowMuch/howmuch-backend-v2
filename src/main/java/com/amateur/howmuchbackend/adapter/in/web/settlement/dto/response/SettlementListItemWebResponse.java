@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -19,6 +20,12 @@ public record SettlementListItemWebResponse(
         LocalDateTime requestedAt,
         @Schema(nullable = true)
         Long totalAmount,
+        @Schema(
+                nullable = true,
+                description = "배분 방식. 아직 안 정했으면 null이다. "
+                        + "ITEM_ALLOCATION이면 참여자가 품목을 골라야 금액이 정해진다."
+        )
+        SettlementAllocationType allocationType,
         @Schema(nullable = true, description = "정산 참여자 전체 인원. 돈을 받는 생성자를 포함한다.")
         Integer participantCount,
         @Schema(
@@ -42,6 +49,7 @@ public record SettlementListItemWebResponse(
                 result.status(),
                 result.requestedAt(),
                 result.totalAmount(),
+                result.allocationType(),
                 result.participantCount(),
                 result.payableParticipantCount(),
                 result.completedParticipantCount(),

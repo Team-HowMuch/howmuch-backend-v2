@@ -13,6 +13,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SettlementList
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReceivingAccountUsagePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
@@ -118,6 +119,9 @@ public class SettlementPersistenceAdapter implements
                 status,
                 projection.getRequestedAt(),
                 tab == SettlementListTab.RECEIVE ? projection.getTotalAmount() : null,
+                projection.getAllocationType() == null
+                        ? null
+                        : SettlementAllocationType.valueOf(projection.getAllocationType()),
                 tab == SettlementListTab.RECEIVE
                         ? Math.toIntExact(projection.getParticipantCount())
                         : null,
