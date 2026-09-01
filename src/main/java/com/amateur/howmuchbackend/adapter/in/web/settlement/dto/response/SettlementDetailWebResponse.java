@@ -45,14 +45,20 @@ public record SettlementDetailWebResponse(
 
     @Schema(requiredProperties = {
             "expectedAmount", "confirmedAmount", "unpaidAmount", "progressPercent",
-            "participantCount", "completedParticipantCount"
+            "participantCount", "payableParticipantCount", "completedParticipantCount"
     })
     public record PaymentSummary(
             long expectedAmount,
             long confirmedAmount,
             long unpaidAmount,
             int progressPercent,
+            @Schema(description = "납부 대상 인원. 상세에서는 payableParticipantCount와 같은 값이다.")
             int participantCount,
+            @Schema(
+                    description = "납부 대상 인원. 돈을 받는 생성자를 제외한다. "
+                            + "목록 API와 이름이 같으므로 진행률의 분모로는 이 값을 쓴다."
+            )
+            int payableParticipantCount,
             int completedParticipantCount
     ) {
         private static PaymentSummary from(SettlementDetailResult.PaymentSummary result) {
@@ -62,6 +68,7 @@ public record SettlementDetailWebResponse(
                     result.unpaidAmount(),
                     result.progressPercent(),
                     result.participantCount(),
+                    result.payableParticipantCount(),
                     result.completedParticipantCount()
             );
         }

@@ -113,6 +113,10 @@ public class SettlementPersistenceAdapter implements
         int completedParticipantCount = projection.getCompletedParticipantCount() == null
                 ? 0
                 : Math.toIntExact(projection.getCompletedParticipantCount());
+        // Share가 없으면 납부 대상도 아직 정해지지 않았다. completedParticipantCount와 같은 기준을 쓴다.
+        int payableParticipantCount = projection.getPayableParticipantCount() == null
+                ? 0
+                : Math.toIntExact(projection.getPayableParticipantCount());
         return new SettlementListReadModel(
                 projection.getSettlementId(),
                 status,
@@ -121,6 +125,7 @@ public class SettlementPersistenceAdapter implements
                 tab == SettlementListTab.RECEIVE
                         ? Math.toIntExact(projection.getParticipantCount())
                         : null,
+                tab == SettlementListTab.RECEIVE ? payableParticipantCount : null,
                 tab == SettlementListTab.RECEIVE ? completedParticipantCount : null,
                 tab == SettlementListTab.PAY ? projection.getAmountToPay() : null,
                 tab == SettlementListTab.PAY ? projection.getRequesterName() : null,

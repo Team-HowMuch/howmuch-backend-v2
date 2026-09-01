@@ -190,6 +190,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 confirmedAmount,
                 expectedAmount - confirmedAmount,
                 progressPercent,
+                // payments는 생성자를 이미 제외한 목록이라 두 값이 같다.
+                // 목록 API의 participantCount(생성자 포함)와 이름을 맞추기 위해 둘 다 노출한다.
+                payments.size(),
                 payments.size(),
                 completedCount
         );

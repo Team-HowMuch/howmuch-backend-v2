@@ -10,7 +10,8 @@ import java.util.UUID;
 
 @Schema(requiredProperties = {
         "settlementId", "status", "requestedAt", "totalAmount", "participantCount",
-        "completedParticipantCount", "amountToPay", "requesterName", "groups"
+        "payableParticipantCount", "completedParticipantCount", "amountToPay",
+        "requesterName", "groups"
 })
 public record SettlementListItemWebResponse(
         UUID settlementId,
@@ -18,9 +19,15 @@ public record SettlementListItemWebResponse(
         LocalDateTime requestedAt,
         @Schema(nullable = true)
         Long totalAmount,
-        @Schema(nullable = true)
+        @Schema(nullable = true, description = "정산 참여자 전체 인원. 돈을 받는 생성자를 포함한다.")
         Integer participantCount,
-        @Schema(nullable = true)
+        @Schema(
+                nullable = true,
+                description = "납부 대상 인원. 생성자를 제외한다. completedParticipantCount와 "
+                        + "같은 기준이므로 진행률의 분모로 쓴다."
+        )
+        Integer payableParticipantCount,
+        @Schema(nullable = true, description = "납부를 마친 인원. 생성자를 제외한다.")
         Integer completedParticipantCount,
         @Schema(nullable = true)
         Long amountToPay,
@@ -35,6 +42,7 @@ public record SettlementListItemWebResponse(
                 result.requestedAt(),
                 result.totalAmount(),
                 result.participantCount(),
+                result.payableParticipantCount(),
                 result.completedParticipantCount(),
                 result.amountToPay(),
                 result.requesterName(),
