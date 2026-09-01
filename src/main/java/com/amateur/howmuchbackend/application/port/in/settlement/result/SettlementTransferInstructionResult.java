@@ -8,7 +8,9 @@ public record SettlementTransferInstructionResult(
         UUID participantId,
         UUID shareId,
         long amount,
+        String recipientName,
         String recipientBankCode,
+        String recipientBankName,
         String recipientAccountNumber,
         List<TransferLink> transferLinks
 ) {

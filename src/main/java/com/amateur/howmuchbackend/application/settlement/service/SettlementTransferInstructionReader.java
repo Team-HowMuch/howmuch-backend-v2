@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementTransferInstructionResult;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
@@ -37,6 +38,7 @@ public class SettlementTransferInstructionReader {
     private final LoadSettlementSharePort loadSettlementSharePort;
     private final LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
     private final List<SettlementTransferLinkPort> transferLinkPorts;
+    private final BankCatalog bankCatalog;
 
     /**
      * 품목 정산은 참여자가 제출할 때마다 그 사람 Share가 생기므로, 전원이 끝나기 전에도
@@ -83,7 +85,11 @@ public class SettlementTransferInstructionReader {
                 participantId,
                 share.id(),
                 share.amount(),
+                snapshot.accountHolder(),
                 snapshot.organization(),
+                // 코드만으로는 화면에 은행을 못 보여준다. 이름을 못 찾으면 코드로 대신한다.
+                bankCatalog.findBankName(snapshot.organization())
+                        .orElse(snapshot.organization()),
                 snapshot.accountNumber(),
                 transferLinks
         );
