@@ -40,6 +40,17 @@ public class SettlementReceiptExpenseWriter {
             String receiptReference,
             ExtractReceiptItemsPort.ReceiptExtraction extraction
     ) {
+        return write(settlementId, actorId, receiptReference, null, extraction);
+    }
+
+    @Transactional
+    public SettlementReceiptExpenseMutationResult write(
+            UUID settlementId,
+            Long actorId,
+            String receiptReference,
+            LocalDateTime paidAt,
+            ExtractReceiptItemsPort.ReceiptExtraction extraction
+    ) {
         Settlement settlement = loadSettlementPort.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_NOT_FOUND
@@ -57,6 +68,7 @@ public class SettlementReceiptExpenseWriter {
                 receiptReference,
                 validated.description(),
                 validated.totalAmount(),
+                paidAt,
                 loadSettlementExpensePort.nextDisplayOrder(settlement.id()),
                 now
         );

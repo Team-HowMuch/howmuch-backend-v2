@@ -124,6 +124,30 @@ class SettlementExpensePersistenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("V28 영수증 결제일을 nullable 값 그대로 저장하고 조회한다")
+    void savesAndLoadsReceiptPaidAt() {
+        LocalDateTime paidAt = LocalDateTime.of(2026, 8, 31, 17, 40);
+        SettlementExpense saved = settlementExpensePersistenceAdapter.save(
+                SettlementExpense.receiptOcr(
+                        settlementId,
+                        "receipt-app-1",
+                        "롯데리아",
+                        10_000,
+                        paidAt,
+                        0,
+                        CREATED_AT
+                )
+        );
+
+        assertThat(saved.paidAt()).isEqualTo(paidAt);
+        assertThat(settlementExpensePersistenceAdapter
+                .findBySettlementIdAndId(settlementId, saved.id()))
+                .get()
+                .extracting(SettlementExpense::paidAt)
+                .isEqualTo(paidAt);
+    }
+
+    @Test
     @DisplayName("지출 수정과 삭제가 최신 누적액에 반영된다")
     void updatesAndDeletesExpense() {
         SettlementExpense saved = settlementExpensePersistenceAdapter.save(

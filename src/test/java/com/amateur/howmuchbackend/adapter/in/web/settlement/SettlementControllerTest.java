@@ -206,6 +206,10 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.creatorName").value("최수아"))
                 .andExpect(jsonPath("$.data.viewerRole").value("CREATOR"))
+                .andExpect(jsonPath("$.data.paymentInfo.amount").value(10_000))
+                .andExpect(jsonPath("$.data.paymentInfo.storeName").value("롯데리아"))
+                .andExpect(jsonPath("$.data.paymentInfo.paidAt")
+                        .value("2026-08-21T08:30:00"))
                 .andExpect(jsonPath("$.data.paymentSummary.progressPercent").value(50))
                 .andExpect(jsonPath("$.data.participants[0].linked").value(true))
                 .andExpect(jsonPath("$.data.participants[0].paymentStatus").value("PARTIALLY_PAID"))
@@ -822,6 +826,11 @@ class SettlementControllerTest {
                 CREATED_AT,
                 SettlementDetailResult.ViewerRole.CREATOR,
                 "최수아",
+                new SettlementDetailResult.PaymentInfo(
+                        10_000,
+                        "롯데리아",
+                        LocalDateTime.of(2026, 8, 21, 8, 30)
+                ),
                 new SettlementDetailResult.PaymentSummary(8_000, 4_000, 4_000, 50, 1, 1, 0),
                 List.of(new SettlementDetailResult.ParticipantPayment(
                         PARTICIPANT_ID,

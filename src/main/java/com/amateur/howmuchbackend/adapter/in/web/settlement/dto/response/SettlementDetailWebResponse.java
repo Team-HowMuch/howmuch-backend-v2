@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Schema(requiredProperties = {
         "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
-        "viewerRole", "creatorName", "paymentSummary", "participants"
+        "viewerRole", "creatorName", "paymentInfo", "paymentSummary", "participants"
 })
 public record SettlementDetailWebResponse(
         UUID settlementId,
@@ -23,6 +23,7 @@ public record SettlementDetailWebResponse(
         LocalDateTime createdAt,
         SettlementDetailResult.ViewerRole viewerRole,
         String creatorName,
+        PaymentInfo paymentInfo,
         PaymentSummary paymentSummary,
         List<ParticipantPayment> participants
 ) {
@@ -36,11 +37,25 @@ public record SettlementDetailWebResponse(
                 result.createdAt(),
                 result.viewerRole(),
                 result.creatorName(),
+                PaymentInfo.from(result.paymentInfo()),
                 PaymentSummary.from(result.paymentSummary()),
                 result.participants().stream()
                         .map(ParticipantPayment::from)
                         .toList()
         );
+    }
+
+    @Schema(requiredProperties = {"amount", "storeName", "paidAt"})
+    public record PaymentInfo(
+            long amount,
+            @Schema(nullable = true)
+            String storeName,
+            @Schema(nullable = true)
+            LocalDateTime paidAt
+    ) {
+        private static PaymentInfo from(SettlementDetailResult.PaymentInfo result) {
+            return new PaymentInfo(result.amount(), result.storeName(), result.paidAt());
+        }
     }
 
     @Schema(requiredProperties = {

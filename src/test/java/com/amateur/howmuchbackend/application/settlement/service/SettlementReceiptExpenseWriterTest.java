@@ -42,6 +42,7 @@ class SettlementReceiptExpenseWriterTest {
             "44c9323d-6a65-4a93-aeaa-ef8f24341c8a"
     );
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 23, 20, 0);
+    private static final LocalDateTime PAID_AT = LocalDateTime.of(2026, 8, 31, 17, 40);
 
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private SaveSettlementPort saveSettlementPort;
@@ -81,6 +82,7 @@ class SettlementReceiptExpenseWriterTest {
                 SETTLEMENT_ID,
                 CREATOR_ID,
                 "receipt-demo",
+                PAID_AT,
                 extraction(30_000)
         );
 
@@ -93,6 +95,7 @@ class SettlementReceiptExpenseWriterTest {
         assertThat(expenseCaptor.getValue().source())
                 .isEqualTo(SettlementExpenseSource.RECEIPT_OCR);
         assertThat(expenseCaptor.getValue().sourceReference()).isEqualTo("receipt-demo");
+        assertThat(expenseCaptor.getValue().paidAt()).isEqualTo(PAID_AT);
         assertThat(expenseCaptor.getValue().displayOrder()).isEqualTo(2);
         assertThat(itemCaptor.getValue()).extracting(SettlementItem::displayOrder)
                 .containsExactly(0, 1);

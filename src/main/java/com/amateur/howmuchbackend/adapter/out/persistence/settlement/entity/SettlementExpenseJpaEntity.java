@@ -13,6 +13,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -47,6 +48,9 @@ public class SettlementExpenseJpaEntity extends BaseTimeJpaEntity {
     @Column(nullable = false)
     private long amount;
 
+    @Column(name = "paid_at", updatable = false)
+    private LocalDateTime paidAt;
+
     @Column(name = "display_order", nullable = false, updatable = false)
     private int displayOrder;
 
@@ -56,6 +60,7 @@ public class SettlementExpenseJpaEntity extends BaseTimeJpaEntity {
         this.source = expense.source();
         this.sourceReference = expense.sourceReference();
         this.sourceAccountId = expense.sourceAccountId();
+        this.paidAt = expense.paidAt();
         this.displayOrder = expense.displayOrder();
         updateFrom(expense);
     }

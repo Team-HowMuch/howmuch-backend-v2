@@ -1,7 +1,9 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
+import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementReceiptExpenseUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementItemsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ImportSettlementReceiptExpenseUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementReceiptExpenseCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.ImportSettlementReceiptExpenseCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementExpenseResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementItemListResult;
@@ -43,7 +45,9 @@ class SettlementReceiptExpenseControllerTest {
             "3f0b00ad-c146-4fc0-9539-f08a84027247"
     );
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 23, 20, 0);
+    private static final LocalDateTime PAID_AT = LocalDateTime.of(2026, 8, 31, 17, 40);
 
+    @Mock private CreateSettlementReceiptExpenseUseCase createExpenseUseCase;
     @Mock private ImportSettlementReceiptExpenseUseCase importExpenseUseCase;
     @Mock private GetSettlementItemsUseCase getSettlementItemsUseCase;
 
@@ -55,6 +59,7 @@ class SettlementReceiptExpenseControllerTest {
         validator.afterPropertiesSet();
         SettlementReceiptExpenseController controller =
                 new SettlementReceiptExpenseController(
+                        createExpenseUseCase,
                         importExpenseUseCase,
                         getSettlementItemsUseCase
                 );
@@ -62,6 +67,65 @@ class SettlementReceiptExpenseControllerTest {
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
+    }
+
+    @Test
+    @DisplayName("앱이 읽은 영수증 품목과 결제 정보를 등록한다")
+    void createsReceiptExpenseFromAppResult() throws Exception {
+        CreateSettlementReceiptExpenseCommand command =
+                new CreateSettlementReceiptExpenseCommand(
+                        "receipt-app-1",
+                        "롯데리아",
+                        PAID_AT,
+                        List.of(new CreateSettlementReceiptExpenseCommand.Item(
+                                "불고기버거",
+                                2,
+                                10_000
+                        ))
+                );
+        when(createExpenseUseCase.create(SETTLEMENT_ID, command)).thenReturn(
+                new SettlementReceiptExpenseMutationResult(
+                        expenseResult(),
+                        List.of(itemResult()),
+                        10_000
+                )
+        );
+
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/expenses/receipt",
+                        SETTLEMENT_ID
+                ).contentType("application/json").content("""
+                        {
+                          "receiptReference": "receipt-app-1",
+                          "storeName": "롯데리아",
+                          "paidAt": "2026-08-31T17:40:00",
+                          "items": [
+                            {"name": "불고기버거", "quantity": 2, "amount": 10000}
+                          ]
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.expense.source").value("RECEIPT_OCR"))
+                .andExpect(jsonPath("$.data.totalExpenseAmount").value(10_000));
+    }
+
+    @Test
+    @DisplayName("앱 영수증의 빈 품목 목록은 UseCase 호출 전에 거부한다")
+    void rejectsEmptySubmittedReceiptItems() throws Exception {
+        mockMvc.perform(post(
+                        "/api/v2/settlements/{settlementId}/expenses/receipt",
+                        SETTLEMENT_ID
+                ).contentType("application/json").content("""
+                        {
+                          "receiptReference": "receipt-app-1",
+                          "storeName": "롯데리아",
+                          "items": []
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+
+        verifyNoInteractions(createExpenseUseCase);
     }
 
     @Test
