@@ -35,8 +35,12 @@ class SettlementItemAllocationReader {
     private final SettlementItemAllocationPolicy allocationPolicy;
 
     @Transactional(readOnly = true)
-    public SettlementItemAllocationResult read(UUID settlementId, UUID participantId) {
-        var state = stateLoader.load(settlementId, participantId, false);
+    public SettlementItemAllocationResult read(
+            UUID settlementId,
+            UUID participantId,
+            SettlementItemAllocationEntry entry
+    ) {
+        var state = stateLoader.load(settlementId, participantId, false, entry);
         List<SettlementParticipant> participants = loadSettlementParticipantPort
                 .findAllBySettlementId(settlementId);
         Map<UUID, SettlementParticipant> participantById = new HashMap<>();
