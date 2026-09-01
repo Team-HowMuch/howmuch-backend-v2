@@ -163,6 +163,8 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(item.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
             assertThat(item.totalAmount()).isEqualTo(600L);
             assertThat(item.participantCount()).isEqualTo(2);
+            // Share가 아직 없어도 납부 대상은 생성자를 뺀 실제 인원이어야 한다.
+            assertThat(item.payableParticipantCount()).isEqualTo(1);
             assertThat(item.completedParticipantCount()).isZero();
             assertThat(item.requestedAt()).isEqualTo(receiveCreatedAt);
             assertThat(item.amountToPay()).isNull();
@@ -184,6 +186,7 @@ class SettlementListPersistenceIntegrationTest {
         );
 
         assertThat(partiallyPaid).singleElement().satisfies(item -> {
+            assertThat(item.payableParticipantCount()).isEqualTo(1);
             assertThat(item.completedParticipantCount()).isZero();
             assertThat(item.requestedAt()).isEqualTo(request.requestedAt());
         });
@@ -197,9 +200,11 @@ class SettlementListPersistenceIntegrationTest {
                 null
         );
 
-        assertThat(fullyPaid).singleElement()
-                .extracting(item -> item.completedParticipantCount())
-                .isEqualTo(1);
+        assertThat(fullyPaid).singleElement().satisfies(item -> {
+            // 분모와 분자가 같은 기준이라 전원 납부 시 100%가 된다.
+            assertThat(item.payableParticipantCount()).isEqualTo(1);
+            assertThat(item.completedParticipantCount()).isEqualTo(1);
+        });
     }
 
     @Test
