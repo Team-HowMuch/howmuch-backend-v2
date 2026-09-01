@@ -116,6 +116,22 @@ public record SettlementParticipant(
         return linkedUserId != null && linkedUserId.equals(userId);
     }
 
+    public SettlementParticipant rename(String newDisplayName, LocalDateTime now) {
+        Objects.requireNonNull(now, "정산 참여자 수정 시각은 필수입니다.");
+        return new SettlementParticipant(
+                id,
+                settlementId,
+                source,
+                linkedUserId,
+                phoneHash,
+                sourceGroupId,
+                newDisplayName,
+                displayOrder,
+                createdAt,
+                now
+        );
+    }
+
     private static SettlementParticipant create(
             UUID settlementId,
             SettlementParticipantSource source,
