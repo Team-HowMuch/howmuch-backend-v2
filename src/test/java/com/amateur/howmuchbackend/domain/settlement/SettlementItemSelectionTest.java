@@ -21,14 +21,13 @@ class SettlementItemSelectionTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 1, 12, 0);
 
     @Test
-    @DisplayName("수량만큼 곱한 금액과 단위를 계산한다")
-    void multipliesAmountAndUnitsByQuantity() {
+    @DisplayName("수량만큼 곱한 단위를 계산한다")
+    void multipliesUnitsByQuantity() {
         SettlementItemSelection selection = selection(
                 SettlementItemAllocationFraction.THIRD, 2
         );
 
         assertThat(selection.allocatedUnits()).isEqualTo(8);
-        assertThat(selection.amountFor(item(30_000))).isEqualTo(20_000);
     }
 
     @Test
@@ -39,7 +38,6 @@ class SettlementItemSelectionTest {
         );
 
         assertThat(selection.allocatedUnits()).isEqualTo(6);
-        assertThat(selection.amountFor(item(10_000))).isEqualTo(5_000);
     }
 
     @Test
@@ -55,8 +53,8 @@ class SettlementItemSelectionTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, -1, 3})
-    @DisplayName("1개 미만이거나 품목 한 개 분량을 넘는 수량은 거부한다")
+    @ValueSource(ints = {0, -1})
+    @DisplayName("1개 미만인 수량은 거부한다")
     void rejectsInvalidUnits(int units) {
         assertThatThrownBy(() -> selection(SettlementItemAllocationFraction.HALF, units))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
@@ -65,10 +63,10 @@ class SettlementItemSelectionTest {
     }
 
     @Test
-    @DisplayName("품목 한 개를 정확히 채우는 수량은 허용한다")
-    void allowsUnitsFillingWholeItem() {
-        assertThat(selection(SettlementItemAllocationFraction.QUARTER, 4).allocatedUnits())
-                .isEqualTo(SettlementItemAllocationFraction.WHOLE_UNITS);
+    @DisplayName("품목 한 개 분량을 넘는 수량도 도메인에서는 허용한다")
+    void allowsUnitsBeyondSingleItem() {
+        assertThat(selection(SettlementItemAllocationFraction.ONE, 3).allocatedUnits())
+                .isEqualTo(SettlementItemAllocationFraction.WHOLE_UNITS * 3);
     }
 
     private SettlementItemSelection selection(
@@ -81,20 +79,6 @@ class SettlementItemSelectionTest {
                 PARTICIPANT_ID,
                 fraction,
                 units,
-                NOW
-        );
-    }
-
-    private SettlementItem item(long amount) {
-        return new SettlementItem(
-                ITEM_ID,
-                SETTLEMENT_ID,
-                UUID.randomUUID(),
-                "삼겹살",
-                3,
-                amount,
-                0,
-                NOW,
                 NOW
         );
     }

@@ -10,7 +10,6 @@ import com.amateur.howmuchbackend.application.settlement.policy.SettlementItemAl
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
-import com.amateur.howmuchbackend.domain.settlement.SettlementItemAllocationFraction;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
@@ -88,6 +87,9 @@ class SettlementItemAllocationReader {
             List<SettlementItemSelection> selections,
             Map<UUID, SettlementParticipant> participantById
     ) {
+        Map<UUID, Long> amountBySelection = allocationPolicy.calculateSelectionAmounts(
+                item, selections
+        );
         List<SettlementItemSelectionResult> selectionResults = selections.stream()
                 .filter(selection -> selection.itemId().equals(item.id()))
                 .sorted(Comparator.comparingInt(selection -> {
@@ -112,7 +114,7 @@ class SettlementItemAllocationReader {
                             participant.displayName(),
                             selection.fraction(),
                             selection.units(),
-                            selection.amountFor(item)
+                            amountBySelection.getOrDefault(selection.id(), 0L)
                     );
                 })
                 .toList();
@@ -127,7 +129,7 @@ class SettlementItemAllocationReader {
                 item.quantity(),
                 item.amount(),
                 allocatedUnits,
-                SettlementItemAllocationFraction.WHOLE_UNITS,
+                item.totalAllocationUnits(),
                 selectionResults
         );
     }

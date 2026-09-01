@@ -55,11 +55,11 @@ public interface SettlementMyItemAllocationDocs {
 
     @Operation(
             summary = "내 품목 몫 저장",
-            description = "생성자 본인이 부담할 품목 비율(ONE·HALF·THIRD·QUARTER)을 저장합니다. "
+            description = "생성자 본인이 부담할 품목 몫을 저장합니다. "
+                    + "몫은 품목 한 개에 대한 비율(ONE·HALF·THIRD·QUARTER) × units로 표현합니다. "
+                    + "예: 2개는 fraction=ONE·units=2, 1/3개는 fraction=THIRD·units=1. "
                     + "DRAFT와 REQUESTED에서만 수정할 수 있고 이미 제출했으면 거부합니다. "
-                    + "품목의 선택 합이 1을 넘으면 SETTLEMENT_ITEM_OVER_ALLOCATED, "
-                    + "품목 금액을 해당 비율로 정수 원 단위로 나눌 수 없으면 "
-                    + "SETTLEMENT_ITEM_ALLOCATION_AMOUNT_NOT_EXACT를 반환합니다.",
+                    + "품목의 선택 합이 수량을 넘으면 SETTLEMENT_ITEM_OVER_ALLOCATED를 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -87,9 +87,8 @@ public interface SettlementMyItemAllocationDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
                     description = "SETTLEMENT_ITEM_SELECTION_NOT_EDITABLE, "
-                            + "SETTLEMENT_ITEM_SUBMISSION_ALREADY_EXISTS, "
-                            + "SETTLEMENT_ITEM_OVER_ALLOCATED 또는 "
-                            + "SETTLEMENT_ITEM_ALLOCATION_AMOUNT_NOT_EXACT"
+                            + "SETTLEMENT_ITEM_SUBMISSION_ALREADY_EXISTS "
+                            + "또는 SETTLEMENT_ITEM_OVER_ALLOCATED"
             )
     })
     ApiResponse<SettlementItemAllocationWebResponse> saveMyItem(

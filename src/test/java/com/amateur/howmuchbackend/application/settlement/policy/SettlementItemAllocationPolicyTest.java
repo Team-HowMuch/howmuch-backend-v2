@@ -24,6 +24,7 @@ class SettlementItemAllocationPolicyTest {
     private static final UUID EXPENSE_ID = UUID.randomUUID();
     private static final UUID FIRST_PARTICIPANT_ID = UUID.randomUUID();
     private static final UUID SECOND_PARTICIPANT_ID = UUID.randomUUID();
+    private static final UUID THIRD_PARTICIPANT_ID = UUID.randomUUID();
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 24, 12, 0);
 
     private final SettlementItemAllocationPolicy policy =
@@ -50,7 +51,6 @@ class SettlementItemAllocationPolicyTest {
     @Test
     @DisplayName("3인분 중 2인분처럼 units와 fraction을 곱한 몫을 허용한다")
     void allowsMultipleUnitsOfFraction() {
-        // THIRD는 3으로 나누어떨어지는 금액에서만 저장된다.
         policy.validateSelection(
                 item(30_000),
                 List.of(selection(
@@ -81,8 +81,8 @@ class SettlementItemAllocationPolicyTest {
     }
 
     @Test
-    @DisplayName("요청 자체가 품목 한 개를 넘으면 잘못된 수량으로 구분해 거부한다")
-    void rejectsUnitsExceedingWholeItemOnItsOwn() {
+    @DisplayName("품목 수량을 넘는 요청은 선점 충돌로 거부한다")
+    void rejectsUnitsExceedingItemQuantity() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(),
                 List.of(),
@@ -91,7 +91,91 @@ class SettlementItemAllocationPolicyTest {
                 3
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode())
-                        .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION_UNITS));
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_ITEM_OVER_ALLOCATED));
+    }
+
+    @Test
+    @DisplayName("수량이 2인 품목은 2개까지 한 사람이 가져갈 수 있다")
+    void allowsTakingEveryUnitOfMultiQuantityItem() {
+        policy.validateSelection(
+                item(10_000, 2),
+                List.of(),
+                FIRST_PARTICIPANT_ID,
+                SettlementItemAllocationFraction.ONE,
+                2
+        );
+    }
+
+    @Test
+    @DisplayName("남이 1개를 가져간 수량 2 품목에서 2개를 고르면 거부한다")
+    void rejectsTakingMoreThanRemainingQuantity() {
+        assertThatThrownBy(() -> policy.validateSelection(
+                item(10_000, 2),
+                List.of(selection(
+                        SECOND_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.ONE
+                )),
+                FIRST_PARTICIPANT_ID,
+                SettlementItemAllocationFraction.ONE,
+                2
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_ITEM_OVER_ALLOCATED));
+    }
+
+    @Test
+    @DisplayName("나누어떨어지지 않는 금액의 나머지는 먼저 고른 선택이 1원씩 부담한다")
+    void assignsRemainderToEarlierSelections() {
+        SettlementItem item = item(5_000);
+        List<SettlementItemSelection> selections = List.of(
+                selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW),
+                selection(SECOND_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1,
+                        NOW.plusMinutes(1)),
+                selection(THIRD_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1,
+                        NOW.plusMinutes(2))
+        );
+
+        var amounts = policy.calculateSelectionAmounts(item, selections);
+
+        assertThat(selections).extracting(selection -> amounts.get(selection.id()))
+                .containsExactly(1_667L, 1_667L, 1_666L);
+        assertThat(amounts.values().stream().mapToLong(Long::longValue).sum())
+                .isEqualTo(item.amount());
+    }
+
+    @Test
+    @DisplayName("품목이 덜 채워졌으면 나머지를 배분하지 않는다")
+    void keepsRemainderUnassignedWhileItemIsIncomplete() {
+        SettlementItem item = item(5_000);
+
+        var amounts = policy.calculateSelectionAmounts(
+                item,
+                List.of(selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD))
+        );
+
+        assertThat(amounts.values()).containsExactly(1_666L);
+    }
+
+    @Test
+    @DisplayName("수량 2 품목을 1개·1/2개·1/2개로 나눠 확정한다")
+    void finalizesMultiQuantityItem() {
+        var finalization = policy.finalizeAllocation(
+                SETTLEMENT_ID,
+                10_000,
+                participants(),
+                List.of(item(10_000, 2)),
+                List.of(
+                        selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.ONE),
+                        selection(SECOND_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF),
+                        selection(THIRD_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF)
+                ),
+                NOW
+        );
+
+        assertThat(finalization.valid()).isTrue();
+        assertThat(finalization.shares())
+                .extracting(share -> share.amount())
+                .containsExactlyInAnyOrder(5_000L, 2_500L, 2_500L);
     }
 
     @Test
@@ -173,12 +257,16 @@ class SettlementItemAllocationPolicyTest {
     }
 
     private SettlementItem item(long amount) {
+        return item(amount, 1);
+    }
+
+    private SettlementItem item(long amount, int quantity) {
         return new SettlementItem(
                 ITEM_ID,
                 SETTLEMENT_ID,
                 EXPENSE_ID,
                 "피자",
-                1,
+                quantity,
                 amount,
                 0,
                 NOW,
@@ -190,22 +278,32 @@ class SettlementItemAllocationPolicyTest {
             UUID participantId,
             SettlementItemAllocationFraction fraction
     ) {
+        return selection(participantId, fraction, 1, NOW);
+    }
+
+    private SettlementItemSelection selection(
+            UUID participantId,
+            SettlementItemAllocationFraction fraction,
+            int units,
+            LocalDateTime createdAt
+    ) {
         return new SettlementItemSelection(
                 UUID.randomUUID(),
                 SETTLEMENT_ID,
                 ITEM_ID,
                 participantId,
                 fraction,
-                1,
-                NOW,
-                NOW
+                units,
+                createdAt,
+                createdAt
         );
     }
 
     private List<SettlementParticipant> participants() {
         return List.of(
                 participant(FIRST_PARTICIPANT_ID, 1L, "최수아", 0),
-                participant(SECOND_PARTICIPANT_ID, 2L, "민선영", 1)
+                participant(SECOND_PARTICIPANT_ID, 2L, "민선영", 1),
+                participant(THIRD_PARTICIPANT_ID, 3L, "김하늘", 2)
         );
     }
 
