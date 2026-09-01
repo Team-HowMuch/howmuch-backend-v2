@@ -126,21 +126,11 @@ public class SettlementDetailService implements GetSettlementUseCase {
             Settlement settlement,
             List<SettlementExpense> expenses
     ) {
-        List<SettlementExpense> receiptExpenses = expenses.stream()
-                .filter(expense -> expense.source() == SettlementExpenseSource.RECEIPT_OCR)
-                .toList();
-        if (receiptExpenses.size() != 1) {
-            return new SettlementDetailResult.PaymentInfo(
-                    settlement.totalAmount(),
-                    null,
-                    null
-            );
-        }
-        SettlementExpense receiptExpense = receiptExpenses.getFirst();
+        SettlementReceiptInfo receipt = SettlementReceiptInfo.resolve(expenses);
         return new SettlementDetailResult.PaymentInfo(
                 settlement.totalAmount(),
-                receiptExpense.description(),
-                receiptExpense.paidAt()
+                receipt.storeName(),
+                receipt.paidAt()
         );
     }
 

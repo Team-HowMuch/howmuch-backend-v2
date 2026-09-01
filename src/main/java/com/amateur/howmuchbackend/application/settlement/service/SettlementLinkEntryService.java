@@ -10,6 +10,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestPhase;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.IssueSettlementParticipantContextPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementLinkPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
@@ -61,6 +62,7 @@ public class SettlementLinkEntryService implements
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementSharePort loadSettlementSharePort;
     private final CurrentActorPort currentActorPort;
+    private final LoadSettlementExpensePort loadSettlementExpensePort;
     private final IssueSettlementParticipantContextPort issueParticipantContextPort;
 
     @Override
@@ -70,6 +72,9 @@ public class SettlementLinkEntryService implements
         List<SettlementParticipant> participants = loadSettlementParticipantPort
                 .findAllBySettlementId(access.settlement().id());
         Map<UUID, Long> amountByParticipantId = loadParticipantAmounts(access.settlement());
+        SettlementReceiptInfo receipt = SettlementReceiptInfo.resolve(
+                loadSettlementExpensePort.findAllBySettlementId(access.settlement().id())
+        );
         SettlementParticipant matchedParticipant = currentActorPort.findCurrentActor()
                 .map(CurrentActor::userId)
                 .flatMap(userId -> participants.stream()
@@ -87,6 +92,8 @@ public class SettlementLinkEntryService implements
             return new SettlementLinkEntryResult(
                     access.settlement().id(),
                     access.settlement().title(),
+                    receipt.storeName(),
+                    receipt.paidAt(),
                     access.settlement().totalAmount(),
                     participants.size(),
                     access.phase(),
@@ -101,6 +108,8 @@ public class SettlementLinkEntryService implements
         return new SettlementLinkEntryResult(
                 access.settlement().id(),
                 access.settlement().title(),
+                receipt.storeName(),
+                receipt.paidAt(),
                 access.settlement().totalAmount(),
                 participants.size(),
                 access.phase(),

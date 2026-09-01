@@ -7,6 +7,8 @@ import java.util.UUID;
 public record SettlementLinkEntryResult(
         UUID settlementId,
         String settlementTitle,
+        String storeName,
+        LocalDateTime paidAt,
         long totalAmount,
         int participantCount,
         SettlementRequestPhase allocationPhase,
