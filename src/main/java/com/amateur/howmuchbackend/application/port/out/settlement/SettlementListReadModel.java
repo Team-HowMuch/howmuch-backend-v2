@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.port.out.settlement;
 
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 
 import java.time.LocalDateTime;
@@ -11,6 +12,7 @@ public record SettlementListReadModel(
         SettlementStatus status,
         LocalDateTime requestedAt,
         Long totalAmount,
+        SettlementAllocationType allocationType,
         Integer participantCount,
         Integer payableParticipantCount,
         Integer completedParticipantCount,

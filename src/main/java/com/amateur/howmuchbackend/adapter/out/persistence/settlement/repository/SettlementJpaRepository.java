@@ -21,6 +21,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.status AS status,
                 COALESCE(link.created_at, settlement.created_at) AS requestedAt,
                 settlement.total_amount AS totalAmount,
+                settlement.allocation_type AS allocationType,
                 creator.name AS requesterName,
                 COUNT(DISTINCT participant.id) AS participantCount,
                 COUNT(DISTINCT CASE
@@ -111,7 +112,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     )
                 )
              GROUP BY settlement.id, settlement.status, settlement.created_at, link.created_at,
-                      settlement.total_amount, creator.name
+                      settlement.total_amount, settlement.allocation_type, creator.name
              ORDER BY COALESCE(link.created_at, settlement.created_at) DESC, settlement.id DESC
             """, nativeQuery = true)
     List<SettlementListProjection> findAllForUser(
@@ -230,6 +231,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         Long getCompletedParticipantCount();
 
         Long getAmountToPay();
+
+        String getAllocationType();
     }
 
     interface SettlementListGroupProjection {
