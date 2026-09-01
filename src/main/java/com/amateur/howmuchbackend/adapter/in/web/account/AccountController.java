@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.in.web.account;
 import com.amateur.howmuchbackend.adapter.in.web.account.docs.AccountDocs;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.ConnectBankWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.LinkBankAccountsWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.ReplaceAccountDisplayOrdersWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.UpdateAccountDisplayOrderWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.BankCatalogWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.BankConnectionWebResponse;
@@ -18,6 +19,7 @@ import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransact
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetBankCatalogUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.ReplaceAccountDisplayOrdersUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.SetDefaultAccountUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.UpdateAccountDisplayOrderUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
@@ -50,6 +52,7 @@ public class AccountController implements AccountDocs {
     private final DeleteAccountUseCase deleteAccountUseCase;
     private final SetDefaultAccountUseCase setDefaultAccountUseCase;
     private final UpdateAccountDisplayOrderUseCase updateAccountDisplayOrderUseCase;
+    private final ReplaceAccountDisplayOrdersUseCase replaceAccountDisplayOrdersUseCase;
 
     @Override
     @GetMapping
@@ -95,6 +98,15 @@ public class AccountController implements AccountDocs {
     @PatchMapping("/{accountId}/default")
     public ApiResponse<Void> setDefaultAccount(@PathVariable Long accountId) {
         setDefaultAccountUseCase.setDefault(accountId);
+        return ApiResponse.success();
+    }
+
+    @Override
+    @PatchMapping("/display-order")
+    public ApiResponse<Void> replaceAccountDisplayOrders(
+            @Valid @RequestBody ReplaceAccountDisplayOrdersWebRequest request
+    ) {
+        replaceAccountDisplayOrdersUseCase.replaceDisplayOrders(request.toCommand());
         return ApiResponse.success();
     }
 
