@@ -2,11 +2,13 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.docs.SettlementAllocationDocs;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.ReplaceSettlementDutchPayAllocationsWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.SelectSettlementAllocationTypeWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.UpdateSettlementDutchPayAllocationWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementAllocationTypeWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementDutchPayWebResponse;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementDutchPayAllocationUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.ReplaceSettlementDutchPayAllocationsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SelectSettlementAllocationTypeUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDutchPayAllocationUseCase;
 import jakarta.validation.Valid;
@@ -28,6 +30,7 @@ public class SettlementAllocationController implements SettlementAllocationDocs 
     private final SelectSettlementAllocationTypeUseCase selectAllocationTypeUseCase;
     private final GetSettlementDutchPayAllocationUseCase getDutchPayAllocationUseCase;
     private final UpdateSettlementDutchPayAllocationUseCase updateDutchPayAllocationUseCase;
+    private final ReplaceSettlementDutchPayAllocationsUseCase replaceDutchPayAllocationsUseCase;
 
     @Override
     @PutMapping("/allocation-type")
@@ -47,6 +50,17 @@ public class SettlementAllocationController implements SettlementAllocationDocs 
     ) {
         return ApiResponse.success(SettlementDutchPayWebResponse.from(
                 getDutchPayAllocationUseCase.get(settlementId)
+        ));
+    }
+
+    @Override
+    @PutMapping("/dutch-pay-allocations")
+    public ApiResponse<SettlementDutchPayWebResponse> replaceDutchPayAllocations(
+            @PathVariable UUID settlementId,
+            @Valid @RequestBody ReplaceSettlementDutchPayAllocationsWebRequest request
+    ) {
+        return ApiResponse.success(SettlementDutchPayWebResponse.from(
+                replaceDutchPayAllocationsUseCase.replace(settlementId, request.toCommand())
         ));
     }
 
