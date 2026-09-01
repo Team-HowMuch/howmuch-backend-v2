@@ -84,12 +84,13 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                         )
                     )
                 )
+               AND settlement.status <> 'DRAFT'
                AND (
                     :status = 'ALL'
                     OR (
                         :status = 'IN_PROGRESS'
                         AND settlement.status IN (
-                            'DRAFT', 'REQUESTED', 'AWAITING_DEPOSIT', 'SUSPENDED'
+                            'REQUESTED', 'AWAITING_DEPOSIT', 'SUSPENDED'
                         )
                     )
                     OR settlement.status = :status
