@@ -124,8 +124,8 @@ class SettlementItemAllocationPolicyTest {
     }
 
     @Test
-    @DisplayName("나누어떨어지지 않는 금액의 나머지는 먼저 고른 선택이 1원씩 부담한다")
-    void assignsRemainderToEarlierSelections() {
+    @DisplayName("나누어떨어지지 않아도 각자 내림값만 낸다. 차액은 생성자가 부담한다")
+    void floorsEveryShare() {
         SettlementItem item = item(5_000);
         List<SettlementItemSelection> selections = List.of(
                 selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW),
@@ -138,9 +138,28 @@ class SettlementItemAllocationPolicyTest {
         var amounts = policy.calculateSelectionAmounts(item, selections);
 
         assertThat(selections).extracting(selection -> amounts.get(selection.id()))
-                .containsExactly(1_667L, 1_667L, 1_666L);
+                .containsExactly(1_666L, 1_666L, 1_666L);
         assertThat(amounts.values().stream().mapToLong(Long::longValue).sum())
-                .isEqualTo(item.amount());
+                .isEqualTo(item.amount() - 2);
+    }
+
+    @Test
+    @DisplayName("내 금액은 남이 더 고르든 말든 바뀌지 않는다")
+    void keepsMyAmountStableWhileOthersSelect() {
+        SettlementItem item = item(5_000);
+        SettlementItemSelection mine =
+                selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW);
+
+        long alone = policy.calculateSelectionAmounts(item, List.of(mine)).get(mine.id());
+        long withOthers = policy.calculateSelectionAmounts(item, List.of(
+                mine,
+                selection(SECOND_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1,
+                        NOW.plusMinutes(1)),
+                selection(THIRD_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1,
+                        NOW.plusMinutes(2))
+        )).get(mine.id());
+
+        assertThat(alone).isEqualTo(withOthers).isEqualTo(1_666L);
     }
 
     @Test

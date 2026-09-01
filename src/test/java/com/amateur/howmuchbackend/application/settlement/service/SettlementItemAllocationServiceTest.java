@@ -102,7 +102,32 @@ class SettlementItemAllocationServiceTest {
     }
 
     @Test
-    @DisplayName("마지막 제출에서 품목 배분이 정확하면 Share를 고정하고 입금 대기로 전환한다")
+    @DisplayName("제출하면 남을 기다리지 않고 내 Share부터 만든다")
+    void createsMyShareBeforeOthersSubmit() {
+        arrangeRequestedAccess();
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
+        when(allocationStorePort.findSubmission(SETTLEMENT_ID, FIRST_PARTICIPANT_ID))
+                .thenReturn(Optional.empty());
+        when(allocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(exactSelections());
+        when(allocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of(
+                new SettlementItemSubmission(
+                        UUID.randomUUID(), SETTLEMENT_ID, FIRST_PARTICIPANT_ID, CREATED_AT
+                )
+        ));
+
+        service.submit(RAW_TOKEN, CONTEXT_ID, FIRST_PARTICIPANT_ID);
+
+        ArgumentCaptor<List<SettlementShare>> shares = ArgumentCaptor.forClass(List.class);
+        verify(saveSettlementSharePort).saveAll(shares.capture());
+        assertThat(shares.getValue())
+                .extracting(SettlementShare::payerParticipantId)
+                .containsExactly(FIRST_PARTICIPANT_ID);
+        verify(saveSettlementPort, never()).update(any());
+    }
+
+    @Test
+    @DisplayName("마지막 제출에서 품목 배분이 정확하면 입금 대기로 전환한다")
     void finalizesSharesOnLastExactSubmission() {
         arrangeRequestedAccess();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
@@ -122,15 +147,15 @@ class SettlementItemAllocationServiceTest {
         ArgumentCaptor<List<SettlementShare>> shares = ArgumentCaptor.forClass(List.class);
         verify(saveSettlementSharePort).saveAll(shares.capture());
         assertThat(shares.getValue()).extracting(SettlementShare::amount)
-                .containsExactlyInAnyOrder(500L, 500L);
+                .containsExactly(500L);
         ArgumentCaptor<Settlement> settlement = ArgumentCaptor.forClass(Settlement.class);
         verify(saveSettlementPort).update(settlement.capture());
         assertThat(settlement.getValue().status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
     }
 
     @Test
-    @DisplayName("마지막 제출 후 미배분 품목이 남으면 Share 없이 중단한다")
-    void suspendsWithoutSharesWhenAllocationIsIncomplete() {
+    @DisplayName("마지막 제출 후 미배분 품목이 남으면 중단한다. 이미 만든 내 Share는 남는다")
+    void suspendsWhenAllocationIsIncomplete() {
         arrangeRequestedAccess();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.SUSPENDED)));
@@ -147,7 +172,6 @@ class SettlementItemAllocationServiceTest {
 
         assertThat(result.phase().name()).isEqualTo("SUSPENDED");
         assertThat(result.invalidItemIds()).containsExactly(ITEM_ID);
-        verify(saveSettlementSharePort, never()).saveAll(any());
         ArgumentCaptor<Settlement> settlement = ArgumentCaptor.forClass(Settlement.class);
         verify(saveSettlementPort).update(settlement.capture());
         assertThat(settlement.getValue().status()).isEqualTo(SettlementStatus.SUSPENDED);
