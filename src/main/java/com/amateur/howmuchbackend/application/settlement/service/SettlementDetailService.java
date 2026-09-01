@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUs
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
@@ -11,6 +12,8 @@ import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
@@ -32,6 +35,7 @@ import java.util.stream.Collectors;
 public class SettlementDetailService implements GetSettlementUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
+    private final LoadSettlementExpensePort loadSettlementExpensePort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementSharePort loadSettlementSharePort;
     private final LoadSettlementDepositSummaryPort loadDepositSummaryPort;
@@ -109,8 +113,34 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 settlement.createdAt(),
                 viewerRole,
                 creatorName,
+                paymentInfo(
+                        settlement,
+                        loadSettlementExpensePort.findAllBySettlementId(settlementId)
+                ),
                 summary(settlement.status(), allPayments),
                 visiblePayments
+        );
+    }
+
+    private SettlementDetailResult.PaymentInfo paymentInfo(
+            Settlement settlement,
+            List<SettlementExpense> expenses
+    ) {
+        List<SettlementExpense> receiptExpenses = expenses.stream()
+                .filter(expense -> expense.source() == SettlementExpenseSource.RECEIPT_OCR)
+                .toList();
+        if (receiptExpenses.size() != 1) {
+            return new SettlementDetailResult.PaymentInfo(
+                    settlement.totalAmount(),
+                    null,
+                    null
+            );
+        }
+        SettlementExpense receiptExpense = receiptExpenses.getFirst();
+        return new SettlementDetailResult.PaymentInfo(
+                settlement.totalAmount(),
+                receiptExpense.description(),
+                receiptExpense.paidAt()
         );
     }
 
