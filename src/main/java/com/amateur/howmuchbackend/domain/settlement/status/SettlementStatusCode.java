@@ -38,6 +38,7 @@ public enum SettlementStatusCode implements StatusCode {
     INVALID_SETTLEMENT_PARTICIPANT_CONTEXT("정산 링크 참여 문맥이 올바르지 않습니다.", 400),
     INVALID_SETTLEMENT_SHARE_AMOUNT("정산 Share 금액은 1원 이상이어야 합니다.", 400),
     INVALID_DUTCH_PAY_AMOUNT("더치페이 참여자 금액은 0원 이상이어야 합니다.", 400),
+    INVALID_DUTCH_PAY_ALLOCATION_REQUEST("더치페이 배분 요청에는 참여자 전원의 금액이 한 번씩 필요합니다.", 400),
     SETTLEMENT_NOT_FOUND("정산을 찾을 수 없습니다.", 404),
     SETTLEMENT_EXPENSE_NOT_FOUND("정산 지출을 찾을 수 없습니다.", 404),
     SETTLEMENT_ITEM_NOT_FOUND("정산 품목을 찾을 수 없습니다.", 404),
@@ -92,6 +93,7 @@ public enum SettlementStatusCode implements StatusCode {
     SETTLEMENT_SHARE_TOTAL_MISMATCH("정산 Share 합계가 정산 총액과 일치하지 않습니다.", 409),
     SETTLEMENT_DUTCH_PAY_ALLOCATION_NOT_FOUND("더치페이 참여자 배분을 찾을 수 없습니다.", 404),
     SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE("더치페이 참여자 배분이 완전하지 않습니다.", 409),
+    SETTLEMENT_DUTCH_PAY_TOTAL_MISMATCH("더치페이 배분 합계가 정산 총액과 일치하지 않습니다.", 409),
     INVALID_DUTCH_PAY_TOTAL("더치페이 배분 합계가 허용 범위를 초과했습니다.", 400),
     INVALID_SETTLEMENT_STATUS_TRANSITION("허용되지 않는 정산 상태 변경입니다.", 409),
     SETTLEMENT_RECEIPT_EXTRACTION_UNAVAILABLE("운영 OCR 연동이 아직 준비되지 않았습니다.", 503);

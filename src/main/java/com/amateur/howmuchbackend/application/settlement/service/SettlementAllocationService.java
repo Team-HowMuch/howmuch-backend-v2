@@ -2,8 +2,10 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementDutchPayAllocationUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.ReplaceSettlementDutchPayAllocationsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SelectSettlementAllocationTypeUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDutchPayAllocationUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.ReplaceSettlementDutchPayAllocationsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SelectSettlementAllocationTypeCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDutchPayAllocationCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementAllocationTypeResult;
@@ -41,7 +43,8 @@ import java.util.UUID;
 public class SettlementAllocationService implements
         SelectSettlementAllocationTypeUseCase,
         GetSettlementDutchPayAllocationUseCase,
-        UpdateSettlementDutchPayAllocationUseCase {
+        UpdateSettlementDutchPayAllocationUseCase,
+        ReplaceSettlementDutchPayAllocationsUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
     private final SaveSettlementPort saveSettlementPort;
@@ -127,6 +130,44 @@ public class SettlementAllocationService implements
                 ));
         long amount = command == null ? -1L : command.amount();
         allocationStorePort.update(allocation.updateAmount(amount, now()));
+        return assembleResult(settlement);
+    }
+
+    @Override
+    @Transactional
+    public SettlementDutchPayResult replace(
+            UUID settlementId,
+            ReplaceSettlementDutchPayAllocationsCommand command
+    ) {
+        Settlement settlement = loadOwnedSettlementForUpdate(settlementId);
+        settlement.ensureAllocationEditable();
+        ensureDutchPay(settlement);
+        List<SettlementParticipant> participants = loadSettlementParticipantPort
+                .findAllBySettlementId(settlement.id());
+        Map<UUID, Long> amountByParticipantId = dutchPayAllocationPolicy.validateReplacement(
+                settlement,
+                participants,
+                command == null ? null : command.allocations()
+        );
+
+        List<SettlementDutchPayAllocation> allocations = allocationStorePort
+                .findAllBySettlementId(settlement.id());
+        if (allocations.size() != participants.size()) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE
+            );
+        }
+        // 같은 트랜잭션 안에서 갱신하므로 한 건이라도 실패하면 전체가 롤백된다.
+        LocalDateTime now = now();
+        for (SettlementDutchPayAllocation allocation : allocations) {
+            Long amount = amountByParticipantId.get(allocation.participantId());
+            if (amount == null) {
+                throw ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE
+                );
+            }
+            allocationStorePort.update(allocation.updateAmount(amount, now));
+        }
         return assembleResult(settlement);
     }
 
