@@ -10,8 +10,10 @@ import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,17 +33,14 @@ public class SettlementItemAllocationPolicy {
                     SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION
             );
         }
-        // 요청 자체가 품목 한 개 분량을 넘는 경우와, 남이 먼저 가져가 남은 몫이 모자란 경우를
-        // 다른 코드로 구분한다.
+        // 남이 먼저 가져가 남은 몫이 모자란 경우를 별도 코드로 구분한다.
         int requestedUnits = requestedUnits(fraction, units);
-        fraction.amountOf(item.amount());
         int allocatedUnits = selections.stream()
                 .filter(selection -> selection.itemId().equals(item.id()))
                 .filter(selection -> !selection.participantId().equals(participantId))
                 .mapToInt(SettlementItemSelection::allocatedUnits)
                 .sum();
-        if (allocatedUnits + requestedUnits
-                > SettlementItemAllocationFraction.WHOLE_UNITS) {
+        if (allocatedUnits + requestedUnits > item.totalAllocationUnits()) {
             throw ApplicationException.of(
                     SettlementStatusCode.SETTLEMENT_ITEM_OVER_ALLOCATED
             );
@@ -54,13 +53,48 @@ public class SettlementItemAllocationPolicy {
                     SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION_UNITS
             );
         }
-        int requestedUnits = Math.multiplyExact(fraction.units(), units);
-        if (requestedUnits > SettlementItemAllocationFraction.WHOLE_UNITS) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION_UNITS
-            );
+        return Math.multiplyExact(fraction.units(), units);
+    }
+
+    /**
+     * 품목 금액을 선택 단위에 비례해 나눈다. 내림 때문에 남는 1원 단위는 품목이 전부 채워졌을 때만
+     * 생기고, 먼저 고른 선택부터 1원씩 부담한다.
+     *
+     * @return 선택 ID별 금액. 다른 품목의 선택은 담기지 않는다.
+     */
+    public Map<UUID, Long> calculateSelectionAmounts(
+            SettlementItem item,
+            List<SettlementItemSelection> selections
+    ) {
+        List<SettlementItemSelection> itemSelections = selections.stream()
+                .filter(selection -> selection.itemId().equals(item.id()))
+                .sorted(Comparator
+                        .comparing(SettlementItemSelection::createdAt)
+                        .thenComparing(SettlementItemSelection::id))
+                .toList();
+        int totalUnits = item.totalAllocationUnits();
+        Map<UUID, Long> amountBySelection = new LinkedHashMap<>();
+        int allocatedUnits = 0;
+        long allocatedAmount = 0L;
+        for (SettlementItemSelection selection : itemSelections) {
+            int units = selection.allocatedUnits();
+            allocatedUnits = Math.addExact(allocatedUnits, units);
+            long amount = Math.multiplyExact(item.amount(), (long) units) / totalUnits;
+            amountBySelection.put(selection.id(), amount);
+            allocatedAmount = Math.addExact(allocatedAmount, amount);
         }
-        return requestedUnits;
+
+        long remainder = allocatedUnits == totalUnits
+                ? Math.subtractExact(item.amount(), allocatedAmount)
+                : 0L;
+        for (SettlementItemSelection selection : itemSelections) {
+            if (remainder <= 0L) {
+                break;
+            }
+            amountBySelection.merge(selection.id(), 1L, Math::addExact);
+            remainder--;
+        }
+        return amountBySelection;
     }
 
     public long calculatePersonalAmount(
@@ -68,19 +102,32 @@ public class SettlementItemAllocationPolicy {
             List<SettlementItemSelection> selections,
             UUID participantId
     ) {
+        Set<UUID> itemIds = new HashSet<>();
+        items.forEach(item -> itemIds.add(item.id()));
+        boolean hasUnknownItem = selections.stream()
+                .filter(selection -> selection.participantId().equals(participantId))
+                .anyMatch(selection -> !itemIds.contains(selection.itemId()));
+        if (hasUnknownItem) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION
+            );
+        }
+
         long total = 0L;
         try {
-            for (SettlementItemSelection selection : selections) {
-                if (!selection.participantId().equals(participantId)) {
-                    continue;
+            for (SettlementItem item : items) {
+                Map<UUID, Long> amountBySelection = calculateSelectionAmounts(
+                        item, selections
+                );
+                for (SettlementItemSelection selection : selections) {
+                    if (!selection.participantId().equals(participantId)) {
+                        continue;
+                    }
+                    total = Math.addExact(
+                            total,
+                            amountBySelection.getOrDefault(selection.id(), 0L)
+                    );
                 }
-                SettlementItem item = items.stream()
-                        .filter(candidate -> candidate.id().equals(selection.itemId()))
-                        .findFirst()
-                        .orElseThrow(() -> ApplicationException.of(
-                                SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION
-                        ));
-                total = Math.addExact(total, selection.amountFor(item));
             }
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(
@@ -166,11 +213,20 @@ public class SettlementItemAllocationPolicy {
                 allocatedUnitsByItem.merge(
                         item.id(), selection.allocatedUnits(), Math::addExact
                 );
-                amountByParticipant.merge(
-                        selection.participantId(),
-                        selection.amountFor(item),
-                        Math::addExact
+            }
+            for (SettlementItem item : items) {
+                Map<UUID, Long> amountBySelection = calculateSelectionAmounts(
+                        item, selections
                 );
+                for (SettlementItemSelection selection : selections) {
+                    Long amount = amountBySelection.get(selection.id());
+                    if (amount == null) {
+                        continue;
+                    }
+                    amountByParticipant.merge(
+                            selection.participantId(), amount, Math::addExact
+                    );
+                }
             }
         } catch (ApplicationException | ArithmeticException exception) {
             invalidReferenceOrAmount = true;
@@ -178,7 +234,7 @@ public class SettlementItemAllocationPolicy {
 
         List<UUID> invalidItemIds = items.stream()
                 .filter(item -> allocatedUnitsByItem.getOrDefault(item.id(), 0)
-                        != SettlementItemAllocationFraction.WHOLE_UNITS)
+                        != item.totalAllocationUnits())
                 .map(SettlementItem::id)
                 .toList();
         if (invalidReferenceOrAmount || !invalidItemIds.isEmpty()) {

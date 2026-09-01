@@ -73,29 +73,18 @@ public record SettlementItemSelection(
         );
     }
 
-    /** 품목 한 개를 WHOLE_UNITS로 볼 때 이 선택이 차지하는 단위. */
+    /** 이 선택이 차지하는 몫 단위. `{ONE, units: 2}`는 2개, `{THIRD, units: 1}`은 1/3개다. */
     public int allocatedUnits() {
         return Math.multiplyExact(fraction.units(), units);
     }
 
-    public long amountFor(SettlementItem item) {
-        if (item == null
-                || !settlementId.equals(item.settlementId())
-                || !itemId.equals(item.id())) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION
-            );
-        }
-        return Math.multiplyExact(fraction.amountOf(item.amount()), units);
-    }
-
+    // 상한은 같은 품목의 다른 선택까지 봐야 정해지므로 SettlementItemAllocationPolicy가 맡는다.
     private static void validateUnits(SettlementItemAllocationFraction fraction, int units) {
-        if (units < MIN_UNITS
-                || Math.multiplyExact(fraction.units(), units)
-                > SettlementItemAllocationFraction.WHOLE_UNITS) {
+        if (units < MIN_UNITS) {
             throw ApplicationException.of(
                     SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION_UNITS
             );
         }
+        Math.multiplyExact(fraction.units(), units);
     }
 }

@@ -8,14 +8,14 @@ import jakarta.validation.constraints.Positive;
 
 public record SaveSettlementItemSelectionWebRequest(
         @NotNull
-        @Schema(description = "품목 부담 비율", example = "HALF")
+        @Schema(description = "품목 **한 개**에 대한 부담 비율", example = "ONE")
         SettlementItemAllocationFraction fraction,
 
         @Positive
         @Schema(
-                description = "가져갈 수량. 의미는 units × fraction 이다. "
-                        + "생략하면 1로 처리해 기존 클라이언트와 동일하게 동작한다. "
-                        + "예: 3인분 중 2인분은 units=2, fraction=THIRD",
+                description = "그 비율을 몇 번 가져갈지. 생략하면 1이다. "
+                        + "예: 2개는 fraction=ONE·units=2, 1/3개는 fraction=THIRD·units=1, "
+                        + "2/3개는 fraction=THIRD·units=2",
                 example = "2",
                 defaultValue = "1",
                 nullable = true

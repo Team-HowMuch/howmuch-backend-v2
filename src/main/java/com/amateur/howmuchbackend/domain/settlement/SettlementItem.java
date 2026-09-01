@@ -55,6 +55,13 @@ public record SettlementItem(
         );
     }
 
+    /** 품목 전체를 채우는 데 필요한 몫 단위. 한 개를 WHOLE_UNITS로 보고 수량만큼 곱한다. */
+    public int totalAllocationUnits() {
+        return Math.multiplyExact(
+                quantity, SettlementItemAllocationFraction.WHOLE_UNITS
+        );
+    }
+
     private static String normalizeName(String name) {
         if (name == null) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_ITEM_NAME);

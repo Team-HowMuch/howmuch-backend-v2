@@ -71,8 +71,8 @@ public interface SettlementItemAllocationDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
                     description = "SETTLEMENT_ITEM_SELECTION_NOT_EDITABLE, "
-                            + "SETTLEMENT_ITEM_SUBMISSION_ALREADY_EXISTS, SETTLEMENT_ITEM_OVER_ALLOCATED "
-                            + "또는 SETTLEMENT_ITEM_ALLOCATION_AMOUNT_NOT_EXACT"
+                            + "SETTLEMENT_ITEM_SUBMISSION_ALREADY_EXISTS "
+                            + "또는 SETTLEMENT_ITEM_OVER_ALLOCATED"
             )
     })
     ApiResponse<SettlementItemAllocationWebResponse> save(
