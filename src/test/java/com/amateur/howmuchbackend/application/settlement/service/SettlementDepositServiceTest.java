@@ -48,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -146,7 +147,9 @@ class SettlementDepositServiceTest {
                 loadSettlementPort,
                 saveTransactionPort
         );
-        accountUpdateOrder.verify(bankTransactionPort).fetch(
+        // 은행 조회는 스냅샷 생성일부터 현재까지를 월 단위로 나눠 부르므로 호출 횟수가
+        // 실행 시점 달력에 따라 달라진다. 여기서 볼 것은 계좌 갱신보다 먼저 일어나는 순서다.
+        accountUpdateOrder.verify(bankTransactionPort, atLeastOnce()).fetch(
                 eq("CID-1"),
                 eq("0020"),
                 eq("1002123456789"),
