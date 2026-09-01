@@ -15,7 +15,9 @@ public interface SettlementLinkEntryDocs {
     @Operation(
             summary = "공통 정산 링크 조회",
             description = "인증 없이 참여자 이름 목록을 조회할 수 있습니다. 유효한 Bearer 인증이 있고 "
-                    + "회원 참여자와 연결되면 APP_DIRECT와 단기 참여 문맥을 반환합니다."
+                    + "회원 참여자와 연결되면 APP_DIRECT와 단기 참여 문맥을 반환합니다. "
+                    + "총액·전체 참여자 수와 요청자 여부를 포함하며, 더치페이는 참여자별 확정 금액을 "
+                    + "반환하고 품목 정산의 참여자 금액은 null입니다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(

@@ -13,6 +13,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.IssueSettlemen
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementLinkPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -20,6 +21,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantContext;
+import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +30,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +43,7 @@ public class SettlementLinkEntryService implements
     private final LoadSettlementLinkPort loadSettlementLinkPort;
     private final LoadSettlementPort loadSettlementPort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
+    private final LoadSettlementSharePort loadSettlementSharePort;
     private final CurrentActorPort currentActorPort;
     private final IssueSettlementParticipantContextPort issueParticipantContextPort;
 
@@ -48,6 +53,7 @@ public class SettlementLinkEntryService implements
         LinkAccess access = loadAccess(rawToken, now);
         List<SettlementParticipant> participants = loadSettlementParticipantPort
                 .findAllBySettlementId(access.settlement().id());
+        Map<UUID, Long> amountByParticipantId = loadParticipantAmounts(access.settlement());
         SettlementParticipant matchedParticipant = currentActorPort.findCurrentActor()
                 .map(CurrentActor::userId)
                 .flatMap(userId -> participants.stream()
@@ -56,13 +62,20 @@ public class SettlementLinkEntryService implements
                 .orElse(null);
 
         if (matchedParticipant != null) {
+            SettlementLinkParticipantResult selectedParticipant = toResult(
+                    access.settlement(),
+                    matchedParticipant,
+                    amountByParticipantId
+            );
             SettlementParticipantContext context = issueContext(access, matchedParticipant, now);
             return new SettlementLinkEntryResult(
                     access.settlement().id(),
                     access.settlement().title(),
+                    access.settlement().totalAmount(),
+                    participants.size(),
                     access.phase(),
                     SettlementLinkEntryMode.APP_DIRECT,
-                    toResult(matchedParticipant),
+                    selectedParticipant,
                     List.of(),
                     context.token(),
                     context.expiresAt()
@@ -72,10 +85,18 @@ public class SettlementLinkEntryService implements
         return new SettlementLinkEntryResult(
                 access.settlement().id(),
                 access.settlement().title(),
+                access.settlement().totalAmount(),
+                participants.size(),
                 access.phase(),
                 SettlementLinkEntryMode.BROWSER_SELECTION,
                 null,
-                participants.stream().map(this::toResult).toList(),
+                participants.stream()
+                        .map(participant -> toResult(
+                                access.settlement(),
+                                participant,
+                                amountByParticipantId
+                        ))
+                        .toList(),
                 null,
                 null
         );
@@ -93,10 +114,16 @@ public class SettlementLinkEntryService implements
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND
                 ));
+        Map<UUID, Long> amountByParticipantId = loadParticipantAmounts(access.settlement());
+        SettlementLinkParticipantResult participantResult = toResult(
+                access.settlement(),
+                participant,
+                amountByParticipantId
+        );
         SettlementParticipantContext context = issueContext(access, participant, now);
         return new SettlementLinkParticipantSelectionResult(
                 access.settlement().id(),
-                toResult(participant),
+                participantResult,
                 access.phase(),
                 context.token(),
                 context.expiresAt()
@@ -148,10 +175,33 @@ public class SettlementLinkEntryService implements
         );
     }
 
-    private SettlementLinkParticipantResult toResult(SettlementParticipant participant) {
+    private Map<UUID, Long> loadParticipantAmounts(Settlement settlement) {
+        if (settlement.allocationType() != SettlementAllocationType.DUTCH_PAY) {
+            return Map.of();
+        }
+        return loadSettlementSharePort.findAllBySettlementId(settlement.id()).stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        SettlementShare::payerParticipantId,
+                        SettlementShare::amount
+                ));
+    }
+
+    private SettlementLinkParticipantResult toResult(
+            Settlement settlement,
+            SettlementParticipant participant,
+            Map<UUID, Long> amountByParticipantId
+    ) {
+        Long amount = settlement.allocationType() == SettlementAllocationType.DUTCH_PAY
+                ? amountByParticipantId.get(participant.id())
+                : null;
+        if (settlement.allocationType() == SettlementAllocationType.DUTCH_PAY && amount == null) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND);
+        }
         return new SettlementLinkParticipantResult(
                 participant.id(),
-                participant.displayName()
+                participant.displayName(),
+                participant.isLinkedTo(settlement.creatorId()),
+                amount
         );
     }
 
