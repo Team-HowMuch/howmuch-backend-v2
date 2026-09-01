@@ -65,10 +65,12 @@ class SettlementTransferInstructionServiceTest {
                 linkTokenPort,
                 loadSettlementLinkPort,
                 loadParticipantContextPort,
-                loadSettlementPort,
-                loadSettlementSharePort,
-                loadSnapshotPort,
-                List.of(transferLinkPort)
+                new SettlementTransferInstructionReader(
+                        loadSettlementPort,
+                        loadSettlementSharePort,
+                        loadSnapshotPort,
+                        List.of(transferLinkPort)
+                )
         );
     }
 
