@@ -13,9 +13,12 @@ public record SettlementItemSelection(
         UUID itemId,
         UUID participantId,
         SettlementItemAllocationFraction fraction,
+        int units,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
+    public static final int MIN_UNITS = 1;
+
     public SettlementItemSelection {
         Objects.requireNonNull(id, "품목 선택 ID는 필수입니다.");
         Objects.requireNonNull(settlementId, "정산 ID는 필수입니다.");
@@ -29,6 +32,7 @@ public record SettlementItemSelection(
                     SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION
             );
         }
+        validateUnits(fraction, units);
     }
 
     public static SettlementItemSelection create(
@@ -36,6 +40,7 @@ public record SettlementItemSelection(
             UUID itemId,
             UUID participantId,
             SettlementItemAllocationFraction fraction,
+            int units,
             LocalDateTime now
     ) {
         Objects.requireNonNull(now, "품목 선택 생성 시각은 필수입니다.");
@@ -45,13 +50,15 @@ public record SettlementItemSelection(
                 itemId,
                 participantId,
                 fraction,
+                units,
                 now,
                 now
         );
     }
 
-    public SettlementItemSelection changeFraction(
+    public SettlementItemSelection change(
             SettlementItemAllocationFraction changedFraction,
+            int changedUnits,
             LocalDateTime now
     ) {
         return new SettlementItemSelection(
@@ -60,9 +67,15 @@ public record SettlementItemSelection(
                 itemId,
                 participantId,
                 changedFraction,
+                changedUnits,
                 createdAt,
                 Objects.requireNonNull(now, "품목 선택 수정 시각은 필수입니다.")
         );
+    }
+
+    /** 품목 한 개를 WHOLE_UNITS로 볼 때 이 선택이 차지하는 단위. */
+    public int allocatedUnits() {
+        return Math.multiplyExact(fraction.units(), units);
     }
 
     public long amountFor(SettlementItem item) {
@@ -73,6 +86,16 @@ public record SettlementItemSelection(
                     SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION
             );
         }
-        return fraction.amountOf(item.amount());
+        return Math.multiplyExact(fraction.amountOf(item.amount()), units);
+    }
+
+    private static void validateUnits(SettlementItemAllocationFraction fraction, int units) {
+        if (units < MIN_UNITS
+                || Math.multiplyExact(fraction.units(), units)
+                > SettlementItemAllocationFraction.WHOLE_UNITS) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION_UNITS
+            );
+        }
     }
 }

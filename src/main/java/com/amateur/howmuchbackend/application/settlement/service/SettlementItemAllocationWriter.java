@@ -54,16 +54,18 @@ class SettlementItemAllocationWriter {
                 item,
                 selections,
                 participantId,
-                command.fraction()
+                command.fraction(),
+                command.units()
         );
         SettlementItemSelection selection = allocationStorePort
                 .findSelection(settlementId, item.id(), participantId)
-                .map(existing -> existing.changeFraction(command.fraction(), now))
+                .map(existing -> existing.change(command.fraction(), command.units(), now))
                 .orElseGet(() -> SettlementItemSelection.create(
                         settlementId,
                         item.id(),
                         participantId,
                         command.fraction(),
+                        command.units(),
                         now
                 ));
         allocationStorePort.saveSelection(selection);

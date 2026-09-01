@@ -23,25 +23,44 @@ public class SettlementItemAllocationPolicy {
             SettlementItem item,
             List<SettlementItemSelection> selections,
             UUID participantId,
-            SettlementItemAllocationFraction fraction
+            SettlementItemAllocationFraction fraction,
+            int units
     ) {
         if (item == null || participantId == null || fraction == null) {
             throw ApplicationException.of(
                     SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION
             );
         }
+        // 요청 자체가 품목 한 개 분량을 넘는 경우와, 남이 먼저 가져가 남은 몫이 모자란 경우를
+        // 다른 코드로 구분한다.
+        int requestedUnits = requestedUnits(fraction, units);
         fraction.amountOf(item.amount());
         int allocatedUnits = selections.stream()
                 .filter(selection -> selection.itemId().equals(item.id()))
                 .filter(selection -> !selection.participantId().equals(participantId))
-                .mapToInt(selection -> selection.fraction().units())
+                .mapToInt(SettlementItemSelection::allocatedUnits)
                 .sum();
-        if (allocatedUnits + fraction.units()
+        if (allocatedUnits + requestedUnits
                 > SettlementItemAllocationFraction.WHOLE_UNITS) {
             throw ApplicationException.of(
                     SettlementStatusCode.SETTLEMENT_ITEM_OVER_ALLOCATED
             );
         }
+    }
+
+    private int requestedUnits(SettlementItemAllocationFraction fraction, int units) {
+        if (units < SettlementItemSelection.MIN_UNITS) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION_UNITS
+            );
+        }
+        int requestedUnits = Math.multiplyExact(fraction.units(), units);
+        if (requestedUnits > SettlementItemAllocationFraction.WHOLE_UNITS) {
+            throw ApplicationException.of(
+                    SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION_UNITS
+            );
+        }
+        return requestedUnits;
     }
 
     public long calculatePersonalAmount(
@@ -145,7 +164,7 @@ public class SettlementItemAllocationPolicy {
                     continue;
                 }
                 allocatedUnitsByItem.merge(
-                        item.id(), selection.fraction().units(), Math::addExact
+                        item.id(), selection.allocatedUnits(), Math::addExact
                 );
                 amountByParticipant.merge(
                         selection.participantId(),

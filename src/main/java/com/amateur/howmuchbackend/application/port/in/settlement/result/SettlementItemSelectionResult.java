@@ -8,6 +8,7 @@ public record SettlementItemSelectionResult(
         UUID participantId,
         String participantDisplayName,
         SettlementItemAllocationFraction fraction,
+        int units,
         long amount
 ) {
 }

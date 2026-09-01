@@ -24,6 +24,7 @@ public final class SettlementItemAllocationMapper {
                 entity.getItemId(),
                 entity.getParticipantId(),
                 entity.getFraction(),
+                entity.getUnits(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );

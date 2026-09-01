@@ -30,6 +30,7 @@ public enum SettlementStatusCode implements StatusCode {
     INVALID_SETTLEMENT_ITEM_ORDER("정산 품목 표시 순서는 0 이상이어야 합니다.", 400),
     INVALID_SETTLEMENT_ITEM_SELECTION("정산 품목 선택 정보가 올바르지 않습니다.", 400),
     INVALID_SETTLEMENT_ITEM_ALLOCATION_FRACTION("품목 선택 비율이 올바르지 않습니다.", 400),
+    INVALID_SETTLEMENT_ITEM_SELECTION_UNITS("품목 선택 수량은 1개 이상이고 품목 한 개 분량을 넘을 수 없습니다.", 400),
     INVALID_SETTLEMENT_ALLOCATION_TYPE("정산 배분 유형이 올바르지 않습니다.", 400),
     INVALID_SETTLEMENT_RECEIVING_ACCOUNT_ID("정산 수령 계좌 ID는 양수여야 합니다.", 400),
     INVALID_SETTLEMENT_RECEIVING_ACCOUNT_SNAPSHOT("정산 수령 계좌 정보가 올바르지 않습니다.", 400),
