@@ -102,9 +102,11 @@ class SettlementLinkEntryServiceTest {
     }
 
     @Test
-    @DisplayName("로그인 회원이 linkedUserId와 일치하면 이름 선택 없이 참여 문맥을 발급한다")
+    @DisplayName("APP_DIRECT도 요청자 포함 전체 인원과 미확정 금액 null을 반환한다")
     void resolvesAuthenticatedParticipantDirectly() {
         arrangeDutchPayAccess();
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(shares().getFirst()));
         when(currentActorPort.findCurrentActor()).thenReturn(Optional.of(new CurrentActor(2L)));
         arrangeContext(PAYER_PARTICIPANT_ID);
 
@@ -115,7 +117,7 @@ class SettlementLinkEntryServiceTest {
         assertThat(result.participantCount()).isEqualTo(2);
         assertThat(result.selectedParticipant().participantId()).isEqualTo(PAYER_PARTICIPANT_ID);
         assertThat(result.selectedParticipant().isRequester()).isFalse();
-        assertThat(result.selectedParticipant().amount()).isEqualTo(6_000L);
+        assertThat(result.selectedParticipant().amount()).isNull();
         assertThat(result.participantCandidates()).isEmpty();
         assertThat(result.participantContext()).isEqualTo(CONTEXT_ID.toString());
     }

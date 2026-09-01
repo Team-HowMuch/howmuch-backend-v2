@@ -194,9 +194,6 @@ public class SettlementLinkEntryService implements
         Long amount = settlement.allocationType() == SettlementAllocationType.DUTCH_PAY
                 ? amountByParticipantId.get(participant.id())
                 : null;
-        if (settlement.allocationType() == SettlementAllocationType.DUTCH_PAY && amount == null) {
-            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND);
-        }
         return new SettlementLinkParticipantResult(
                 participant.id(),
                 participant.displayName(),

@@ -13,9 +13,9 @@
 
 ### Success criteria
 
-- [x] 링크 응답에 `totalAmount`, `participantCount`가 포함된다.
+- [x] 링크 응답에 `totalAmount`, 요청자를 포함한 전체 `participantCount`가 포함된다.
 - [x] `participantCandidates`와 `selectedParticipant`에 `isRequester`, `amount`가 포함된다.
-- [x] `amount`는 `DUTCH_PAY`의 확정 Share 금액이며 `ITEM_ALLOCATION`에서는 `null`이다.
+- [x] `amount`는 확정 Share 금액이며 `ITEM_ALLOCATION` 또는 Share 미생성 상태에서는 `null`이다.
 
 ### Out of scope
 
@@ -41,8 +41,8 @@
 ### Boundary conditions
 
 - `ITEM_ALLOCATION`: 모든 참여자 `amount=null`
-- `APP_DIRECT`: `participantCandidates=[]`이어도 `participantCount`는 전체 참여자 수
-- 유효한 더치페이 링크에 참여자 Share가 없으면 불완전한 공개 응답 대신 링크 없음으로 처리
+- `APP_DIRECT`: `participantCandidates=[]`이어도 `participantCount`는 요청자를 포함한 전체 참여자 수
+- 더치페이 참여자의 확정 Share가 아직 없으면 `amount=null`
 
 ## 4. Contracts
 
@@ -66,10 +66,10 @@ Result -> Web Response DTO: SettlementLinkEntryWebResponse.from(result)
 GET /api/v2/settlement-links/{token}
 Response additions:
   totalAmount: long
-  participantCount: int
+  participantCount: int (요청자 포함)
   selectedParticipant/participantCandidates[]:
     isRequester: boolean
-    amount: Long (ITEM_ALLOCATION이면 null)
+    amount: Long (ITEM_ALLOCATION 또는 Share 미생성이면 null)
 Authentication: optional (existing)
 ```
 
@@ -118,8 +118,9 @@ git status --short --untracked-files=all
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
-| 2026-09-01 | 최신 `origin/develop` 흐름과 기존 데이터 확인, 마이그레이션 불필요 결정 | 구현과 검증 | 더치페이 Share 누락 시 nullable 의미가 모호해질 수 있어 링크 없음으로 처리 |
+| 2026-09-01 | 최신 `origin/develop` 흐름과 기존 데이터 확인, 마이그레이션 불필요 결정 | 구현과 검증 | 없음 |
 | 2026-09-01 | 응답 필드·Swagger·기존 테스트 갱신, 대상 테스트와 컴파일 성공 | 완료 | 없음 |
+| 2026-09-01 | `participantCount`의 요청자 포함 의미와 Share 미생성 `amount=null` 계약 명시 | 완료 | 없음 |
 
 ### Verification results
 
@@ -134,4 +135,5 @@ git status --short --untracked-files=all
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
 | 2026-09-01 | 더치페이 금액은 `SettlementShare`를 사용 | 링크가 공개되는 시점의 확정 금액이며 기존 조회 포트를 재사용 가능 | DRAFT용 allocation 조회는 확정 계약과 맞지 않음 |
+| 2026-09-01 | Share 미생성 참여자의 `amount`는 `null` | `0`은 확정된 0원으로 오인될 수 있어 미확정 상태와 구분 | 링크 오류로 처리하지 않음 |
 | 2026-09-01 | 요청자 선택 서버 차단은 제외 | 이번 요청은 표시용 응답 필드 확장 범위 | 별도 정책 변경 시 선택 API 오류 계약이 필요 |
