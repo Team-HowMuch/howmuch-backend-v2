@@ -130,7 +130,7 @@ public class SettlementParticipantService implements
                         SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND
                 ));
         modificationPolicy.validateRename(settlement, participant);
-        SettlementParticipant renamed = saveSettlementParticipantPort.save(
+        SettlementParticipant renamed = saveSettlementParticipantPort.update(
                 participant.rename(displayName, LocalDateTime.now(ZoneOffset.UTC))
         );
         return SettlementParticipantResult.of(renamed, resolvePublicId(renamed));

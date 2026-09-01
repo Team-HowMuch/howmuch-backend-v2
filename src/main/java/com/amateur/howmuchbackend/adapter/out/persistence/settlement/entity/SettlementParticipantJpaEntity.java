@@ -60,7 +60,6 @@ public class SettlementParticipantJpaEntity extends BaseTimeJpaEntity {
     @Column(
             name = "display_name",
             nullable = false,
-            updatable = false,
             length = SettlementParticipant.MAX_DISPLAY_NAME_LENGTH
     )
     private String displayName;
@@ -77,5 +76,9 @@ public class SettlementParticipantJpaEntity extends BaseTimeJpaEntity {
         this.sourceGroupId = participant.sourceGroupId();
         this.displayName = participant.displayName();
         this.displayOrder = participant.displayOrder();
+    }
+
+    public void updateFrom(SettlementParticipant participant) {
+        this.displayName = participant.displayName();
     }
 }
