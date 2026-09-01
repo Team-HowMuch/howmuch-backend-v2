@@ -1,8 +1,10 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementDutchPayAllocationUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.ReplaceSettlementDutchPayAllocationsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SelectSettlementAllocationTypeUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDutchPayAllocationUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.ReplaceSettlementDutchPayAllocationsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SelectSettlementAllocationTypeCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDutchPayAllocationCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementAllocationNextStep;
@@ -51,6 +53,8 @@ class SettlementAllocationControllerTest {
     private GetSettlementDutchPayAllocationUseCase getDutchPayAllocationUseCase;
     @Mock
     private UpdateSettlementDutchPayAllocationUseCase updateDutchPayAllocationUseCase;
+    @Mock
+    private ReplaceSettlementDutchPayAllocationsUseCase replaceDutchPayAllocationsUseCase;
 
     private MockMvc mockMvc;
 
@@ -61,7 +65,8 @@ class SettlementAllocationControllerTest {
         SettlementAllocationController controller = new SettlementAllocationController(
                 selectSettlementAllocationTypeUseCase(),
                 getDutchPayAllocationUseCase,
-                updateDutchPayAllocationUseCase
+                updateDutchPayAllocationUseCase,
+                replaceDutchPayAllocationsUseCase
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -185,6 +190,70 @@ class SettlementAllocationControllerTest {
                 .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
 
         verifyNoInteractions(updateDutchPayAllocationUseCase);
+    }
+
+    @Test
+    @DisplayName("참여자 전원의 금액을 Command로 변환해 한 번에 저장한다")
+    void replacesDutchPayAllocations() throws Exception {
+        when(replaceDutchPayAllocationsUseCase.replace(
+                SETTLEMENT_ID,
+                new ReplaceSettlementDutchPayAllocationsCommand(List.of(
+                        new ReplaceSettlementDutchPayAllocationsCommand.Allocation(
+                                CREATOR_PARTICIPANT_ID,
+                                600
+                        ),
+                        new ReplaceSettlementDutchPayAllocationsCommand.Allocation(
+                                FRIEND_PARTICIPANT_ID,
+                                400
+                        )
+                ))
+        )).thenReturn(result());
+
+        mockMvc.perform(put(
+                        "/api/v2/settlements/{settlementId}/dutch-pay-allocations",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {"allocations":[
+                          {"participantId":"09ac164a-35d6-4549-bff4-b7b4c375d2aa","amount":600},
+                          {"participantId":"bbcc9e4e-70df-4a6c-a0e6-4f319de1f89a","amount":400}
+                        ]}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.allocatedAmount").value(1_000))
+                .andExpect(jsonPath("$.data.balanced").value(true));
+    }
+
+    @Test
+    @DisplayName("빈 배분 목록을 UseCase 호출 전에 거부한다")
+    void rejectsEmptyAllocations() throws Exception {
+        mockMvc.perform(put(
+                        "/api/v2/settlements/{settlementId}/dutch-pay-allocations",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {"allocations":[]}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+
+        verifyNoInteractions(replaceDutchPayAllocationsUseCase);
+    }
+
+    @Test
+    @DisplayName("참여자 ID 누락을 UseCase 호출 전에 거부한다")
+    void rejectsAllocationWithoutParticipantId() throws Exception {
+        mockMvc.perform(put(
+                        "/api/v2/settlements/{settlementId}/dutch-pay-allocations",
+                        SETTLEMENT_ID
+                ).contentType("application/json")
+                .content("""
+                        {"allocations":[{"amount":1000}]}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+
+        verifyNoInteractions(replaceDutchPayAllocationsUseCase);
     }
 
     private SelectSettlementAllocationTypeUseCase selectSettlementAllocationTypeUseCase() {
