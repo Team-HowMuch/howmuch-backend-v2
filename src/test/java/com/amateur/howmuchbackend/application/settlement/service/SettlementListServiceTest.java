@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +42,7 @@ class SettlementListServiceTest {
                 SettlementStatus.AWAITING_DEPOSIT,
                 LocalDateTime.of(2026, 8, 13, 0, 0),
                 600L,
+                SettlementAllocationType.DUTCH_PAY,
                 3,
                 2,
                 0,
@@ -74,6 +76,7 @@ class SettlementListServiceTest {
                 SettlementStatus.AWAITING_DEPOSIT,
                 LocalDateTime.of(2026, 8, 13, 0, 0),
                 600L,
+                SettlementAllocationType.DUTCH_PAY,
                 3,
                 2,
                 0,

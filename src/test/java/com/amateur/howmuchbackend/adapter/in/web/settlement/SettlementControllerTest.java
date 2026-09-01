@@ -33,6 +33,7 @@ import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
@@ -229,6 +230,7 @@ class SettlementControllerTest {
                 SettlementStatus.AWAITING_DEPOSIT,
                 CREATED_AT,
                 600L,
+                SettlementAllocationType.DUTCH_PAY,
                 3,
                 2,
                 0,
