@@ -93,9 +93,8 @@ class SettlementParticipantTest {
     }
 
     @ParameterizedTest
-    @NullSource
     @ValueSource(strings = {"short", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
-    @DisplayName("비회원 연락처는 64자 소문자 hex hash만 식별자로 사용한다")
+    @DisplayName("비회원 연락처에 hash를 주면 64자 소문자 hex만 식별자로 사용한다")
     void rejectsInvalidPhoneHash(String phoneHash) {
         assertThatThrownBy(() -> SettlementParticipant.unlinkedContact(
                 SETTLEMENT_ID,
@@ -106,6 +105,23 @@ class SettlementParticipantTest {
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode())
                         .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_PARTICIPANT_IDENTITY));
+    }
+
+    @Test
+    @DisplayName("연락처에 없는 사람은 phone hash 없이 이름만으로 추가할 수 있다")
+    void allowsContactWithoutPhoneHash() {
+        SettlementParticipant participant = SettlementParticipant.unlinkedContact(
+                SETTLEMENT_ID,
+                null,
+                "친구 1",
+                0,
+                CREATED_AT
+        );
+
+        assertThat(participant.source()).isEqualTo(SettlementParticipantSource.CONTACT);
+        assertThat(participant.linkedUserId()).isNull();
+        assertThat(participant.phoneHash()).isNull();
+        assertThat(participant.displayName()).isEqualTo("친구 1");
     }
 
     @ParameterizedTest

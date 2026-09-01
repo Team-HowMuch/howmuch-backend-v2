@@ -11,6 +11,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUs
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.RenameSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ResumeSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SuspendSettlementUseCase;
@@ -100,6 +101,9 @@ class SettlementControllerTest {
     private ResumeSettlementUseCase resumeSettlementUseCase;
 
     @Mock
+    private RenameSettlementParticipantUseCase renameSettlementParticipantUseCase;
+
+    @Mock
     private GetSettlementParticipantsUseCase getSettlementParticipantsUseCase;
 
     @Mock
@@ -131,6 +135,7 @@ class SettlementControllerTest {
                 updateSettlementDraftUseCase,
                 addSettlementParticipantUseCase,
                 removeSettlementParticipantUseCase,
+                renameSettlementParticipantUseCase,
                 suspendSettlementUseCase,
                 resumeSettlementUseCase,
                 getSettlementParticipantsUseCase,
