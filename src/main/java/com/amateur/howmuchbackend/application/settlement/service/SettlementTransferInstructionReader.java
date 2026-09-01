@@ -41,10 +41,14 @@ public class SettlementTransferInstructionReader {
     /**
      * 품목 정산은 참여자가 제출할 때마다 그 사람 Share가 생기므로, 전원이 끝나기 전에도
      * 이미 제출한 사람은 송금할 수 있다. 실질 조건은 상태가 아니라 내 Share의 존재다.
+     *
+     * <p>SUSPENDED는 안 채워진 품목이 남아 생성자가 손봐야 한다는 뜻이지, 이미 정해진
+     * 내 몫이 무효라는 뜻이 아니다. 그래서 여기서도 보낼 수 있어야 한다.
      */
     private static final Set<SettlementStatus> PAYABLE_STATUSES = EnumSet.of(
             SettlementStatus.REQUESTED,
-            SettlementStatus.AWAITING_DEPOSIT
+            SettlementStatus.AWAITING_DEPOSIT,
+            SettlementStatus.SUSPENDED
     );
 
     public SettlementTransferInstructionResult read(UUID settlementId, UUID participantId) {
