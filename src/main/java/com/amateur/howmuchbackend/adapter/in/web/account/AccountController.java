@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.in.web.account;
 import com.amateur.howmuchbackend.adapter.in.web.account.docs.AccountDocs;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.ConnectBankWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.LinkBankAccountsWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.UpdateAccountDisplayOrderWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.BankCatalogWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.BankConnectionWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.LinkedAccountsWebResponse;
@@ -17,6 +18,8 @@ import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransact
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetBankCatalogUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.SetDefaultAccountUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.UpdateAccountDisplayOrderUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
 import jakarta.validation.Valid;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,6 +48,8 @@ public class AccountController implements AccountDocs {
     private final GetAccountDetailUseCase getAccountDetailUseCase;
     private final GetAccountTransactionsUseCase getAccountTransactionsUseCase;
     private final DeleteAccountUseCase deleteAccountUseCase;
+    private final SetDefaultAccountUseCase setDefaultAccountUseCase;
+    private final UpdateAccountDisplayOrderUseCase updateAccountDisplayOrderUseCase;
 
     @Override
     @GetMapping
@@ -82,6 +88,23 @@ public class AccountController implements AccountDocs {
     @DeleteMapping("/{accountId}")
     public ApiResponse<Void> deleteAccount(@PathVariable Long accountId) {
         deleteAccountUseCase.delete(accountId);
+        return ApiResponse.success();
+    }
+
+    @Override
+    @PatchMapping("/{accountId}/default")
+    public ApiResponse<Void> setDefaultAccount(@PathVariable Long accountId) {
+        setDefaultAccountUseCase.setDefault(accountId);
+        return ApiResponse.success();
+    }
+
+    @Override
+    @PatchMapping("/{accountId}/display-order")
+    public ApiResponse<Void> updateAccountDisplayOrder(
+            @PathVariable Long accountId,
+            @Valid @RequestBody UpdateAccountDisplayOrderWebRequest request
+    ) {
+        updateAccountDisplayOrderUseCase.updateDisplayOrder(request.toCommand(accountId));
         return ApiResponse.success();
     }
 

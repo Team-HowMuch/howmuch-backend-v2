@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCi
 import com.amateur.howmuchbackend.adapter.out.persistence.external.repository.ExternalConnectionJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.user.UserJpaRepository;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
+import com.amateur.howmuchbackend.application.port.out.account.AccountPreferenceStorePort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.DeleteAccountPort;
 import com.amateur.howmuchbackend.domain.account.Account;
@@ -25,7 +26,11 @@ import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
-public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPort, DeleteAccountPort {
+public class AccountPersistenceAdapter implements
+        LoadAccountPort,
+        SaveAccountPort,
+        DeleteAccountPort,
+        AccountPreferenceStorePort {
     private final AccountJpaRepository accountRepository;
     private final UserJpaRepository userRepository;
     private final ExternalConnectionJpaRepository connectionRepository;
@@ -42,6 +47,15 @@ public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPo
     @Transactional(readOnly = true)
     public List<Account> findActiveByUserId(Long userId) {
         return accountRepository.findByUser_IdAndActiveTrue(userId).stream()
+                .map(AccountMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public List<Account> findActiveByUserIdForUpdate(Long userId) {
+        lockTimeoutConfigurer.apply();
+        return accountRepository.findActiveByUserIdForUpdate(userId).stream()
                 .map(AccountMapper::toDomain)
                 .toList();
     }
@@ -68,6 +82,28 @@ public class AccountPersistenceAdapter implements LoadAccountPort, SaveAccountPo
         accountRepository.flush();
         if (nextDefaultAccountId != null) {
             accountRepository.markDefault(nextDefaultAccountId);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void setDefault(Long userId, Long accountId) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        accountRepository.clearDefault(userId, now);
+        accountRepository.setDefault(userId, accountId, now);
+    }
+
+    @Override
+    @Transactional
+    public void updateDisplayOrders(Long userId, List<Long> orderedAccountIds) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        for (int displayOrder = 0; displayOrder < orderedAccountIds.size(); displayOrder++) {
+            accountRepository.updateDisplayOrder(
+                    userId,
+                    orderedAccountIds.get(displayOrder),
+                    displayOrder,
+                    now
+            );
         }
     }
 

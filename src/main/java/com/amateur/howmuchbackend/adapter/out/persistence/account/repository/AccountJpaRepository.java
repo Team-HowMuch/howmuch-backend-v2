@@ -25,6 +25,16 @@ public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, Lo
 
     List<AccountJpaEntity> findByUser_IdAndActiveTrue(Long userId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select account
+              from AccountJpaEntity account
+             where account.user.id = :userId
+               and account.active = true
+             order by account.id
+            """)
+    List<AccountJpaEntity> findActiveByUserIdForUpdate(@Param("userId") Long userId);
+
     Optional<AccountJpaEntity> findByIdAndUser_IdAndActiveTrue(Long id, Long userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -48,6 +58,51 @@ public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, Lo
                and account.active = true
             """)
     int markDefault(@Param("accountId") Long accountId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE accounts
+               SET is_default = FALSE,
+                   updated_at = :updatedAt
+             WHERE user_id = :userId
+               AND active = TRUE
+               AND is_default = TRUE
+            """, nativeQuery = true)
+    int clearDefault(
+            @Param("userId") Long userId,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE accounts
+               SET is_default = TRUE,
+                   updated_at = :updatedAt
+             WHERE id = :accountId
+               AND user_id = :userId
+               AND active = TRUE
+            """, nativeQuery = true)
+    int setDefault(
+            @Param("userId") Long userId,
+            @Param("accountId") Long accountId,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
+
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update AccountJpaEntity account
+               set account.displayOrder = :displayOrder,
+                   account.updatedAt = :updatedAt
+             where account.id = :accountId
+               and account.user.id = :userId
+               and account.active = true
+            """)
+    int updateDisplayOrder(
+            @Param("userId") Long userId,
+            @Param("accountId") Long accountId,
+            @Param("displayOrder") int displayOrder,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
 
     @Modifying(clearAutomatically = true)
     @Query("""

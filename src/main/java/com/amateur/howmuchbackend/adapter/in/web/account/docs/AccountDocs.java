@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.account.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.ConnectBankWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.LinkBankAccountsWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.account.dto.request.UpdateAccountDisplayOrderWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.BankCatalogWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.BankConnectionWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.LinkedAccountsWebResponse;
@@ -56,6 +57,35 @@ public interface AccountDocs {
             )
     })
     ApiResponse<Void> deleteAccount(Long accountId);
+
+    @Operation(
+            summary = "기본 결제수단 설정",
+            description = "소유한 활성 계좌를 기본 결제수단으로 설정하고 기존 기본 계좌를 해제합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "설정 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "ACCOUNT_NOT_FOUND")
+    })
+    ApiResponse<Void> setDefaultAccount(Long accountId);
+
+    @Operation(
+            summary = "계좌 표시 순서 변경",
+            description = "소유한 활성 계좌를 0 기반 표시 위치로 이동하고 전체 순서를 다시 정렬합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "변경 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_ACCOUNT_DISPLAY_ORDER"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "ACCOUNT_NOT_FOUND")
+    })
+    ApiResponse<Void> updateAccountDisplayOrder(
+            Long accountId,
+            UpdateAccountDisplayOrderWebRequest request
+    );
 
     @Operation(
             summary = "연동 가능한 은행 목록 조회",
