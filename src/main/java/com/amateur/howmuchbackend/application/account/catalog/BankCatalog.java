@@ -34,6 +34,13 @@ public class BankCatalog implements GetBankCatalogUseCase {
         }
     }
 
+    /** 화면에 보여줄 은행 이름. 토스 딥링크용 표기(attr2)와 다를 수 있어 분리한다. */
+    public Optional<String> findBankName(String organization) {
+        return loadCommonCodePort.findActiveByGroupCodeAndCode(GROUP_CODE, organization)
+                .map(CommonCode::name)
+                .filter(bankName -> !bankName.isBlank());
+    }
+
     public Optional<String> findTossDeepLinkBankName(String organization) {
         return loadCommonCodePort.findActiveByGroupCodeAndCode(GROUP_CODE, organization)
                 .map(CommonCode::attr2)

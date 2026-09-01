@@ -30,8 +30,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -40,6 +42,20 @@ import java.util.stream.Collectors;
 public class SettlementLinkEntryService implements
         ResolveSettlementLinkUseCase,
         SelectSettlementLinkParticipantUseCase {
+    /**
+     * 링크로 들어올 수 있는 정산 상태. 몫을 고르는 REQUESTED 이후에도 계속 열어둔다.
+     * 송금 화면을 닫고 은행 앱을 켠 뒤 계좌번호를 다시 보러 오는 동선이 가장 흔하다.
+     *
+     * <p>SUSPENDED는 안 채워진 품목이 남았다는 뜻이지 이미 정해진 몫이 무효라는 뜻이 아니라
+     * {@code SettlementTransferInstructionReader}의 송금 가능 상태와 기준을 맞춘다.
+     * COMPLETED는 계좌번호가 담긴 링크를 정산이 끝난 뒤까지 열어두지 않으려고 제외한다.
+     */
+    private static final Set<SettlementStatus> ENTERABLE_STATUSES = EnumSet.of(
+            SettlementStatus.REQUESTED,
+            SettlementStatus.AWAITING_DEPOSIT,
+            SettlementStatus.SUSPENDED
+    );
+
     private final SettlementLinkTokenPort linkTokenPort;
     private final LoadSettlementLinkPort loadSettlementLinkPort;
     private final LoadSettlementPort loadSettlementPort;
@@ -156,17 +172,13 @@ public class SettlementLinkEntryService implements
     }
 
     private SettlementRequestPhase resolvePhase(Settlement settlement) {
-        if (settlement.allocationType() == SettlementAllocationType.DUTCH_PAY
-                && settlement.status() == SettlementStatus.AWAITING_DEPOSIT) {
-            return SettlementRequestPhase.TRANSFER_READY;
+        // 품목 정산은 REQUESTED에서만 몫을 고칠 수 있다. 그 외에는 전부 송금 안내 단계다.
+        if (settlement.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
+                && settlement.status() == SettlementStatus.REQUESTED) {
+            return SettlementRequestPhase.ITEM_SELECTION;
         }
-        if (settlement.allocationType() == SettlementAllocationType.ITEM_ALLOCATION) {
-            if (settlement.status() == SettlementStatus.REQUESTED) {
-                return SettlementRequestPhase.ITEM_SELECTION;
-            }
-            if (settlement.status() == SettlementStatus.AWAITING_DEPOSIT) {
-                return SettlementRequestPhase.TRANSFER_READY;
-            }
+        if (ENTERABLE_STATUSES.contains(settlement.status())) {
+            return SettlementRequestPhase.TRANSFER_READY;
         }
         throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND);
     }

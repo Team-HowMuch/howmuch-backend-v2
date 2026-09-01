@@ -179,6 +179,54 @@ class SettlementLinkEntryServiceTest {
     }
 
     @Test
+    @DisplayName("전원 제출로 중단된 뒤에도 링크로 송금 안내를 다시 볼 수 있다")
+    void keepsLinkOpenAfterEverySubmission() {
+        arrangeLink();
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
+                settlement(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.SUSPENDED)
+        ));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
+
+        var result = service.resolve(RAW_TOKEN);
+
+        assertThat(result.allocationPhase()).isEqualTo(SettlementRequestPhase.TRANSFER_READY);
+        assertThat(result.participantCandidates()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("중단 후 재개해 REQUESTED로 돌아온 더치페이도 송금 안내로 연다")
+    void opensResumedDutchPayAsTransferReady() {
+        arrangeLink();
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
+                settlement(SettlementAllocationType.DUTCH_PAY, SettlementStatus.REQUESTED)
+        ));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(shares());
+        when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
+
+        var result = service.resolve(RAW_TOKEN);
+
+        assertThat(result.allocationPhase()).isEqualTo(SettlementRequestPhase.TRANSFER_READY);
+    }
+
+    @Test
+    @DisplayName("아직 요청 전인 초안은 링크로 열 수 없다")
+    void rejectsDraftSettlement() {
+        arrangeLink();
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
+                settlement(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.DRAFT)
+        ));
+
+        assertThatThrownBy(() -> service.resolve(RAW_TOKEN))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND));
+    }
+
+    @Test
     @DisplayName("영수증 정산이면 상호명과 결제일을 함께 준다")
     void exposesReceiptStoreNameAndPaidAt() {
         arrangeItemAllocationAccess();
