@@ -80,7 +80,7 @@ class SettlementDetailServiceTest {
         assertThat(result.viewerRole()).isEqualTo(SettlementDetailResult.ViewerRole.CREATOR);
         assertThat(result.creatorName()).isEqualTo("생성자");
         assertThat(result.paymentSummary()).isEqualTo(
-                new SettlementDetailResult.PaymentSummary(1_000, 700, 300, 70, 2, 1)
+                new SettlementDetailResult.PaymentSummary(1_000, 700, 300, 70, 2, 2, 1)
         );
         assertThat(result.participants()).extracting(
                 SettlementDetailResult.ParticipantPayment::displayName,

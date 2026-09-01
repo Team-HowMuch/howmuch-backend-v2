@@ -12,6 +12,7 @@ public record SettlementListItemResult(
         LocalDateTime requestedAt,
         Long totalAmount,
         Integer participantCount,
+        Integer payableParticipantCount,
         Integer completedParticipantCount,
         Long amountToPay,
         String requesterName,

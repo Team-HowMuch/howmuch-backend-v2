@@ -23,6 +23,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.total_amount AS totalAmount,
                 creator.name AS requesterName,
                 COUNT(DISTINCT participant.id) AS participantCount,
+                MAX(payment_summary.payable_participant_count) AS payableParticipantCount,
                 MAX(payment_summary.completed_participant_count) AS completedParticipantCount,
                 MAX(CASE
                         WHEN participant.linked_user_id = :userId THEN share.amount
@@ -39,6 +40,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 ON link.settlement_id = settlement.id
               LEFT JOIN (
                     SELECT payable_share.settlement_id,
+                           COUNT(*) AS payable_participant_count,
                            COUNT(*) FILTER (
                                WHERE COALESCE(confirmed.confirmed_amount, 0)
                                      >= payable_share.amount
@@ -219,6 +221,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         String getRequesterName();
 
         long getParticipantCount();
+
+        Long getPayableParticipantCount();
 
         Long getCompletedParticipantCount();
 

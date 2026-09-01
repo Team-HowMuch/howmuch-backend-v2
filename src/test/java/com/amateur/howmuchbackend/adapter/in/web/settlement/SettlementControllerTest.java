@@ -226,6 +226,7 @@ class SettlementControllerTest {
                 CREATED_AT,
                 600L,
                 3,
+                2,
                 0,
                 null,
                 null,
@@ -242,6 +243,7 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0].status").value("AWAITING_DEPOSIT"))
                 .andExpect(jsonPath("$.data[0].totalAmount").value(600))
                 .andExpect(jsonPath("$.data[0].participantCount").value(3))
+                .andExpect(jsonPath("$.data[0].payableParticipantCount").value(2))
                 .andExpect(jsonPath("$.data[0].completedParticipantCount").value(0))
                 .andExpect(jsonPath("$.data[0].groups[0].groupId").value(10))
                 .andExpect(jsonPath("$.data[0].groups[0].groupName").value("여행 모임"))
@@ -820,7 +822,7 @@ class SettlementControllerTest {
                 CREATED_AT,
                 SettlementDetailResult.ViewerRole.CREATOR,
                 "최수아",
-                new SettlementDetailResult.PaymentSummary(8_000, 4_000, 4_000, 50, 1, 0),
+                new SettlementDetailResult.PaymentSummary(8_000, 4_000, 4_000, 50, 1, 1, 0),
                 List.of(new SettlementDetailResult.ParticipantPayment(
                         PARTICIPANT_ID,
                         "김참여",

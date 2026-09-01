@@ -37,6 +37,7 @@ public record SettlementDetailResult(
             long unpaidAmount,
             int progressPercent,
             int participantCount,
+            int payableParticipantCount,
             int completedParticipantCount
     ) {
     }
