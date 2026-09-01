@@ -173,6 +173,42 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("작성하다 만 초안은 목록에 나오지 않는다")
+    void hidesDraftSettlement() {
+        UUID draftId = UUID.randomUUID();
+        settlementJpaRepository.saveAndFlush(new SettlementJpaEntity(new Settlement(
+                draftId,
+                creatorId,
+                "작성 중 정산",
+                0L,
+                SettlementStatus.DRAFT,
+                CREATED_AT.plusMinutes(2),
+                CREATED_AT.plusMinutes(2)
+        )));
+        settlementParticipantJpaRepository.saveAndFlush(new SettlementParticipantJpaEntity(
+                SettlementParticipant.registeredUser(draftId, creatorId, "받는 사람", 0, CREATED_AT)
+        ));
+
+        var inProgress = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS,
+                null
+        );
+        var all = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.ALL,
+                null
+        );
+
+        assertThat(inProgress).extracting(item -> item.settlementId())
+                .containsExactly(receiveSettlementId);
+        assertThat(all).extracting(item -> item.settlementId())
+                .containsExactly(receiveSettlementId);
+    }
+
+    @Test
     @DisplayName("RECEIVE는 실제 완납 참여자 수와 링크 생성 시각을 조회한다")
     void loadsCompletedParticipantCountAndRequestedAt() {
         RequestFixture request = insertReceiveRequest(600L);
