@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -57,8 +58,11 @@ public class SettlementItemAllocationPolicy {
     }
 
     /**
-     * 품목 금액을 선택 단위에 비례해 나눈다. 내림 때문에 남는 1원 단위는 품목이 전부 채워졌을 때만
-     * 생기고, 먼저 고른 선택부터 1원씩 부담한다.
+     * 품목 금액을 선택 단위에 비례해 나눈다. 항상 내림이라 다른 참여자의 선택과 무관하다.
+     *
+     * <p>내림 때문에 선택 금액의 합이 품목 금액보다 품목당 최대 (선택 수 - 1)원 적을 수 있다.
+     * 그 차액은 생성자가 부담한다. 나머지를 나눠 얹으려면 품목이 다 찰 때까지 기다려야 하고,
+     * 그러면 참여자가 자기 몫을 제출하고도 송금하지 못한다.
      *
      * @return 선택 ID별 금액. 다른 품목의 선택은 담기지 않는다.
      */
@@ -66,34 +70,20 @@ public class SettlementItemAllocationPolicy {
             SettlementItem item,
             List<SettlementItemSelection> selections
     ) {
-        List<SettlementItemSelection> itemSelections = selections.stream()
+        int totalUnits = item.totalAllocationUnits();
+        Map<UUID, Long> amountBySelection = new LinkedHashMap<>();
+        selections.stream()
                 .filter(selection -> selection.itemId().equals(item.id()))
                 .sorted(Comparator
                         .comparing(SettlementItemSelection::createdAt)
                         .thenComparing(SettlementItemSelection::id))
-                .toList();
-        int totalUnits = item.totalAllocationUnits();
-        Map<UUID, Long> amountBySelection = new LinkedHashMap<>();
-        int allocatedUnits = 0;
-        long allocatedAmount = 0L;
-        for (SettlementItemSelection selection : itemSelections) {
-            int units = selection.allocatedUnits();
-            allocatedUnits = Math.addExact(allocatedUnits, units);
-            long amount = Math.multiplyExact(item.amount(), (long) units) / totalUnits;
-            amountBySelection.put(selection.id(), amount);
-            allocatedAmount = Math.addExact(allocatedAmount, amount);
-        }
-
-        long remainder = allocatedUnits == totalUnits
-                ? Math.subtractExact(item.amount(), allocatedAmount)
-                : 0L;
-        for (SettlementItemSelection selection : itemSelections) {
-            if (remainder <= 0L) {
-                break;
-            }
-            amountBySelection.merge(selection.id(), 1L, Math::addExact);
-            remainder--;
-        }
+                .forEach(selection -> amountBySelection.put(
+                        selection.id(),
+                        Math.multiplyExact(
+                                item.amount(),
+                                (long) selection.allocatedUnits()
+                        ) / totalUnits
+                ));
         return amountBySelection;
     }
 
@@ -136,6 +126,26 @@ public class SettlementItemAllocationPolicy {
             );
         }
         return total;
+    }
+
+    /**
+     * 참여자 한 명의 Share를 만든다. 금액이 자기 선택만으로 정해지므로
+     * 다른 참여자를 기다리지 않고 제출 시점에 확정할 수 있다.
+     *
+     * @return 고른 몫이 없으면(금액 0) 빈 값
+     */
+    public Optional<SettlementShare> buildShareFor(
+            UUID settlementId,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            UUID participantId,
+            LocalDateTime now
+    ) {
+        long amount = calculatePersonalAmount(items, selections, participantId);
+
+        return amount > 0L
+                ? Optional.of(SettlementShare.create(settlementId, participantId, amount, now))
+                : Optional.empty();
     }
 
     public Finalization finalizeAllocation(
@@ -261,7 +271,10 @@ public class SettlementItemAllocationPolicy {
                     items.stream().map(SettlementItem::id).toList()
             );
         }
-        if (shareTotal != settlementTotalAmount || !hasPositiveShare) {
+        // 내림 때문에 합이 총액보다 적을 수 있다. 그 차액은 생성자가 부담한다.
+        // 다만 선택 하나당 최대 1원까지만 줄어들 수 있어, 그보다 크게 어긋나면 배분이 잘못된 것이다.
+        long shortfall = Math.subtractExact(settlementTotalAmount, shareTotal);
+        if (shortfall < 0L || shortfall > selections.size() || !hasPositiveShare) {
             return AllocationEvaluation.invalid(
                     items.stream().map(SettlementItem::id).toList()
             );

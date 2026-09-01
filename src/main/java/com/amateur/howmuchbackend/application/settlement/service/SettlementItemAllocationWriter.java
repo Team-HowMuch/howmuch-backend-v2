@@ -106,9 +106,18 @@ class SettlementItemAllocationWriter {
 
         // DRAFT는 알림 발송 전이라 확정하지 않는다. 확정하면 REQUESTED를 건너뛰고
         // AWAITING_DEPOSIT이 되어 참여자가 링크로 몫을 고를 기회를 잃는다.
-        if (state.settlement().status() != SettlementStatus.REQUESTED) {
+        if (state.settlement().status() == SettlementStatus.DRAFT) {
             return;
         }
+
+        List<SettlementItemSelection> selections = allocationStorePort
+                .findAllSelections(settlementId);
+
+        // 내 금액은 내 선택만으로 정해진다. 남을 기다리지 않고 바로 확정해 송금할 수 있게 한다.
+        allocationPolicy.buildShareFor(
+                settlementId, state.items(), selections, participantId, now
+        ).ifPresent(share -> saveSettlementSharePort.saveAll(List.of(share)));
+
         List<SettlementParticipant> participants = loadSettlementParticipantPort
                 .findAllBySettlementId(settlementId);
         List<SettlementItemSubmission> submissions = allocationStorePort
@@ -117,20 +126,19 @@ class SettlementItemAllocationWriter {
             return;
         }
 
-        var finalization = allocationPolicy.finalizeAllocation(
+        // 전원이 제출했다. 안 채워진 품목이 있으면 생성자가 손봐야 하므로 멈춘다.
+        boolean fullyAllocated = allocationPolicy.findInvalidItemIds(
                 settlementId,
                 state.settlement().totalAmount(),
                 participants,
                 state.items(),
-                allocationStorePort.findAllSelections(settlementId),
-                now
+                selections
+        ).isEmpty();
+        saveSettlementPort.update(
+                fullyAllocated
+                        ? state.settlement().awaitDeposit(now)
+                        : state.settlement().suspend(now)
         );
-        if (finalization.valid()) {
-            saveSettlementSharePort.saveAll(finalization.shares());
-            saveSettlementPort.update(state.settlement().awaitDeposit(now));
-            return;
-        }
-        saveSettlementPort.update(state.settlement().suspend(now));
     }
 
     private void ensureSelectionEditable(

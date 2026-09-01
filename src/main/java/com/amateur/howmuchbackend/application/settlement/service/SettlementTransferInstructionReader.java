@@ -14,8 +14,10 @@ import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -36,9 +38,18 @@ public class SettlementTransferInstructionReader {
     private final LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
     private final List<SettlementTransferLinkPort> transferLinkPorts;
 
+    /**
+     * 품목 정산은 참여자가 제출할 때마다 그 사람 Share가 생기므로, 전원이 끝나기 전에도
+     * 이미 제출한 사람은 송금할 수 있다. 실질 조건은 상태가 아니라 내 Share의 존재다.
+     */
+    private static final Set<SettlementStatus> PAYABLE_STATUSES = EnumSet.of(
+            SettlementStatus.REQUESTED,
+            SettlementStatus.AWAITING_DEPOSIT
+    );
+
     public SettlementTransferInstructionResult read(UUID settlementId, UUID participantId) {
         Settlement settlement = loadSettlementPort.findById(settlementId)
-                .filter(candidate -> candidate.status() == SettlementStatus.AWAITING_DEPOSIT)
+                .filter(candidate -> PAYABLE_STATUSES.contains(candidate.status()))
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND
                 ));

@@ -169,9 +169,9 @@ class SettlementTransferInstructionServiceTest {
     @ParameterizedTest(name = "{0} 상태")
     @EnumSource(
             value = SettlementStatus.class,
-            names = {"DRAFT", "REQUESTED", "SUSPENDED", "COMPLETED"}
+            names = {"DRAFT", "SUSPENDED", "COMPLETED"}
     )
-    @DisplayName("입금 대기 상태가 아니면 확정 송금 정보를 노출하지 않는다")
+    @DisplayName("보낼 수 없는 상태면 확정 송금 정보를 노출하지 않는다")
     void rejectsSettlementBeforeTransferReady(SettlementStatus status) {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))

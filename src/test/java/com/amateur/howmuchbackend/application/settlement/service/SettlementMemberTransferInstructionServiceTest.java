@@ -134,20 +134,52 @@ class SettlementMemberTransferInstructionServiceTest {
     }
 
     @Test
-    @DisplayName("입금 대기 전이면 확정 송금 정보를 노출하지 않는다")
-    void rejectsSettlementBeforeTransferReady() {
+    @DisplayName("전원이 끝나지 않았어도 내 Share가 있으면 보낼 수 있다")
+    void allowsTransferBeforeEveryoneSubmits() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
         arrangeParticipants();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(
+                SETTLEMENT_ID,
+                MY_PARTICIPANT_ID
+        )).thenReturn(Optional.of(new SettlementShare(
+                SHARE_ID,
+                SETTLEMENT_ID,
+                MY_PARTICIPANT_ID,
+                6_000,
+                CREATED_AT
+        )));
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(snapshot()));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+                .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
+                        "TOSS",
+                        "supertoss://send?accountNo=1002123456789&amount=6000"
+                )));
+
+        var result = service.getMyTransferInstruction(SETTLEMENT_ID);
+
+        assertThat(result.amount()).isEqualTo(6_000);
+    }
+
+    @Test
+    @DisplayName("내 Share가 아직 없으면 보낼 금액이 없다")
+    void rejectsWhenMyShareIsMissing() {
+        arrangeActor(MY_USER_ID);
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
+        arrangeParticipants();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(
+                SETTLEMENT_ID,
+                MY_PARTICIPANT_ID
+        )).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getMyTransferInstruction(SETTLEMENT_ID))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
                                 SettlementStatusCode.SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND
                         ));
-        verify(loadSettlementSharePort, never())
-                .findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, MY_PARTICIPANT_ID);
     }
 
     private void arrangeActor(long userId) {
