@@ -4,6 +4,8 @@ import java.util.UUID;
 
 public record SettlementLinkParticipantResult(
         UUID participantId,
-        String displayName
+        String displayName,
+        boolean isRequester,
+        Long amount
 ) {
 }

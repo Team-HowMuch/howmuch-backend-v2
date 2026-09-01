@@ -11,6 +11,8 @@ import java.util.UUID;
 public record SettlementLinkEntryWebResponse(
         UUID settlementId,
         String settlementTitle,
+        long totalAmount,
+        int participantCount,
         SettlementRequestPhase allocationPhase,
         SettlementLinkEntryMode entryMode,
         SettlementLinkParticipantWebResponse selectedParticipant,
@@ -22,6 +24,8 @@ public record SettlementLinkEntryWebResponse(
         return new SettlementLinkEntryWebResponse(
                 result.settlementId(),
                 result.settlementTitle(),
+                result.totalAmount(),
+                result.participantCount(),
                 result.allocationPhase(),
                 result.entryMode(),
                 result.selectedParticipant() == null

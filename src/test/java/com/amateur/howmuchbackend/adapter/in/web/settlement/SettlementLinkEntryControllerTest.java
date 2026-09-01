@@ -54,10 +54,17 @@ class SettlementLinkEntryControllerTest {
                 new SettlementLinkEntryResult(
                         SETTLEMENT_ID,
                         "회식 정산",
+                        10_000,
+                        2,
                         SettlementRequestPhase.TRANSFER_READY,
                         SettlementLinkEntryMode.BROWSER_SELECTION,
                         null,
-                        List.of(new SettlementLinkParticipantResult(PARTICIPANT_ID, "민선영")),
+                        List.of(new SettlementLinkParticipantResult(
+                                PARTICIPANT_ID,
+                                "민선영",
+                                false,
+                                6_000L
+                        )),
                         null,
                         null
                 )
@@ -66,10 +73,16 @@ class SettlementLinkEntryControllerTest {
         mockMvc.perform(get("/api/v2/settlement-links/{token}", TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.entryMode").value("BROWSER_SELECTION"))
+                .andExpect(jsonPath("$.data.totalAmount").value(10_000))
+                .andExpect(jsonPath("$.data.participantCount").value(2))
                 .andExpect(jsonPath("$.data.participantCandidates[0].participantId")
                         .value(PARTICIPANT_ID.toString()))
                 .andExpect(jsonPath("$.data.participantCandidates[0].displayName")
-                        .value("민선영"));
+                        .value("민선영"))
+                .andExpect(jsonPath("$.data.participantCandidates[0].isRequester")
+                        .value(false))
+                .andExpect(jsonPath("$.data.participantCandidates[0].amount")
+                        .value(6_000));
     }
 
     @Test
@@ -78,7 +91,12 @@ class SettlementLinkEntryControllerTest {
         when(selectSettlementLinkParticipantUseCase.select(TOKEN, PARTICIPANT_ID)).thenReturn(
                 new SettlementLinkParticipantSelectionResult(
                         SETTLEMENT_ID,
-                        new SettlementLinkParticipantResult(PARTICIPANT_ID, "민선영"),
+                        new SettlementLinkParticipantResult(
+                                PARTICIPANT_ID,
+                                "민선영",
+                                false,
+                                6_000L
+                        ),
                         SettlementRequestPhase.TRANSFER_READY,
                         "074dc83c-f0aa-4bf6-8f6b-d17a415620c7",
                         EXPIRES_AT
@@ -92,6 +110,8 @@ class SettlementLinkEntryControllerTest {
                 ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.participant.displayName").value("민선영"))
+                .andExpect(jsonPath("$.data.participant.isRequester").value(false))
+                .andExpect(jsonPath("$.data.participant.amount").value(6_000))
                 .andExpect(jsonPath("$.data.nextPhase").value("TRANSFER_READY"))
                 .andExpect(jsonPath("$.data.participantContext")
                         .value("074dc83c-f0aa-4bf6-8f6b-d17a415620c7"))

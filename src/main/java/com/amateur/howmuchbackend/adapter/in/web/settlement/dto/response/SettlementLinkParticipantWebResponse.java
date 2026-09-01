@@ -6,14 +6,18 @@ import java.util.UUID;
 
 public record SettlementLinkParticipantWebResponse(
         UUID participantId,
-        String displayName
+        String displayName,
+        boolean isRequester,
+        Long amount
 ) {
     public static SettlementLinkParticipantWebResponse from(
             SettlementLinkParticipantResult result
     ) {
         return new SettlementLinkParticipantWebResponse(
                 result.participantId(),
-                result.displayName()
+                result.displayName(),
+                result.isRequester(),
+                result.amount()
         );
     }
 }

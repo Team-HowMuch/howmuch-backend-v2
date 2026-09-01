@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.IssueSettlemen
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementLinkPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -17,6 +18,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantContext;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
+import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +56,7 @@ class SettlementLinkEntryServiceTest {
     @Mock private LoadSettlementLinkPort loadSettlementLinkPort;
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
+    @Mock private LoadSettlementSharePort loadSettlementSharePort;
     @Mock private CurrentActorPort currentActorPort;
     @Mock private IssueSettlementParticipantContextPort issueParticipantContextPort;
 
@@ -66,6 +69,7 @@ class SettlementLinkEntryServiceTest {
                 loadSettlementLinkPort,
                 loadSettlementPort,
                 loadSettlementParticipantPort,
+                loadSettlementSharePort,
                 currentActorPort,
                 issueParticipantContextPort
         );
@@ -81,25 +85,39 @@ class SettlementLinkEntryServiceTest {
 
         assertThat(result.entryMode()).isEqualTo(SettlementLinkEntryMode.BROWSER_SELECTION);
         assertThat(result.allocationPhase()).isEqualTo(SettlementRequestPhase.TRANSFER_READY);
+        assertThat(result.totalAmount()).isEqualTo(10_000);
+        assertThat(result.participantCount()).isEqualTo(2);
         assertThat(result.participantCandidates())
                 .extracting(candidate -> candidate.displayName())
                 .containsExactly("최수아", "민선영");
+        assertThat(result.participantCandidates())
+                .extracting(candidate -> candidate.isRequester())
+                .containsExactly(true, false);
+        assertThat(result.participantCandidates())
+                .extracting(candidate -> candidate.amount())
+                .containsExactly(4_000L, 6_000L);
         assertThat(result.selectedParticipant()).isNull();
         assertThat(result.participantContext()).isNull();
         verify(issueParticipantContextPort, never()).issue(any(), any(), any(), any());
     }
 
     @Test
-    @DisplayName("로그인 회원이 linkedUserId와 일치하면 이름 선택 없이 참여 문맥을 발급한다")
+    @DisplayName("APP_DIRECT도 요청자 포함 전체 인원과 미확정 금액 null을 반환한다")
     void resolvesAuthenticatedParticipantDirectly() {
         arrangeDutchPayAccess();
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(shares().getFirst()));
         when(currentActorPort.findCurrentActor()).thenReturn(Optional.of(new CurrentActor(2L)));
         arrangeContext(PAYER_PARTICIPANT_ID);
 
         var result = service.resolve(RAW_TOKEN);
 
         assertThat(result.entryMode()).isEqualTo(SettlementLinkEntryMode.APP_DIRECT);
+        assertThat(result.totalAmount()).isEqualTo(10_000);
+        assertThat(result.participantCount()).isEqualTo(2);
         assertThat(result.selectedParticipant().participantId()).isEqualTo(PAYER_PARTICIPANT_ID);
+        assertThat(result.selectedParticipant().isRequester()).isFalse();
+        assertThat(result.selectedParticipant().amount()).isNull();
         assertThat(result.participantCandidates()).isEmpty();
         assertThat(result.participantContext()).isEqualTo(CONTEXT_ID.toString());
     }
@@ -107,13 +125,17 @@ class SettlementLinkEntryServiceTest {
     @Test
     @DisplayName("로그인했어도 연결된 참여자가 없으면 신뢰 기반 이름 선택으로 전환한다")
     void fallsBackToBrowserSelectionWhenUserIsNotLinked() {
-        arrangeDutchPayAccess();
+        arrangeItemAllocationAccess();
         when(currentActorPort.findCurrentActor()).thenReturn(Optional.of(new CurrentActor(99L)));
 
         var result = service.resolve(RAW_TOKEN);
 
         assertThat(result.entryMode()).isEqualTo(SettlementLinkEntryMode.BROWSER_SELECTION);
         assertThat(result.participantCandidates()).hasSize(2);
+        assertThat(result.participantCandidates())
+                .extracting(candidate -> candidate.amount())
+                .containsOnlyNulls();
+        verify(loadSettlementSharePort, never()).findAllBySettlementId(any());
         verify(issueParticipantContextPort, never()).issue(any(), any(), any(), any());
     }
 
@@ -130,6 +152,8 @@ class SettlementLinkEntryServiceTest {
         var result = service.select(RAW_TOKEN, PAYER_PARTICIPANT_ID);
 
         assertThat(result.participant().displayName()).isEqualTo("민선영");
+        assertThat(result.participant().isRequester()).isFalse();
+        assertThat(result.participant().amount()).isEqualTo(6_000L);
         assertThat(result.nextPhase()).isEqualTo(SettlementRequestPhase.TRANSFER_READY);
         assertThat(result.participantContext()).isEqualTo(CONTEXT_ID.toString());
     }
@@ -160,6 +184,17 @@ class SettlementLinkEntryServiceTest {
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
                 settlement(SettlementAllocationType.DUTCH_PAY, SettlementStatus.AWAITING_DEPOSIT)
         ));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(shares());
+    }
+
+    private void arrangeItemAllocationAccess() {
+        arrangeLink();
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
+                settlement(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.REQUESTED)
+        ));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
     }
 
     private void arrangeLink() {
@@ -214,6 +249,25 @@ class SettlementLinkEntryServiceTest {
         return List.of(
                 participant(CREATOR_PARTICIPANT_ID, 1L, "최수아", 0),
                 participant(PAYER_PARTICIPANT_ID, 2L, "민선영", 1)
+        );
+    }
+
+    private List<SettlementShare> shares() {
+        return List.of(
+                new SettlementShare(
+                        UUID.randomUUID(),
+                        SETTLEMENT_ID,
+                        CREATOR_PARTICIPANT_ID,
+                        4_000,
+                        CREATED_AT
+                ),
+                new SettlementShare(
+                        UUID.randomUUID(),
+                        SETTLEMENT_ID,
+                        PAYER_PARTICIPANT_ID,
+                        6_000,
+                        CREATED_AT
+                )
         );
     }
 
