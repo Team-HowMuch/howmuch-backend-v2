@@ -124,7 +124,7 @@ class SettlementCreatorItemAllocationServiceTest {
         service.saveMyItem(
                 SETTLEMENT_ID,
                 ITEM_ID,
-                new SaveSettlementItemSelectionCommand(SettlementItemAllocationFraction.HALF)
+                new SaveSettlementItemSelectionCommand(SettlementItemAllocationFraction.HALF, 1)
         );
 
         verify(allocationStorePort).saveSelection(any(SettlementItemSelection.class));
@@ -174,7 +174,7 @@ class SettlementCreatorItemAllocationServiceTest {
         assertThatThrownBy(() -> service.saveMyItem(
                 SETTLEMENT_ID,
                 ITEM_ID,
-                new SaveSettlementItemSelectionCommand(SettlementItemAllocationFraction.HALF)
+                new SaveSettlementItemSelectionCommand(SettlementItemAllocationFraction.HALF, 1)
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode())
                         .isEqualTo(SettlementStatusCode.SETTLEMENT_ITEM_SUBMISSION_ALREADY_EXISTS));
@@ -279,6 +279,7 @@ class SettlementCreatorItemAllocationServiceTest {
                 ITEM_ID,
                 participantId,
                 fraction,
+                1,
                 CREATED_AT
         );
     }

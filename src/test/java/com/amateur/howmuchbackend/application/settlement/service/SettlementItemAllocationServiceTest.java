@@ -336,6 +336,7 @@ class SettlementItemAllocationServiceTest {
                 ITEM_ID,
                 participantId,
                 fraction,
+                1,
                 CREATED_AT,
                 CREATED_AT
         );

@@ -42,8 +42,70 @@ class SettlementItemAllocationPolicyTest {
                 item,
                 selections,
                 FIRST_PARTICIPANT_ID,
-                SettlementItemAllocationFraction.HALF
+                SettlementItemAllocationFraction.HALF,
+                1
         );
+    }
+
+    @Test
+    @DisplayName("3인분 중 2인분처럼 units와 fraction을 곱한 몫을 허용한다")
+    void allowsMultipleUnitsOfFraction() {
+        // THIRD는 3으로 나누어떨어지는 금액에서만 저장된다.
+        policy.validateSelection(
+                item(30_000),
+                List.of(selection(
+                        SECOND_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.THIRD
+                )),
+                FIRST_PARTICIPANT_ID,
+                SettlementItemAllocationFraction.THIRD,
+                2
+        );
+    }
+
+    @Test
+    @DisplayName("units까지 더해 품목 한 개를 넘으면 선점 충돌로 거부한다")
+    void rejectsOverAllocationByUnits() {
+        assertThatThrownBy(() -> policy.validateSelection(
+                item(30_000),
+                List.of(selection(
+                        SECOND_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.HALF
+                )),
+                FIRST_PARTICIPANT_ID,
+                SettlementItemAllocationFraction.THIRD,
+                2
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_ITEM_OVER_ALLOCATED));
+    }
+
+    @Test
+    @DisplayName("요청 자체가 품목 한 개를 넘으면 잘못된 수량으로 구분해 거부한다")
+    void rejectsUnitsExceedingWholeItemOnItsOwn() {
+        assertThatThrownBy(() -> policy.validateSelection(
+                item(),
+                List.of(),
+                FIRST_PARTICIPANT_ID,
+                SettlementItemAllocationFraction.HALF,
+                3
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION_UNITS));
+    }
+
+    @Test
+    @DisplayName("수량이 1보다 작으면 거부한다")
+    void rejectsNonPositiveUnits() {
+        assertThatThrownBy(() -> policy.validateSelection(
+                item(),
+                List.of(),
+                FIRST_PARTICIPANT_ID,
+                SettlementItemAllocationFraction.HALF,
+                0
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_ITEM_SELECTION_UNITS));
     }
 
     @Test
@@ -56,7 +118,8 @@ class SettlementItemAllocationPolicyTest {
                         SettlementItemAllocationFraction.HALF
                 )),
                 FIRST_PARTICIPANT_ID,
-                SettlementItemAllocationFraction.ONE
+                SettlementItemAllocationFraction.ONE,
+                1
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(
                         SettlementStatusCode.SETTLEMENT_ITEM_OVER_ALLOCATED
@@ -106,13 +169,17 @@ class SettlementItemAllocationPolicyTest {
     }
 
     private SettlementItem item() {
+        return item(1_000);
+    }
+
+    private SettlementItem item(long amount) {
         return new SettlementItem(
                 ITEM_ID,
                 SETTLEMENT_ID,
                 EXPENSE_ID,
                 "피자",
                 1,
-                1_000,
+                amount,
                 0,
                 NOW,
                 NOW
@@ -129,6 +196,7 @@ class SettlementItemAllocationPolicyTest {
                 ITEM_ID,
                 participantId,
                 fraction,
+                1,
                 NOW,
                 NOW
         );

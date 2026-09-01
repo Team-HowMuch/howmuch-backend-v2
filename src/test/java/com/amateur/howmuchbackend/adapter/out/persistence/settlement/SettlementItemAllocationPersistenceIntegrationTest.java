@@ -130,12 +130,14 @@ class SettlementItemAllocationPersistenceIntegrationTest {
                 item.id(),
                 participantId,
                 SettlementItemAllocationFraction.HALF,
+                2,
                 CREATED_AT
         );
         SettlementItemSelection saved = allocationAdapter.saveSelection(half);
 
-        allocationAdapter.saveSelection(saved.changeFraction(
+        allocationAdapter.saveSelection(saved.change(
                 SettlementItemAllocationFraction.ONE,
+                1,
                 saved.createdAt().plusMinutes(1)
         ));
 
@@ -145,6 +147,7 @@ class SettlementItemAllocationPersistenceIntegrationTest {
                     assertThat(selection.id()).isEqualTo(saved.id());
                     assertThat(selection.fraction())
                             .isEqualTo(SettlementItemAllocationFraction.ONE);
+                    assertThat(selection.units()).isEqualTo(1);
                     assertThat(selection.updatedAt()).isAfter(selection.createdAt());
                 });
     }
@@ -158,6 +161,7 @@ class SettlementItemAllocationPersistenceIntegrationTest {
                         item.id(),
                         participantId,
                         SettlementItemAllocationFraction.ONE,
+                        1,
                         CREATED_AT
                 )
         );

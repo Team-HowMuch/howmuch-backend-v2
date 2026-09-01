@@ -111,12 +111,15 @@ class SettlementItemAllocationReader {
                             participant.id(),
                             participant.displayName(),
                             selection.fraction(),
+                            selection.units(),
                             selection.amountFor(item)
                     );
                 })
                 .toList();
         int allocatedUnits = selectionResults.stream()
-                .mapToInt(selection -> selection.fraction().units())
+                .mapToInt(selection -> Math.multiplyExact(
+                        selection.fraction().units(), selection.units()
+                ))
                 .sum();
         return new SettlementItemAllocationItemResult(
                 item.id(),

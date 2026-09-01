@@ -9,6 +9,7 @@ public record SettlementItemSelectionWebResponse(
         UUID participantId,
         String participantDisplayName,
         SettlementItemAllocationFraction fraction,
+        int units,
         long amount
 ) {
     public static SettlementItemSelectionWebResponse from(
@@ -18,6 +19,7 @@ public record SettlementItemSelectionWebResponse(
                 result.participantId(),
                 result.participantDisplayName(),
                 result.fraction(),
+                result.units(),
                 result.amount()
         );
     }

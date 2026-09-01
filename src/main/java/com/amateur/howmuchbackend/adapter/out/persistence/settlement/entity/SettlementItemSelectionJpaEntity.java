@@ -44,15 +44,20 @@ public class SettlementItemSelectionJpaEntity extends BaseTimeJpaEntity {
     @Column(nullable = false, length = 20)
     private SettlementItemAllocationFraction fraction;
 
+    @Column(nullable = false)
+    private int units;
+
     public SettlementItemSelectionJpaEntity(SettlementItemSelection selection) {
         this.id = selection.id();
         this.settlementId = selection.settlementId();
         this.itemId = selection.itemId();
         this.participantId = selection.participantId();
         this.fraction = selection.fraction();
+        this.units = selection.units();
     }
 
     public void updateFrom(SettlementItemSelection selection) {
         this.fraction = selection.fraction();
+        this.units = selection.units();
     }
 }
