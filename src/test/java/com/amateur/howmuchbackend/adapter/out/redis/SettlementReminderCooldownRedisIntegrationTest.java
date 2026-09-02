@@ -62,8 +62,14 @@ class SettlementReminderCooldownRedisIntegrationTest {
         assertThat(redis.getExpire(KEY, TimeUnit.MILLISECONDS))
                 .isPositive()
                 .isLessThanOrEqualTo(cooldown.toMillis());
+        assertThat(cooldownPort.findRemainingCooldown(SETTLEMENT_ID, PARTICIPANT_ID))
+                .hasValueSatisfying(remaining -> assertThat(remaining)
+                        .isPositive()
+                        .isLessThanOrEqualTo(cooldown));
 
         cooldownPort.release(SETTLEMENT_ID, PARTICIPANT_ID, "first-reservation");
         assertThat(redis.hasKey(KEY)).isFalse();
+        assertThat(cooldownPort.findRemainingCooldown(SETTLEMENT_ID, PARTICIPANT_ID))
+                .isEmpty();
     }
 }

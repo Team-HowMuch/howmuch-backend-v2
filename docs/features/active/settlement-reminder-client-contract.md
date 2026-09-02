@@ -1,8 +1,8 @@
 # Feature Plan: 정산 독촉 클라이언트 계약 보강
 
 - Status: Implemented
-- Last updated: 2026-08-30
-- Related issue:
+- Last updated: 2026-09-02
+- Related issue: follow-up [#245](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/245)
 - Related ADR: N/A
 
 ## 1. Purpose
@@ -22,6 +22,7 @@
 - [x] 앱은 로그인 또는 세션 복원 직후 FID를 등록하고, 변경 시 재등록하며, 로그아웃 전에 해제한다.
 - [x] 생성자가 진행 중 정산의 공유 URL과 만료 시각을 다시 조회한다.
 - [x] DB에는 공유 링크 원본 토큰을 평문으로 저장하지 않는다.
+- [x] 전체 독촉 직후와 상세 재조회에서 참여자별 Redis 쿨다운의 가장 늦은 만료 시각을 UTC로 반환한다.
 
 ### Out of scope
 
@@ -66,12 +67,12 @@
 
 1. 앱은 인증 세션과 FID가 준비되면 `PUT /api/v2/user/me/push-target`을 호출한다.
 2. 생성자가 일괄 독촉을 요청하면 서버가 미납·연결·FID 등록·cooldown 가능 대상을 고른다.
-3. 서버는 기존 단건 규칙을 재사용해 순차 전송하고 `sentCount`를 반환한다.
+3. 서버는 기존 단건 규칙을 재사용해 순차 전송하고 `sentCount`와 활성 쿨다운의 가장 늦은 `nextAvailableAt`을 반환한다.
 4. 생성자가 공유 링크를 요청하면 서버는 암호문을 복호화해 기존 URL을 반환한다.
 
 ### Failure flow
 
-- 일괄 독촉 대상이 없음: `sentCount = 0`.
+- 일괄 독촉 대상이 없음: `sentCount = 0`, 활성 쿨다운이 없으면 `nextAvailableAt = null`.
 - 개별 대상이 미연결·FID 없음·cooldown 중: 해당 대상만 건너뛰고 다른 대상을 계속 처리한다.
 - Firebase 전체 사용 불가: `SETTLEMENT_REMINDER_DELIVERY_UNAVAILABLE`.
 - 링크가 없거나 사용할 수 없음: 기존 링크 오류 계약을 재사용한다.
@@ -89,7 +90,7 @@
 
 ```text
 UseCase: RemindAllSettlementParticipantsUseCase.remindAll(settlementId)
-Result: SettlementBulkReminderResult(sentCount)
+Result: SettlementBulkReminderResult(sentCount, nextAvailableAt)
 Result -> Web Response DTO: SettlementBulkReminderWebResponse.from(result)
 
 UseCase: GetSettlementShareLinkUseCase.get(settlementId)
@@ -102,7 +103,7 @@ Result -> Web Response DTO: SettlementShareLinkWebResponse.from(result)
 | Port | Purpose | Caller | Expected Adapter |
 |---|---|---|---|
 | 기존 settlement/user Load Ports | 대상과 납부·FID 조회 | 일괄 독촉 Service | 기존 Persistence Adapters |
-| 기존 `SettlementReminderCooldownPort` | 참여자별 30분 예약 | 일괄 독촉 Service | 기존 Redis Adapter |
+| 기존 `SettlementReminderCooldownPort` | 참여자별 30분 예약과 남은 TTL 조회 | 일괄 독촉·상세 Service | 기존 Redis Adapter |
 | 기존 `SettlementPushSenderPort` | FCM 발송 | 일괄 독촉 Service | 기존 Firebase Adapter |
 | 공유 링크 조회·갱신 Port | 링크 암호문 조회와 legacy 재발급 저장 | 공유 링크 Service | Settlement Persistence Adapter |
 
@@ -117,7 +118,7 @@ Result -> Web Response DTO: SettlementShareLinkWebResponse.from(result)
 
 ```text
 POST /api/v2/settlements/{settlementId}/reminders
-Response: { "sentCount": 3 }
+Response: { "sentCount": 3, "nextAvailableAt": "UTC LocalDateTime or null" }
 Authentication: bearerAuth, creator only
 
 GET /api/v2/settlements/{settlementId}/share-link
@@ -125,7 +126,7 @@ Response: { "url": "https://...", "expiresAt": "UTC LocalDateTime" }
 Authentication: bearerAuth, creator only
 ```
 
-`SettlementDetailWebResponse.participants[]`에 required boolean `linked`를 추가한다.
+`SettlementDetailWebResponse.participants[]`에 required boolean `linked`를 추가하고, root에 nullable `reminderNextAvailableAt`을 반환한다. 독촉 시각은 offset 없는 UTC `LocalDateTime`으로 해석한다.
 
 푸시 대상 계약:
 
@@ -140,7 +141,7 @@ Authentication: bearerAuth, creator only
 - Flyway migration required (`Yes` / `No`): Yes
 - Planned migration: `V24__add_settlement_link_token_ciphertext.sql`
 - Migration pull request (`Pending` / URL): https://github.com/Team-HowMuch/howmuch-backend-v2/pull/199 (Merged)
-- Redis key, TTL, or serialization changes: 없음, 기존 참여자별 cooldown 재사용.
+- Redis key, TTL, or serialization changes: 없음, 기존 참여자별 cooldown을 재사용하고 남은 TTL을 조회한다.
 - External API or message changes: 없음, 기존 Firebase Adapter 재사용.
 - Environment variable or profile changes: 없음. 정산 요청 시 이미 필요한 기존 AES-GCM 키를 별도 AAD로 재사용한다.
 
@@ -151,7 +152,7 @@ Authentication: bearerAuth, creator only
 - Rules and their locations: 단건·일괄 독촉 대상 판정과 전송 흐름을 같은 Application Service에서 재사용한다.
 - Behavior owned by Domain: 기존 정산·참여자·링크 상태 규칙.
 - Decisions owned by Application Policy: N/A
-- Flow orchestrated by Application: 대상 일괄 조회, 순차 발송, 성공 건수 조립, 링크 복호화와 legacy 재발급.
+- Flow orchestrated by Application: 대상 일괄 조회, 순차 발송, 성공 건수와 가장 늦은 쿨다운 만료 시각 조립, 상세 쿨다운 복원, 링크 복호화와 legacy 재발급.
 
 ### Technology and patterns
 
@@ -165,7 +166,7 @@ Authentication: bearerAuth, creator only
 
 | Area | Impact | Verified file or contract |
 |---|---|---|
-| API | 일괄 독촉, 공유 링크 조회, `linked` | settlement Controllers/DTOs |
+| API | 일괄 독촉 시각, 상세 쿨다운 복원, 공유 링크 조회, `linked` | settlement Controllers/DTOs |
 | Application | 두 UseCase와 Result, 기존 단건 흐름 재사용 | settlement services |
 | Domain | 기존 규칙 재사용 | settlement domain |
 | Persistence | nullable 링크 토큰 암호문 | Flyway V24, link entity/adapter |
@@ -240,15 +241,16 @@ git status --short --untracked-files=all
 
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
-| 2026-08-30 | 일괄 독촉은 서버 순차 전송과 `sentCount`만 제공 | 앱 요청 폭주와 과도한 비동기 인프라를 모두 피함 | 지연이 측정될 때 큐 도입 |
+| 2026-08-30 | 일괄 독촉은 서버 순차 전송과 `sentCount`를 우선 제공 | 앱 요청 폭주와 과도한 비동기 인프라를 모두 피함 | #245에서 카운트다운 복원을 위해 Redis TTL 기반 시각 추가 |
+| 2026-09-02 | 일괄·상세에 활성 참여자별 쿨다운 만료 시각의 `max` 제공 | 즉시 카운트다운과 화면 재진입 복원을 함께 지원 | offset 없는 UTC `LocalDateTime`, 활성 쿨다운이 없으면 `null` |
 | 2026-08-30 | 상세에 명시적 `linked` boolean 추가 | `source=CONTACT`만으로 회원 여부를 판단할 수 없음 | 별도 participants 조회 불필요 |
 | 2026-08-30 | 링크 원본은 AES-GCM 암호문으로 저장 | 같은 URL 재조회와 bearer token 보호를 함께 충족 | legacy는 최초 조회 시 재발급 |
 | 2026-08-30 | 기존 정산 계좌 AES-GCM 키를 별도 AAD로 재사용 | 링크 발급 시 이미 필요한 키이며 새 설정과 암호화 중복을 피함 | 키 회전은 기존 정산 암호문과 함께 다룸 |
 
 ## 11. Completion record
 
-- Completed on: 2026-08-30
-- Final behavior: 일괄 독촉 `sentCount`, 상세 `linked`, FID 등록 수명주기, 진행 중 공유 링크 조회와 암호화 저장을 제공한다.
+- Completed on: initial 2026-08-30, cooldown response follow-up 2026-09-02
+- Final behavior: 일괄 독촉 `sentCount`·`nextAvailableAt`, 상세 `linked`·`reminderNextAvailableAt`, FID 등록 수명주기, 진행 중 공유 링크 조회와 암호화 저장을 제공한다.
 - Unverified items: 실제 Firebase 운영 프로젝트를 통한 푸시 전달은 외부 자격 증명 없이 실행하지 않았다.
 - Remaining risks: legacy 링크 최초 재조회 시 기존 링크 무효화
 - Follow-up work: 운영에서 일괄 전송 지연이 API 시간 제한에 근접할 때만 비동기 작업 또는 Firebase batch 전송을 검토한다.

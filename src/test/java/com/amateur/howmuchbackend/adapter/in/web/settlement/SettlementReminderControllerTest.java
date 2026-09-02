@@ -62,10 +62,10 @@ class SettlementReminderControllerTest {
     }
 
     @Test
-    @DisplayName("미납 참여자 전체 독촉 후 실제 발송 수를 반환한다")
+    @DisplayName("미납 참여자 전체 독촉 후 실제 발송 수와 다음 가능 시각을 반환한다")
     void remindsAllParticipants() throws Exception {
         when(remindAllUseCase.remindAll(SETTLEMENT_ID)).thenReturn(
-                new SettlementBulkReminderResult(3)
+                new SettlementBulkReminderResult(3, REMINDED_AT.plusMinutes(30))
         );
 
         mockMvc.perform(post(
@@ -74,7 +74,9 @@ class SettlementReminderControllerTest {
                 ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.sentCount").value(3));
+                .andExpect(jsonPath("$.data.sentCount").value(3))
+                .andExpect(jsonPath("$.data.nextAvailableAt")
+                        .value("2026-08-29T09:30:00"));
 
         verify(remindAllUseCase).remindAll(SETTLEMENT_ID);
     }
