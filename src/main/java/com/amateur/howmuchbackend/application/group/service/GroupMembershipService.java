@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.group.service;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.group.policy.GroupInviteCodePolicy;
 import com.amateur.howmuchbackend.application.port.in.group.AddGroupMemberUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.GetGroupMemberAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupMembersUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.JoinGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.command.AddGroupMemberCommand;
@@ -14,6 +15,8 @@ import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
+import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.group.Group;
@@ -21,6 +24,7 @@ import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.GroupMemberStatus;
 import com.amateur.howmuchbackend.domain.group.status.GroupStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,12 +38,14 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembersUseCase, AddGroupMemberUseCase {
+public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembersUseCase,
+        GetGroupMemberAvatarUseCase, AddGroupMemberUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadGroupPort loadGroupPort;
     private final LoadGroupMemberPort loadGroupMemberPort;
     private final SaveGroupMemberPort saveGroupMemberPort;
     private final LoadUserPort loadUserPort;
+    private final ProfileImageStoragePort profileImageStoragePort;
     private final GroupInviteCodePolicy groupInviteCodePolicy;
     private final PublicIdPolicy publicIdPolicy;
     private final GroupAccessService groupAccessService;
@@ -83,6 +89,27 @@ public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembers
         return members.stream()
                 .map(member -> toResult(member, requireActiveUser(usersById, member.userId())))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileImage getMemberAvatar(Long groupId, Long memberId) {
+        CurrentActor actor = currentActorPort.getCurrentActor();
+        groupAccessService.loadActive(groupId);
+        groupAccessService.requireActiveMember(groupId, actor.userId());
+
+        GroupMember member = loadGroupMemberPort.findByGroupIdAndId(groupId, memberId)
+                .filter(found -> found.status() == GroupMemberStatus.ACTIVE)
+                .orElseThrow(() -> ApplicationException.of(GroupStatusCode.GROUP_MEMBER_NOT_FOUND));
+        User user = loadUserPort.findById(member.userId())
+                .filter(User::active)
+                .orElseThrow(() -> ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+        if (user.avatarFileName() == null) {
+            throw ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND);
+        }
+
+        return profileImageStoragePort.load(user.avatarFileName())
+                .orElseThrow(() -> ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
     }
 
     @Override
@@ -144,7 +171,8 @@ public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembers
                 user.publicId(),
                 user.name(),
                 member.role(),
-                member.joinedAt()
+                member.joinedAt(),
+                user.avatarFileName() != null
         );
     }
 }

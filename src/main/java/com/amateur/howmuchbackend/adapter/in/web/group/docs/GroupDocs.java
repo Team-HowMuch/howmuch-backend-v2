@@ -169,7 +169,8 @@ public interface GroupDocs {
 
     @Operation(
             summary = "그룹 멤버 목록 조회",
-            description = "활성 멤버가 그룹의 활성 구성원 전체를 조회합니다.",
+            description = "활성 멤버가 그룹의 활성 구성원 전체를 조회합니다. "
+                    + "프로필 사진이 있는 멤버는 avatarUrl이 채워지고, 없으면 null입니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -188,6 +189,27 @@ public interface GroupDocs {
             )
     })
     ApiResponse<List<GroupMemberWebResponse>> getGroupMembers(Long groupId);
+
+    @Operation(
+            summary = "그룹 멤버 프로필 사진 조회",
+            description = "활성 멤버가 같은 그룹 구성원의 프로필 사진을 조회합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    content = @Content(schema = @Schema(type = "string", format = "binary"))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "GROUP_ACCESS_DENIED - 활성 멤버가 아님"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "GROUP_NOT_FOUND, GROUP_MEMBER_NOT_FOUND 또는 PROFILE_IMAGE_NOT_FOUND"
+            )
+    })
+    ResponseEntity<byte[]> getGroupMemberAvatar(Long groupId, Long memberId);
 
     @Operation(
             summary = "그룹 멤버 직접 추가",

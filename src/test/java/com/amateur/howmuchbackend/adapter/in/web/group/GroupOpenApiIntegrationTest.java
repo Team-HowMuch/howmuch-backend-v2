@@ -27,7 +27,7 @@ class GroupOpenApiIntegrationTest {
     @Autowired private ObjectMapper objectMapper;
 
     @Test
-    @DisplayName("그룹 12개 API의 경로, 요청 형식, 성공 응답과 bearer 인증을 공개한다")
+    @DisplayName("그룹 13개 API의 경로, 요청 형식, 성공 응답과 bearer 인증을 공개한다")
     void documentsGroupApiContract() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -46,6 +46,11 @@ class GroupOpenApiIntegrationTest {
                 new OperationContract("/api/v2/groups/join", "post", "200"),
                 new OperationContract("/api/v2/groups/{groupId}/members", "get", "200"),
                 new OperationContract("/api/v2/groups/{groupId}/members", "post", "201"),
+                new OperationContract(
+                        "/api/v2/groups/{groupId}/members/{memberId}/avatar",
+                        "get",
+                        "200"
+                ),
                 new OperationContract("/api/v2/groups/{groupId}/owner", "put", "200"),
                 new OperationContract("/api/v2/groups/{groupId}/members/me", "delete", "200"),
                 new OperationContract(
@@ -121,7 +126,8 @@ class GroupOpenApiIntegrationTest {
                 "publicId",
                 "name",
                 "role",
-                "joinedAt"
+                "joinedAt",
+                "avatarUrl"
         );
         assertSchemaProperties(document, "JoinGroupWebRequest", "inviteCode");
         assertSchemaProperties(document, "AddGroupMemberWebRequest", "publicId");

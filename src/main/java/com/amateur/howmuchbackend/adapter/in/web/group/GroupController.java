@@ -11,12 +11,14 @@ import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupDetailW
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupSummaryWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.response.GroupMemberWebResponse;
 import com.amateur.howmuchbackend.application.group.model.GroupImage;
+import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.port.in.group.CreateGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.AddGroupMemberUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.DeleteGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupImageUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetMyGroupsUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.GetGroupMemberAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupMembersUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.JoinGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.UpdateGroupUseCase;
@@ -53,6 +55,7 @@ public class GroupController implements GroupDocs {
     private final DeleteGroupUseCase deleteGroupUseCase;
     private final JoinGroupUseCase joinGroupUseCase;
     private final GetGroupMembersUseCase getGroupMembersUseCase;
+    private final GetGroupMemberAvatarUseCase getGroupMemberAvatarUseCase;
     private final AddGroupMemberUseCase addGroupMemberUseCase;
     private final TransferGroupOwnershipUseCase transferGroupOwnershipUseCase;
     private final LeaveGroupUseCase leaveGroupUseCase;
@@ -126,8 +129,21 @@ public class GroupController implements GroupDocs {
     public ApiResponse<List<GroupMemberWebResponse>> getGroupMembers(@PathVariable Long groupId) {
         return ApiResponse.success(getGroupMembersUseCase.getMembers(groupId)
                 .stream()
-                .map(GroupMemberWebResponse::from)
+                .map(result -> GroupMemberWebResponse.from(groupId, result))
                 .toList());
+    }
+
+    @Override
+    @GetMapping("/{groupId}/members/{memberId}/avatar")
+    public ResponseEntity<byte[]> getGroupMemberAvatar(
+            @PathVariable Long groupId,
+            @PathVariable Long memberId
+    ) {
+        ProfileImage image = getGroupMemberAvatarUseCase.getMemberAvatar(groupId, memberId);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .contentType(MediaType.parseMediaType(image.contentType()))
+                .body(image.content());
     }
 
     @Override
@@ -137,6 +153,7 @@ public class GroupController implements GroupDocs {
             @Valid @RequestBody AddGroupMemberWebRequest request
     ) {
         return ApiResponse.created(GroupMemberWebResponse.from(
+                groupId,
                 addGroupMemberUseCase.add(groupId, request.toCommand())
         ));
     }

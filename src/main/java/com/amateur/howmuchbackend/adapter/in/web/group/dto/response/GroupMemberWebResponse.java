@@ -10,15 +10,22 @@ public record GroupMemberWebResponse(
         String publicId,
         String name,
         GroupMemberRole role,
-        LocalDateTime joinedAt
+        LocalDateTime joinedAt,
+        String avatarUrl
 ) {
-    public static GroupMemberWebResponse from(GroupMemberResult result) {
+    public static GroupMemberWebResponse from(Long groupId, GroupMemberResult result) {
         return new GroupMemberWebResponse(
                 result.memberId(),
                 result.publicId(),
                 result.name(),
                 result.role(),
-                result.joinedAt()
+                result.joinedAt(),
+                result.hasAvatar()
+                        ? "/api/v2/groups/%s/members/%s/avatar".formatted(
+                                groupId,
+                                result.memberId()
+                        )
+                        : null
         );
     }
 }

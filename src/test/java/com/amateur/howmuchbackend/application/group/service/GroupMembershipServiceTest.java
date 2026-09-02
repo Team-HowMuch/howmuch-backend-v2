@@ -10,6 +10,8 @@ import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
+import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.group.Group;
@@ -20,6 +22,7 @@ import com.amateur.howmuchbackend.domain.group.GroupStatus;
 import com.amateur.howmuchbackend.domain.group.status.GroupStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.UserRole;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,6 +55,7 @@ class GroupMembershipServiceTest {
     @Mock private LoadGroupMemberPort loadGroupMemberPort;
     @Mock private SaveGroupMemberPort saveGroupMemberPort;
     @Mock private LoadUserPort loadUserPort;
+    @Mock private ProfileImageStoragePort profileImageStoragePort;
     @Mock private GroupAccessService groupAccessService;
     @Mock private GroupInviteLinkPort groupInviteLinkPort;
 
@@ -65,6 +69,7 @@ class GroupMembershipServiceTest {
                 loadGroupMemberPort,
                 saveGroupMemberPort,
                 loadUserPort,
+                profileImageStoragePort,
                 new GroupInviteCodePolicy(),
                 new PublicIdPolicy(),
                 groupAccessService,
@@ -160,6 +165,64 @@ class GroupMembershipServiceTest {
         assertThat(results).extracting(result -> result.publicId())
                 .containsExactly("owner.test", "member.test");
         assertThat(results.getFirst().role()).isEqualTo(GroupMemberRole.OWNER);
+    }
+
+    @Test
+    @DisplayName("사진을 올린 멤버만 hasAvatar가 true다")
+    void marksMembersWithAvatar() {
+        GroupMember owner = activeMember(10L, OWNER_ID, GroupMemberRole.OWNER);
+        GroupMember member = activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER);
+        when(loadGroupMemberPort.findActiveByGroupId(GROUP_ID)).thenReturn(List.of(owner, member));
+        when(loadUserPort.findAllByIds(any())).thenReturn(List.of(
+                user(OWNER_ID, "owner.test", "방장", true, "owner.webp"),
+                user(MEMBER_ID, "member.test", "멤버", true)
+        ));
+
+        var results = service.getMembers(GROUP_ID);
+
+        assertThat(results).extracting(result -> result.hasAvatar())
+                .containsExactly(true, false);
+    }
+
+    @Test
+    @DisplayName("같은 그룹 멤버의 아바타 파일을 반환한다")
+    void getsMemberAvatar() {
+        ProfileImage image = new ProfileImage("image/webp", new byte[]{1, 2, 3});
+        when(loadGroupMemberPort.findByGroupIdAndId(GROUP_ID, 20L))
+                .thenReturn(Optional.of(activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER)));
+        when(loadUserPort.findById(MEMBER_ID))
+                .thenReturn(Optional.of(user(MEMBER_ID, "member.test", "멤버", true, "member.webp")));
+        when(profileImageStoragePort.load("member.webp")).thenReturn(Optional.of(image));
+
+        ProfileImage result = service.getMemberAvatar(GROUP_ID, 20L);
+
+        verify(groupAccessService).requireActiveMember(GROUP_ID, MEMBER_ID);
+        assertThat(result).isEqualTo(image);
+    }
+
+    @Test
+    @DisplayName("그룹의 활성 멤버가 아니면 아바타를 조회할 수 없다")
+    void rejectsAvatarOfUnknownMember() {
+        when(loadGroupMemberPort.findByGroupIdAndId(GROUP_ID, 99L)).thenReturn(Optional.empty());
+
+        assertStatus(
+                () -> service.getMemberAvatar(GROUP_ID, 99L),
+                GroupStatusCode.GROUP_MEMBER_NOT_FOUND
+        );
+    }
+
+    @Test
+    @DisplayName("사진을 올리지 않은 멤버의 아바타 조회는 실패한다")
+    void rejectsAvatarWithoutFile() {
+        when(loadGroupMemberPort.findByGroupIdAndId(GROUP_ID, 20L))
+                .thenReturn(Optional.of(activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER)));
+        when(loadUserPort.findById(MEMBER_ID))
+                .thenReturn(Optional.of(user(MEMBER_ID, "member.test", "멤버", true)));
+
+        assertThatThrownBy(() -> service.getMemberAvatar(GROUP_ID, 20L))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
     }
 
     @Test
@@ -297,9 +360,13 @@ class GroupMembershipServiceTest {
     }
 
     private User user(Long id, String publicId, String name, boolean active) {
+        return user(id, publicId, name, active, null);
+    }
+
+    private User user(Long id, String publicId, String name, boolean active, String avatarFileName) {
         return new User(
                 id, "identity-" + id, name, publicId, null, null, "0100000000" + id,
-                "pin", null, null, true, UserRole.USER, active, null,
+                "pin", null, avatarFileName, true, UserRole.USER, active, null,
                 CREATED_AT, null, CREATED_AT, CREATED_AT
         );
     }
