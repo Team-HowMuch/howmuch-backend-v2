@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,6 +24,7 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
     private static final String ACCOUNT_ADD_PATH = "/v1/account/add";
     private static final String ACCOUNT_UPDATE_PATH = "/v1/account/update";
     private static final String ACCOUNT_LIST_PATH = "/v1/kr/bank/p/account/account-list";
+    private static final BigDecimal BALANCE_STORAGE_LIMIT = new BigDecimal("1000000000000000");
 
     private final CodefClient client;
     private final CodefRsaEncryptor rsaEncryptor;
@@ -226,7 +228,10 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
             return null;
         }
         try {
-            return new BigDecimal(value.replace(",", "").trim());
+            BigDecimal amount = new BigDecimal(value.replace(",", "").trim());
+            return amount.setScale(4, RoundingMode.HALF_UP).abs().compareTo(BALANCE_STORAGE_LIMIT) >= 0
+                    ? null
+                    : amount;
         } catch (NumberFormatException ignored) {
             return null;
         }
