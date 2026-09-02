@@ -33,6 +33,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -58,6 +60,7 @@ class SettlementDetailServiceTest {
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
     @Mock private LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     @Mock private LoadUserPort loadUserPort;
+    @Mock private SettlementReminderCooldownReader cooldownReader;
 
     private SettlementDetailService service;
 
@@ -70,7 +73,8 @@ class SettlementDetailServiceTest {
                 loadSettlementParticipantPort,
                 loadSettlementSharePort,
                 loadDepositSummaryPort,
-                loadUserPort
+                loadUserPort,
+                cooldownReader
         );
     }
 
@@ -89,6 +93,7 @@ class SettlementDetailServiceTest {
         assertThat(result.paymentSummary()).isEqualTo(
                 new SettlementDetailResult.PaymentSummary(1_000, 700, 300, 70, 2, 2, 1)
         );
+        assertThat(result.reminderNextAvailableAt()).isNull();
         assertThat(result.participants()).extracting(
                 SettlementDetailResult.ParticipantPayment::displayName,
                 SettlementDetailResult.ParticipantPayment::paymentStatus
@@ -102,6 +107,22 @@ class SettlementDetailServiceTest {
                         SettlementDetailResult.PaymentStatus.PAID
                 )
         );
+    }
+
+    @Test
+    @DisplayName("생성자 상세에 연결된 미납 참여자의 다음 독촉 가능 시각을 반환한다")
+    void restoresReminderCooldownForCreator() {
+        givenSettlement(CREATOR_ID, List.of());
+        LocalDateTime nextAvailableAt = NOW.plusMinutes(30);
+        when(cooldownReader.findLatestNextAvailableAt(
+                eq(SETTLEMENT_ID),
+                eq(List.of(PAYER_PARTICIPANT_ID)),
+                any(LocalDateTime.class)
+        )).thenReturn(Optional.of(nextAvailableAt));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.reminderNextAvailableAt()).isEqualTo(nextAvailableAt);
     }
 
     @Test
@@ -135,12 +156,14 @@ class SettlementDetailServiceTest {
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
         assertThat(result.viewerRole()).isEqualTo(SettlementDetailResult.ViewerRole.PARTICIPANT);
+        assertThat(result.reminderNextAvailableAt()).isNull();
         assertThat(result.paymentSummary().progressPercent()).isEqualTo(70);
         assertThat(result.participants()).singleElement()
                 .satisfies(payment -> {
                     assertThat(payment.participantId()).isEqualTo(PAYER_PARTICIPANT_ID);
                     assertThat(payment.confirmedAmount()).isEqualTo(300);
                 });
+        verifyNoInteractions(cooldownReader);
     }
 
     @Test
@@ -207,6 +230,25 @@ class SettlementDetailServiceTest {
     }
 
     private void givenSettlement(Long actorId) {
+        givenSettlement(
+                actorId,
+                List.of(
+                        new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(
+                                PAYER_SHARE_ID,
+                                300
+                        ),
+                        new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(
+                                CONTACT_SHARE_ID,
+                                400
+                        )
+                )
+        );
+    }
+
+    private void givenSettlement(
+            Long actorId,
+            List<LoadSettlementDepositSummaryPort.ConfirmedShareAmount> confirmedAmounts
+    ) {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(actorId));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
@@ -217,10 +259,7 @@ class SettlementDetailServiceTest {
                         new SettlementShare(CONTACT_SHARE_ID, SETTLEMENT_ID, CONTACT_PARTICIPANT_ID, 400, NOW)
                 ));
         when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of(
-                        new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(PAYER_SHARE_ID, 300),
-                        new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(CONTACT_SHARE_ID, 400)
-                ));
+                .thenReturn(confirmedAmounts);
     }
 
     private Settlement settlement() {

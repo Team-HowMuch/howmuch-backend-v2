@@ -60,6 +60,7 @@ class SettlementReminderServiceTest {
     @Mock private LoadSettlementDepositSummaryPort loadSettlementDepositSummaryPort;
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementReminderCooldownPort cooldownPort;
+    @Mock private SettlementReminderCooldownReader cooldownReader;
     @Mock private SettlementPushSenderPort pushSenderPort;
 
     private SettlementReminderService service;
@@ -74,6 +75,7 @@ class SettlementReminderServiceTest {
                 loadSettlementDepositSummaryPort,
                 loadUserPort,
                 cooldownPort,
+                cooldownReader,
                 pushSenderPort
         );
     }
@@ -102,15 +104,7 @@ class SettlementReminderServiceTest {
     @Test
     @DisplayName("전체 독촉은 발송 가능한 미납 회원만 보내고 실제 발송 수를 반환한다")
     void sendsBulkRemindersToEligibleParticipants() {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
-        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of(participant(), unlinkedParticipant()));
-        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of(share()));
-        when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of());
-        when(loadUserPort.findAllByIds(List.of(PAYER_ID))).thenReturn(List.of(user()));
+        givenBulkTarget();
         when(cooldownPort.reserve(
                 eq(SETTLEMENT_ID),
                 eq(PARTICIPANT_ID),
@@ -119,11 +113,64 @@ class SettlementReminderServiceTest {
         )).thenReturn(true);
         when(pushSenderPort.sendReminder("firebase-installation-id", SETTLEMENT_ID))
                 .thenReturn(SettlementPushSenderPort.SendResult.SENT);
+        when(cooldownReader.findLatestNextAvailableAt(
+                eq(SETTLEMENT_ID),
+                eq(List.of(PARTICIPANT_ID)),
+                any(LocalDateTime.class)
+        )).thenReturn(Optional.of(NOW.plusMinutes(30)));
 
         var result = service.remindAll(SETTLEMENT_ID);
 
         assertThat(result.sentCount()).isEqualTo(1);
+        assertThat(result.nextAvailableAt()).isEqualTo(NOW.plusMinutes(30));
         verify(pushSenderPort).sendReminder("firebase-installation-id", SETTLEMENT_ID);
+    }
+
+    @Test
+    @DisplayName("전체 독촉 대상이 쿨다운 중이면 발송 없이 기존 다음 가능 시각을 반환한다")
+    void returnsExistingCooldownWhenBulkSkipsAllCandidates() {
+        givenBulkTarget();
+        when(cooldownPort.reserve(
+                eq(SETTLEMENT_ID),
+                eq(PARTICIPANT_ID),
+                anyString(),
+                eq(Duration.ofMinutes(30))
+        )).thenReturn(false);
+        when(cooldownReader.findLatestNextAvailableAt(
+                eq(SETTLEMENT_ID),
+                eq(List.of(PARTICIPANT_ID)),
+                any(LocalDateTime.class)
+        )).thenReturn(Optional.of(NOW.plusMinutes(20)));
+
+        var result = service.remindAll(SETTLEMENT_ID);
+
+        assertThat(result.sentCount()).isZero();
+        assertThat(result.nextAvailableAt()).isEqualTo(NOW.plusMinutes(20));
+        verifyNoInteractions(pushSenderPort);
+    }
+
+    @Test
+    @DisplayName("전체 독촉 후보가 없으면 다음 가능 시각을 반환하지 않는다")
+    void returnsNullNextAvailableAtWithoutBulkCandidate() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(unlinkedParticipant()));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+        when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+        when(cooldownReader.findLatestNextAvailableAt(
+                eq(SETTLEMENT_ID),
+                eq(List.of()),
+                any(LocalDateTime.class)
+        )).thenReturn(Optional.empty());
+
+        var result = service.remindAll(SETTLEMENT_ID);
+
+        assertThat(result.sentCount()).isZero();
+        assertThat(result.nextAvailableAt()).isNull();
+        verifyNoInteractions(cooldownPort, pushSenderPort);
     }
 
     @Test
@@ -226,6 +273,18 @@ class SettlementReminderServiceTest {
                 SETTLEMENT_ID,
                 PARTICIPANT_ID
         )).thenReturn(Optional.of(share()));
+    }
+
+    private void givenBulkTarget() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(participant(), unlinkedParticipant()));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(share()));
+        when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+        when(loadUserPort.findAllByIds(List.of(PAYER_ID))).thenReturn(List.of(user()));
     }
 
     private void assertStatus(SettlementStatusCode statusCode, Runnable action) {

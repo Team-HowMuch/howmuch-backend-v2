@@ -212,6 +212,8 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data.paymentInfo.paidAt")
                         .value("2026-08-21T08:30:00"))
                 .andExpect(jsonPath("$.data.paymentSummary.progressPercent").value(50))
+                .andExpect(jsonPath("$.data.reminderNextAvailableAt")
+                        .value("2026-08-21T09:00:00"))
                 .andExpect(jsonPath("$.data.participants[0].linked").value(true))
                 .andExpect(jsonPath("$.data.participants[0].paymentStatus").value("PARTIALLY_PAID"))
                 .andExpect(jsonPath("$.data.creatorId").doesNotExist())
@@ -834,6 +836,7 @@ class SettlementControllerTest {
                         LocalDateTime.of(2026, 8, 21, 8, 30)
                 ),
                 new SettlementDetailResult.PaymentSummary(8_000, 4_000, 4_000, 50, 1, 1, 0),
+                LocalDateTime.of(2026, 8, 21, 9, 0),
                 List.of(new SettlementDetailResult.ParticipantPayment(
                         PARTICIPANT_ID,
                         "김참여",

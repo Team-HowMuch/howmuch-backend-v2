@@ -52,7 +52,8 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementDetailWebResponse",
                 "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
-                "viewerRole", "creatorName", "paymentInfo", "paymentSummary", "participants"
+                "viewerRole", "creatorName", "paymentInfo", "paymentSummary",
+                "reminderNextAvailableAt", "participants"
         );
         assertRequired(document, "PaymentInfo", "amount", "storeName", "paidAt");
         assertRequired(
@@ -60,7 +61,11 @@ class SettlementOpenApiIntegrationTest {
                 "SettlementReminderWebResponse",
                 "remindedAt", "nextAvailableAt"
         );
-        assertRequired(document, "SettlementBulkReminderWebResponse", "sentCount");
+        assertRequired(
+                document,
+                "SettlementBulkReminderWebResponse",
+                "sentCount", "nextAvailableAt"
+        );
         assertRequired(document, "SettlementShareLinkWebResponse", "url", "expiresAt");
         assertRequired(
                 document,
@@ -75,8 +80,23 @@ class SettlementOpenApiIntegrationTest {
                 "totalAmount", "participantCount", "completedParticipantCount", "amountToPay", "requesterName"
         );
         assertNullable(document, "SettlementListGroupSummaryWebResponse", "groupImageUrl");
-        assertNullable(document, "SettlementDetailWebResponse", "allocationType");
+        assertNullable(
+                document,
+                "SettlementDetailWebResponse",
+                "allocationType", "reminderNextAvailableAt"
+        );
+        assertNullable(document, "SettlementBulkReminderWebResponse", "nextAvailableAt");
         assertNullable(document, "PaymentInfo", "storeName", "paidAt");
+        assertDescriptionContainsUtc(
+                document,
+                "SettlementDetailWebResponse",
+                "reminderNextAvailableAt"
+        );
+        assertDescriptionContainsUtc(
+                document,
+                "SettlementBulkReminderWebResponse",
+                "nextAvailableAt"
+        );
     }
 
     private void assertRequired(JsonNode document, String schemaName, String... propertyNames) {
@@ -98,6 +118,19 @@ class SettlementOpenApiIntegrationTest {
                     .as("%s.%s nullable schema: %s", schemaName, propertyName, property)
                     .isTrue();
         });
+    }
+
+    private void assertDescriptionContainsUtc(
+            JsonNode document,
+            String schemaName,
+            String propertyName
+    ) {
+        String description = schema(document, schemaName)
+                .path("properties")
+                .path(propertyName)
+                .path("description")
+                .stringValue();
+        assertThat(description).contains("UTC", "offset 없는 값");
     }
 
     private JsonNode schema(JsonNode document, String schemaName) {
