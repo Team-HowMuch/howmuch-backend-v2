@@ -1,6 +1,6 @@
 # Feature Plan: 정산 독촉 쿨다운 응답 계약 보강
 
-- Status: Draft
+- Status: Completed
 - Last updated: 2026-09-02
 - Related issue: [#245](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/245), [#246](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/246), [#247](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/247)
 - Related ADR: N/A
@@ -17,11 +17,11 @@
 
 ### Success criteria
 
-- [ ] 일괄 독촉 응답이 `sentCount`와 nullable `nextAvailableAt`을 반환한다.
-- [ ] 정산 상세 응답이 nullable `reminderNextAvailableAt`을 반환한다.
-- [ ] 정산 단위 시각은 관련 참여자별 활성 쿨다운 만료 시각 중 가장 늦은 값이다.
-- [ ] 활성 쿨다운이 없으면 두 필드는 `null`이다.
-- [ ] offset 없는 응답 시각을 UTC로 해석해야 한다는 계약이 Swagger와 문서에 드러난다.
+- [x] 일괄 독촉 응답이 `sentCount`와 nullable `nextAvailableAt`을 반환한다.
+- [x] 정산 상세 응답이 nullable `reminderNextAvailableAt`을 반환한다.
+- [x] 정산 단위 시각은 관련 참여자별 활성 쿨다운 만료 시각 중 가장 늦은 값이다.
+- [x] 활성 쿨다운이 없으면 두 필드는 `null`이다.
+- [x] offset 없는 응답 시각을 UTC로 해석해야 한다는 계약이 Swagger와 문서에 드러난다.
 
 ### Out of scope
 
@@ -179,15 +179,15 @@ Existing behavior that must remain unchanged:
 ## 7. Implementation plan
 
 - [x] Migration-only pull request to `develop` (`N/A`: DB·Redis schema 변경 없음)
-- [ ] UseCase and Application Command/Result
-- [ ] Required Output Ports
+- [x] UseCase and Application Command/Result
+- [x] Required Output Ports
 - [x] Domain models and rules (`N/A`: 기존 Domain 규칙 재사용)
 - [x] Application Policies (`N/A`: 공유 Application Reader 사용)
-- [ ] Application Service
-- [ ] Output Adapters
-- [ ] Web Request/Response DTOs, Controllers, and Swagger
+- [x] Application Service
+- [x] Output Adapters
+- [x] Web Request/Response DTOs, Controllers, and Swagger
 - [x] Infra configuration and Bean wiring (`N/A`: 기존 Redis Bean 재사용)
-- [ ] Documentation and verification results
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -215,26 +215,27 @@ Redis 통합 테스트와 전체 테스트는 로컬 PostgreSQL·Redis 및 필�
 
 ### Completion criteria
 
-- [ ] Verified the user outcome defined under Purpose.
-- [ ] Verified normal, failure, and boundary flows.
-- [ ] Confirmed documentation and Swagger match the actual contract.
-- [ ] Recorded verification that could not be performed and why.
+- [x] Verified the user outcome defined under Purpose.
+- [x] Verified normal, failure, and boundary flows.
+- [x] Confirmed documentation and Swagger match the actual contract.
+- [x] Recorded verification that could not be performed and why.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
 | Migration 판단 | Passed | 기존 Redis key TTL 조회만 추가하므로 Flyway 불필요 |
-| Compile | Pending | `./gradlew compileJava` |
-| Focused tests | Pending | Application·Redis·Web·OpenAPI |
-| Full regression | Pending | `./gradlew test` |
-| Static checks | Pending | `git diff --check`, status |
+| Compile | Passed | `./gradlew compileJava`, `./gradlew compileTestJava` |
+| Focused tests | Passed | Reader·Application·Redis·Web·OpenAPI 집중 테스트 통과 |
+| Full regression | Environment blocked | 격리 schema에서 583개 실행, 테스트 DB 사용자에게 Flyway schema history 생성 권한이 없어 Spring Context 기반 65개 실패 |
+| Static checks | Passed | `git diff --check`, status 확인 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-09-02 | 최신 `origin/develop`과 #177 구현을 확인하고 부모 #245, sub-issue #246·#247 생성 및 연결 | Result·Port·Reader 구현 | offset 없는 `LocalDateTime`을 앱 로컬 시간으로 파싱하면 KST에서 9시간 오차 |
+| 2026-09-02 | Redis TTL Reader, 일괄·상세 Result와 Web 계약, Swagger와 집중 테스트 완료 | PR 생성 | 전체 테스트용 임시 schema에 애플리케이션 DB 사용자 권한이 없어 전체 회귀 미완료 |
 
 ## 10. Decision log
 
@@ -247,8 +248,8 @@ Redis 통합 테스트와 전체 테스트는 로컬 PostgreSQL·Redis 및 필�
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- Completed on: 2026-09-02
+- Final behavior: 전체 독촉 직후 `nextAvailableAt`을 반환하고, 상세 재조회에서 `reminderNextAvailableAt`으로 Redis 쿨다운을 복원한다. 두 값은 참여자별 활성 TTL 만료 시각의 `max`이며 offset 없는 UTC다.
+- Unverified items: 권한이 완비된 최신 migration 전용 PostgreSQL에서 전체 583개 회귀 테스트 재실행.
+- Remaining risks: 상세 조회는 현재 미납·연결 참여자 수만큼 Redis TTL을 조회한다.
+- Follow-up work: 실제 지연이 측정될 때만 Redis pipeline 조회를 검토한다.
