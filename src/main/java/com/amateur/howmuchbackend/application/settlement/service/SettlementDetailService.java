@@ -144,8 +144,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 .toList();
         return cooldownReader.findLatestNextAvailableAt(
                 settlement.id(),
-                reminderCandidateIds,
-                LocalDateTime.now(ZoneOffset.UTC)
+                reminderCandidateIds
         ).orElse(null);
     }
 

@@ -4,7 +4,9 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SettlementRemi
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Optional;
@@ -14,11 +16,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SettlementReminderCooldownReader {
     private final SettlementReminderCooldownPort cooldownPort;
+    private final Clock clock;
 
     public Optional<LocalDateTime> findLatestNextAvailableAt(
             UUID settlementId,
-            Collection<UUID> participantIds,
-            LocalDateTime now
+            Collection<UUID> participantIds
     ) {
         return participantIds.stream()
                 .distinct()
@@ -28,7 +30,8 @@ public class SettlementReminderCooldownReader {
                 ))
                 .flatMap(Optional::stream)
                 .filter(duration -> !duration.isNegative() && !duration.isZero())
-                .map(now::plus)
+                .map(duration -> LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)
+                        .plus(duration))
                 .max(Comparator.naturalOrder());
     }
 }

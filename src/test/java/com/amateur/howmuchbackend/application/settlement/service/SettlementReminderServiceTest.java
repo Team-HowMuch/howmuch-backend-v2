@@ -115,8 +115,7 @@ class SettlementReminderServiceTest {
                 .thenReturn(SettlementPushSenderPort.SendResult.SENT);
         when(cooldownReader.findLatestNextAvailableAt(
                 eq(SETTLEMENT_ID),
-                eq(List.of(PARTICIPANT_ID)),
-                any(LocalDateTime.class)
+                eq(List.of(PARTICIPANT_ID))
         )).thenReturn(Optional.of(NOW.plusMinutes(30)));
 
         var result = service.remindAll(SETTLEMENT_ID);
@@ -138,8 +137,7 @@ class SettlementReminderServiceTest {
         )).thenReturn(false);
         when(cooldownReader.findLatestNextAvailableAt(
                 eq(SETTLEMENT_ID),
-                eq(List.of(PARTICIPANT_ID)),
-                any(LocalDateTime.class)
+                eq(List.of(PARTICIPANT_ID))
         )).thenReturn(Optional.of(NOW.plusMinutes(20)));
 
         var result = service.remindAll(SETTLEMENT_ID);
@@ -162,8 +160,7 @@ class SettlementReminderServiceTest {
                 .thenReturn(List.of());
         when(cooldownReader.findLatestNextAvailableAt(
                 eq(SETTLEMENT_ID),
-                eq(List.of()),
-                any(LocalDateTime.class)
+                eq(List.of())
         )).thenReturn(Optional.empty());
 
         var result = service.remindAll(SETTLEMENT_ID);

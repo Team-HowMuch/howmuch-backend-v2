@@ -116,8 +116,7 @@ class SettlementDetailServiceTest {
         LocalDateTime nextAvailableAt = NOW.plusMinutes(30);
         when(cooldownReader.findLatestNextAvailableAt(
                 eq(SETTLEMENT_ID),
-                eq(List.of(PAYER_PARTICIPANT_ID)),
-                any(LocalDateTime.class)
+                eq(List.of(PAYER_PARTICIPANT_ID))
         )).thenReturn(Optional.of(nextAvailableAt));
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);

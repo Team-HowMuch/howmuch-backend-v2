@@ -149,8 +149,7 @@ public class SettlementReminderService implements
         }
         LocalDateTime nextAvailableAt = cooldownReader.findLatestNextAvailableAt(
                 settlementId,
-                reminderCandidateIds,
-                LocalDateTime.now(ZoneOffset.UTC)
+                reminderCandidateIds
         ).orElse(null);
         return new SettlementBulkReminderResult(sentCount, nextAvailableAt);
     }
