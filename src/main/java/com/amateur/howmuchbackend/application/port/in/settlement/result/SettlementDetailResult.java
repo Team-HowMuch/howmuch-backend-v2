@@ -18,6 +18,7 @@ public record SettlementDetailResult(
         String creatorName,
         PaymentInfo paymentInfo,
         PaymentSummary paymentSummary,
+        LocalDateTime reminderNextAvailableAt,
         List<ParticipantPayment> participants
 ) {
     public enum ViewerRole {

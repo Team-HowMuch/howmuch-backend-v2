@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,6 +47,7 @@ public class SettlementReminderService implements
     private final LoadSettlementDepositSummaryPort loadSettlementDepositSummaryPort;
     private final LoadUserPort loadUserPort;
     private final SettlementReminderCooldownPort cooldownPort;
+    private final SettlementReminderCooldownReader cooldownReader;
     private final SettlementPushSenderPort pushSenderPort;
 
     @Override
@@ -122,6 +124,7 @@ public class SettlementReminderService implements
                         .collect(Collectors.toMap(User::id, Function.identity()));
 
         int sentCount = 0;
+        List<UUID> reminderCandidateIds = new ArrayList<>();
         for (SettlementParticipant participant : participants) {
             try {
                 validateParticipant(settlement, participant);
@@ -135,6 +138,7 @@ public class SettlementReminderService implements
                     throw ApplicationException.of(AuthStatusCode.USER_NOT_FOUND);
                 }
                 validatePushTarget(target);
+                reminderCandidateIds.add(participant.id());
                 sendReminder(settlementId, participant.id(), target.fcmToken());
                 sentCount++;
             } catch (ApplicationException exception) {
@@ -143,7 +147,12 @@ public class SettlementReminderService implements
                 }
             }
         }
-        return new SettlementBulkReminderResult(sentCount);
+        LocalDateTime nextAvailableAt = cooldownReader.findLatestNextAvailableAt(
+                settlementId,
+                reminderCandidateIds,
+                LocalDateTime.now(ZoneOffset.UTC)
+        ).orElse(null);
+        return new SettlementBulkReminderResult(sentCount, nextAvailableAt);
     }
 
     private SettlementReminderResult sendReminder(

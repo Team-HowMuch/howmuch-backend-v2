@@ -8,7 +8,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
@@ -45,6 +47,21 @@ public class SettlementReminderCooldownRedisAdapter implements SettlementReminde
                 List.of(key(settlementId, participantId)),
                 reservationId
         );
+    }
+
+    @Override
+    public Optional<Duration> findRemainingCooldown(
+            UUID settlementId,
+            UUID participantId
+    ) {
+        Long remainingMillis = redis.getExpire(
+                key(settlementId, participantId),
+                TimeUnit.MILLISECONDS
+        );
+        if (remainingMillis == null || remainingMillis <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(Duration.ofMillis(remainingMillis));
     }
 
     private String key(UUID settlementId, UUID participantId) {

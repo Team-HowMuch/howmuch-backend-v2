@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigInteger;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +42,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
     private final LoadSettlementSharePort loadSettlementSharePort;
     private final LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     private final LoadUserPort loadUserPort;
+    private final SettlementReminderCooldownReader cooldownReader;
 
     @Override
     @Transactional(readOnly = true)
@@ -118,8 +121,32 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         loadSettlementExpensePort.findAllBySettlementId(settlementId)
                 ),
                 summary(settlement.status(), allPayments),
+                reminderNextAvailableAt(settlement, viewerRole, allPayments),
                 visiblePayments
         );
+    }
+
+    private LocalDateTime reminderNextAvailableAt(
+            Settlement settlement,
+            SettlementDetailResult.ViewerRole viewerRole,
+            List<SettlementDetailResult.ParticipantPayment> payments
+    ) {
+        if (viewerRole != SettlementDetailResult.ViewerRole.CREATOR
+                || settlement.status() != SettlementStatus.AWAITING_DEPOSIT) {
+            return null;
+        }
+
+        List<UUID> reminderCandidateIds = payments.stream()
+                .filter(SettlementDetailResult.ParticipantPayment::linked)
+                .filter(payment -> payment.paymentStatus()
+                        == SettlementDetailResult.PaymentStatus.UNPAID)
+                .map(SettlementDetailResult.ParticipantPayment::participantId)
+                .toList();
+        return cooldownReader.findLatestNextAvailableAt(
+                settlement.id(),
+                reminderCandidateIds,
+                LocalDateTime.now(ZoneOffset.UTC)
+        ).orElse(null);
     }
 
     private SettlementDetailResult.PaymentInfo paymentInfo(

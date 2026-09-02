@@ -11,7 +11,8 @@ import java.util.UUID;
 
 @Schema(requiredProperties = {
         "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
-        "viewerRole", "creatorName", "paymentInfo", "paymentSummary", "participants"
+        "viewerRole", "creatorName", "paymentInfo", "paymentSummary",
+        "reminderNextAvailableAt", "participants"
 })
 public record SettlementDetailWebResponse(
         UUID settlementId,
@@ -25,6 +26,12 @@ public record SettlementDetailWebResponse(
         String creatorName,
         PaymentInfo paymentInfo,
         PaymentSummary paymentSummary,
+        @Schema(
+                nullable = true,
+                description = "생성자 화면에서 관련 참여자의 독촉 쿨다운이 모두 끝나는 UTC 시각. "
+                        + "offset 없는 값을 UTC로 해석하며 활성 쿨다운이 없으면 null"
+        )
+        LocalDateTime reminderNextAvailableAt,
         List<ParticipantPayment> participants
 ) {
     public static SettlementDetailWebResponse from(SettlementDetailResult result) {
@@ -39,6 +46,7 @@ public record SettlementDetailWebResponse(
                 result.creatorName(),
                 PaymentInfo.from(result.paymentInfo()),
                 PaymentSummary.from(result.paymentSummary()),
+                result.reminderNextAvailableAt(),
                 result.participants().stream()
                         .map(ParticipantPayment::from)
                         .toList()
