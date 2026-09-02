@@ -9,6 +9,7 @@ public record GroupMemberResult(
         String publicId,
         String name,
         GroupMemberRole role,
-        LocalDateTime joinedAt
+        LocalDateTime joinedAt,
+        boolean hasAvatar
 ) {
 }

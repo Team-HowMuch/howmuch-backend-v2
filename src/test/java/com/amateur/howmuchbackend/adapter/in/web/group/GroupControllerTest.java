@@ -1,12 +1,14 @@
 package com.amateur.howmuchbackend.adapter.in.web.group;
 
 import com.amateur.howmuchbackend.application.group.model.GroupImage;
+import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.port.in.group.CreateGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.AddGroupMemberUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.DeleteGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupImageUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetMyGroupsUseCase;
+import com.amateur.howmuchbackend.application.port.in.group.GetGroupMemberAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupMembersUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.JoinGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.UpdateGroupUseCase;
@@ -67,6 +69,7 @@ class GroupControllerTest {
     @Mock private DeleteGroupUseCase deleteGroupUseCase;
     @Mock private JoinGroupUseCase joinGroupUseCase;
     @Mock private GetGroupMembersUseCase getGroupMembersUseCase;
+    @Mock private GetGroupMemberAvatarUseCase getGroupMemberAvatarUseCase;
     @Mock private AddGroupMemberUseCase addGroupMemberUseCase;
     @Mock private TransferGroupOwnershipUseCase transferGroupOwnershipUseCase;
     @Mock private LeaveGroupUseCase leaveGroupUseCase;
@@ -85,6 +88,7 @@ class GroupControllerTest {
                 deleteGroupUseCase,
                 joinGroupUseCase,
                 getGroupMembersUseCase,
+                getGroupMemberAvatarUseCase,
                 addGroupMemberUseCase,
                 transferGroupOwnershipUseCase,
                 leaveGroupUseCase,
@@ -217,7 +221,39 @@ class GroupControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].memberId").value(20))
                 .andExpect(jsonPath("$.data[0].publicId").value("sua.test"))
-                .andExpect(jsonPath("$.data[0].role").value("MEMBER"));
+                .andExpect(jsonPath("$.data[0].role").value("MEMBER"))
+                .andExpect(jsonPath("$.data[0].avatarUrl")
+                        .value("/api/v2/groups/10/members/20/avatar"));
+    }
+
+    @Test
+    @DisplayName("사진이 없는 멤버는 avatarUrl이 null이다")
+    void getsGroupMembersWithoutAvatar() throws Exception {
+        when(getGroupMembersUseCase.getMembers(10L)).thenReturn(List.of(new GroupMemberResult(
+                20L,
+                "sua.test",
+                "최수아",
+                GroupMemberRole.MEMBER,
+                LocalDateTime.of(2026, 8, 25, 6, 0),
+                false
+        )));
+
+        mockMvc.perform(get("/api/v2/groups/{groupId}/members", 10L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].avatarUrl").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("그룹 멤버 아바타를 no-store와 실제 content type으로 반환한다")
+    void getsGroupMemberAvatar() throws Exception {
+        when(getGroupMemberAvatarUseCase.getMemberAvatar(10L, 20L))
+                .thenReturn(new ProfileImage("image/png", new byte[]{4, 5, 6}));
+
+        mockMvc.perform(get("/api/v2/groups/{groupId}/members/{memberId}/avatar", 10L, 20L))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes(new byte[]{4, 5, 6}));
     }
 
     @Test
@@ -299,7 +335,8 @@ class GroupControllerTest {
                 "sua.test",
                 "최수아",
                 GroupMemberRole.MEMBER,
-                LocalDateTime.of(2026, 8, 25, 6, 0)
+                LocalDateTime.of(2026, 8, 25, 6, 0),
+                true
         );
     }
 }
