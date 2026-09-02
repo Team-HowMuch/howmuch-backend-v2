@@ -37,9 +37,11 @@ public class TreasurerSettlementPersistenceAdapter implements LoadTreasurerSettl
                         direction,
                         SettlementStatus.valueOf(projection.getStatus()),
                         projection.getRequestedAt(),
+                        // Long.valueOf 없이 두면 Long/long 혼합 삼항연산자가 long으로 승격돼
+                        // amountToPay(null 가능)를 언박싱하다 NPE가 난다.
                         direction == SettlementDirection.SEND
                                 ? projection.getAmountToPay()
-                                : projection.getReceivableAmount(),
+                                : Long.valueOf(projection.getReceivableAmount()),
                         projection.getRequesterName(),
                         Math.toIntExact(projection.getPayerCount()),
                         Math.toIntExact(projection.getCompletedPayerCount())
