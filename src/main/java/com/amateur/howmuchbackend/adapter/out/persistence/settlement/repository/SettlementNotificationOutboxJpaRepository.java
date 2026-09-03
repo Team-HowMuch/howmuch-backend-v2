@@ -1,0 +1,102 @@
+package com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository;
+
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementNotificationOutboxJpaEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+public interface SettlementNotificationOutboxJpaRepository
+        extends JpaRepository<SettlementNotificationOutboxJpaEntity, UUID> {
+    @Query(value = """
+            SELECT event.*
+              FROM settlement_notification_outbox event
+             WHERE event.status IN ('PENDING', 'RETRY')
+               AND event.next_attempt_at <= :now
+             ORDER BY event.next_attempt_at, event.created_at, event.id
+             LIMIT :batchSize
+               FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    List<SettlementNotificationOutboxJpaEntity> findReadyForUpdate(
+            @Param("now") LocalDateTime now,
+            @Param("batchSize") int batchSize
+    );
+
+    @Query(value = """
+            SELECT event.*
+              FROM settlement_notification_outbox event
+             WHERE event.status = 'PROCESSING'
+               AND event.processing_started_at <= :staleBefore
+             ORDER BY event.processing_started_at, event.id
+             LIMIT :batchSize
+               FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    List<SettlementNotificationOutboxJpaEntity> findStaleForUpdate(
+            @Param("staleBefore") LocalDateTime staleBefore,
+            @Param("batchSize") int batchSize
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE settlement_notification_outbox
+               SET status = 'SUCCEEDED',
+                   next_attempt_at = NULL,
+                   processing_started_at = NULL,
+                   completed_at = :completedAt,
+                   last_failure_code = NULL,
+                   updated_at = :completedAt
+             WHERE id = :id
+               AND status = 'PROCESSING'
+               AND attempt_count = :attemptCount
+            """, nativeQuery = true)
+    int markSucceeded(
+            @Param("id") UUID id,
+            @Param("attemptCount") int attemptCount,
+            @Param("completedAt") LocalDateTime completedAt
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE settlement_notification_outbox
+               SET status = 'RETRY',
+                   next_attempt_at = :nextAttemptAt,
+                   processing_started_at = NULL,
+                   completed_at = NULL,
+                   last_failure_code = :failureCode,
+                   updated_at = :updatedAt
+             WHERE id = :id
+               AND status = 'PROCESSING'
+               AND attempt_count = :attemptCount
+            """, nativeQuery = true)
+    int markRetry(
+            @Param("id") UUID id,
+            @Param("attemptCount") int attemptCount,
+            @Param("nextAttemptAt") LocalDateTime nextAttemptAt,
+            @Param("failureCode") String failureCode,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE settlement_notification_outbox
+               SET status = 'FAILED',
+                   next_attempt_at = NULL,
+                   processing_started_at = NULL,
+                   completed_at = :completedAt,
+                   last_failure_code = :failureCode,
+                   updated_at = :completedAt
+             WHERE id = :id
+               AND status = 'PROCESSING'
+               AND attempt_count = :attemptCount
+            """, nativeQuery = true)
+    int markFailed(
+            @Param("id") UUID id,
+            @Param("attemptCount") int attemptCount,
+            @Param("failureCode") String failureCode,
+            @Param("completedAt") LocalDateTime completedAt
+    );
+}
