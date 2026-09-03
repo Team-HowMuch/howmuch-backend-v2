@@ -22,7 +22,7 @@
 - [x] 정산 상태·Share·링크·계좌 스냅샷과 수신자별 Outbox 이벤트가 하나의 트랜잭션으로 커밋된다.
 - [x] 정산 요청 API가 FCM 응답을 기다리지 않고 기존 응답·상태 계약을 유지한다.
 - [x] 다중 Worker가 처리 가능한 이벤트를 중복 선점하지 않는다.
-- [x] 일시 실패는 설정된 backoff와 최대 시도 횟수에 따라 `RETRY` 또는 `FAILED`로 전환된다.
+- [x] 일시 실패는 Application이 소유한 backoff와 최대 시도 횟수에 따라 `RETRY` 또는 `FAILED`로 전환된다.
 - [x] 처리 중 Worker가 종료되면 timeout 뒤 `PROCESSING` 이벤트를 복구한다.
 - [x] 개선 전과 같은 지연·부분 실패·프로세스 종료 조건에서 성능 분리와 자동 복구를 확인한다.
 
@@ -47,7 +47,7 @@
 | Term | Meaning | Code representation |
 |---|---|---|
 | 참여 알림 이벤트 | 정산 요청과 함께 저장되는 수신자 한 명의 발송 의도 | `SettlementNotificationOutbox` |
-| 처리 가능 이벤트 | 시각 조건을 만족한 `PENDING` 또는 `RETRY` 이벤트 | `claimReady` |
+| 처리 가능 이벤트 | 시각 조건을 만족한 `PENDING` 또는 `RETRY` 이벤트 | `claimNextReady` |
 | 선점 | 한 Worker가 이벤트를 `PROCESSING`으로 바꾸고 외부 전달 책임을 얻는 동작 | `FOR UPDATE SKIP LOCKED` |
 | stale 이벤트 | Worker 종료 등으로 timeout을 넘겨 `PROCESSING`에 남은 이벤트 | `processingStartedAt` 기준 복구 |
 | 전달 실패 코드 | 외부 오류 원문 대신 저장하는 제한된 실패 분류 | `SettlementNotificationFailureCode` |
@@ -79,8 +79,8 @@
 2. Application이 정산·참여자·배분·계좌를 검증하고 정산 상태, Share, 링크와 계좌 스냅샷을 저장한다.
 3. 활성 회원이며 FCM 대상이 등록된 연결 참여자별 `PENDING` 이벤트를 같은 트랜잭션에 저장한다.
 4. API는 외부 FCM 호출 없이 기존 응답을 반환한다.
-5. Worker가 처리 가능한 이벤트를 batch로 선점해 `PROCESSING`으로 커밋한다.
-6. Worker가 현재 사용자 FID와 저장된 링크를 조회해 FCM을 호출하고 `SUCCEEDED`로 전환한다.
+5. Worker가 batch 처리 상한 안에서 다음 이벤트 1건을 발송 직전에 선점해 `PROCESSING`으로 커밋한다.
+6. Worker가 현재 사용자 FID와 저장된 링크를 조회해 FCM을 호출하고 `SUCCEEDED`로 전환한 뒤 다음 이벤트를 선점한다.
 
 ### Failure flow
 
@@ -93,6 +93,7 @@
 ### Boundary conditions
 
 - PostgreSQL `FOR UPDATE SKIP LOCKED`로 여러 인스턴스의 동일 행 선점을 방지한다.
+- batch 전체를 먼저 선점하지 않고 1건의 전달이 끝난 뒤 다음 행을 선점해, 뒤쪽 이벤트의 lease가 앞선 발송 대기시간 때문에 만료되지 않게 한다.
 - DB 커밋과 FCM 호출은 원자적으로 묶을 수 없으므로 timeout 경계에서는 중복 발송 가능성이 남는다. 전달 의미는 at-least-once다.
 - 이벤트에는 사용자 ID만 저장하고 처리 시점의 FID를 사용하므로 앱 재등록 후에는 최신 대상으로 보낸다.
 - 링크는 기존 암호화 ciphertext를 복호화해 현재 URL을 구성하며 Outbox payload에 원문을 복제하지 않는다.
@@ -132,7 +133,7 @@ Observable change: 응답 경로에서 외부 FCM 호출 제거
 - Database Entity, constraint, or query changes: `settlement_notification_outbox`와 ready/stale 부분 index, 정산·수신자 Unique constraint 추가.
 - Redis key, TTL, or serialization changes: 없음.
 - External API or message changes: 기존 Firebase payload 유지.
-- Environment variable or profile changes: Worker enable, poll interval, batch size, processing timeout, max attempts, retry base/max delay 추가.
+- Environment variable or profile changes: Worker enable, poll interval, batch size 추가. processing timeout, 최대 시도 횟수와 retry base/max delay는 Application 고정 정책으로 둔다.
 
 ## 5. Design decisions
 
@@ -140,7 +141,7 @@ Observable change: 응답 경로에서 외부 FCM 호출 제거
 
 - Rules and their locations: 상태 전이는 `SettlementNotificationOutbox`, backoff 계산은 `SettlementNotificationRetryPolicy`.
 - Behavior owned by Domain: 선점, 성공, 재시도, 최종 실패, stale 복구 전이와 불변식.
-- Flow orchestrated by Application: 대상 이벤트 생성, batch 처리, 사용자·링크 조회, FCM 호출과 결과 전환.
+- Flow orchestrated by Application: 대상 이벤트 생성, 처리 상한 안에서 1건씩 선점, 사용자·링크 조회, FCM 호출과 결과 전환.
 
 ### Technology and patterns
 
@@ -148,7 +149,7 @@ Observable change: 응답 경로에서 외부 FCM 호출 제거
 - Selected approach: PostgreSQL Transactional Outbox와 polling Worker, `FOR UPDATE SKIP LOCKED`, 조건부 완료 update.
 - Reason for selection: 현재 PostgreSQL 트랜잭션에 발송 의도를 함께 기록하면서 별도 브로커 없이 복구 가능한 최소 구조를 만든다.
 - Alternatives considered: `@Async`는 요청 지연만 줄이고 프로세스 종료 시 유실을 해결하지 못한다. 외부 브로커는 현재 규모에서 운영 복잡도가 크다. 트랜잭션 내부 FCM 호출은 오발송과 긴 DB lock을 만든다.
-- Trade-offs and limits: polling 지연과 DB 부하가 생기며 exactly-once가 아닌 at-least-once다. timeout은 외부 발송 최대시간보다 충분히 길어야 한다.
+- Trade-offs and limits: polling 지연과 이벤트별 선점 트랜잭션의 DB 부하가 생기며 exactly-once가 아닌 at-least-once다. timeout은 단일 외부 발송 최대시간보다 충분히 길어야 한다.
 
 ## 6. Impact surface
 
@@ -160,7 +161,7 @@ Observable change: 응답 경로에서 외부 FCM 호출 제거
 | Persistence | V29 테이블, 선점·조건부 전이 Adapter | 신규 migration·JPA 구성 |
 | Redis | 영향 없음 | N/A |
 | Security | 사용자·링크 원문 비복제 | 기존 암호화 링크 저장과 사용자 조회 재사용 |
-| Configuration | scheduling과 Worker 정책 값 추가 | 신규 Properties·Config·Scheduler |
+| Configuration | scheduling 기술 값 추가, Worker 정책은 Application 고정 규칙 | 신규 Properties·Config·Scheduler·Policy |
 | Documentation | baseline, 설계와 개선 후 결과 | 이 문서 |
 
 Existing behavior that must remain unchanged:
@@ -187,6 +188,10 @@ docs(settlement): 참여 알림 Outbox 개선 계획 작성
 feat(settlement): 참여 알림 Outbox 스키마 추가
 feat(settlement): 참여 알림 Outbox 발행과 복구 Worker 구현
 docs(settlement): 참여 알림 Outbox 검증 결과 기록
+refactor(settlement): Outbox 재시도 정책 소유권 정리
+fix(settlement): 알림 발송 직전 Outbox 이벤트 선점
+test(settlement): Outbox lease 경계 회귀 검증
+docs(settlement): Outbox 리뷰 반영 결과 기록
 ```
 
 ## 8. Verification
@@ -214,7 +219,7 @@ git status --short --untracked-files=all
 
 | Item | Result | Evidence |
 |---|---|---|
-| 관련 회귀 테스트 | Passed | 개선 후 `SettlementRequestServiceTest` 4개, `FirebaseSettlementPushSenderAdapterTest` 3개 |
+| 관련 회귀 테스트 | Passed | 기존 관련 테스트 7개와 신규 Policy·Worker lease 회귀 테스트 2개 통과 |
 | 스키마 검증 | Passed | 빈 PostgreSQL 18.3에서 V1~V29 29개 migration과 Hibernate validate 통과 |
 | 개선 전 성능 baseline | Passed | 대상·지연 16조건, `p50 ~ 대상×지연` R² 0.99995 |
 | 개선 전 장애 baseline | Passed | 부분 실패 재시도 0, 종료 후 미발송 23건 복구 0 |
@@ -224,7 +229,9 @@ git status --short --untracked-files=all
 | 장애 해제 복구 | Passed | 최초 5건 `RETRY/attempt 1`, barrier 해제 후 30초에 5건 `SUCCEEDED/attempt 2` |
 | 프로세스 종료 복구 | Passed | 7번째 외부 수락 직후 exit 137, `SUCCEEDED` 6건·`PROCESSING` 24건; 재기동 후 recovered 24건, 최종 성공 30건 |
 | 다중 Worker | Passed | batch 10인 Worker 2개가 30건을 10/20으로 분할 처리, 최종 `attempt 1` 30건 |
-| 전체 테스트 | Partial | 깨끗한 격리 DB에서 590개 중 587개 통과. develop에서도 변경되지 않은 기존 테스트 3개가 누락 mock 2개·0원 Domain 생성 1개로 실패 |
+| 리뷰 지적 회귀 | Passed | 첫 알림 발송·완료 전이 뒤에만 두 번째 이벤트를 선점하는 호출 순서 검증 |
+| 격리 런타임 | Passed | 빈 PostgreSQL 18.3·Redis에서 애플리케이션 기동, V1~V29 validate와 빈 Outbox 대상 200ms polling query 확인 |
+| 전체 테스트 | Partial | 깨끗한 격리 DB에서 592개 중 589개 통과. develop에서도 변경되지 않은 기존 테스트 3개가 누락 mock 2개·0원 Domain 생성 1개로 실패 |
 
 #### 개선 후 응답시간 matrix
 
@@ -280,6 +287,7 @@ VU 10은 VU 5보다 처리량이 낮고 tail latency가 커졌다. 외부 I/O는
 | 2026-09-03 | #251~#255 생성·연결, 최신 develop 기준 설계 확정 | V29와 Domain·Persistence 구현 | timeout 경계 중복은 exactly-once 없이 제거할 수 없음 |
 | 2026-09-03 | V29, Outbox Domain·Port·Adapter, polling Worker·Scheduler 구현 | 격리 성능·장애 재측정 | Outbox insert가 대상자 1명당 약 0.47ms 증가하는 새 DB 비용이 됨 |
 | 2026-09-03 | 16조건 k6, VU, 부분·지속 장애, 30초 복구, crash, 다중 Worker, rollback 검증 | 완료 | VU 10 DB 경쟁과 at-least-once 중복 1건을 계량함 |
+| 2026-09-03 | PR 리뷰의 Policy 소유권과 batch lease 만료 지적 반영, 관련 9개·전체 592개 회귀 재검증 | 완료 | 이벤트별 선점 트랜잭션 비용과 단일 외부 호출 timeout 경계는 남음 |
 
 ## 10. Decision log
 
@@ -290,11 +298,13 @@ VU 10은 VU 5보다 처리량이 낮고 tail latency가 커졌다. 외부 I/O는
 | 2026-09-03 | 완료 전이는 `PROCESSING + attemptCount` 조건부 갱신 | stale Worker가 새 선점 결과를 덮어쓰는 문제 방지 | timeout 경계 외부 중복 가능성은 남음 |
 | 2026-09-03 | 제한된 실패 enum만 저장 | 외부 오류 원문과 민감정보 영속화 방지 | 상세 원인은 구조화 로그·외부 관측 도구가 필요함 |
 | 2026-09-03 | at-least-once 전달을 명시 | DB와 FCM을 원자 커밋할 수 없음 | 클라이언트가 동일 type·settlementId 알림을 허용해야 함 |
+| 2026-09-03 | 재시도·timeout 규칙을 Application 고정 정책으로 소유 | Infra가 Application Policy를 생성하지 않는 저장소 경계 준수 | 운영 중 설정 변경이 필요하면 ADR로 cross-layer 계약을 먼저 결정함 |
+| 2026-09-03 | batch 상한만 유지하고 이벤트를 발송 직전 1건씩 선점 | 정상적인 느린 batch에서 대기 중인 이벤트 lease가 만료되는 중복 방지 | 이벤트마다 별도 선점 트랜잭션이 발생함 |
 
 ## 11. Completion record
 
 - Completed on: 2026-09-03
-- Final behavior: 정산 요청은 정산 데이터와 수신자별 Outbox를 함께 커밋한 뒤 외부 호출 없이 응답한다. Worker는 `SKIP LOCKED`로 선점하고 지수 backoff·최대 5회·stale timeout 복구를 적용한다.
+- Final behavior: 정산 요청은 정산 데이터와 수신자별 Outbox를 함께 커밋한 뒤 외부 호출 없이 응답한다. Worker는 처리 상한 안에서 발송 직전 1건씩 `SKIP LOCKED`로 선점하고 Application 고정 지수 backoff·최대 5회·stale timeout 복구를 적용한다.
 - Unverified items: 실제 운영 FCM 지연 분포, 기기 표시 성공, 운영 인프라의 최대 처리량은 검증하지 않았다.
-- Remaining risks: FCM 수락 후 DB 완료 기록 전 종료되면 중복 발송될 수 있다. VU 10에서 DB 쓰기 경쟁으로 p99 120.0ms와 처리량 하락이 관측됐다.
+- Remaining risks: 단일 FCM 호출이 lease timeout을 넘거나 FCM 수락 후 DB 완료 기록 전에 종료되면 중복 발송될 수 있다. 이벤트별 선점 트랜잭션 비용이 추가됐고, 요청 API는 VU 10에서 DB 쓰기 경쟁으로 p99 120.0ms와 처리량 하락이 관측됐다.
 - Follow-up work: 운영 지표·경보, 수동 재처리 UI/API, Outbox retention 정책, 필요 시 insert batching을 별도 이슈로 다룬다.
