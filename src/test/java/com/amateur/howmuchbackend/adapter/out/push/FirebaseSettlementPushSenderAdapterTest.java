@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 class FirebaseSettlementPushSenderAdapterTest {
     private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
     private static final String SHARE_LINK = "https://howmuch.example/settlements/link-token";
+    private static final String FCM_TOKEN = "fcm-registration-token";
 
     @Mock private ObjectProvider<FirebaseMessaging> firebaseMessagingProvider;
     @Mock private FirebaseMessaging firebaseMessaging;
@@ -44,12 +45,12 @@ class FirebaseSettlementPushSenderAdapterTest {
         var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
 
         var participationResult = adapter.sendParticipationRequest(
-                "firebase-installation-id",
+                FCM_TOKEN,
                 SETTLEMENT_ID,
                 SHARE_LINK
         );
         var reminderResult = adapter.sendReminder(
-                "firebase-installation-id",
+                FCM_TOKEN,
                 SETTLEMENT_ID
         );
 
@@ -58,16 +59,18 @@ class FirebaseSettlementPushSenderAdapterTest {
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
         verify(firebaseMessaging, times(2)).send(messageCaptor.capture());
         Message participationMessage = messageCaptor.getAllValues().getFirst();
-        assertThat(invoke(participationMessage, "getFid"))
-                .isEqualTo("firebase-installation-id");
-        assertThat(invoke(participationMessage, "getToken")).isNull();
+        Message reminderMessage = messageCaptor.getAllValues().getLast();
+        assertThat(invoke(participationMessage, "getToken")).isEqualTo(FCM_TOKEN);
+        assertThat(invoke(participationMessage, "getFid")).isNull();
+        assertThat(invoke(reminderMessage, "getToken")).isEqualTo(FCM_TOKEN);
+        assertThat(invoke(reminderMessage, "getFid")).isNull();
         assertThat(invoke(participationMessage, "getData"))
                 .isEqualTo(Map.of(
                         "type", "SETTLEMENT_PARTICIPATION",
                         "settlementId", SETTLEMENT_ID.toString(),
                         "shareLink", SHARE_LINK
                 ));
-        assertThat(invoke(messageCaptor.getAllValues().getLast(), "getData"))
+        assertThat(invoke(reminderMessage, "getData"))
                 .isEqualTo(Map.of(
                         "type", "SETTLEMENT_REMINDER",
                         "settlementId", SETTLEMENT_ID.toString()
@@ -90,7 +93,7 @@ class FirebaseSettlementPushSenderAdapterTest {
     }
 
     @Test
-    @DisplayName("Firebase가 FID를 미등록 대상으로 판정하면 교체 가능한 실패로 반환한다")
+    @DisplayName("Firebase가 FCM token을 미등록 대상으로 판정하면 교체 가능한 실패로 반환한다")
     void returnsInvalidTarget() throws Exception {
         FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
         when(exception.getMessagingErrorCode()).thenReturn(MessagingErrorCode.UNREGISTERED);

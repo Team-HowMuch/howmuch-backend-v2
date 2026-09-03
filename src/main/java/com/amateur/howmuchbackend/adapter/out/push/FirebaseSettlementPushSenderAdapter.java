@@ -33,7 +33,7 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
             String shareLink
     ) {
         return send(Message.builder()
-                .setFid(firebaseInstallationId)
+                .setToken(firebaseInstallationId)
                 .setNotification(Notification.builder()
                         .setTitle(PARTICIPATION_TITLE)
                         .setBody(PARTICIPATION_BODY)
@@ -47,7 +47,7 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
     @Override
     public SendResult sendReminder(String firebaseInstallationId, UUID settlementId) {
         return send(Message.builder()
-                .setFid(firebaseInstallationId)
+                .setToken(firebaseInstallationId)
                 .setNotification(Notification.builder()
                         .setTitle(REMINDER_TITLE)
                         .setBody(REMINDER_BODY)

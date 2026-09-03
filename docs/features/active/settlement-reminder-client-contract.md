@@ -19,7 +19,7 @@
 
 - [x] 생성자가 한 요청으로 현재 독촉 가능한 미납 회원 전체에게 푸시를 보내고 실제 성공 수를 받는다.
 - [x] 정산 상세의 각 `participants[]`가 `linked`를 반환한다.
-- [x] 앱은 로그인 또는 세션 복원 직후 FID를 등록하고, 변경 시 재등록하며, 로그아웃 전에 해제한다.
+- [x] 앱은 로그인 또는 세션 복원 직후 FCM registration token을 등록하고, 변경 시 재등록하며, 로그아웃 전에 해제한다.
 - [x] 생성자가 진행 중 정산의 공유 URL과 만료 시각을 다시 조회한다.
 - [x] DB에는 공유 링크 원본 토큰을 평문으로 저장하지 않는다.
 - [x] 전체 독촉 직후와 상세 재조회에서 참여자별 Redis 쿨다운의 가장 늦은 만료 시각을 UTC로 반환한다.
@@ -36,7 +36,7 @@
 
 - Existing domain to reuse: `settlement`, `user`
 - Reason a new domain is required, if applicable: N/A
-- Relationships to other domains: user는 FID를, settlement는 참여자 연결·납부·공유 링크 상태를 제공한다.
+- Relationships to other domains: user는 FCM registration token을, settlement는 참여자 연결·납부·공유 링크 상태를 제공한다.
 
 ### Ubiquitous language
 
@@ -53,27 +53,27 @@
 |---|---|---|
 | 정산 생성자 | 미납 회원 전체에게 독촉하고 성공 수를 확인한다. | `RemindAllSettlementParticipantsUseCase` |
 | 정산 생성자 | 진행 중 정산의 공유 링크를 다시 얻는다. | `GetSettlementShareLinkUseCase` |
-| 로그인 회원 | 현재 앱 설치 FID를 등록·해제한다. | 기존 `ManageMyPushTargetUseCase` |
+| 로그인 회원 | 현재 앱의 FCM registration token을 등록·해제한다. | 기존 `ManageMyPushTargetUseCase` |
 
 ### State and invariants
 
 - State transitions: 일괄 독촉은 정산 상태를 바꾸지 않는다. 공유 링크 조회도 링크가 유효하면 상태를 바꾸지 않는다.
 - Rules that must always hold: 생성자만 일괄 독촉과 링크 조회가 가능하다. 공유 링크 원본 토큰은 암호문으로만 저장한다.
-- Invalid states: `AWAITING_DEPOSIT`이 아닌 독촉, 연결·Share·FID가 없는 대상, 만료되거나 비활성인 링크.
+- Invalid states: `AWAITING_DEPOSIT`이 아닌 독촉, 연결·Share·FCM registration token이 없는 대상, 만료되거나 비활성인 링크.
 
 ## 3. Scenarios
 
 ### Normal flow
 
-1. 앱은 인증 세션과 FID가 준비되면 `PUT /api/v2/user/me/push-target`을 호출한다.
-2. 생성자가 일괄 독촉을 요청하면 서버가 미납·연결·FID 등록·cooldown 가능 대상을 고른다.
+1. 앱은 인증 세션과 FCM registration token이 준비되면 `PUT /api/v2/user/me/push-target`을 호출한다.
+2. 생성자가 일괄 독촉을 요청하면 서버가 미납·연결·FCM registration token 등록·cooldown 가능 대상을 고른다.
 3. 서버는 기존 단건 규칙을 재사용해 순차 전송하고 `sentCount`와 활성 쿨다운의 가장 늦은 `nextAvailableAt`을 반환한다.
 4. 생성자가 공유 링크를 요청하면 서버는 암호문을 복호화해 기존 URL을 반환한다.
 
 ### Failure flow
 
 - 일괄 독촉 대상이 없음: `sentCount = 0`, 활성 쿨다운이 없으면 `nextAvailableAt = null`.
-- 개별 대상이 미연결·FID 없음·cooldown 중: 해당 대상만 건너뛰고 다른 대상을 계속 처리한다.
+- 개별 대상이 미연결·FCM registration token 없음·cooldown 중: 해당 대상만 건너뛰고 다른 대상을 계속 처리한다.
 - Firebase 전체 사용 불가: `SETTLEMENT_REMINDER_DELIVERY_UNAVAILABLE`.
 - 링크가 없거나 사용할 수 없음: 기존 링크 오류 계약을 재사용한다.
 - 기존 행에 암호문이 없음: 원본을 복구할 수 없으므로 새 링크를 발급하고 이전 링크는 무효화한다.
@@ -102,7 +102,7 @@ Result -> Web Response DTO: SettlementShareLinkWebResponse.from(result)
 
 | Port | Purpose | Caller | Expected Adapter |
 |---|---|---|---|
-| 기존 settlement/user Load Ports | 대상과 납부·FID 조회 | 일괄 독촉 Service | 기존 Persistence Adapters |
+| 기존 settlement/user Load Ports | 대상과 납부·FCM registration token 조회 | 일괄 독촉 Service | 기존 Persistence Adapters |
 | 기존 `SettlementReminderCooldownPort` | 참여자별 30분 예약과 남은 TTL 조회 | 일괄 독촉·상세 Service | 기존 Redis Adapter |
 | 기존 `SettlementPushSenderPort` | FCM 발송 | 일괄 독촉 Service | 기존 Firebase Adapter |
 | 공유 링크 조회·갱신 Port | 링크 암호문 조회와 legacy 재발급 저장 | 공유 링크 Service | Settlement Persistence Adapter |
@@ -111,7 +111,7 @@ Result -> Web Response DTO: SettlementShareLinkWebResponse.from(result)
 
 - Decision owned by the Policy: N/A. 기존 단건 독촉 조건을 공통 private flow로 재사용한다.
 - Facts loaded by the Service and passed to the Policy: N/A
-- Why the rule is not an Entity-local invariant: FID, Redis, FCM, 링크 암호화는 외부 경계다.
+- Why the rule is not an Entity-local invariant: FCM registration token, Redis, FCM, 링크 암호화는 외부 경계다.
 - Future inputs deliberately not implemented yet: 비회원 전달 채널, 비동기 작업 큐.
 
 ### Web API
@@ -130,8 +130,8 @@ Authentication: bearerAuth, creator only
 
 푸시 대상 계약:
 
-- 로그인 성공 또는 인증 세션 복원 뒤 FID가 준비되면 `PUT /api/v2/user/me/push-target`.
-- FID 변경 콜백에서도 같은 PUT 재호출.
+- 로그인 성공 또는 인증 세션 복원 뒤 FCM registration token이 준비되면 `PUT /api/v2/user/me/push-target`.
+- FCM registration token 변경 콜백에서도 같은 PUT 재호출.
 - 로그아웃 시 인증 토큰 삭제 전에 `DELETE /api/v2/user/me/push-target`.
 - 독촉 `422`는 응답 코드로 `SETTLEMENT_REMINDER_TARGET_NOT_LINKED`와 `SETTLEMENT_REMINDER_PUSH_TARGET_NOT_FOUND`를 구분한다.
 
@@ -173,7 +173,7 @@ Authentication: bearerAuth, creator only
 | Redis | 기존 cooldown 재사용 | reminder Redis adapter |
 | Security | 생성자 권한, 토큰 암호화 | CurrentActor, AES-GCM adapter |
 | Configuration | 링크 토큰 암호화 키 | technical properties |
-| Documentation | 앱 FID 수명주기와 오류 코드 | User/Settlement Swagger |
+| Documentation | 앱 FCM registration token 수명주기와 오류 코드 | User/Settlement Swagger |
 
 Existing behavior that must remain unchanged:
 
@@ -250,7 +250,7 @@ git status --short --untracked-files=all
 ## 11. Completion record
 
 - Completed on: initial 2026-08-30, cooldown response follow-up 2026-09-02
-- Final behavior: 일괄 독촉 `sentCount`·`nextAvailableAt`, 상세 `linked`·`reminderNextAvailableAt`, FID 등록 수명주기, 진행 중 공유 링크 조회와 암호화 저장을 제공한다.
+- Final behavior: 일괄 독촉 `sentCount`·`nextAvailableAt`, 상세 `linked`·`reminderNextAvailableAt`, FCM registration token 등록 수명주기, 진행 중 공유 링크 조회와 암호화 저장을 제공한다.
 - Unverified items: 실제 Firebase 운영 프로젝트를 통한 푸시 전달은 외부 자격 증명 없이 실행하지 않았다.
 - Remaining risks: legacy 링크 최초 재조회 시 기존 링크 무효화
 - Follow-up work: 운영에서 일괄 전송 지연이 API 시간 제한에 근접할 때만 비동기 작업 또는 Firebase batch 전송을 검토한다.
