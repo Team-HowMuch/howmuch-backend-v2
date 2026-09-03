@@ -7,6 +7,7 @@ import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalog
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
+import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionRefreshStorePort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
@@ -27,6 +28,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -55,6 +58,7 @@ class AccountQueryServiceTest {
     @Mock private LoadAccountPort loadAccountPort;
     @Mock private LoadAccountTransactionPort loadTransactionPort;
     @Mock private SaveAccountTransactionPort saveTransactionPort;
+    @Mock private AccountTransactionRefreshStorePort refreshStorePort;
     @Mock private ExternalConnectionStorePort connectionStorePort;
     @Mock private BankTransactionPort bankTransactionPort;
     @Mock private BankCatalog bankCatalog;
@@ -64,7 +68,7 @@ class AccountQueryServiceTest {
     @BeforeEach
     void setUp() {
         service = new AccountQueryService(
-                currentActorPort, loadAccountPort, loadTransactionPort, saveTransactionPort,
+                currentActorPort, loadAccountPort, loadTransactionPort, saveTransactionPort, refreshStorePort,
                 connectionStorePort, bankTransactionPort, bankCatalog
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
@@ -156,6 +160,82 @@ class AccountQueryServiceTest {
             assertThat(transaction.amount()).isEqualByComparingTo("12500");
         });
         verify(saveTransactionPort).saveSummaryIfAbsent(calculated);
+    }
+
+    @Test
+    @DisplayName("현재 월 refresh marker가 유효하면 CODEF를 호출하지 않는다")
+    void returnsCurrentMonthSummaryWhenRefreshMarkerIsFresh() {
+        YearMonth currentMonth = YearMonth.now(ZoneId.of("Asia/Seoul"));
+        Account account = account(1L, "0020", true, 0);
+        AccountMonthlySummary summary = new AccountMonthlySummary(
+                10L, account.id(), currentMonth, new BigDecimal("12500.0000"), 1,
+                LocalDateTime.now()
+        );
+        when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
+        when(loadTransactionPort.findSummary(account.id(), currentMonth)).thenReturn(Optional.of(summary));
+        when(refreshStorePort.isFresh(account.id(), currentMonth)).thenReturn(true);
+        when(bankCatalog.getBanks()).thenReturn(List.of(
+                new BankCatalogResult("0020", "우리은행", "woori.png")
+        ));
+
+        var result = service.getAccountDetail(account.id(), currentMonth);
+
+        assertThat(result.monthlyExpenseAmount()).isEqualByComparingTo("12500.0000");
+        verifyNoInteractions(connectionStorePort, bankTransactionPort, saveTransactionPort);
+    }
+
+    @Test
+    @DisplayName("현재 월 refresh marker가 만료되면 CODEF를 다시 조회한다")
+    void refreshesCurrentMonthWhenRefreshMarkerIsExpired() {
+        YearMonth currentMonth = YearMonth.now(ZoneId.of("Asia/Seoul"));
+        Account account = account(1L, "0020", true, 0);
+        AccountMonthlySummary summary = new AccountMonthlySummary(
+                10L, account.id(), currentMonth, new BigDecimal("12500.0000"), 1,
+                LocalDateTime.now()
+        );
+        when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
+        when(loadTransactionPort.findSummary(account.id(), currentMonth))
+                .thenReturn(Optional.of(summary), Optional.of(summary));
+        when(refreshStorePort.isFresh(account.id(), currentMonth)).thenReturn(false);
+        when(connectionStorePort.findActiveByIdAndUserId(account.externalConnectionId(), USER_ID))
+                .thenReturn(Optional.of(new ExternalConnection(account.externalConnectionId(), USER_ID, "CID-1")));
+        when(loadAccountPort.findActiveByIdAndUserIdForUpdate(account.id(), USER_ID))
+                .thenReturn(Optional.of(account));
+        when(bankTransactionPort.fetch(
+                "CID-1", "0020", account.externalAccountKey(),
+                currentMonth.atDay(1), currentMonth.atEndOfMonth()
+        )).thenReturn(List.of(new BankTransactionPort.BankTransaction(
+                AccountTransactionType.EXPENSE,
+                new BigDecimal("12500"),
+                LocalDateTime.now(),
+                "테스트 거래",
+                new BigDecimal("1000000")
+        )));
+        when(loadTransactionPort.calculateSummary(account.id(), currentMonth)).thenReturn(summary);
+        when(bankCatalog.getBanks()).thenReturn(List.of(
+                new BankCatalogResult("0020", "우리은행", "woori.png")
+        ));
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.getAccountDetail(account.id(), currentMonth);
+
+            verify(bankTransactionPort).fetch(
+                    "CID-1", "0020", account.externalAccountKey(),
+                    currentMonth.atDay(1), currentMonth.atEndOfMonth()
+            );
+            verify(refreshStorePort, never()).markFresh(
+                    account.id(), currentMonth, java.time.Duration.ofMinutes(1)
+            );
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            verify(refreshStorePort).markFresh(account.id(), currentMonth, java.time.Duration.ofMinutes(1));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
     }
 
     @Test
