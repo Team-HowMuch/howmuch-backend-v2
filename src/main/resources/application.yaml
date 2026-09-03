@@ -54,10 +54,6 @@ howmuch:
       poll-interval: ${SETTLEMENT_NOTIFICATION_OUTBOX_POLL_INTERVAL:1s}
       initial-delay: ${SETTLEMENT_NOTIFICATION_OUTBOX_INITIAL_DELAY:1s}
       batch-size: ${SETTLEMENT_NOTIFICATION_OUTBOX_BATCH_SIZE:50}
-      max-attempts: ${SETTLEMENT_NOTIFICATION_OUTBOX_MAX_ATTEMPTS:5}
-      retry-base-delay: ${SETTLEMENT_NOTIFICATION_OUTBOX_RETRY_BASE_DELAY:5s}
-      retry-max-delay: ${SETTLEMENT_NOTIFICATION_OUTBOX_RETRY_MAX_DELAY:1m}
-      processing-timeout: ${SETTLEMENT_NOTIFICATION_OUTBOX_PROCESSING_TIMEOUT:2m}
   profile:
     image:
       storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}
