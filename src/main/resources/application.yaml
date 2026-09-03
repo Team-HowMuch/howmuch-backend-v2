@@ -49,6 +49,11 @@ howmuch:
       ttl: ${SETTLEMENT_LINK_TTL:720h}
     participant-context:
       ttl: ${SETTLEMENT_PARTICIPANT_CONTEXT_TTL:30m}
+    notification-outbox:
+      enabled: ${SETTLEMENT_NOTIFICATION_OUTBOX_ENABLED:true}
+      poll-interval: ${SETTLEMENT_NOTIFICATION_OUTBOX_POLL_INTERVAL:1s}
+      initial-delay: ${SETTLEMENT_NOTIFICATION_OUTBOX_INITIAL_DELAY:1s}
+      batch-size: ${SETTLEMENT_NOTIFICATION_OUTBOX_BATCH_SIZE:50}
   profile:
     image:
       storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}
