@@ -4,11 +4,12 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface SettlementNotificationOutboxPort {
     void saveAll(List<SettlementNotificationOutbox> events);
 
-    List<SettlementNotificationOutbox> claimReady(int batchSize, LocalDateTime now);
+    Optional<SettlementNotificationOutbox> claimNextReady(LocalDateTime now);
 
     int recoverStale(
             int batchSize,

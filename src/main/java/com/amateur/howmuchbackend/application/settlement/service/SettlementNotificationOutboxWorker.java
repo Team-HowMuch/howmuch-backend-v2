@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -37,13 +36,20 @@ public class SettlementNotificationOutboxWorker {
                 now,
                 retryPolicy.maxAttempts()
         );
-        List<SettlementNotificationOutbox> claimed = outboxPort.claimReady(batchSize, now);
-
+        int claimed = 0;
         int succeeded = 0;
         int retried = 0;
         int failed = 0;
         int ownershipLost = 0;
-        for (SettlementNotificationOutbox event : claimed) {
+        while (claimed < batchSize) {
+            Optional<SettlementNotificationOutbox> candidate = outboxPort.claimNextReady(
+                    LocalDateTime.now(ZoneOffset.UTC)
+            );
+            if (candidate.isEmpty()) {
+                break;
+            }
+            claimed++;
+            SettlementNotificationOutbox event = candidate.get();
             ProcessingResult result = process(event);
             switch (result) {
                 case SUCCEEDED -> succeeded++;
@@ -54,7 +60,7 @@ public class SettlementNotificationOutboxWorker {
         }
         return new BatchResult(
                 recovered,
-                claimed.size(),
+                claimed,
                 succeeded,
                 retried,
                 failed,

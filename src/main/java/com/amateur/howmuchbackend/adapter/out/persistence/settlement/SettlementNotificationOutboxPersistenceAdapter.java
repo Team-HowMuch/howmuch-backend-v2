@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -32,19 +33,19 @@ public class SettlementNotificationOutboxPersistenceAdapter
 
     @Override
     @Transactional
-    public List<SettlementNotificationOutbox> claimReady(int batchSize, LocalDateTime now) {
-        requirePositiveBatchSize(batchSize);
-        List<SettlementNotificationOutboxJpaEntity> entities =
-                repository.findReadyForUpdate(now, batchSize);
-        List<SettlementNotificationOutbox> claimed = entities.stream()
-                .map(SettlementNotificationOutboxMapper::toDomain)
-                .map(event -> event.claim(now))
-                .toList();
-        for (int index = 0; index < entities.size(); index++) {
-            entities.get(index).apply(claimed.get(index));
+    public Optional<SettlementNotificationOutbox> claimNextReady(LocalDateTime now) {
+        Optional<SettlementNotificationOutboxJpaEntity> candidate =
+                repository.findNextReadyForUpdate(now);
+        if (candidate.isEmpty()) {
+            return Optional.empty();
         }
+        SettlementNotificationOutboxJpaEntity entity = candidate.get();
+        SettlementNotificationOutbox claimed = SettlementNotificationOutboxMapper
+                .toDomain(entity)
+                .claim(now);
+        entity.apply(claimed);
         repository.flush();
-        return claimed;
+        return Optional.of(claimed);
     }
 
     @Override

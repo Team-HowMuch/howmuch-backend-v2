@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface SettlementNotificationOutboxJpaRepository
@@ -18,12 +19,11 @@ public interface SettlementNotificationOutboxJpaRepository
              WHERE event.status IN ('PENDING', 'RETRY')
                AND event.next_attempt_at <= :now
              ORDER BY event.next_attempt_at, event.created_at, event.id
-             LIMIT :batchSize
+             LIMIT 1
                FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
-    List<SettlementNotificationOutboxJpaEntity> findReadyForUpdate(
-            @Param("now") LocalDateTime now,
-            @Param("batchSize") int batchSize
+    Optional<SettlementNotificationOutboxJpaEntity> findNextReadyForUpdate(
+            @Param("now") LocalDateTime now
     );
 
     @Query(value = """
