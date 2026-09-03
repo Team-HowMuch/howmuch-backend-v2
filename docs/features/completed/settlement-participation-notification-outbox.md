@@ -1,6 +1,6 @@
 # Feature Plan: 정산 참여 알림 Transactional Outbox
 
-- Status: In Progress
+- Status: Completed
 - Last updated: 2026-09-03
 - Related issue: [#251](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/251), [#252](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/252), [#253](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/253), [#254](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/254), [#255](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/255)
 - Related ADR: N/A — 정산 참여 알림 내부의 전달 신뢰성 변경으로 한정하며 다른 도메인의 메시징 표준으로 일반화하지 않는다.
@@ -19,12 +19,12 @@
 
 ### Success criteria
 
-- [ ] 정산 상태·Share·링크·계좌 스냅샷과 수신자별 Outbox 이벤트가 하나의 트랜잭션으로 커밋된다.
-- [ ] 정산 요청 API가 FCM 응답을 기다리지 않고 기존 응답·상태 계약을 유지한다.
-- [ ] 다중 Worker가 처리 가능한 이벤트를 중복 선점하지 않는다.
-- [ ] 일시 실패는 설정된 backoff와 최대 시도 횟수에 따라 `RETRY` 또는 `FAILED`로 전환된다.
-- [ ] 처리 중 Worker가 종료되면 timeout 뒤 `PROCESSING` 이벤트를 복구한다.
-- [ ] 개선 전과 같은 지연·부분 실패·프로세스 종료 조건에서 성능 분리와 자동 복구를 확인한다.
+- [x] 정산 상태·Share·링크·계좌 스냅샷과 수신자별 Outbox 이벤트가 하나의 트랜잭션으로 커밋된다.
+- [x] 정산 요청 API가 FCM 응답을 기다리지 않고 기존 응답·상태 계약을 유지한다.
+- [x] 다중 Worker가 처리 가능한 이벤트를 중복 선점하지 않는다.
+- [x] 일시 실패는 설정된 backoff와 최대 시도 횟수에 따라 `RETRY` 또는 `FAILED`로 전환된다.
+- [x] 처리 중 Worker가 종료되면 timeout 뒤 `PROCESSING` 이벤트를 복구한다.
+- [x] 개선 전과 같은 지연·부분 실패·프로세스 종료 조건에서 성능 분리와 자동 복구를 확인한다.
 
 ### Out of scope
 
@@ -172,13 +172,13 @@ Existing behavior that must remain unchanged:
 ## 7. Implementation plan
 
 - [x] UseCase and Application Request/Response (`N/A`: 공개 계약 유지)
-- [ ] Required Output Ports
-- [ ] Domain models and rules
-- [ ] Application Service
-- [ ] Output Adapters
+- [x] Required Output Ports
+- [x] Domain models and rules
+- [x] Application Service
+- [x] Output Adapters
 - [x] Web DTOs, Controllers, and Swagger (`N/A`: 계약 변경 없음)
-- [ ] Infra configuration and Bean wiring
-- [ ] Documentation and verification results
+- [x] Infra configuration and Bean wiring
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -205,19 +205,72 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] Purpose에서 정의한 트랜잭션 원자성과 API 지연 분리를 확인한다.
-- [ ] 정상·부분 실패·최대 실패·다중 Worker·프로세스 종료 경계를 확인한다.
-- [ ] 기존 API와 Firebase payload 계약이 유지된다.
-- [ ] 미검증 범위와 at-least-once 한계를 기록한다.
+- [x] Purpose에서 정의한 트랜잭션 원자성과 API 지연 분리를 확인한다.
+- [x] 정상·부분 실패·최대 실패·다중 Worker·프로세스 종료 경계를 확인한다.
+- [x] 기존 API와 Firebase payload 계약이 유지된다.
+- [x] 미검증 범위와 at-least-once 한계를 기록한다.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
-| 기존 관련 테스트 | Passed | 개선 전 `SettlementRequestServiceTest` 4개, `FirebaseSettlementPushSenderAdapterTest` 3개 |
+| 관련 회귀 테스트 | Passed | 개선 후 `SettlementRequestServiceTest` 4개, `FirebaseSettlementPushSenderAdapterTest` 3개 |
+| 스키마 검증 | Passed | 빈 PostgreSQL 18.3에서 V1~V29 29개 migration과 Hibernate validate 통과 |
 | 개선 전 성능 baseline | Passed | 대상·지연 16조건, `p50 ~ 대상×지연` R² 0.99995 |
 | 개선 전 장애 baseline | Passed | 부분 실패 재시도 0, 종료 후 미발송 23건 복구 0 |
-| 개선 후 검증 | Pending | 구현 후 동일 조건 재실행 |
+| 개선 후 API 성능 | Passed | 대상·지연 16조건×100건, HTTP 실패 0; 10명·200ms p50 5.95ms, 30명·500ms p50 21.63ms |
+| 트랜잭션 원자성 | Passed | Outbox unique 충돌 주입 시 HTTP 500, 정산 `DRAFT/version 0`, Share·링크·스냅샷 0건으로 함께 rollback |
+| 부분 실패·최대 실패 | Passed | 매 3번째 실패: 44회 시도 후 30건 전부 성공; 장애 유지: 5건 모두 5회 후 `FAILED` |
+| 장애 해제 복구 | Passed | 최초 5건 `RETRY/attempt 1`, barrier 해제 후 30초에 5건 `SUCCEEDED/attempt 2` |
+| 프로세스 종료 복구 | Passed | 7번째 외부 수락 직후 exit 137, `SUCCEEDED` 6건·`PROCESSING` 24건; 재기동 후 recovered 24건, 최종 성공 30건 |
+| 다중 Worker | Passed | batch 10인 Worker 2개가 30건을 10/20으로 분할 처리, 최종 `attempt 1` 30건 |
+| 전체 테스트 | Partial | 깨끗한 격리 DB에서 590개 중 587개 통과. develop에서도 변경되지 않은 기존 테스트 3개가 누락 mock 2개·0원 Domain 생성 1개로 실패 |
+
+#### 개선 후 응답시간 matrix
+
+요청 경로만 분리하기 위해 Worker를 정지하고, 조건별 warm-up 10건 후 VU 5로 100건을 측정했다. 지연은 Fake Sender에 설정했지만 요청 중 Sender 호출은 0건이었다.
+
+| 대상자 | 외부 지연 | p50 | p95 | p99 |
+|---:|---:|---:|---:|---:|
+| 1 | 0ms | 3.864ms | 13.305ms | 17.584ms |
+| 1 | 50ms | 3.581ms | 8.098ms | 44.571ms |
+| 1 | 200ms | 3.912ms | 7.530ms | 16.260ms |
+| 1 | 500ms | 4.128ms | 9.016ms | 15.028ms |
+| 5 | 0ms | 4.909ms | 8.198ms | 19.648ms |
+| 5 | 50ms | 6.444ms | 11.834ms | 17.874ms |
+| 5 | 200ms | 5.061ms | 9.259ms | 15.073ms |
+| 5 | 500ms | 4.765ms | 9.691ms | 17.516ms |
+| 10 | 0ms | 6.579ms | 14.574ms | 21.528ms |
+| 10 | 50ms | 7.327ms | 9.580ms | 22.843ms |
+| 10 | 200ms | 5.947ms | 11.340ms | 19.829ms |
+| 10 | 500ms | 8.303ms | 10.240ms | 15.911ms |
+| 30 | 0ms | 15.532ms | 29.292ms | 52.562ms |
+| 30 | 50ms | 17.129ms | 22.261ms | 30.896ms |
+| 30 | 200ms | 14.249ms | 28.360ms | 29.765ms |
+| 30 | 500ms | 21.634ms | 27.379ms | 31.404ms |
+
+다중 회귀 `p50 = 절편 + 대상자 수 + 외부 지연`에서 대상자 1명당 0.466ms, 외부 지연 1ms당 0.00324ms, R² 0.9316이었다. 즉 외부 지연 누적은 제거됐고, 남은 증가는 수신자별 Outbox insert 비용으로 설명된다. 10명·200ms p50은 2,050.0ms에서 5.95ms로 99.71%, 30명·500ms는 15,138.7ms에서 21.63ms로 99.86% 감소했다.
+
+#### VU별 처리량
+
+참여자 10명, Worker 정지, warm-up 10건 후 VU별 1,000건을 요청했다.
+
+| VU | p50 | p95 | p99 | 처리량 |
+|---:|---:|---:|---:|---:|
+| 1 | 5.189ms | 9.086ms | 15.204ms | 166.0 req/s |
+| 5 | 6.296ms | 8.978ms | 11.176ms | 654.8 req/s |
+| 10 | 14.392ms | 32.695ms | 120.020ms | 501.3 req/s |
+
+VU 10은 VU 5보다 처리량이 낮고 tail latency가 커졌다. 외부 I/O는 분리됐지만 이 환경의 DB connection·쓰기 경쟁 임계점이 VU 5~10 사이에 있음을 나타낸다.
+
+#### 장애·경계 검증
+
+- 매 3번째 발송을 실패시킨 30명 정산은 최초 성공 20건·실패 10건에서 재시도를 거쳐 44회 시도, 성공 30건·실패 14건으로 종료했다. 최종 시도 분포는 1회 20건, 2회 7건, 3회 2건, 4회 1건이었다.
+- 전체 장애를 계속 유지하면 5건 모두 최대 5회 시도 후 `FAILED`로 수렴했다. 다시 장애 barrier를 해제한 실험에서는 `RETRY/attempt 1` 5건이 30초 후 `SUCCEEDED/attempt 2` 5건으로 자동 복구됐다.
+- 30건 선점 후 7번째 외부 수락 직후 프로세스를 exit 137로 종료하면 DB에 `SUCCEEDED` 6건·`PROCESSING` 24건이 남았다. 재기동 후 Worker가 stale 24건을 복구해 모두 성공시켰고, 동일 요청은 기존과 같이 409 `INVALID_SETTLEMENT_STATUS_TRANSITION`을 반환했다.
+- 외부에서는 종료 전 7건과 재기동 후 24건, 총 31건이 수락됐다. 종료 직전 1건의 중복은 DB와 FCM 사이에 exactly-once를 보장할 수 없는 at-least-once 한계를 실제로 확인한 결과다.
+- batch 10인 Worker 2개는 30건을 10건과 20건으로 나눠 처리했고, 모든 이벤트의 `attemptCount`는 1이었다.
+- 기존 Outbox 행을 미리 삽입해 unique 충돌을 발생시키면 HTTP 500이 반환됐고, 정산은 `DRAFT/version 0`, Share·링크·계좌 스냅샷은 0건으로 유지돼 원자적 rollback을 확인했다.
 
 ## 9. Progress log
 
@@ -225,6 +278,8 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-09-03 | 실제 API 기반 개선 전 성능·부분 실패·프로세스 종료 baseline 확립 | Outbox migration과 구현 | 커밋 후 direct 발송은 성공 응답과 전달 유실을 분리해 관측하지 못함 |
 | 2026-09-03 | #251~#255 생성·연결, 최신 develop 기준 설계 확정 | V29와 Domain·Persistence 구현 | timeout 경계 중복은 exactly-once 없이 제거할 수 없음 |
+| 2026-09-03 | V29, Outbox Domain·Port·Adapter, polling Worker·Scheduler 구현 | 격리 성능·장애 재측정 | Outbox insert가 대상자 1명당 약 0.47ms 증가하는 새 DB 비용이 됨 |
+| 2026-09-03 | 16조건 k6, VU, 부분·지속 장애, 30초 복구, crash, 다중 Worker, rollback 검증 | 완료 | VU 10 DB 경쟁과 at-least-once 중복 1건을 계량함 |
 
 ## 10. Decision log
 
@@ -238,8 +293,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- Completed on: 2026-09-03
+- Final behavior: 정산 요청은 정산 데이터와 수신자별 Outbox를 함께 커밋한 뒤 외부 호출 없이 응답한다. Worker는 `SKIP LOCKED`로 선점하고 지수 backoff·최대 5회·stale timeout 복구를 적용한다.
+- Unverified items: 실제 운영 FCM 지연 분포, 기기 표시 성공, 운영 인프라의 최대 처리량은 검증하지 않았다.
+- Remaining risks: FCM 수락 후 DB 완료 기록 전 종료되면 중복 발송될 수 있다. VU 10에서 DB 쓰기 경쟁으로 p99 120.0ms와 처리량 하락이 관측됐다.
+- Follow-up work: 운영 지표·경보, 수동 재처리 UI/API, Outbox retention 정책, 필요 시 insert batching을 별도 이슈로 다룬다.
