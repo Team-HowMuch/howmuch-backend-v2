@@ -1,0 +1,140 @@
+package com.amateur.howmuchbackend.application.settlement.service;
+
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementNotificationOutboxPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementShareLinkStorePort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementNotificationRetryPolicy;
+import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
+import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
+import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
+import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.UserRole;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("정산 참여 알림 Outbox Worker")
+class SettlementNotificationOutboxWorkerTest {
+    private static final UUID SETTLEMENT_ID =
+            UUID.fromString("7c33b1fb-82f1-4a45-a834-a015a26b2ba6");
+    private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 9, 3, 12, 0);
+    private static final String RAW_TOKEN = "r".repeat(43);
+    private static final String TOKEN_HASH = "a".repeat(64);
+    private static final String URL = "https://howmuch.example/settlements/" + RAW_TOKEN;
+
+    @Mock private SettlementNotificationOutboxPort outboxPort;
+    @Mock private LoadUserPort loadUserPort;
+    @Mock private SettlementShareLinkStorePort shareLinkStorePort;
+    @Mock private SettlementLinkTokenPort linkTokenPort;
+    @Mock private SettlementPushSenderPort pushSenderPort;
+
+    private SettlementNotificationOutboxWorker worker;
+
+    @BeforeEach
+    void setUp() {
+        worker = new SettlementNotificationOutboxWorker(
+                outboxPort,
+                loadUserPort,
+                shareLinkStorePort,
+                linkTokenPort,
+                pushSenderPort,
+                new SettlementNotificationRetryPolicy()
+        );
+    }
+
+    @Test
+    @DisplayName("앞선 알림 발송을 완료한 뒤 다음 이벤트를 선점한다")
+    void claimsEachEventImmediatelyBeforeDelivery() {
+        SettlementNotificationOutbox first = processingEvent(1L);
+        SettlementNotificationOutbox second = processingEvent(2L);
+        when(outboxPort.recoverStale(eq(2), any(), any(), eq(5))).thenReturn(0);
+        when(outboxPort.claimNextReady(any()))
+                .thenReturn(Optional.of(first))
+                .thenReturn(Optional.of(second));
+        when(loadUserPort.findById(1L)).thenReturn(Optional.of(user(1L, "fid-1")));
+        when(loadUserPort.findById(2L)).thenReturn(Optional.of(user(2L, "fid-2")));
+        when(shareLinkStorePort.findBySettlementId(SETTLEMENT_ID)).thenReturn(Optional.of(
+                new SettlementShareLinkStorePort.StoredSettlementShareLink(link(), RAW_TOKEN)
+        ));
+        when(linkTokenPort.hash(RAW_TOKEN)).thenReturn(TOKEN_HASH);
+        when(linkTokenPort.url(RAW_TOKEN)).thenReturn(URL);
+        when(pushSenderPort.sendParticipationRequest(any(), eq(SETTLEMENT_ID), eq(URL)))
+                .thenReturn(SettlementPushSenderPort.SendResult.SENT);
+        when(outboxPort.transitionFromProcessing(any(), any())).thenReturn(true);
+
+        SettlementNotificationOutboxWorker.BatchResult result = worker.processBatch(2);
+
+        assertThat(result.claimed()).isEqualTo(2);
+        assertThat(result.succeeded()).isEqualTo(2);
+        assertThat(result.ownershipLost()).isZero();
+
+        InOrder deliveryOrder = inOrder(outboxPort, pushSenderPort);
+        deliveryOrder.verify(outboxPort).recoverStale(eq(2), any(), any(), eq(5));
+        deliveryOrder.verify(outboxPort).claimNextReady(any());
+        deliveryOrder.verify(pushSenderPort)
+                .sendParticipationRequest("fid-1", SETTLEMENT_ID, URL);
+        deliveryOrder.verify(outboxPort).transitionFromProcessing(any(), any());
+        deliveryOrder.verify(outboxPort).claimNextReady(any());
+        deliveryOrder.verify(pushSenderPort)
+                .sendParticipationRequest("fid-2", SETTLEMENT_ID, URL);
+        deliveryOrder.verify(outboxPort).transitionFromProcessing(any(), any());
+    }
+
+    private SettlementNotificationOutbox processingEvent(Long recipientUserId) {
+        return SettlementNotificationOutbox
+                .pending(SETTLEMENT_ID, recipientUserId, CREATED_AT)
+                .claim(CREATED_AT);
+    }
+
+    private SettlementLink link() {
+        return new SettlementLink(
+                UUID.randomUUID(),
+                SETTLEMENT_ID,
+                TOKEN_HASH,
+                SettlementLinkStatus.ACTIVE,
+                LocalDateTime.of(2099, 1, 1, 0, 0),
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+
+    private User user(Long id, String fcmToken) {
+        return new User(
+                id,
+                "identity-" + id,
+                "참여자" + id,
+                "participant_" + id,
+                null,
+                null,
+                "0100000000" + id,
+                "pin-hash",
+                fcmToken,
+                null,
+                true,
+                UserRole.USER,
+                true,
+                null,
+                CREATED_AT,
+                null,
+                CREATED_AT,
+                CREATED_AT
+        );
+    }
+}
