@@ -45,7 +45,7 @@
 
 - 기존 DB 거래는 외부 거래 Key로 중복 저장하지 않는다.
 - 신규 거래가 저장되면 해당 월의 summary를 삭제하고 다음 조회에서 다시 계산한다.
-- Redis marker는 조회 성공 후에만 기록한다.
+- Redis marker는 DB 트랜잭션 커밋 성공 후에만 기록한다.
 
 ## 3. Scenarios
 
@@ -141,6 +141,7 @@ git status --short --untracked-files=all
 |---|---|---|
 | Current-month marker hit skips CODEF | Passed | `AccountQueryServiceTest.returnsCurrentMonthSummaryWhenRefreshMarkerIsFresh` |
 | Current-month marker miss refreshes CODEF | Passed | `AccountQueryServiceTest.refreshesCurrentMonthWhenRefreshMarkerIsExpired` |
+| Refresh marker is published after commit | Passed | `AccountQueryServiceTest.refreshesCurrentMonthWhenRefreshMarkerIsExpired` |
 | Focused test | Passed | `./gradlew test --tests 'com.amateur.howmuchbackend.application.account.service.AccountQueryServiceTest'` |
 | Compile and diff check | Passed | `./gradlew compileJava`, `git diff --check` |
 

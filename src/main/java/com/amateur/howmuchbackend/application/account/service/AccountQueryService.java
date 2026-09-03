@@ -28,6 +28,8 @@ import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatu
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -160,9 +162,22 @@ public class AccountQueryService
         boolean refreshMarkerRequired = yearMonth.equals(currentMonth);
         AccountMonthlySummary refreshed = refreshSummary(account, yearMonth);
         if (refreshMarkerRequired) {
-            refreshStorePort.markFresh(account.id(), yearMonth, CURRENT_MONTH_REFRESH_TTL);
+            markRefreshFreshAfterCommit(account.id(), yearMonth);
         }
         return refreshed;
+    }
+
+    private void markRefreshFreshAfterCommit(Long accountId, YearMonth yearMonth) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                refreshStorePort.markFresh(accountId, yearMonth, CURRENT_MONTH_REFRESH_TTL);
+            }
+        });
     }
 
     private AccountMonthlySummary refreshSummary(Account account, YearMonth yearMonth) {

@@ -28,6 +28,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -214,13 +216,26 @@ class AccountQueryServiceTest {
                 new BankCatalogResult("0020", "우리은행", "woori.png")
         ));
 
-        service.getAccountDetail(account.id(), currentMonth);
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.getAccountDetail(account.id(), currentMonth);
 
-        verify(bankTransactionPort).fetch(
-                "CID-1", "0020", account.externalAccountKey(),
-                currentMonth.atDay(1), currentMonth.atEndOfMonth()
-        );
-        verify(refreshStorePort).markFresh(account.id(), currentMonth, java.time.Duration.ofMinutes(1));
+            verify(bankTransactionPort).fetch(
+                    "CID-1", "0020", account.externalAccountKey(),
+                    currentMonth.atDay(1), currentMonth.atEndOfMonth()
+            );
+            verify(refreshStorePort, never()).markFresh(
+                    account.id(), currentMonth, java.time.Duration.ofMinutes(1)
+            );
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            verify(refreshStorePort).markFresh(account.id(), currentMonth, java.time.Duration.ofMinutes(1));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
     }
 
     @Test
