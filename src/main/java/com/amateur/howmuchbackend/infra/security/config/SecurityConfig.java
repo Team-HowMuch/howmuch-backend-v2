@@ -54,6 +54,7 @@ public class SecurityConfig {
                                 "/api/v2/auth/token/refresh"
                         ).permitAll()
                         .requestMatchers("/api/v2/settlement-links/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v2/group-invites/{code}").permitAll()
                         .requestMatchers(
                                 "/admin/common-codes",
                                 "/admin/common-codes/**",

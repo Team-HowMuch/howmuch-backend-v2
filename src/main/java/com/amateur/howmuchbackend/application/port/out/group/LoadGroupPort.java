@@ -9,6 +9,8 @@ public interface LoadGroupPort {
 
     Optional<Group> findByIdForUpdate(Long groupId);
 
+    Optional<Group> findByInviteCode(String inviteCode);
+
     Optional<Group> findByInviteCodeForUpdate(String inviteCode);
 
     boolean existsByInviteCode(String inviteCode);
