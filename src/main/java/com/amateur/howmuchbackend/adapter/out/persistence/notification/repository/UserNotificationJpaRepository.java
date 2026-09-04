@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.notification.repository;
 
+import com.amateur.howmuchbackend.domain.notification.UserNotification;
+
 import com.amateur.howmuchbackend.adapter.out.persistence.notification.entity.UserNotificationJpaEntity;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
@@ -30,5 +32,5 @@ public interface UserNotificationJpaRepository extends JpaRepository<UserNotific
                 :#{#n.deduplicationKey()},:#{#n.createdAt()},:#{#n.createdAt()})
             ON CONFLICT (recipient_user_id,deduplication_key) DO NOTHING
             """, nativeQuery = true)
-    int insertIfAbsent(@Param("n") com.amateur.howmuchbackend.domain.notification.UserNotification notification);
+    int insertIfAbsent(@Param("n") UserNotification notification);
 }

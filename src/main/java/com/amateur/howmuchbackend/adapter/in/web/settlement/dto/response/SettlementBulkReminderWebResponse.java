@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 @Schema(description = "정산 일괄 독촉 결과")
 public record SettlementBulkReminderWebResponse(
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "알림함 생성 수. 실제 FCM 수락 수가 아님")
         int sentCount,
         @Schema(
                 requiredMode = Schema.RequiredMode.REQUIRED,

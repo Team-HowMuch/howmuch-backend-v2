@@ -5,6 +5,8 @@
 - Related issue: follow-up [#245](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/245)
 - Related ADR: N/A
 
+> 2026-09-05 계약 변경: [알림함 클라이언트 계약](../completed/notification-inbox-client-contract.md)에 따라 수동 독촉은 알림함·Outbox 저장 후 응답합니다. `sentCount`는 알림 생성 수이며 토큰 부재·푸시 장애는 수동 API 실패 조건이 아닙니다. 아래 내용은 최초 구현 시점의 기록입니다.
+
 ## 1. Purpose
 
 ### Problem

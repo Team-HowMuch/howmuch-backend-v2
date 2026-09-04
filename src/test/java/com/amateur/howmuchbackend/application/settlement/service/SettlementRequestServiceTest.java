@@ -382,7 +382,7 @@ class SettlementRequestServiceTest {
                 null,
                 "01087654321",
                 "pin-hash",
-                "firebase-installation-id",
+                null,
                 null,
                 true,
                 UserRole.USER,

@@ -90,7 +90,7 @@ public class SettlementReminderWriter {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) {
+                if (status == STATUS_ROLLED_BACK) {
                     release(settlement.id(), target.participant().id(), reservation);
                 }
             }

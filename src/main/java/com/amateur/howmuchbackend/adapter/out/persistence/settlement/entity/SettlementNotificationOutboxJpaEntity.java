@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity;
 
+import java.util.Objects;
+
 import com.amateur.howmuchbackend.adapter.out.persistence.common.BaseTimeJpaEntity;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationFailureCode;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
@@ -64,7 +66,7 @@ public class SettlementNotificationOutboxJpaEntity extends BaseTimeJpaEntity {
     }
 
     public void apply(SettlementNotificationOutbox event) {
-        if (!java.util.Objects.equals(notificationId, event.notificationId())
+        if (!Objects.equals(notificationId, event.notificationId())
                 || !id.equals(event.id())
                 || !settlementId.equals(event.settlementId())
                 || !recipientUserId.equals(event.recipientUserId())) {

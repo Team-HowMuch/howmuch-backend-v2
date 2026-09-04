@@ -1,6 +1,6 @@
 # Feature Plan: 회원 알림함과 정산 자동 리마인드
 
-- Status: In progress
+- Status: Implemented
 - Last updated: 2026-09-05
 - Related issue: #269, #270, #272, #273, #274, #275
 - Related ADR: N/A
@@ -11,11 +11,11 @@
 
 ### Success criteria
 
-- [ ] 본인 목록·미읽음 개수·최초 읽음 시각 처리
-- [ ] 정산 요청·알림·Outbox 원자성 및 중복 방지
-- [ ] 수동 독촉은 저장 후 응답, 기존 30분 쿨다운 유지
-- [ ] 확정 Share 생성 24시간 이후 미납 자동 독촉 1회
-- [ ] 레거시 발송 재시도·복구와 기존 API 권한 유지
+- [x] 본인 목록·미읽음 개수·최초 읽음 시각 처리
+- [x] 정산 요청·알림·Outbox 원자성 및 중복 방지
+- [x] 수동 독촉은 저장 후 응답, 기존 30분 쿨다운 유지
+- [x] 확정 Share 생성 24시간 이후 미납 자동 독촉 1회
+- [x] 레거시 발송 재시도·복구와 기존 API 권한 유지
 
 ### Out of scope
 
@@ -62,12 +62,12 @@ notification Domain/Application/Web/Persistence 신규, 정산 요청·독촉·O
 ## 7. Implementation plan
 
 - [x] Migration-only PR #276 병합
-- [ ] UseCase·Command/Result·필요한 Output Ports
-- [ ] Domain 상태와 Application Policy
-- [ ] Application Service와 Outbound Adapter
-- [ ] Web DTO·Controller·Swagger
-- [ ] Infra 자동 독촉 설정·스케줄러
-- [ ] 검증 결과와 문서 완료
+- [x] UseCase·Command/Result·필요한 Output Ports
+- [x] Domain 상태와 Application Policy
+- [x] Application Service와 Outbound Adapter
+- [x] Web DTO·Controller·Swagger
+- [x] Infra 자동 독촉 설정·스케줄러
+- [x] 검증 결과와 문서 완료
 
 ### Expected commit boundaries
 
@@ -87,11 +87,25 @@ test(notification): 권한과 알림 생성·발송 회귀 검증
 
 ### Results
 
-Pending.
+- `./gradlew compileJava`: 통과.
+- 격리 PostgreSQL `howmuch_notification_impl`·로컬 Redis에서 관련 7개 테스트 클래스 **51개 통과**. 이 중 DB/Web 통합 테스트 15개는 실제 저장·동시성·롤백·인증·OpenAPI를 검증했다.
+- 전체 `./gradlew test`: **689개 중 686개 통과, 3개 실패**. 전체 성공으로 보고하지 않는다.
+- 실패 3개는 기준 `origin/develop`(5da0163) 격리 복사본에서도 동일하게 재현했다: `SettlementAmountDeserializationTest` 2개는 기존 `RenameSettlementParticipantUseCase` mock 누락, `SettlementListPersistenceIntegrationTest.hidesDraftSettlement`는 기존 0원 초안 fixture가 현재 Domain 검증에 거부됨. 이번 범위 밖이므로 수정하지 않았다.
+- 테스트 실행 시 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, 테스트용 `DISCORD_SMS_WEBHOOK_URL=http://127.0.0.1:9/unused`, `SETTLEMENT_NOTIFICATION_OUTBOX_ENABLED=false`, `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=3`을 사용했다. 초기 전체 실행의 SMS 설정 부재·DB 연결 한도 오류는 테스트 환경을 보완한 최종 실행에서 해소했다.
+- `local` 프로필 실제 `bootRun`(18085) 성공. Flyway V31 및 Hibernate validate 성공, `/v3/api-docs`의 3개 API와 응답 필드 확인, 실제 HTTP에서 모두 미인증 401 확인. 검증 후 해당 서버 종료.
+- `git diff --check` 및 변경 문서 상대 링크 검증 통과.
+- 실제 모바일 화면·실제 Firebase 발송·배포 환경 전환은 미실행. Firebase payload는 mock SDK 및 Worker 테스트로 검증했다.
+
+### Verified scenarios
+
+동일 생성 시각 커서 경계, 본인만 조회·읽음 및 타인/미존재 동일404, 동시 읽음 최초 시각 유지, 정산 삭제 후 내용 보존, 요청 중복 저장 시 Outbox 한 건, 토큰 없는 알림 보존, Outbox 저장 실패 시 DB·Redis 예약 롤백, 원래 상태 변경과 알림 원자 롤백, 24시간 직전/정각/이후, 과거 요청 없는 정산·미제출·비활성·완료·입금 대상 제외, 후보 조회 뒤 입금 재확인, 수동/자동 동시 실행 및 쿨다운 후 재평가, 다중 실행·재시작 후 자동 독촉 1회, 신규/레거시 payload·실패 재시도·오래된 선점 복구.
 
 ## 9. Progress log
 
 - 2026-09-05: V31 병합과 최신 develop 확인. 추가 migration 없이 구현 시작.
+- 2026-09-05: API·알림 저장·Outbox·수동 독촉·자동 독촉을 계획한 기능 커밋으로 분리했다.
+- 2026-09-05: 후보 조회는 기존 Share 저장/조회와 같은 JPA 시각 바인딩으로 통일했다. 로컬 JVM 시간대에서도 24시간 기준이 일치함을 통합 테스트했다.
+- 2026-09-05: legacy allocationType=null인 기존 정산의 수동 독촉은 DUTCH_PAY로 표시해 기존 독촉 가능 대상을 유지했다. 신규 요청은 확정된 allocationType을 사용한다.
 
 ## 10. Decision log
 
@@ -99,7 +113,7 @@ Pending.
 
 ## 11. Completion record
 
-Pending.
+구현·관련 검증 완료. 브랜치 `feat/notification-inbox`, PR 대상 `develop`. 마이그레이션 PR #276과 별도이며 추가 SQL 변경은 없다. [클라이언트 계약](notification-inbox-client-contract.md)에 화면 연결과 배포 설정을 기록했다. 전체 테스트의 기존 실패 3개와 실제 FCM/모바일 미검증 범위는 PR에도 명시한다.
 
 ### Rollout
 
