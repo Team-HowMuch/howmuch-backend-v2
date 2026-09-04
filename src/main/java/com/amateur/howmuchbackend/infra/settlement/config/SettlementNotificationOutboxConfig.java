@@ -6,6 +6,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Configuration
 @EnableScheduling
-@EnableConfigurationProperties(SettlementNotificationOutboxProperties.class)
+@EnableConfigurationProperties({SettlementNotificationOutboxProperties.class, SettlementAutomaticReminderProperties.class})
 public class SettlementNotificationOutboxConfig {
 }

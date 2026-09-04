@@ -19,6 +19,14 @@ import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import com.amateur.howmuchbackend.application.notification.service.NotificationRecorder;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementReminderPolicy;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import java.time.Clock;
+import java.time.ZoneOffset;
+import static org.mockito.Mockito.lenient;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,16 +51,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("미납 참여자 앱 푸시 독촉")
 class SettlementReminderServiceTest {
-    private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
-    private static final UUID PARTICIPANT_ID = UUID.fromString("09ac164a-35d6-4549-bff4-b7b4c375d2aa");
-    private static final UUID SHARE_ID = UUID.fromString("063338bb-bc17-471a-b917-723f37788857");
-    private static final UUID UNLINKED_PARTICIPANT_ID = UUID.fromString("ee3c8674-7d99-4fe3-bf21-154ed54b532a");
+    private static final UUID SETTLEMENT_ID = UUID.randomUUID();
+    private static final UUID PARTICIPANT_ID = UUID.randomUUID();
+    private static final UUID SHARE_ID = UUID.randomUUID();
+    private static final UUID UNLINKED_PARTICIPANT_ID = UUID.randomUUID();
     private static final Long CREATOR_ID = 1L;
     private static final Long PAYER_ID = 2L;
-    private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 29, 9, 0);
-
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 5, 9, 0);
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
@@ -61,235 +67,165 @@ class SettlementReminderServiceTest {
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementReminderCooldownPort cooldownPort;
     @Mock private SettlementReminderCooldownReader cooldownReader;
-    @Mock private SettlementPushSenderPort pushSenderPort;
-
+    @Mock private NotificationRecorder recorder;
+    @Mock private com.amateur.howmuchbackend.application.port.out.settlement.SettlementAutomaticReminderTargetPort automaticTargets;
+    private SettlementReminderWriter writer;
     private SettlementReminderService service;
 
     @BeforeEach
     void setUp() {
-        service = new SettlementReminderService(
-                currentActorPort,
-                loadSettlementPort,
-                loadSettlementParticipantPort,
-                loadSettlementSharePort,
-                loadSettlementDepositSummaryPort,
-                loadUserPort,
-                cooldownPort,
-                cooldownReader,
-                pushSenderPort
-        );
+        var policy = new SettlementReminderPolicy();
+        writer = new SettlementReminderWriter(loadSettlementPort, loadSettlementParticipantPort,
+                loadSettlementSharePort, loadSettlementDepositSummaryPort, loadUserPort, cooldownPort,
+                recorder, policy, Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC), automaticTargets);
+        service = new SettlementReminderService(currentActorPort, loadSettlementPort,
+                loadSettlementParticipantPort, writer, policy, cooldownReader);
+        TransactionSynchronizationManager.initSynchronization();
+        lenient().when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
     }
 
-    @Test
-    @DisplayName("생성자가 입금 전 회원에게 푸시를 보내고 30분 재요청 시각을 반환한다")
-    void sendsReminderToUnpaidLinkedParticipant() {
-        givenUnpaidTarget();
-        when(cooldownPort.reserve(
-                eq(SETTLEMENT_ID),
-                eq(PARTICIPANT_ID),
-                anyString(),
-                eq(Duration.ofMinutes(30))
-        )).thenReturn(true);
-        when(pushSenderPort.sendReminder("firebase-installation-id", SETTLEMENT_ID))
-                .thenReturn(SettlementPushSenderPort.SendResult.SENT);
+    @AfterEach
+    void clearTransaction() { TransactionSynchronizationManager.clearSynchronization(); }
 
+    @Test
+    void storesReminderAndKeepsCooldownOnCommitWithoutFcmToken() {
+        givenTarget();
+        when(cooldownPort.reserve(any(), any(), anyString(), eq(Duration.ofMinutes(30)))).thenReturn(true);
+        when(recorder.record(any())).thenReturn(true);
         var result = service.remind(SETTLEMENT_ID, PARTICIPANT_ID);
-
-        assertThat(Duration.between(result.remindedAt(), result.nextAvailableAt()))
-                .isEqualTo(Duration.ofMinutes(30));
-        verify(pushSenderPort).sendReminder("firebase-installation-id", SETTLEMENT_ID);
-        verify(cooldownPort, never()).release(any(), any(), anyString());
-    }
-
-    @Test
-    @DisplayName("전체 독촉은 발송 가능한 미납 회원만 보내고 실제 발송 수를 반환한다")
-    void sendsBulkRemindersToEligibleParticipants() {
-        givenBulkTarget();
-        when(cooldownPort.reserve(
-                eq(SETTLEMENT_ID),
-                eq(PARTICIPANT_ID),
-                anyString(),
-                eq(Duration.ofMinutes(30))
-        )).thenReturn(true);
-        when(pushSenderPort.sendReminder("firebase-installation-id", SETTLEMENT_ID))
-                .thenReturn(SettlementPushSenderPort.SendResult.SENT);
-        when(cooldownReader.findLatestNextAvailableAt(
-                eq(SETTLEMENT_ID),
-                eq(List.of(PARTICIPANT_ID))
-        )).thenReturn(Optional.of(NOW.plusMinutes(30)));
-
-        var result = service.remindAll(SETTLEMENT_ID);
-
-        assertThat(result.sentCount()).isEqualTo(1);
+        assertThat(result.remindedAt()).isEqualTo(NOW);
         assertThat(result.nextAvailableAt()).isEqualTo(NOW.plusMinutes(30));
-        verify(pushSenderPort).sendReminder("firebase-installation-id", SETTLEMENT_ID);
+        var captured = ArgumentCaptor.forClass(com.amateur.howmuchbackend.domain.notification.UserNotification.class);
+        verify(recorder).record(captured.capture());
+        assertThat(captured.getValue().recipientUserId()).isEqualTo(PAYER_ID);
+        complete(TransactionSynchronization.STATUS_COMMITTED);
+        verify(cooldownPort, never()).release(any(), any(), any());
     }
 
     @Test
-    @DisplayName("전체 독촉 대상이 쿨다운 중이면 발송 없이 기존 다음 가능 시각을 반환한다")
-    void returnsExistingCooldownWhenBulkSkipsAllCandidates() {
-        givenBulkTarget();
-        when(cooldownPort.reserve(
-                eq(SETTLEMENT_ID),
-                eq(PARTICIPANT_ID),
-                anyString(),
-                eq(Duration.ofMinutes(30))
-        )).thenReturn(false);
-        when(cooldownReader.findLatestNextAvailableAt(
-                eq(SETTLEMENT_ID),
-                eq(List.of(PARTICIPANT_ID))
-        )).thenReturn(Optional.of(NOW.plusMinutes(20)));
-
-        var result = service.remindAll(SETTLEMENT_ID);
-
-        assertThat(result.sentCount()).isZero();
-        assertThat(result.nextAvailableAt()).isEqualTo(NOW.plusMinutes(20));
-        verifyNoInteractions(pushSenderPort);
+    void releasesOnlyOwnedReservationOnCommitFailure() {
+        givenTarget();
+        when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
+        when(recorder.record(any())).thenReturn(true);
+        service.remind(SETTLEMENT_ID, PARTICIPANT_ID);
+        complete(TransactionSynchronization.STATUS_ROLLED_BACK);
+        var reservation = ArgumentCaptor.forClass(String.class);
+        verify(cooldownPort).reserve(eq(SETTLEMENT_ID), eq(PARTICIPANT_ID), reservation.capture(), any());
+        verify(cooldownPort).release(SETTLEMENT_ID, PARTICIPANT_ID, reservation.getValue());
     }
 
     @Test
-    @DisplayName("전체 독촉 후보가 없으면 다음 가능 시각을 반환하지 않는다")
-    void returnsNullNextAvailableAtWithoutBulkCandidate() {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
-        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of(unlinkedParticipant()));
-        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of());
+    void releasesReservationWhenStorageFails() {
+        givenTarget();
+        when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
+        when(recorder.record(any())).thenThrow(new IllegalStateException("database unavailable"));
+        assertThatThrownBy(() -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID)).isInstanceOf(IllegalStateException.class);
+        complete(TransactionSynchronization.STATUS_ROLLED_BACK);
+        verify(cooldownPort).release(eq(SETTLEMENT_ID), eq(PARTICIPANT_ID), anyString());
+    }
+
+    @Test
+    void respectsExistingCooldown() {
+        givenTarget();
+        assertStatus(SettlementStatusCode.SETTLEMENT_REMINDER_COOLDOWN_ACTIVE,
+                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID));
+        verifyNoInteractions(recorder);
+    }
+
+    @Test
+    void refusesPartialPayment() {
+        givenTarget();
         when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of());
-        when(cooldownReader.findLatestNextAvailableAt(
-                eq(SETTLEMENT_ID),
-                eq(List.of())
-        )).thenReturn(Optional.empty());
-
-        var result = service.remindAll(SETTLEMENT_ID);
-
-        assertThat(result.sentCount()).isZero();
-        assertThat(result.nextAvailableAt()).isNull();
-        verifyNoInteractions(cooldownPort, pushSenderPort);
+                .thenReturn(List.of(new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(SHARE_ID, 1)));
+        assertStatus(SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID,
+                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID));
+        verifyNoInteractions(cooldownPort, recorder);
     }
 
     @Test
-    @DisplayName("일부라도 입금된 참여자는 독촉하지 않는다")
-    void rejectsPartiallyPaidParticipant() {
-        givenTargetBeforeDepositLookup();
-        when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of(
-                        new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(SHARE_ID, 100)
-                ));
-
-        assertStatus(
-                SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID,
-                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID)
-        );
-
-        verifyNoInteractions(cooldownPort, pushSenderPort);
-    }
-
-    @Test
-    @DisplayName("같은 참여자의 30분 예약이 있으면 푸시를 중복 발송하지 않는다")
-    void rejectsReminderDuringCooldown() {
-        givenUnpaidTarget();
-        when(cooldownPort.reserve(
-                eq(SETTLEMENT_ID),
-                eq(PARTICIPANT_ID),
-                anyString(),
-                eq(Duration.ofMinutes(30))
-        )).thenReturn(false);
-
-        assertStatus(
-                SettlementStatusCode.SETTLEMENT_REMINDER_COOLDOWN_ACTIVE,
-                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID)
-        );
-
-        verifyNoInteractions(pushSenderPort);
-    }
-
-    @Test
-    @DisplayName("푸시 발송이 실패하면 자신의 Redis 예약만 해제한다")
-    void releasesReservationWhenDeliveryFails() {
-        givenUnpaidTarget();
-        when(cooldownPort.reserve(
-                eq(SETTLEMENT_ID),
-                eq(PARTICIPANT_ID),
-                anyString(),
-                eq(Duration.ofMinutes(30))
-        )).thenReturn(true);
-        when(pushSenderPort.sendReminder("firebase-installation-id", SETTLEMENT_ID))
-                .thenThrow(ApplicationException.of(
-                        SettlementStatusCode.SETTLEMENT_REMINDER_DELIVERY_FAILED
-                ));
-
-        assertStatus(
-                SettlementStatusCode.SETTLEMENT_REMINDER_DELIVERY_FAILED,
-                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID)
-        );
-
-        ArgumentCaptor<String> reservationCaptor = ArgumentCaptor.forClass(String.class);
-        verify(cooldownPort).reserve(
-                eq(SETTLEMENT_ID),
-                eq(PARTICIPANT_ID),
-                reservationCaptor.capture(),
-                eq(Duration.ofMinutes(30))
-        );
-        verify(cooldownPort).release(
-                SETTLEMENT_ID,
-                PARTICIPANT_ID,
-                reservationCaptor.getValue()
-        );
-    }
-
-    @Test
-    @DisplayName("정산 생성자가 아닌 사용자는 대상 상태를 조회하기 전에 거부한다")
-    void rejectsNonCreator() {
+    void refusesNonCreator() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(PAYER_ID));
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
-
-        assertStatus(
-                SettlementStatusCode.SETTLEMENT_ACCESS_DENIED,
-                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID)
-        );
-
-        verifyNoInteractions(loadSettlementParticipantPort, cooldownPort, pushSenderPort);
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        assertStatus(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED,
+                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID));
+        verifyNoInteractions(loadSettlementParticipantPort, recorder);
     }
 
-    private void givenUnpaidTarget() {
-        givenTargetBeforeDepositLookup();
-        when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of());
-        when(loadUserPort.findById(PAYER_ID)).thenReturn(Optional.of(user()));
-    }
-
-    private void givenTargetBeforeDepositLookup() {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
-        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, PARTICIPANT_ID))
-                .thenReturn(Optional.of(participant()));
-        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(
-                SETTLEMENT_ID,
-                PARTICIPANT_ID
-        )).thenReturn(Optional.of(share()));
-    }
-
-    private void givenBulkTarget() {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+    @Test
+    void bulkCountsCreatedNotificationsAndSkipsUnlinked() {
+        givenTarget();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of(participant(), unlinkedParticipant()));
-        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of(share()));
-        when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of());
-        when(loadUserPort.findAllByIds(List.of(PAYER_ID))).thenReturn(List.of(user()));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, UNLINKED_PARTICIPANT_ID))
+                .thenReturn(Optional.of(unlinkedParticipant()));
+        when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
+        when(recorder.record(any())).thenReturn(true);
+        assertThat(service.remindAll(SETTLEMENT_ID).sentCount()).isEqualTo(1);
+        verify(cooldownReader).findLatestNextAvailableAt(SETTLEMENT_ID, List.of(PARTICIPANT_ID));
     }
 
-    private void assertStatus(SettlementStatusCode statusCode, Runnable action) {
-        assertThatThrownBy(action::run)
-                .isInstanceOfSatisfying(ApplicationException.class, exception ->
-                        assertThat(exception.getStatusCode()).isEqualTo(statusCode));
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(longs = {-1, 0, 1})
+    void automaticThresholdIsInclusive(long secondsAfterDeadline) {
+        givenTarget();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(new SettlementShare(SHARE_ID, SETTLEMENT_ID, PARTICIPANT_ID, 1000,
+                        NOW.minusHours(24).minusSeconds(secondsAfterDeadline))));
+        if (secondsAfterDeadline >= 0) {
+            when(automaticTargets.hasRequestNotification(SETTLEMENT_ID, PAYER_ID)).thenReturn(true);
+            when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
+            when(recorder.record(any())).thenReturn(true);
+        }
+        assertThat(writer.automatic(candidate())).isEqualTo(secondsAfterDeadline >= 0);
+        if (secondsAfterDeadline >= 0) {
+            var capture = ArgumentCaptor.forClass(com.amateur.howmuchbackend.domain.notification.UserNotification.class);
+            verify(recorder).record(capture.capture());
+            assertThat(capture.getValue().deduplicationKey()).isEqualTo("AUTO_REMINDER:" + SHARE_ID);
+        } else verifyNoInteractions(recorder, cooldownPort);
     }
 
+    @Test
+    void automaticDoesNotBackfillLegacySettlements() {
+        givenOldShare();
+        assertThat(writer.automatic(candidate())).isFalse();
+        verifyNoInteractions(recorder, cooldownPort);
+    }
+
+    @Test
+    void automaticIsOnceEvenAfterRestart() {
+        givenOldShare();
+        when(automaticTargets.hasRequestNotification(SETTLEMENT_ID, PAYER_ID)).thenReturn(true);
+        when(automaticTargets.hasAutomaticReminder(SHARE_ID, PAYER_ID)).thenReturn(true);
+        assertThat(writer.automatic(candidate())).isFalse();
+        verifyNoInteractions(recorder, cooldownPort);
+    }
+
+    private void givenOldShare() {
+        givenTarget();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(new SettlementShare(SHARE_ID, SETTLEMENT_ID, PARTICIPANT_ID, 1000, NOW.minusHours(25))));
+    }
+    private com.amateur.howmuchbackend.application.port.out.settlement.SettlementAutomaticReminderTargetPort.Target candidate() {
+        return new com.amateur.howmuchbackend.application.port.out.settlement.SettlementAutomaticReminderTargetPort.Target(
+                SETTLEMENT_ID, PARTICIPANT_ID, SHARE_ID, PAYER_ID);
+    }
+
+    private void givenTarget() {
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(participant()));
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(share()));
+        lenient().when(loadUserPort.findById(PAYER_ID)).thenReturn(Optional.of(user()));
+    }
+    private void complete(int status) {
+        TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCompletion(status));
+    }
+    private void assertStatus(SettlementStatusCode code, Runnable action) {
+        assertThatThrownBy(action::run).isInstanceOfSatisfying(ApplicationException.class,
+                ex -> assertThat(ex.getStatusCode()).isEqualTo(code));
+    }
     private Settlement settlement() {
         return new Settlement(
                 SETTLEMENT_ID,
@@ -346,7 +282,7 @@ class SettlementReminderServiceTest {
                 null,
                 "01012345678",
                 "encoded-pin",
-                "firebase-installation-id",
+                null,
                 null,
                 true,
                 UserRole.USER,

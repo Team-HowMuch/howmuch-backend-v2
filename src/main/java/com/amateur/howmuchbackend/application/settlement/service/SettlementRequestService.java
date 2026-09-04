@@ -15,7 +15,8 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementRequestPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDutchPayAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementNotificationOutboxPort;
+import com.amateur.howmuchbackend.application.notification.service.NotificationRecorder;
+import com.amateur.howmuchbackend.application.notification.service.NotificationMessages;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementRequestPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -61,7 +62,7 @@ public class SettlementRequestService implements RequestSettlementUseCase {
     private final SettlementLinkTokenPort linkTokenPort;
     private final SaveSettlementRequestPort saveSettlementRequestPort;
     private final LockGroupMemberRosterPort lockGroupMemberRosterPort;
-    private final SettlementNotificationOutboxPort notificationOutboxPort;
+    private final NotificationRecorder notificationRecorder;
 
     @Override
     @Transactional
@@ -111,12 +112,12 @@ public class SettlementRequestService implements RequestSettlementUseCase {
 
         Settlement saved = saveSettlementPort.update(finalized);
         saveSettlementRequestPort.save(snapshot, shares, link, issuedToken.rawToken());
-        notificationOutboxPort.saveAll(createParticipationNotificationEvents(
+        createParticipationNotifications(
                 saved.id(),
                 saved.creatorId(),
                 participants,
-                now
-        ));
+                now, creator.name(), saved.allocationType()
+        );
         return new SettlementRequestResult(
                 saved.id(),
                 issuedToken.url(),
@@ -128,11 +129,11 @@ public class SettlementRequestService implements RequestSettlementUseCase {
         );
     }
 
-    private List<SettlementNotificationOutbox> createParticipationNotificationEvents(
+    private void createParticipationNotifications(
             UUID settlementId,
             Long creatorId,
             List<SettlementParticipant> participants,
-            LocalDateTime now
+            LocalDateTime now, String requesterName, SettlementAllocationType allocationType
     ) {
         List<Long> targetUserIds = participants.stream()
                 .map(SettlementParticipant::linkedUserId)
@@ -141,17 +142,13 @@ public class SettlementRequestService implements RequestSettlementUseCase {
                 .distinct()
                 .toList();
         if (targetUserIds.isEmpty()) {
-            return List.of();
+            return;
         }
-        return loadUserPort.findAllByIds(targetUserIds).stream()
+        loadUserPort.findAllByIds(targetUserIds).stream()
                 .filter(User::active)
-                .filter(user -> user.fcmToken() != null && !user.fcmToken().isBlank())
-                .map(user -> SettlementNotificationOutbox.pending(
-                        settlementId,
-                        user.id(),
-                        now
-                ))
-                .toList();
+                .forEach(user -> notificationRecorder.record(NotificationMessages.request(
+                        settlementId, user.id(), allocationType, requesterName, now)));
+
     }
 
     private void validateActiveGroupMembers(List<SettlementParticipant> participants) {

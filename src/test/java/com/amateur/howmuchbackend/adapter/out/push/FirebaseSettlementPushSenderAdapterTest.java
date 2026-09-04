@@ -49,9 +49,9 @@ class FirebaseSettlementPushSenderAdapterTest {
                 SETTLEMENT_ID,
                 SHARE_LINK
         );
-        var reminderResult = adapter.sendReminder(
+        var reminderResult = adapter.sendNotification(
                 FCM_TOKEN,
-                SETTLEMENT_ID
+                notification()
         );
 
         assertThat(participationResult).isEqualTo(SettlementPushSenderPort.SendResult.SENT);
@@ -73,7 +73,8 @@ class FirebaseSettlementPushSenderAdapterTest {
         assertThat(invoke(reminderMessage, "getData"))
                 .isEqualTo(Map.of(
                         "type", "SETTLEMENT_REMINDER",
-                        "settlementId", SETTLEMENT_ID.toString()
+                        "settlementId", SETTLEMENT_ID.toString(),
+                        "notificationId", SETTLEMENT_ID.toString()
                 ));
     }
 
@@ -83,9 +84,9 @@ class FirebaseSettlementPushSenderAdapterTest {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(null);
         var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
 
-        assertThatThrownBy(() -> adapter.sendReminder(
+        assertThatThrownBy(() -> adapter.sendNotification(
                 "firebase-installation-id",
-                SETTLEMENT_ID
+                notification()
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(
                         SettlementStatusCode.SETTLEMENT_REMINDER_DELIVERY_UNAVAILABLE
@@ -101,8 +102,13 @@ class FirebaseSettlementPushSenderAdapterTest {
         when(firebaseMessaging.send(any(Message.class))).thenThrow(exception);
         var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
 
-        assertThat(adapter.sendReminder("expired-installation-id", SETTLEMENT_ID))
+        assertThat(adapter.sendNotification("expired-installation-id", notification()))
                 .isEqualTo(SettlementPushSenderPort.SendResult.INVALID_TARGET);
+    }
+
+    private SettlementPushSenderPort.NotificationMessage notification() {
+        return new SettlementPushSenderPort.NotificationMessage(SETTLEMENT_ID, SETTLEMENT_ID,
+                "SETTLEMENT_REMINDER", "정산 리마인드", "정산을 완료해 주세요.");
     }
 
     private Object invoke(Message message, String methodName) throws Exception {

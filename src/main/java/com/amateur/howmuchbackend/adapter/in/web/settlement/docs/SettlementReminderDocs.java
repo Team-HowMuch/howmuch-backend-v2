@@ -14,14 +14,14 @@ import java.util.UUID;
 public interface SettlementReminderDocs {
     @Operation(
             summary = "미납 참여자 정산 독촉",
-            description = "정산 생성자가 AWAITING_DEPOSIT 정산의 입금 전 앱 회원에게 푸시 알림을 보냅니다. "
+            description = "정산 생성자가 AWAITING_DEPOSIT 정산의 입금 전 앱 회원에게 알림함과 푸시 Outbox를 저장합니다. FCM 발송은 비동기로 처리하며 토큰이 없어도 저장합니다. "
                     + "동일 참여자는 성공 요청 후 30분 동안 다시 독촉할 수 없습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
-                    description = "정산 독촉 푸시 요청 성공",
+                    description = "정산 독촉 알림 저장 성공",
                     useReturnTypeSchema = true
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -42,15 +42,11 @@ public interface SettlementReminderDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "422",
-                    description = "SETTLEMENT_REMINDER_TARGET_NOT_LINKED 또는 SETTLEMENT_REMINDER_PUSH_TARGET_NOT_FOUND"
+                    description = "SETTLEMENT_REMINDER_TARGET_NOT_LINKED"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "429",
                     description = "SETTLEMENT_REMINDER_COOLDOWN_ACTIVE - 30분 재요청 제한"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "503",
-                    description = "SETTLEMENT_REMINDER_DELIVERY_FAILED 또는 SETTLEMENT_REMINDER_DELIVERY_UNAVAILABLE"
             )
     })
     ApiResponse<SettlementReminderWebResponse> remind(
@@ -60,8 +56,8 @@ public interface SettlementReminderDocs {
 
     @Operation(
             summary = "미납 참여자 일괄 정산 독촉",
-            description = "정산 생성자가 AWAITING_DEPOSIT 정산의 입금 전 앱 회원 전체에게 순차적으로 푸시 알림을 보내고 실제 성공 수를 반환합니다. "
-                    + "미연결·일부 입금·푸시 대상 미등록·30분 제한 대상은 건너뜁니다. "
+            description = "정산 생성자가 AWAITING_DEPOSIT 정산의 입금 전 앱 회원 전체에게 알림을 생성합니다. sentCount는 FCM 수락 수가 아닌 알림 생성 수입니다. "
+                    + "미연결·비활성 회원·일부 입금·30분 제한 대상은 건너뜁니다. "
                     + "nextAvailableAt은 관련 참여자별 활성 쿨다운 만료 시각 중 가장 늦은 UTC 시각이며, "
                     + "offset 없는 값을 UTC로 해석합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
@@ -87,10 +83,6 @@ public interface SettlementReminderDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
                     description = "SETTLEMENT_REMINDER_NOT_AVAILABLE - 입금 대기 상태가 아님"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "503",
-                    description = "SETTLEMENT_REMINDER_DELIVERY_FAILED 또는 SETTLEMENT_REMINDER_DELIVERY_UNAVAILABLE"
             )
     })
     ApiResponse<SettlementBulkReminderWebResponse> remindAll(UUID settlementId);

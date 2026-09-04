@@ -20,9 +20,6 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
     private static final String PARTICIPATION_TYPE = "SETTLEMENT_PARTICIPATION";
     private static final String PARTICIPATION_TITLE = "정산 참여 알림";
     private static final String PARTICIPATION_BODY = "앱에서 정산 참여 요청을 확인해 주세요.";
-    private static final String REMINDER_TYPE = "SETTLEMENT_REMINDER";
-    private static final String REMINDER_TITLE = "정산 요청 알림";
-    private static final String REMINDER_BODY = "앱에서 정산 요청을 확인해 주세요.";
 
     private final ObjectProvider<FirebaseMessaging> firebaseMessagingProvider;
 
@@ -45,15 +42,13 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
     }
 
     @Override
-    public SendResult sendReminder(String firebaseInstallationId, UUID settlementId) {
+    public SendResult sendNotification(String firebaseInstallationId, NotificationMessage notification) {
         return send(Message.builder()
                 .setToken(firebaseInstallationId)
-                .setNotification(Notification.builder()
-                        .setTitle(REMINDER_TITLE)
-                        .setBody(REMINDER_BODY)
-                        .build())
-                .putData("type", REMINDER_TYPE)
-                .putData("settlementId", settlementId.toString())
+                .setNotification(Notification.builder().setTitle(notification.title()).setBody(notification.body()).build())
+                .putData("notificationId", notification.notificationId().toString())
+                .putData("settlementId", notification.settlementId().toString())
+                .putData("type", notification.type())
                 .build());
     }
 
