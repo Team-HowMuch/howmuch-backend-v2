@@ -5,6 +5,8 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -39,9 +41,13 @@ class SettlementTransferInstructionControllerTest {
         ).build();
     }
 
-    @Test
-    @DisplayName("참여 문맥 헤더로 확정 금액과 수금 계좌를 조회한다")
-    void getsTransferInstruction() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89&accountNo=1002123456789&amount=6000",
+            "https://howmuch-mock-send.vercel.app/send?bankCode=0020&bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89&accountNo=1002123456789&amount=6000&receiver=%EC%B5%9C%EC%88%98%EC%95%84"
+    })
+    @DisplayName("참여 문맥 헤더로 조회한 Toss와 Mock URL을 변형 없이 전달한다")
+    void getsTransferInstruction(String url) throws Exception {
         when(getUseCase.get(TOKEN, CONTEXT_ID)).thenReturn(
                 new SettlementTransferInstructionResult(
                         SETTLEMENT_ID,
@@ -54,8 +60,7 @@ class SettlementTransferInstructionControllerTest {
                         "1002123456789",
                         List.of(new SettlementTransferInstructionResult.TransferLink(
                                 "TOSS",
-                                "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
-                                        + "&accountNo=1002123456789&amount=6000"
+                                url
                         ))
                 )
         );
@@ -74,8 +79,7 @@ class SettlementTransferInstructionControllerTest {
                 .andExpect(jsonPath("$.data.recipientAccountNumber").value("1002123456789"))
                 .andExpect(jsonPath("$.data.transferLinks[0].provider").value("TOSS"))
                 .andExpect(jsonPath("$.data.transferLinks[0].url").value(
-                        "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
-                                + "&accountNo=1002123456789&amount=6000"
+                        url
                 ));
     }
 

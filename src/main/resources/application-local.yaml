@@ -10,3 +10,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
+howmuch:
+  settlement:
+    transfer-link:
+      adapter: ${SETTLEMENT_TRANSFER_LINK_ADAPTER:mock}

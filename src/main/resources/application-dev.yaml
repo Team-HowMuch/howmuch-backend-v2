@@ -12,6 +12,9 @@ spring:
       ddl-auto: validate
 
 howmuch:
+  settlement:
+    transfer-link:
+      adapter: ${SETTLEMENT_TRANSFER_LINK_ADAPTER:mock}
   auth:
     sms:
       sender: ${SMS_SENDER:discord}

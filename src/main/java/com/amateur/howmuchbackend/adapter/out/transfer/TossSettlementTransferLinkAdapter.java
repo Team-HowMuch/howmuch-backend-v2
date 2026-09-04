@@ -3,13 +3,11 @@ package com.amateur.howmuchbackend.adapter.out.transfer;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementTransferLinkPort;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
-@Component
 @RequiredArgsConstructor
 public class TossSettlementTransferLinkAdapter implements SettlementTransferLinkPort {
     private static final String PROVIDER = "TOSS";
@@ -20,7 +18,8 @@ public class TossSettlementTransferLinkAdapter implements SettlementTransferLink
     public Optional<SettlementTransferLink> create(
             String bankCode,
             String accountNumber,
-            long amount
+            long amount,
+            String receiverName
     ) {
         if (accountNumber == null || amount <= 0
                 || !accountNumber.matches("[0-9-]+")) {

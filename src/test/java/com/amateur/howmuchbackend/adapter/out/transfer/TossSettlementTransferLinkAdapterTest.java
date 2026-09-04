@@ -31,7 +31,7 @@ class TossSettlementTransferLinkAdapterTest {
         when(bankCatalog.findTossDeepLinkBankName("0004"))
                 .thenReturn(Optional.of("KB국민은행"));
 
-        var link = adapter.create("0004", "100-212-3456789", 6_000);
+        var link = adapter.create("0004", "100-212-3456789", 6_000, "최수아");
 
         assertThat(link).hasValueSatisfying(value -> {
             assertThat(value.provider()).isEqualTo("TOSS");
@@ -47,8 +47,8 @@ class TossSettlementTransferLinkAdapterTest {
     void rejectsUnsupportedOrInvalidInput() {
         when(bankCatalog.findTossDeepLinkBankName("0090")).thenReturn(Optional.empty());
 
-        assertThat(adapter.create("0090", "1002123456789", 6_000)).isEmpty();
-        assertThat(adapter.create("0004", "****6789", 6_000)).isEmpty();
-        assertThat(adapter.create("0004", "1002123456789", 0)).isEmpty();
+        assertThat(adapter.create("0090", "1002123456789", 6_000, "최수아")).isEmpty();
+        assertThat(adapter.create("0004", "****6789", 6_000, "최수아")).isEmpty();
+        assertThat(adapter.create("0004", "1002123456789", 0, "최수아")).isEmpty();
     }
 }

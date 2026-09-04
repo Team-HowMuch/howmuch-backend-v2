@@ -91,7 +91,7 @@ class SettlementMemberTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?accountNo=1002123456789&amount=6000"
@@ -155,7 +155,7 @@ class SettlementMemberTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?accountNo=1002123456789&amount=6000"
@@ -185,7 +185,7 @@ class SettlementMemberTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?accountNo=1002123456789&amount=6000"

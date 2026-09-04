@@ -15,7 +15,9 @@ public interface SettlementMemberTransferInstructionDocs {
     @Operation(
             summary = "내 송금 안내 조회",
             description = "로그인 회원과 연결된 참여자의 확정 Share와 수금 계좌를 반환합니다. "
-                    + "링크 경로와 응답이 같으며 서버가 송금을 실행하지는 않습니다.",
+                    + "링크 경로와 응답이 같으며 transferLinks는 설정에 따라 Toss 딥링크 또는 HTTPS Mock 송금 화면 URL을 반환합니다. "
+                    + "Mock에서도 provider는 TOSS이며 클라이언트는 url을 그대로 엽니다. "
+                    + "서버가 송금을 실행하거나 링크 조회로 납부 상태를 변경하지는 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
