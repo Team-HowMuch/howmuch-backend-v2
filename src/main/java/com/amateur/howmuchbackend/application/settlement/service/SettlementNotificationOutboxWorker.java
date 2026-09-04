@@ -27,6 +27,7 @@ public class SettlementNotificationOutboxWorker {
     private final SettlementLinkTokenPort linkTokenPort;
     private final SettlementPushSenderPort pushSenderPort;
     private final SettlementNotificationRetryPolicy retryPolicy;
+    private final com.amateur.howmuchbackend.application.port.out.notification.LoadNotificationPort loadNotificationPort;
 
     public BatchResult processBatch(int batchSize) {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
@@ -79,6 +80,22 @@ public class SettlementNotificationOutboxWorker {
                     || recipient.fcmToken() == null
                     || recipient.fcmToken().isBlank()) {
                 return fail(event, SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
+            }
+
+            if (event.notificationId() != null) {
+                var notification = loadNotificationPort.findById(event.notificationId());
+                if (notification.isEmpty()
+                        || !event.recipientUserId().equals(notification.get().recipientUserId())
+                        || !event.settlementId().equals(notification.get().settlementId())) {
+                    return fail(event, SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
+                }
+                var n = notification.get();
+                var result = pushSenderPort.sendNotification(recipient.fcmToken(),
+                        new SettlementPushSenderPort.NotificationMessage(n.id(), n.settlementId(),
+                                n.type() == com.amateur.howmuchbackend.domain.notification.NotificationType.SETTLEMENT_REQUEST
+                                        ? "SETTLEMENT_PARTICIPATION" : "SETTLEMENT_REMINDER", n.title(), n.message()));
+                return result == SettlementPushSenderPort.SendResult.INVALID_TARGET
+                        ? fail(event, SettlementNotificationFailureCode.INVALID_TARGET) : succeed(event);
             }
 
             Optional<SettlementShareLinkStorePort.StoredSettlementShareLink> linkCandidate =

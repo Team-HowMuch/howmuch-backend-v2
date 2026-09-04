@@ -10,7 +10,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,18 +19,15 @@ import java.util.UUID;
 
 @Entity
 @Getter
-@Table(
-        name = "settlement_notification_outbox",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_settlement_notification_outbox_settlement_recipient",
-                columnNames = {"settlement_id", "recipient_user_id"}
-        )
-)
+@Table(name = "settlement_notification_outbox")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SettlementNotificationOutboxJpaEntity extends BaseTimeJpaEntity {
     @Id
     @Column(nullable = false, updatable = false)
     private UUID id;
+
+    @Column(name = "notification_id", updatable = false)
+    private UUID notificationId;
 
     @Column(name = "settlement_id", nullable = false, updatable = false)
     private UUID settlementId;
@@ -61,13 +57,15 @@ public class SettlementNotificationOutboxJpaEntity extends BaseTimeJpaEntity {
 
     public SettlementNotificationOutboxJpaEntity(SettlementNotificationOutbox event) {
         id = event.id();
+        notificationId = event.notificationId();
         settlementId = event.settlementId();
         recipientUserId = event.recipientUserId();
         apply(event);
     }
 
     public void apply(SettlementNotificationOutbox event) {
-        if (!id.equals(event.id())
+        if (!java.util.Objects.equals(notificationId, event.notificationId())
+                || !id.equals(event.id())
                 || !settlementId.equals(event.settlementId())
                 || !recipientUserId.equals(event.recipientUserId())) {
             throw new IllegalArgumentException("알림 Outbox 식별자는 변경할 수 없습니다.");

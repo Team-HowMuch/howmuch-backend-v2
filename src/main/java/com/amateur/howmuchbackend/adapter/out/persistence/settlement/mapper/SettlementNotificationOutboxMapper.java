@@ -25,7 +25,8 @@ public final class SettlementNotificationOutboxMapper {
                 entity.getNextAttemptAt(),
                 entity.getProcessingStartedAt(),
                 entity.getCompletedAt(),
-                entity.getLastFailureCode()
+                entity.getLastFailureCode(),
+                entity.getNotificationId()
         );
     }
 }

@@ -45,6 +45,7 @@ class SettlementNotificationOutboxWorkerTest {
     @Mock private SettlementLinkTokenPort linkTokenPort;
     @Mock private SettlementPushSenderPort pushSenderPort;
 
+    @Mock private com.amateur.howmuchbackend.application.port.out.notification.LoadNotificationPort notifications;
     private SettlementNotificationOutboxWorker worker;
 
     @BeforeEach
@@ -55,7 +56,8 @@ class SettlementNotificationOutboxWorkerTest {
                 shareLinkStorePort,
                 linkTokenPort,
                 pushSenderPort,
-                new SettlementNotificationRetryPolicy()
+                new SettlementNotificationRetryPolicy(),
+                notifications
         );
     }
 
@@ -95,6 +97,44 @@ class SettlementNotificationOutboxWorkerTest {
         deliveryOrder.verify(pushSenderPort)
                 .sendParticipationRequest("fid-2", SETTLEMENT_ID, URL);
         deliveryOrder.verify(outboxPort).transitionFromProcessing(any(), any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(com.amateur.howmuchbackend.domain.notification.NotificationType.class)
+    void sendsInboxPayloadWithoutPublicLink(com.amateur.howmuchbackend.domain.notification.NotificationType type) {
+        var notification = new com.amateur.howmuchbackend.domain.notification.UserNotification(UUID.randomUUID(), 1L,
+                SETTLEMENT_ID, type, com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType.DUTCH_PAY,
+                "요청자", "알림 제목", "알림 내용", "test-key", null, CREATED_AT);
+        var event = SettlementNotificationOutbox.pending(SETTLEMENT_ID, 1L, CREATED_AT, notification.id()).claim(CREATED_AT);
+        when(outboxPort.claimNextReady(any())).thenReturn(Optional.of(event));
+        when(loadUserPort.findById(1L)).thenReturn(Optional.of(user(1L, "token")));
+        when(notifications.findById(notification.id())).thenReturn(Optional.of(notification));
+        when(pushSenderPort.sendNotification(any(), any())).thenReturn(SettlementPushSenderPort.SendResult.SENT);
+        when(outboxPort.transitionFromProcessing(any(), any())).thenReturn(true);
+        assertThat(worker.processBatch(1).succeeded()).isEqualTo(1);
+        var message = org.mockito.ArgumentCaptor.forClass(SettlementPushSenderPort.NotificationMessage.class);
+        org.mockito.Mockito.verify(pushSenderPort).sendNotification(eq("token"), message.capture());
+        assertThat(message.getValue().notificationId()).isEqualTo(notification.id());
+        assertThat(message.getValue().type()).isEqualTo(type.name().equals("SETTLEMENT_REQUEST")
+                ? "SETTLEMENT_PARTICIPATION" : "SETTLEMENT_REMINDER");
+        org.mockito.Mockito.verifyNoInteractions(shareLinkStorePort, linkTokenPort);
+    }
+
+    @Test
+    void retriesDeliveryFailurePreservingNotificationId() {
+        var notification = com.amateur.howmuchbackend.application.notification.service.NotificationMessages.request(
+                SETTLEMENT_ID, 1L, com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType.DUTCH_PAY,
+                "요청자", CREATED_AT);
+        var event = SettlementNotificationOutbox.pending(SETTLEMENT_ID, 1L, CREATED_AT, notification.id()).claim(CREATED_AT);
+        when(outboxPort.claimNextReady(any())).thenReturn(Optional.of(event));
+        when(loadUserPort.findById(1L)).thenReturn(Optional.of(user(1L, "token")));
+        when(notifications.findById(notification.id())).thenReturn(Optional.of(notification));
+        when(pushSenderPort.sendNotification(any(), any())).thenThrow(new IllegalStateException("push unavailable"));
+        when(outboxPort.transitionFromProcessing(any(), any())).thenReturn(true);
+        assertThat(worker.processBatch(1).retried()).isEqualTo(1);
+        var transition = org.mockito.ArgumentCaptor.forClass(SettlementNotificationOutbox.class);
+        org.mockito.Mockito.verify(outboxPort).transitionFromProcessing(transition.capture(), any());
+        assertThat(transition.getValue().notificationId()).isEqualTo(notification.id());
     }
 
     private SettlementNotificationOutbox processingEvent(Long recipientUserId) {

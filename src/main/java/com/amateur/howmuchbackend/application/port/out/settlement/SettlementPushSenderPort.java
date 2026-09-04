@@ -9,7 +9,9 @@ public interface SettlementPushSenderPort {
             String shareLink
     );
 
-    SendResult sendReminder(String firebaseInstallationId, UUID settlementId);
+    SendResult sendNotification(String firebaseInstallationId, NotificationMessage message);
+
+    record NotificationMessage(UUID notificationId, UUID settlementId, String type, String title, String body) {}
 
     enum SendResult {
         SENT,

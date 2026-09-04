@@ -21,4 +21,14 @@ public interface UserNotificationJpaRepository extends JpaRepository<UserNotific
             WHERE id=:id AND recipient_user_id=:userId
             """, nativeQuery = true)
     int markRead(@Param("id") UUID id, @Param("userId") Long userId, @Param("now") LocalDateTime now);
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO user_notifications (id,recipient_user_id,settlement_id,notification_type,allocation_type,
+                requester_name,title,message,deduplication_key,created_at,updated_at)
+            VALUES (:#{#n.id()},:#{#n.recipientUserId()},:#{#n.settlementId()},:#{#n.type().name()},
+                :#{#n.allocationType().name()},:#{#n.requesterName()},:#{#n.title()},:#{#n.message()},
+                :#{#n.deduplicationKey()},:#{#n.createdAt()},:#{#n.createdAt()})
+            ON CONFLICT (recipient_user_id,deduplication_key) DO NOTHING
+            """, nativeQuery = true)
+    int insertIfAbsent(@Param("n") com.amateur.howmuchbackend.domain.notification.UserNotification notification);
 }

@@ -12,7 +12,7 @@ import java.util.*;
 
 @Component
 @RequiredArgsConstructor
-public class NotificationPersistenceAdapter implements LoadNotificationPort, MarkNotificationReadPort {
+public class NotificationPersistenceAdapter implements LoadNotificationPort, MarkNotificationReadPort, SaveNotificationPort {
     private final UserNotificationJpaRepository repository;
     @Override
     @Transactional(readOnly = true)
@@ -28,5 +28,15 @@ public class NotificationPersistenceAdapter implements LoadNotificationPort, Mar
     public Optional<LocalDateTime> markRead(UUID id, Long userId, LocalDateTime now) {
         if (repository.markRead(id, userId, now) == 0) return Optional.empty();
         return repository.findByIdAndRecipientUserId(id, userId).map(e -> e.getReadAt());
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UserNotification> findById(UUID id) {
+        return repository.findById(id).map(NotificationMapper::toDomain);
+    }
+    @Override
+    @Transactional
+    public boolean saveIfAbsent(UserNotification notification) {
+        return repository.insertIfAbsent(notification) == 1;
     }
 }

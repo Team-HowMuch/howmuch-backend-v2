@@ -13,8 +13,23 @@ public record SettlementNotificationOutbox(
         LocalDateTime nextAttemptAt,
         LocalDateTime processingStartedAt,
         LocalDateTime completedAt,
-        SettlementNotificationFailureCode lastFailureCode
+        SettlementNotificationFailureCode lastFailureCode,
+        UUID notificationId
 ) {
+    public SettlementNotificationOutbox(UUID id, UUID settlementId, Long recipientUserId,
+            SettlementNotificationOutboxStatus status, int attemptCount, LocalDateTime nextAttemptAt,
+            LocalDateTime processingStartedAt, LocalDateTime completedAt, SettlementNotificationFailureCode lastFailureCode) {
+        this(id, settlementId, recipientUserId, status, attemptCount, nextAttemptAt,
+                processingStartedAt, completedAt, lastFailureCode, null);
+    }
+
+    public static SettlementNotificationOutbox pending(UUID settlementId, Long recipientUserId,
+            LocalDateTime now, UUID notificationId) {
+        return new SettlementNotificationOutbox(UUID.randomUUID(), settlementId, recipientUserId,
+                SettlementNotificationOutboxStatus.PENDING, 0, Objects.requireNonNull(now), null, null, null,
+                Objects.requireNonNull(notificationId));
+    }
+
     public SettlementNotificationOutbox {
         Objects.requireNonNull(id, "알림 Outbox ID는 필수입니다.");
         Objects.requireNonNull(settlementId, "정산 ID는 필수입니다.");
@@ -68,7 +83,8 @@ public record SettlementNotificationOutbox(
                 null,
                 now,
                 null,
-                lastFailureCode
+                lastFailureCode,
+                notificationId
         );
     }
 
@@ -83,7 +99,8 @@ public record SettlementNotificationOutbox(
                 null,
                 null,
                 Objects.requireNonNull(now, "알림 완료 시각은 필수입니다."),
-                null
+                null,
+                notificationId
         );
     }
 
@@ -107,7 +124,8 @@ public record SettlementNotificationOutbox(
                 nextAttemptAt,
                 null,
                 null,
-                Objects.requireNonNull(failureCode, "알림 실패 코드는 필수입니다.")
+                Objects.requireNonNull(failureCode, "알림 실패 코드는 필수입니다."),
+                notificationId
         );
     }
 
@@ -125,7 +143,8 @@ public record SettlementNotificationOutbox(
                 null,
                 null,
                 Objects.requireNonNull(now, "알림 실패 완료 시각은 필수입니다."),
-                Objects.requireNonNull(failureCode, "알림 실패 코드는 필수입니다.")
+                Objects.requireNonNull(failureCode, "알림 실패 코드는 필수입니다."),
+                notificationId
         );
     }
 
