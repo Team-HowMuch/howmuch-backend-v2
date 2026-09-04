@@ -70,7 +70,9 @@ public class SettlementTransferInstructionReader {
                         SettlementStatusCode.SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND
                 ));
         List<SettlementTransferInstructionResult.TransferLink> transferLinks = transferLinkPorts.stream()
-                .map(port -> port.create(snapshot.organization(), snapshot.accountNumber(), share.amount()))
+                .map(port -> port.create(
+                        snapshot.organization(), snapshot.accountNumber(), share.amount(), snapshot.accountHolder()
+                ))
                 .flatMap(Optional::stream)
                 .map(generatedLink -> new SettlementTransferInstructionResult.TransferLink(
                         generatedLink.provider(),

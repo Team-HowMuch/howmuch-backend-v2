@@ -95,7 +95,7 @@ class SettlementTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
@@ -140,7 +140,7 @@ class SettlementTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?bank=x&accountNo=1002123456789&amount=6000"
@@ -170,7 +170,7 @@ class SettlementTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000))
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.get(RAW_TOKEN, CONTEXT_ID))

@@ -20,7 +20,8 @@ public class TossSettlementTransferLinkAdapter implements SettlementTransferLink
     public Optional<SettlementTransferLink> create(
             String bankCode,
             String accountNumber,
-            long amount
+            long amount,
+            String receiverName
     ) {
         if (accountNumber == null || amount <= 0
                 || !accountNumber.matches("[0-9-]+")) {
