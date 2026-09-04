@@ -68,18 +68,20 @@ class SettlementReminderServiceTest {
     @Mock private SettlementReminderCooldownPort cooldownPort;
     @Mock private SettlementReminderCooldownReader cooldownReader;
     @Mock private NotificationRecorder recorder;
+    @Mock private com.amateur.howmuchbackend.application.port.out.settlement.SettlementAutomaticReminderTargetPort automaticTargets;
+    private SettlementReminderWriter writer;
     private SettlementReminderService service;
 
     @BeforeEach
     void setUp() {
         var policy = new SettlementReminderPolicy();
-        var writer = new SettlementReminderWriter(loadSettlementPort, loadSettlementParticipantPort,
+        writer = new SettlementReminderWriter(loadSettlementPort, loadSettlementParticipantPort,
                 loadSettlementSharePort, loadSettlementDepositSummaryPort, loadUserPort, cooldownPort,
-                recorder, policy, Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
+                recorder, policy, Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC), automaticTargets);
         service = new SettlementReminderService(currentActorPort, loadSettlementPort,
                 loadSettlementParticipantPort, writer, policy, cooldownReader);
         TransactionSynchronizationManager.initSynchronization();
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        lenient().when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
     }
 
     @AfterEach
@@ -161,6 +163,52 @@ class SettlementReminderServiceTest {
         when(recorder.record(any())).thenReturn(true);
         assertThat(service.remindAll(SETTLEMENT_ID).sentCount()).isEqualTo(1);
         verify(cooldownReader).findLatestNextAvailableAt(SETTLEMENT_ID, List.of(PARTICIPANT_ID));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(longs = {-1, 0, 1})
+    void automaticThresholdIsInclusive(long secondsAfterDeadline) {
+        givenTarget();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(new SettlementShare(SHARE_ID, SETTLEMENT_ID, PARTICIPANT_ID, 1000,
+                        NOW.minusHours(24).minusSeconds(secondsAfterDeadline))));
+        if (secondsAfterDeadline >= 0) {
+            when(automaticTargets.hasRequestNotification(SETTLEMENT_ID, PAYER_ID)).thenReturn(true);
+            when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
+            when(recorder.record(any())).thenReturn(true);
+        }
+        assertThat(writer.automatic(candidate())).isEqualTo(secondsAfterDeadline >= 0);
+        if (secondsAfterDeadline >= 0) {
+            var capture = ArgumentCaptor.forClass(com.amateur.howmuchbackend.domain.notification.UserNotification.class);
+            verify(recorder).record(capture.capture());
+            assertThat(capture.getValue().deduplicationKey()).isEqualTo("AUTO_REMINDER:" + SHARE_ID);
+        } else verifyNoInteractions(recorder, cooldownPort);
+    }
+
+    @Test
+    void automaticDoesNotBackfillLegacySettlements() {
+        givenOldShare();
+        assertThat(writer.automatic(candidate())).isFalse();
+        verifyNoInteractions(recorder, cooldownPort);
+    }
+
+    @Test
+    void automaticIsOnceEvenAfterRestart() {
+        givenOldShare();
+        when(automaticTargets.hasRequestNotification(SETTLEMENT_ID, PAYER_ID)).thenReturn(true);
+        when(automaticTargets.hasAutomaticReminder(SHARE_ID, PAYER_ID)).thenReturn(true);
+        assertThat(writer.automatic(candidate())).isFalse();
+        verifyNoInteractions(recorder, cooldownPort);
+    }
+
+    private void givenOldShare() {
+        givenTarget();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(new SettlementShare(SHARE_ID, SETTLEMENT_ID, PARTICIPANT_ID, 1000, NOW.minusHours(25))));
+    }
+    private com.amateur.howmuchbackend.application.port.out.settlement.SettlementAutomaticReminderTargetPort.Target candidate() {
+        return new com.amateur.howmuchbackend.application.port.out.settlement.SettlementAutomaticReminderTargetPort.Target(
+                SETTLEMENT_ID, PARTICIPANT_ID, SHARE_ID, PAYER_ID);
     }
 
     private void givenTarget() {

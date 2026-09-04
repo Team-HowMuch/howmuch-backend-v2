@@ -5,10 +5,20 @@ import com.amateur.howmuchbackend.domain.settlement.*;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.springframework.stereotype.Component;
 import java.time.Duration;
+import java.time.LocalDateTime;
 
 @Component
 public class SettlementReminderPolicy {
     public static final Duration COOLDOWN = Duration.ofMinutes(30);
+
+    public static final Duration AUTOMATIC_DELAY = Duration.ofHours(24);
+
+    public boolean isAutomaticDue(Settlement settlement, SettlementShare share, LocalDateTime now) {
+        return (settlement.status() == SettlementStatus.REQUESTED
+                || settlement.status() == SettlementStatus.AWAITING_DEPOSIT
+                || settlement.status() == SettlementStatus.SUSPENDED)
+                && share != null && !share.createdAt().plus(AUTOMATIC_DELAY).isAfter(now);
+    }
 
     public void validateManual(Settlement settlement, Long actorId) {
         if (!settlement.isCreatedBy(actorId)) {

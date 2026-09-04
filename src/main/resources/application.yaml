@@ -53,6 +53,10 @@ howmuch:
       ttl: ${SETTLEMENT_LINK_TTL:720h}
     participant-context:
       ttl: ${SETTLEMENT_PARTICIPANT_CONTEXT_TTL:30m}
+    automatic-reminder:
+      enabled: ${SETTLEMENT_AUTOMATIC_REMINDER_ENABLED:false}
+      poll-interval: ${SETTLEMENT_AUTOMATIC_REMINDER_POLL_INTERVAL:1m}
+      batch-size: ${SETTLEMENT_AUTOMATIC_REMINDER_BATCH_SIZE:50}
     notification-outbox:
       enabled: ${SETTLEMENT_NOTIFICATION_OUTBOX_ENABLED:true}
       poll-interval: ${SETTLEMENT_NOTIFICATION_OUTBOX_POLL_INTERVAL:1s}

@@ -34,6 +34,7 @@ public class SettlementReminderWriter {
     private final NotificationRecorder recorder;
     private final SettlementReminderPolicy policy;
     private final Clock clock;
+    private final SettlementAutomaticReminderTargetPort automaticTargets;
 
     @Transactional
     public SettlementReminderResult manual(UUID settlementId, UUID participantId, Long actorId) {
@@ -45,6 +46,24 @@ public class SettlementReminderWriter {
         store(settlement, target, "MANUAL_REMINDER:" + UUID.randomUUID(),
                 "정산을 요청받았어요. 지금 정산을 완료해 주세요.", now);
         return new SettlementReminderResult(now, now.plus(SettlementReminderPolicy.COOLDOWN));
+    }
+
+    @Transactional
+    public boolean automatic(SettlementAutomaticReminderTargetPort.Target candidate) {
+        var settlement = settlements.findByIdForUpdate(candidate.settlementId()).orElse(null);
+        if (settlement == null) return false;
+        Target target = loadTarget(settlement, candidate.participantId());
+        LocalDateTime now = LocalDateTime.now(clock);
+        if (!target.share().id().equals(candidate.shareId())
+                || !target.recipient().id().equals(candidate.recipientUserId())
+                || !policy.isAutomaticDue(settlement, target.share(), now)
+                || !automaticTargets.hasRequestNotification(settlement.id(), target.recipient().id())
+                || automaticTargets.hasAutomaticReminder(target.share().id(), target.recipient().id())) {
+            return false;
+        }
+        long hours = java.time.Duration.between(target.share().createdAt(), now).toHours();
+        return store(settlement, target, "AUTO_REMINDER:" + target.share().id(),
+                "정산 금액이 확정된 지 " + hours + "시간이 지났어요. 지금 정산을 완료해 주세요.", now);
     }
 
     private Target loadTarget(Settlement settlement, UUID participantId) {
