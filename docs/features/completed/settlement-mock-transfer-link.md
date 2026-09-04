@@ -1,6 +1,6 @@
 # Feature Plan: 정산 Mock 송금 링크 및 어댑터 선택
 
-- Status: In progress
+- Status: Complete
 - Last updated: 2026-09-05
 - Related issue: #264, #265, #266, #267
 - Related ADR: N/A
@@ -17,10 +17,10 @@ Mock 화면 배포가 완료되어 서버의 링크 생성과 설정 선택을 �
 
 ### Success criteria
 
-- [ ] Mock 링크에 bankCode, bank, accountNo, amount, receiver를 전달한다.
-- [ ] local·dev는 Mock, 공통·prod는 Toss를 기본으로 사용하며 환경변수로 바꾼다.
-- [ ] 두 송금 안내 API와 기존 Toss 링크 계약을 유지한다.
-- [ ] 링크 조회가 실제 송금 또는 납부 상태 변경을 일으키지 않는다.
+- [x] Mock 링크에 bankCode, bank, accountNo, amount, receiver를 전달한다.
+- [x] local·dev는 Mock, 공통·prod는 Toss를 기본으로 사용하며 환경변수로 바꾼다.
+- [x] 두 송금 안내 API와 기존 Toss 링크 계약을 유지한다.
+- [x] 링크 조회가 실제 송금 또는 납부 상태 변경을 일으키지 않는다.
 
 ### Out of scope
 
@@ -94,14 +94,14 @@ Application: Port·공통 Reader·관련 테스트. Adapter: 기존 Toss 및 신
 
 - [x] Migration-only pull request: N/A, 저장 변경 없음
 - [x] UseCase and Application Command/Result: N/A, 기존 계약 재사용
-- [ ] Required Output Ports: 기존 Port에 receiverName 추가
+- [x] Required Output Ports: 기존 Port에 receiverName 추가
 - [x] Domain models and rules: N/A
 - [x] Application Policies: N/A
-- [ ] Application Service: 공통 Reader 전달
-- [ ] Output Adapters: Toss 유지·Mock 추가
-- [ ] Web Request/Response DTOs, Controllers, and Swagger: DTO·Controller 유지, 설명 보완
-- [ ] Infra configuration and Bean wiring
-- [ ] Documentation and verification results
+- [x] Application Service: 공통 Reader 전달
+- [x] Output Adapters: Toss 유지·Mock 추가
+- [x] Web Request/Response DTOs, Controllers, and Swagger: DTO·Controller 유지, 설명 보완
+- [x] Infra configuration and Bean wiring
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -125,15 +125,17 @@ git diff --check
 git status --short --untracked-files=all
 ```
 
+통합 테스트는 격리 DB howmuch_transfer_link_264를 사용하고 SETTLEMENT_NOTIFICATION_OUTBOX_ENABLED=false로 실행했다. 실제 명령의 테스트 필터에는 `--tests '*SettlementOpenApiIntegrationTest'`도 포함했다. dev 프로필 bootRun은 같은 DB와 로컬 Redis를 사용하고 외부 SMS 주소는 loopback의 사용하지 않는 포트로 지정했다. 검증 후 임시 서버와 DB를 정리했다.
+
 ### Completion criteria
 
-- [ ] Mock 인코딩·선행 0·계좌 정규화·수취인 생략·잘못된 입력 검증
-- [ ] 표시용 은행명이 있으면 attr2 없이 Mock 링크 생성
-- [ ] 환경별 기본값·override·단일 Bean·오설정 기동 실패 검증
-- [ ] 두 API 응답·권한·오류·기존 Toss 회귀 검증
-- [ ] PostgreSQL·Redis·필수 환경변수 확인 후 프로필 기동과 API 검증
-- [ ] 생성 링크 화면 자동 입력 확인(송금 버튼을 누르지 않음)
-- [ ] 실제 검증과 미검증 사항 기록
+- [x] Mock 인코딩·선행 0·계좌 정규화·수취인 생략·잘못된 입력 검증
+- [x] 표시용 은행명이 있으면 attr2 없이 Mock 링크 생성
+- [x] 환경별 기본값·override·단일 Bean·오설정 기동 실패 검증
+- [x] 두 API 응답·권한·오류·기존 Toss 회귀 검증
+- [x] PostgreSQL·Redis·필수 환경변수 확인 후 프로필 기동과 API 검증
+- [x] 생성 링크 화면 자동 입력 확인(송금 버튼을 누르지 않음)
+- [x] 실제 검증과 미검증 사항 기록
 
 ### Results
 
@@ -141,13 +143,22 @@ git status --short --untracked-files=all
 |---|---|---|
 | 사전 조사 | Pass | 두 조회 경로·스냅샷 예금주·은행 Catalog·기존 응답 확인 |
 | GitHub 연결 | Pass | 상위 #264와 실제 서브이슈 #265·#266·#267 |
-| 구현 검증 | Pending | 구현 후 기록 |
+| 컴파일·관련 테스트 | Pass | compileJava 및 74개 테스트, 실패 0 |
+| 설정 선택 | Pass | 실제 YAML로 none/local/dev/prod, 기본 local, 환경변수 override, 단일 Bean, 오설정 검증 |
+| Spring 통합 | Pass | 격리 PostgreSQL DB에서 V1~V30 적용, Hibernate validate 및 SettlementOpenApiIntegrationTest 통과 |
+| dev 기동 | Pass | localhost:18084, PostgreSQL·Redis 연결, Tomcat 정상 기동 |
+| HTTP·OpenAPI | Pass | 두 API의 Mock 설명·응답 코드 확인, 회원 미인증 401, 헤더 있는 미존재 링크 404 |
+| 배포 화면 | Pass | 예시 링크에서 현승민·우리은행·수취계좌·2,000원 자동 표시; 송금 미실행 |
+| 헤더 누락 요청 | 기존 문제 발견 | 전체 서버에서는 MissingRequestHeaderException이 500으로 처리됨. 변경하지 않은 전역 예외 처리 경계이며 이 기능 범위에서 수정하지 않음 |
+| 전체 테스트 | Not run | 변경 영역 74개 및 전체 애플리케이션 OpenAPI 통합으로 검증 범위를 제한 |
+| 실제 송금·인증된 실데이터 조회 | Not run | 실제 거래 생성 및 기존 데이터 사용은 이번 검증에서 제외 |
 
 ## 9. Progress log
 
 | 날짜 | 완료 작업 | 다음 작업 | 발견 사항 |
 |---|---|---|---|
 | 2026-09-05 | 계획 확정·브랜치·이슈 연결 | Port 확장 | DB 변경 불필요 |
+| 2026-09-05 | Port·어댑터·설정·74개 테스트·기동·화면 검증 | PR 제출 | 기존 헤더 누락 500 발견 |
 
 ## 10. Decision log
 
@@ -159,8 +170,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on: Pending
-- Final behavior: Pending
-- Unverified items: 구현 후 기록
+- Completed on: 2026-09-05
+- Final behavior: 설정에 따라 기존 Toss 또는 Mock 링크를 반환하고 Mock에 기관코드와 수취계좌 예금주를 전달한다.
+- Unverified items: 실제 송금·인증된 실데이터 HTTP 조회·전체 테스트 스위트. 정상 API 응답은 MockMvc와 Application 테스트로 검증했다.
 - Remaining risks: 외부 Mock 화면의 가용성은 링크 생성 성공과 별개이다.
-- Follow-up work: N/A
+- Follow-up work: 기존 전역 예외 처리의 Link-Participant-Context 헤더 누락 500을 별도 검토할 수 있다.
