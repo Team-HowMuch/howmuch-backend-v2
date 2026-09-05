@@ -66,9 +66,9 @@ public record SettlementDetailWebResponse(
     @Schema(requiredProperties = {"amount", "storeName", "paidAt"})
     public record PaymentInfo(
             long amount,
-            @Schema(nullable = true)
+            @Schema(nullable = true, description = "상호명. 영수증·결제내역 지출을 합쳐 한 건일 때만 채워진다.")
             String storeName,
-            @Schema(nullable = true)
+            @Schema(nullable = true, description = "결제일(UTC, offset 없는 값). 영수증·결제내역 지출을 합쳐 한 건일 때만 채워지며 알 수 없으면 null이다.")
             LocalDateTime paidAt
     ) {
         private static PaymentInfo from(SettlementDetailResult.PaymentInfo result) {

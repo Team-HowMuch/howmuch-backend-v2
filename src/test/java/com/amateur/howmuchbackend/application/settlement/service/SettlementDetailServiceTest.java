@@ -160,6 +160,30 @@ class SettlementDetailServiceTest {
     }
 
     @Test
+    @DisplayName("단일 결제내역 정산의 총액과 상호명과 결제일을 반환한다")
+    void returnsPaymentHistoryPaymentInfo() {
+        LocalDateTime paidAt = LocalDateTime.of(2026, 8, 25, 19, 30);
+        givenSettlement(CREATOR_ID);
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(SettlementExpense.paymentHistory(
+                        SETTLEMENT_ID,
+                        1L,
+                        "receipt-app-1",
+                        "롯데리아",
+                        1_400,
+                        paidAt,
+                        0,
+                        NOW
+                )));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.paymentInfo()).isEqualTo(
+                new SettlementDetailResult.PaymentInfo(1_400, "롯데리아", paidAt)
+        );
+    }
+
+    @Test
     @DisplayName("연결 참여자에게 전체 요약과 자신의 납부 행만 반환한다")
     void limitsParticipantDetailsToSelf() {
         givenSettlement(PAYER_ID);

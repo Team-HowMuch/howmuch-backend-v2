@@ -72,7 +72,7 @@ public class SettlementLinkEntryService implements
         List<SettlementParticipant> participants = loadSettlementParticipantPort
                 .findAllBySettlementId(access.settlement().id());
         Map<UUID, Long> amountByParticipantId = loadParticipantAmounts(access.settlement());
-        SettlementReceiptInfo receipt = SettlementReceiptInfo.resolve(
+        SettlementPaymentInfo payment = SettlementPaymentInfo.resolve(
                 loadSettlementExpensePort.findAllBySettlementId(access.settlement().id())
         );
         SettlementParticipant matchedParticipant = currentActorPort.findCurrentActor()
@@ -92,8 +92,8 @@ public class SettlementLinkEntryService implements
             return new SettlementLinkEntryResult(
                     access.settlement().id(),
                     access.settlement().title(),
-                    receipt.storeName(),
-                    receipt.paidAt(),
+                    payment.storeName(),
+                    payment.paidAt(),
                     access.settlement().totalAmount(),
                     participants.size(),
                     access.phase(),
@@ -108,8 +108,8 @@ public class SettlementLinkEntryService implements
         return new SettlementLinkEntryResult(
                 access.settlement().id(),
                 access.settlement().title(),
-                receipt.storeName(),
-                receipt.paidAt(),
+                payment.storeName(),
+                payment.paidAt(),
                 access.settlement().totalAmount(),
                 participants.size(),
                 access.phase(),
