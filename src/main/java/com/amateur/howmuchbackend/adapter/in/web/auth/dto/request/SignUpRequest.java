@@ -29,4 +29,10 @@ public record SignUpRequest(
                 marketingAgreed
         );
     }
+
+    @Override
+    public String toString() {
+        return "SignUpRequest[challengeId=***, name=***, pin=***, pinConfirmation=***, requiredTermsAgreed=%s, marketingAgreed=%s]"
+                .formatted(requiredTermsAgreed, marketingAgreed);
+    }
 }

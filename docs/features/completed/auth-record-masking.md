@@ -1,6 +1,6 @@
 # Feature Plan: 인증 계약 객체의 민감정보 문자열 마스킹
 
-- Status: In Progress
+- Status: Completed
 - Last updated: 2026-09-06
 - Related issue: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/288
 - Related ADR: N/A (기존 계약 유지)
@@ -14,8 +14,8 @@
 작은 독립 수정으로 보안 결함 또는 실수에 의한 노출 가능성을 줄인다.
 
 ### Success criteria
-- [ ] 인증 Request/Response·Command/Result 민감 필드를 ***로 마스킹, 비민감 필드와 JSON·매핑 계약 유지
-- [ ] 대상 전체 원문·null 마스킹, JSON 왕복·accessor·equals/hashCode·매핑 회귀
+- [x] 인증 Request/Response·Command/Result 민감 필드를 ***로 마스킹, 비민감 필드와 JSON·매핑 계약 유지
+- [x] 대상 전체 원문·null 마스킹, JSON 왕복·accessor·equals/hashCode·매핑 회귀
 - [ ] PR 게시 및 CI 확인
 
 ### Out of scope
@@ -33,6 +33,8 @@
 Web Request → Command → UseCase → Result → Response 매핑과 기존 엔드포인트 유지.
 Flyway migration required: **No**. SQL·DB·Redis 키/TTL/직렬화·환경변수 변경 없음.
 
+민감 필드는 null을 포함해 *** 고정 출력한다. 비민감 시각·동의 여부를 유지하며 각 record에서 직접 구현한다.
+
 ## 5. Design decisions
 기존 구현에 국소적으로 반영한다. 새 프레임워크와 운영 의존성을 추가하지 않는다.
 대상 전체 원문·null 마스킹, JSON 왕복·accessor·equals/hashCode·매핑 회귀로 실제 결과를 확인한다. 실패·미실행 결과를 성공으로 보고하지 않는다.
@@ -46,8 +48,8 @@ Flyway migration required: **No**. SQL·DB·Redis 키/TTL/직렬화·환경변�
 ## 7. Implementation plan
 - [x] Migration-only PR: N/A (스키마 변경 없음)
 - [x] 새 UseCase/Port/Domain/Policy: N/A
-- [ ] 구현 및 관련 테스트
-- [ ] 문서·검증 결과 기록
+- [x] 구현 및 관련 테스트
+- [x] 문서·검증 결과 기록
 
 ### Expected commit boundaries
 1. `docs(auth): 인증 계약 객체의 민감정보 문자열 마스킹 구현 계획 수립`
@@ -60,7 +62,14 @@ Flyway migration required: **No**. SQL·DB·Redis 키/TTL/직렬화·환경변�
 - 현재 CI는 `clean build -x test`: 로컬 테스트 결과와 구분
 
 ### Results
-Pending
+- `./gradlew compileJava test --tests '*AuthRecordMaskingTest' --no-daemon`: 51개 통과.
+- 인증 record 17종 각각 민감 원문 마스킹·null 마스킹·JSON/accessor/equals/hashCode/매핑 계약 확인.
+- Request 5종, Response 3종, Command 6종, Result 3종만 수정.
+- JSON에서 필드를 제거하거나 원문 값을 변경하지 않으며 Domain·Properties·전역 로깅은 수정하지 않음.
+- DB·Redis 통합 테스트는 필요하지 않아 수행하지 않음.
+
+- 문서 링크·`git diff --check` 검사 수행. 전체 테스트 스위트·운영 배포는 범위에서 제외.
+- GitHub 게시·CI 결과는 연결 이슈와 PR에 기록한다. CI는 테스트를 제외하므로 위 결과와 구분한다.
 
 ## 9. Progress log
 | 날짜 | 완료 | 다음 |
@@ -73,4 +82,6 @@ Pending
 | 2026-09-06 | 이슈·PR 1:1, 상위 이슈 없음 | 독립적 소규모 수정 |
 
 ## 11. Completion record
-구현·검증 후 기록한다.
+2026-09-06 구현·관련 검증 완료. API·저장 계약과 기존 토큰 호환성을 유지한다.
+서버 인증 경쟁 상태 해결·실제 로그 유출 조사·병합·배포는 수행하지 않았다.
+PR 게시와 CI 확인은 연결 이슈에서 추적한다.

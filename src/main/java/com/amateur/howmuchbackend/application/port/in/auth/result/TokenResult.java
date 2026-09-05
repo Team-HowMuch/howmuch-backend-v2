@@ -4,4 +4,9 @@ public record TokenResult(
         String accessToken,
         String requestToken
 ) {
+
+    @Override
+    public String toString() {
+        return "TokenResult[accessToken=***, requestToken=***]";
+    }
 }

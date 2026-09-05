@@ -9,4 +9,9 @@ public record RefreshTokenRequest(
     public com.amateur.howmuchbackend.application.port.in.auth.command.RefreshTokenCommand toCommand() {
         return new com.amateur.howmuchbackend.application.port.in.auth.command.RefreshTokenCommand(requestToken);
     }
+
+    @Override
+    public String toString() {
+        return "RefreshTokenRequest[requestToken=***]";
+    }
 }

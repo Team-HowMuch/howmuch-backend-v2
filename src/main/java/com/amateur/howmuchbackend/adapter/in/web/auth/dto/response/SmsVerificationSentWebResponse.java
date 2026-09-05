@@ -18,4 +18,10 @@ public record SmsVerificationSentWebResponse(
                 result.resendAvailableAt()
         );
     }
+
+    @Override
+    public String toString() {
+        return "SmsVerificationSentWebResponse[verificationRequestId=***, phoneNumber=***, expiresAt=%s, resendAvailableAt=%s]"
+                .formatted(expiresAt, resendAvailableAt);
+    }
 }

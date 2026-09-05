@@ -9,4 +9,9 @@ public record TokenWebResponse(
     public static TokenWebResponse from(TokenResult result) {
         return new TokenWebResponse(result.accessToken(), result.requestToken());
     }
+
+    @Override
+    public String toString() {
+        return "TokenWebResponse[accessToken=***, requestToken=***]";
+    }
 }

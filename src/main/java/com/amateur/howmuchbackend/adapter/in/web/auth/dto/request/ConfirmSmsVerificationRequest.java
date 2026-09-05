@@ -19,4 +19,9 @@ public record ConfirmSmsVerificationRequest(
                 verificationCode
         );
     }
+
+    @Override
+    public String toString() {
+        return "ConfirmSmsVerificationRequest[phoneNumber=***, verificationRequestId=***, verificationCode=***]";
+    }
 }
