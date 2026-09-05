@@ -3,6 +3,10 @@
     const ACCESS_TOKEN_KEY = "common-code-admin.access-token";
     const REQUEST_TOKEN_KEY = "common-code-admin.request-token";
     let currentGroup = null;
+    let authGeneration = 0;
+    let loggingOut = false;
+    const LOGOUT_TIMEOUT_MS = 10_000;
+    const LOGOUT_WARNING = "이 브라우저에서는 로그아웃했지만 서버 로그아웃을 확인하지 못했습니다.";
 
     const $ = (id) => document.getElementById(id);
     const loginPanel = $("loginPanel");
@@ -36,7 +40,16 @@
         return body?.error?.message || `요청에 실패했습니다. (${response.status})`;
     }
 
-    async function refreshAccessToken() {
+    function isCurrentSession(generation) {
+        return generation === authGeneration && !loggingOut;
+    }
+
+    function requireCurrentSession(generation) {
+        if (!isCurrentSession(generation)) throw new Error("인증 상태가 변경되었습니다.");
+    }
+
+    async function refreshAccessToken(generation) {
+        requireCurrentSession(generation);
         const requestToken = sessionStorage.getItem(REQUEST_TOKEN_KEY);
         if (!requestToken) return false;
         const response = await fetch(`${API_BASE}/auth/token/refresh`, {
@@ -44,35 +57,99 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ requestToken })
         });
+        requireCurrentSession(generation);
         if (!response.ok) return false;
         const body = await response.json();
+        requireCurrentSession(generation);
         sessionStorage.setItem(ACCESS_TOKEN_KEY, body.data.accessToken);
         sessionStorage.setItem(REQUEST_TOKEN_KEY, body.data.requestToken);
         return true;
     }
 
-    async function api(path, options = {}, retry = true) {
+    async function api(path, options = {}, retry = true, generation = authGeneration) {
+        requireCurrentSession(generation);
         const headers = new Headers(options.headers || {});
         if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
         if (token()) headers.set("Authorization", `Bearer ${token()}`);
         const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
-        if (response.status === 401 && retry && await refreshAccessToken()) return api(path, options, false);
+        requireCurrentSession(generation);
+        if (response.status === 401 && retry && await refreshAccessToken(generation)) {
+            return api(path, options, false, generation);
+        }
         if (!response.ok) throw new Error(await responseError(response));
-        return response.status === 204 ? null : response.json();
+        const body = response.status === 204 ? null : await response.json();
+        requireCurrentSession(generation);
+        return body;
     }
 
-    function logout() {
+    async function revokeSession(accessToken, requestToken, signal) {
+        const revoke = value => fetch(`${API_BASE}/auth/logout`, {
+            method: "POST", headers: { Authorization: `Bearer ${value}` }, signal
+        });
+        let response = accessToken ? await revoke(accessToken) : { status: 401 };
+        if (response.status === 401 && requestToken) {
+            const refreshed = await fetch(`${API_BASE}/auth/token/refresh`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ requestToken }), signal
+            });
+            if (refreshed.status === 401) return;
+            if (!refreshed.ok) throw new Error(LOGOUT_WARNING);
+            const body = await refreshed.json();
+            if (!body?.data?.accessToken) throw new Error(LOGOUT_WARNING);
+            // Tokens issued solely to revoke the session never enter browser storage.
+            response = await revoke(body.data.accessToken);
+        }
+        if (!response.ok && response.status !== 401) throw new Error(LOGOUT_WARNING);
+    }
+
+    function clearLocalSession() {
         sessionStorage.removeItem(ACCESS_TOKEN_KEY);
         sessionStorage.removeItem(REQUEST_TOKEN_KEY);
         currentGroup = null;
+        $("loginForm").reset();
+        $("pin").value = "";
+        groupForm.reset();
+        $("groupCode").readOnly = false;
+        for (const id of ["groupList", "detailRows"]) $(id).replaceChildren();
+        for (const id of ["editorTitle", "revisionLabel"]) $(id).textContent = "";
+        $("groupCount").textContent = "0개";
+        $("keyword").value = "";
         setAuthenticated(false);
         groupForm.classList.add("hidden");
         emptyState.classList.remove("hidden");
         clearMessage();
     }
 
+    async function logout() {
+        if (loggingOut) return;
+        const accessToken = token();
+        const requestToken = sessionStorage.getItem(REQUEST_TOKEN_KEY);
+        loggingOut = true;
+        authGeneration++;
+        $("logoutButton").disabled = true;
+        $("loginForm").querySelectorAll("input, button").forEach(element => { element.disabled = true; });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
+        let failed = false;
+        try {
+            await revokeSession(accessToken, requestToken, controller.signal);
+        } catch (_) {
+            failed = true;
+        } finally {
+            clearTimeout(timeout);
+            clearLocalSession();
+            loggingOut = false;
+            $("logoutButton").disabled = false;
+            $("loginForm").querySelectorAll("input, button").forEach(element => { element.disabled = false; });
+            if (failed) showMessage(LOGOUT_WARNING, "error");
+        }
+    }
+
     async function login(event) {
         event.preventDefault();
+        if (loggingOut) return;
+        const generation = ++authGeneration;
         clearMessage();
         try {
             const response = await fetch(`${API_BASE}/auth/login`, {
@@ -82,20 +159,24 @@
             });
             if (!response.ok) throw new Error(await responseError(response));
             const body = await response.json();
+            if (!isCurrentSession(generation)) return;
             sessionStorage.setItem(ACCESS_TOKEN_KEY, body.data.accessToken);
             sessionStorage.setItem(REQUEST_TOKEN_KEY, body.data.requestToken);
             setAuthenticated(true);
             await loadGroups();
         } catch (error) {
-            showMessage(error.message, "error");
+            if (isCurrentSession(generation)) showMessage(error.message, "error");
         }
     }
 
     async function loadGroups() {
+        const generation = authGeneration;
+        if (!isCurrentSession(generation)) return;
         clearMessage();
         try {
             const keyword = encodeURIComponent($("keyword").value.trim());
             const body = await api(`/admin/common-codes/groups?keyword=${keyword}`);
+            if (!isCurrentSession(generation)) return;
             const groups = body.data || [];
             $("groupCount").textContent = `${groups.length}개`;
             $("groupList").innerHTML = groups.map(group => `
@@ -107,19 +188,22 @@
                 button.addEventListener("click", () => loadGroup(button.dataset.groupCode));
             });
         } catch (error) {
-            showMessage(error.message, "error");
+            if (isCurrentSession(generation)) showMessage(error.message, "error");
         }
     }
 
     async function loadGroup(groupCode) {
+        const generation = authGeneration;
+        if (!isCurrentSession(generation)) return;
         clearMessage();
         try {
             const body = await api(`/admin/common-codes/groups/${encodeURIComponent(groupCode)}`);
+            if (!isCurrentSession(generation)) return;
             currentGroup = body.data;
             renderGroup();
             await loadGroups();
         } catch (error) {
-            showMessage(error.message, "error");
+            if (isCurrentSession(generation)) showMessage(error.message, "error");
         }
     }
 
@@ -175,6 +259,8 @@
 
     async function saveGroup(event) {
         event.preventDefault();
+        const generation = authGeneration;
+        if (!isCurrentSession(generation)) return;
         clearMessage();
         try {
             const body = await api(`/admin/common-codes/groups/${encodeURIComponent(currentGroup.groupCode)}`, {
@@ -190,16 +276,19 @@
                     details: collectDetails()
                 })
             });
+            if (!isCurrentSession(generation)) return;
             currentGroup = body.data;
             renderGroup();
             await loadGroups();
-            showMessage("저장했습니다.");
+            if (isCurrentSession(generation)) showMessage("저장했습니다.");
         } catch (error) {
-            showMessage(error.message, "error");
+            if (isCurrentSession(generation)) showMessage(error.message, "error");
         }
     }
 
     async function createGroup() {
+        const generation = authGeneration;
+        if (!isCurrentSession(generation)) return;
         const groupCode = window.prompt("그룹 코드를 입력하세요.");
         if (groupCode === null) return;
         const groupName = window.prompt("그룹명을 입력하세요.");
@@ -209,12 +298,13 @@
                 method: "POST",
                 body: JSON.stringify({ groupCode, groupName, active: true })
             });
+            if (!isCurrentSession(generation)) return;
             currentGroup = body.data;
             renderGroup();
             await loadGroups();
-            showMessage("그룹을 생성했습니다.");
+            if (isCurrentSession(generation)) showMessage("그룹을 생성했습니다.");
         } catch (error) {
-            showMessage(error.message, "error");
+            if (isCurrentSession(generation)) showMessage(error.message, "error");
         }
     }
 

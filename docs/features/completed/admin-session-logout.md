@@ -1,6 +1,6 @@
 # Feature Plan: 관리자 로그아웃 시 서버 세션 폐기
 
-- Status: In Progress
+- Status: Completed
 - Last updated: 2026-09-06
 - Related issue: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/286
 - Related ADR: N/A (기존 계약 유지)
@@ -14,8 +14,8 @@
 작은 독립 수정으로 보안 결함 또는 실수에 의한 노출 가능성을 줄인다.
 
 ### Success criteria
-- [ ] 서버 세션 폐기, 만료 토큰의 1회 갱신, 10초 제한, 로컬 정리·실패 안내, 늦은 인증 응답 무시
-- [ ] Node DOM/fetch 회귀, 격리 PostgreSQL·Redis HTTP·화면 검증
+- [x] 서버 세션 폐기, 만료 토큰의 1회 갱신, 10초 제한, 로컬 정리·실패 안내, 늦은 인증 응답 무시
+- [x] Node DOM/fetch 회귀, 격리 PostgreSQL·Redis HTTP·화면 검증
 - [ ] PR 게시 및 CI 확인
 
 ### Out of scope
@@ -50,8 +50,8 @@ Node DOM/fetch 회귀, 격리 PostgreSQL·Redis HTTP·화면 검증로 실제 �
 ## 7. Implementation plan
 - [x] Migration-only PR: N/A (스키마 변경 없음)
 - [x] 새 UseCase/Port/Domain/Policy: N/A
-- [ ] 구현 및 관련 테스트
-- [ ] 문서·검증 결과 기록
+- [x] 구현 및 관련 테스트
+- [x] 문서·검증 결과 기록
 
 ### Expected commit boundaries
 1. `docs(auth): 관리자 로그아웃 시 서버 세션 폐기 구현 계획 수립`
@@ -64,7 +64,21 @@ Node DOM/fetch 회귀, 격리 PostgreSQL·Redis HTTP·화면 검증로 실제 �
 - 현재 CI는 `clean build -x test`: 로컬 테스트 결과와 구분
 
 ### Results
-Pending
+- `node --check src/main/resources/static/admin/common-codes.js`: 통과.
+- `node --test src/test/js/common-code-admin.test.cjs`: 20개 통과.
+- `./gradlew compileJava bootJar --no-daemon`: 통과.
+- `./gradlew test --tests '*CommonCodeAdminControllerTest' --tests '*CommonCodeAdminServiceTest' --no-daemon`: 6개 통과.
+- 격리 PostgreSQL에서 Flyway V1~V31 및 Hibernate validate 후 실제 local 서버 기동.
+- 실제 브라우저 로그인 → 보관된 Access Token HTTP 200 → 화면 로그아웃 → 동일 Access/Refresh Token 각각 HTTP 401 확인.
+- localhost 프록시로 로그아웃 503 주입: 로그인 화면 복귀, PIN 비움, 실패 안내 노출 확인.
+- baseline develop의 JS·HTML을 같은 격리 서버에 제공: 기존 화면 로그아웃 후 Access Token HTTP 200 재현.
+- 합성 관리자만 사용, 외부 SMS·은행 호출 없음. 임시 서버·프록시·PostgreSQL·Redis 종료 및 합성 자격 증명 파일 정리 완료.
+- [Before](../assets/admin-session-logout/before.png): 기존 화면은 서버 폐기 호출·실패 안내 없이 로그인 화면으로 돌아온다.
+- [After](../assets/admin-session-logout/after.png): 서버 503 시 로컬 정리 후 폐기 확인 실패 안내를 표시한다.
+- 브라우저 검증은 정상·503 두 경로와 baseline 비교이며, 만료 토큰·10초 타임아웃·늦은 응답은 Node 대역 테스트로 검증했다.
+
+- 문서 링크·`git diff --check` 검사 수행. 전체 테스트 스위트·운영 배포는 범위에서 제외.
+- GitHub 게시·CI 결과는 연결 이슈와 PR에 기록한다. CI는 테스트를 제외하므로 위 결과와 구분한다.
 
 ## 9. Progress log
 | 날짜 | 완료 | 다음 |
@@ -77,4 +91,6 @@ Pending
 | 2026-09-06 | 이슈·PR 1:1, 상위 이슈 없음 | 독립적 소규모 수정 |
 
 ## 11. Completion record
-구현·검증 후 기록한다.
+2026-09-06 구현·관련 검증 완료. API·저장 계약과 기존 토큰 호환성을 유지한다.
+서버 인증 경쟁 상태 해결·실제 로그 유출 조사·병합·배포는 수행하지 않았다.
+PR 게시와 CI 확인은 연결 이슈에서 추적한다.
