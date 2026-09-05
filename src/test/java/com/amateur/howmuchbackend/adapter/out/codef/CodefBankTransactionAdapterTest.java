@@ -3,6 +3,8 @@ package com.amateur.howmuchbackend.adapter.out.codef;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -24,6 +26,39 @@ import static org.mockito.Mockito.when;
 class CodefBankTransactionAdapterTest {
     @Mock
     private CodefClient client;
+
+    @ParameterizedTest
+    @CsvSource({
+            "20260905,091619,2026-09-05T00:16:19",
+            "20260905,000000,2026-09-04T15:00:00",
+            "20260905,085959,2026-09-04T23:59:59",
+            "20260905,090000,2026-09-05T00:00:00",
+            "20260901,000000,2026-08-31T15:00:00",
+            "20270101,000000,2026-12-31T15:00:00"
+    })
+    @DisplayName("KST 거래 벽시계를 자정·월말·연말에도 정확한 UTC로 복원한다")
+    void convertsKstWallClockToUtc(String date, String time, String expectedUtc) {
+        var response = new ObjectMapper().valueToTree(Map.of(
+                "result", Map.of("code", "CF-00000"),
+                "data", Map.of("resTrHistoryList", java.util.List.of(Map.of(
+                        "resAccountTrDate", date, "resAccountTrTime", time,
+                        "resAccountIn", "6000", "resAccountDesc1", "민선영 입금"
+                )))
+        ));
+        when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any())).thenReturn(response);
+        LocalDate queryDate = LocalDate.parse(date, java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        var transactions = new CodefBankTransactionAdapter(client)
+                .fetch("CID-1", "0020", "1002123456789", queryDate, queryDate);
+
+        assertThat(transactions).singleElement().satisfies(transaction -> {
+            assertThat(transaction.type()).isEqualTo(AccountTransactionType.INCOME);
+            assertThat(transaction.transactedAt()).isEqualTo(LocalDateTime.parse(expectedUtc));
+        });
+        verify(client).post(eq("/v1/kr/bank/p/account/transaction-list"),
+                org.mockito.ArgumentMatchers.argThat(payload ->
+                        payload instanceof Map<?, ?> fields && date.equals(fields.get("startDate"))
+                                && date.equals(fields.get("endDate"))));
+    }
 
     @Test
     @DisplayName("수시입출 요청 계약과 출금·입금·서울 시간을 표준 거래로 변환한다")
