@@ -52,7 +52,8 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementDetailWebResponse",
                 "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
-                "viewerRole", "creatorName", "paymentInfo", "paymentSummary",
+                "viewerRole", "creatorName", "bankName", "accountNumber", "institutionIconUrl",
+                "paymentInfo", "paymentSummary",
                 "reminderNextAvailableAt", "participants"
         );
         assertRequired(document, "PaymentInfo", "amount", "storeName", "paidAt");
@@ -83,7 +84,8 @@ class SettlementOpenApiIntegrationTest {
         assertNullable(
                 document,
                 "SettlementDetailWebResponse",
-                "allocationType", "reminderNextAvailableAt"
+                "allocationType", "bankName", "accountNumber", "institutionIconUrl",
+                "reminderNextAvailableAt"
         );
         assertNullable(document, "SettlementBulkReminderWebResponse", "nextAvailableAt");
         assertNullable(document, "PaymentInfo", "storeName", "paidAt");

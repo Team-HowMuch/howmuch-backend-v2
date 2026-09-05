@@ -206,6 +206,10 @@ class SettlementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.creatorName").value("최수아"))
+                .andExpect(jsonPath("$.data.bankName").value("NH농협"))
+                .andExpect(jsonPath("$.data.accountNumber").value("3510018989873"))
+                .andExpect(jsonPath("$.data.institutionIconUrl")
+                        .value("https://cdn.example.com/nh.png"))
                 .andExpect(jsonPath("$.data.viewerRole").value("CREATOR"))
                 .andExpect(jsonPath("$.data.paymentInfo.amount").value(10_000))
                 .andExpect(jsonPath("$.data.paymentInfo.storeName").value("롯데리아"))
@@ -830,6 +834,9 @@ class SettlementControllerTest {
                 CREATED_AT,
                 SettlementDetailResult.ViewerRole.CREATOR,
                 "최수아",
+                "NH농협",
+                "3510018989873",
+                "https://cdn.example.com/nh.png",
                 new SettlementDetailResult.PaymentInfo(
                         10_000,
                         "롯데리아",

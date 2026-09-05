@@ -1,6 +1,8 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
@@ -8,6 +10,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -15,6 +18,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
+import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
@@ -36,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -58,9 +63,11 @@ class SettlementDetailServiceTest {
     @Mock private LoadSettlementExpensePort loadSettlementExpensePort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
+    @Mock private LoadSettlementReceivingAccountSnapshotPort loadReceivingAccountSnapshotPort;
     @Mock private LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementReminderCooldownReader cooldownReader;
+    @Mock private BankCatalog bankCatalog;
 
     private SettlementDetailService service;
 
@@ -72,9 +79,11 @@ class SettlementDetailServiceTest {
                 loadSettlementExpensePort,
                 loadSettlementParticipantPort,
                 loadSettlementSharePort,
+                loadReceivingAccountSnapshotPort,
                 loadDepositSummaryPort,
                 loadUserPort,
-                cooldownReader
+                cooldownReader,
+                bankCatalog
         );
     }
 
@@ -87,6 +96,9 @@ class SettlementDetailServiceTest {
 
         assertThat(result.viewerRole()).isEqualTo(SettlementDetailResult.ViewerRole.CREATOR);
         assertThat(result.creatorName()).isEqualTo("생성자");
+        assertThat(result.bankName()).isEqualTo("NH농협");
+        assertThat(result.accountNumber()).isEqualTo("3510018989873");
+        assertThat(result.institutionIconUrl()).isEqualTo("https://cdn.example.com/nh.png");
         assertThat(result.paymentInfo()).isEqualTo(
                 new SettlementDetailResult.PaymentInfo(1_400, null, null)
         );
@@ -163,6 +175,39 @@ class SettlementDetailServiceTest {
                     assertThat(payment.confirmedAmount()).isEqualTo(300);
                 });
         verifyNoInteractions(cooldownReader);
+        verifyNoInteractions(loadReceivingAccountSnapshotPort, bankCatalog);
+    }
+
+    @Test
+    @DisplayName("생성자 초안은 수금 계좌 정보를 반환하지 않는다")
+    void returnsNullReceivingAccountForDraft() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlementDraft()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.bankName()).isNull();
+        assertThat(result.accountNumber()).isNull();
+        assertThat(result.institutionIconUrl()).isNull();
+        verifyNoInteractions(loadReceivingAccountSnapshotPort, bankCatalog);
+    }
+
+    @Test
+    @DisplayName("진행 중 정산의 수금 계좌 스냅샷이 없으면 404를 반환한다")
+    void rejectsMissingReceivingAccountSnapshot() {
+        givenSettlement(CREATOR_ID);
+        lenient().when(loadReceivingAccountSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.get(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND));
     }
 
     @Test
@@ -172,6 +217,7 @@ class SettlementDetailServiceTest {
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
                 .thenReturn(participants());
+        givenReceivingAccount();
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
         when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of());
@@ -216,6 +262,7 @@ class SettlementDetailServiceTest {
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of(participants().get(1)));
         when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator));
+        givenReceivingAccount();
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
         when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of());
@@ -259,6 +306,36 @@ class SettlementDetailServiceTest {
                 ));
         when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
                 .thenReturn(confirmedAmounts);
+        givenReceivingAccount();
+    }
+
+    private void givenReceivingAccount() {
+        lenient().when(loadReceivingAccountSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(new SettlementReceivingAccountSnapshot(
+                        SETTLEMENT_ID,
+                        10L,
+                        "0020",
+                        "3510018989873",
+                        "생성자",
+                        NOW
+                )));
+        lenient().when(bankCatalog.getBanks()).thenReturn(List.of(
+                new BankCatalogResult("0020", "NH농협", "https://cdn.example.com/nh.png")
+        ));
+    }
+
+    private Settlement settlementDraft() {
+        return new Settlement(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                "회식 정산",
+                1_400,
+                SettlementAllocationType.DUTCH_PAY,
+                null,
+                SettlementStatus.DRAFT,
+                NOW,
+                NOW
+        );
     }
 
     private Settlement settlement() {
