@@ -11,7 +11,8 @@ import java.util.UUID;
 
 @Schema(requiredProperties = {
         "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
-        "viewerRole", "creatorName", "paymentInfo", "paymentSummary",
+        "viewerRole", "creatorName", "bankName", "accountNumber", "institutionIconUrl",
+        "paymentInfo", "paymentSummary",
         "reminderNextAvailableAt", "participants"
 })
 public record SettlementDetailWebResponse(
@@ -24,6 +25,12 @@ public record SettlementDetailWebResponse(
         LocalDateTime createdAt,
         SettlementDetailResult.ViewerRole viewerRole,
         String creatorName,
+        @Schema(nullable = true)
+        String bankName,
+        @Schema(nullable = true)
+        String accountNumber,
+        @Schema(nullable = true)
+        String institutionIconUrl,
         PaymentInfo paymentInfo,
         PaymentSummary paymentSummary,
         @Schema(
@@ -44,6 +51,9 @@ public record SettlementDetailWebResponse(
                 result.createdAt(),
                 result.viewerRole(),
                 result.creatorName(),
+                result.bankName(),
+                result.accountNumber(),
+                result.institutionIconUrl(),
                 PaymentInfo.from(result.paymentInfo()),
                 PaymentSummary.from(result.paymentSummary()),
                 result.reminderNextAvailableAt(),

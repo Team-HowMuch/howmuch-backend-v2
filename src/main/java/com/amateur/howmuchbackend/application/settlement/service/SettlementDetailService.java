@@ -1,6 +1,8 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
@@ -8,6 +10,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
@@ -15,6 +18,7 @@ import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
+import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
@@ -40,9 +44,11 @@ public class SettlementDetailService implements GetSettlementUseCase {
     private final LoadSettlementExpensePort loadSettlementExpensePort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementSharePort loadSettlementSharePort;
+    private final LoadSettlementReceivingAccountSnapshotPort loadReceivingAccountSnapshotPort;
     private final LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     private final LoadUserPort loadUserPort;
     private final SettlementReminderCooldownReader cooldownReader;
+    private final BankCatalog bankCatalog;
 
     @Override
     @Transactional(readOnly = true)
@@ -66,7 +72,6 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 participants,
                 actorId
         );
-
         Map<UUID, SettlementShare> shareByParticipantId = loadSettlementSharePort
                 .findAllBySettlementId(settlementId)
                 .stream()
@@ -107,6 +112,28 @@ public class SettlementDetailService implements GetSettlementUseCase {
                                 .filter(payment -> payment.participantId().equals(viewerParticipantId))
                                 .toList();
 
+        String bankName = null;
+        String accountNumber = null;
+        String institutionIconUrl = null;
+        if (viewerRole == SettlementDetailResult.ViewerRole.CREATOR
+                && settlement.status() != SettlementStatus.DRAFT) {
+            SettlementReceivingAccountSnapshot snapshot = loadReceivingAccountSnapshotPort
+                    .findBySettlementId(settlementId)
+                    .orElseThrow(() -> ApplicationException.of(
+                            SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND
+                    ));
+            BankCatalogResult institution = bankCatalog.getBanks().stream()
+                    .filter(bank -> bank.organization().equals(snapshot.organization()))
+                    .findFirst()
+                    .orElse(null);
+            bankName = institution == null || institution.name() == null
+                    || institution.name().isBlank()
+                    ? snapshot.organization()
+                    : institution.name();
+            accountNumber = snapshot.accountNumber();
+            institutionIconUrl = institution == null ? null : institution.iconUrl();
+        }
+
         return new SettlementDetailResult(
                 settlement.id(),
                 settlement.title(),
@@ -116,6 +143,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 settlement.createdAt(),
                 viewerRole,
                 creatorName,
+                bankName,
+                accountNumber,
+                institutionIconUrl,
                 paymentInfo(
                         settlement,
                         loadSettlementExpensePort.findAllBySettlementId(settlementId)
