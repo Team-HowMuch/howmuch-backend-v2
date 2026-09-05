@@ -29,6 +29,8 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -36,6 +38,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.ZoneOffset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,6 +54,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -357,6 +363,78 @@ class SettlementDepositServiceTest {
         verify(saveTransactionPort, never()).saveAllIgnoringDuplicates(anyList());
         verify(depositStorePort, never()).saveAll(anyList());
         verifyNoInteractions(saveSettlementPort);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-09-04T15:00:00,2026-09-04T15:00:01,2026-09-05,2026-09-05",
+            "2026-09-04T15:00:00,2026-09-04T23:59:59,2026-09-05,2026-09-05",
+            "2026-09-04T15:00:00,2026-09-05T00:00:00,2026-09-05,2026-09-05",
+            "2026-08-31T15:00:00,2026-08-31T16:00:00,2026-09-01,2026-09-01",
+            "2026-12-31T15:00:00,2026-12-31T16:00:00,2027-01-01,2027-01-01"
+    })
+    @DisplayName("KST 00~09시와 월·연 경계에도 UTC 날짜 대신 KST 날짜로 조회한다")
+    void queriesKstCalendarDay(String snapshotUtc, String nowUtc, String start, String end) {
+        assertQueryPeriods(snapshotUtc, nowUtc, List.of(LocalDate.parse(start)), List.of(LocalDate.parse(end)));
+    }
+
+    @Test
+    @DisplayName("조회 범위를 KST 달력의 월 경계로 나눈다")
+    void splitsQueryByKstMonth() {
+        assertQueryPeriods("2026-12-31T14:59:59", "2026-12-31T15:00:01",
+                List.of(LocalDate.of(2026, 12, 31), LocalDate.of(2027, 1, 1)),
+                List.of(LocalDate.of(2026, 12, 31), LocalDate.of(2027, 1, 1)));
+    }
+
+    private void assertQueryPeriods(String snapshotUtc, String nowUtc, List<LocalDate> starts, List<LocalDate> ends) {
+        var created = LocalDateTime.parse(snapshotUtc);
+        var now = LocalDateTime.parse(nowUtc);
+        var fixedSnapshot = new SettlementReceivingAccountSnapshot(SETTLEMENT_ID, 7L, "0020",
+                "1002123456789", "최수아", created);
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID)).thenReturn(Optional.of(fixedSnapshot));
+        when(connectionStorePort.findActiveByUserId(CREATOR_ID))
+                .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
+        var writer = mock(SettlementDepositWriter.class);
+        var queryService = new SettlementDepositService(currentActorPort, loadSettlementPort, loadSnapshotPort,
+                connectionStorePort, bankTransactionPort, writer, mock(SettlementDepositReader.class));
+        try (var clock = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
+            clock.when(() -> LocalDateTime.now(ZoneOffset.UTC)).thenReturn(now);
+            queryService.reconcile(SETTLEMENT_ID);
+        }
+        var startCaptor = ArgumentCaptor.forClass(LocalDate.class);
+        var endCaptor = ArgumentCaptor.forClass(LocalDate.class);
+        verify(bankTransactionPort, times(starts.size())).fetch(eq("CID-1"), eq("0020"),
+                eq("1002123456789"), startCaptor.capture(), endCaptor.capture());
+        assertThat(startCaptor.getAllValues()).containsExactlyElementsOf(starts);
+        assertThat(endCaptor.getAllValues()).containsExactlyElementsOf(ends);
+        verify(writer).reconcile(SETTLEMENT_ID, CREATOR_ID, fixedSnapshot, List.of(), now);
+    }
+
+    @Test
+    @DisplayName("생성 2시간 이내 입금으로 완료되고 재대조가 중복 입금을 만들지 않는다")
+    void completesRecentSettlementAndDoesNotDuplicateOnRetry() {
+        arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
+        Transaction saved = transaction("6000");
+        arrangeFetchedTransaction(saved);
+        var now = CREATED_AT.plusHours(2);
+        when(saveSettlementPort.update(any(Settlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        try (var clock = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
+            clock.when(() -> LocalDateTime.now(ZoneOffset.UTC)).thenReturn(now);
+            assertThat(service.reconcile(SETTLEMENT_ID).status()).isEqualTo(SettlementStatus.COMPLETED);
+            when(loadSettlementPort.findById(SETTLEMENT_ID))
+                    .thenReturn(Optional.of(settlement(SettlementStatus.COMPLETED)));
+            when(loadTransactionPort.findIncomeByAccountIdBetween(7L, CREATED_AT, now)).thenReturn(List.of(saved));
+            when(depositStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                    new SettlementDeposit(UUID.randomUUID(), SETTLEMENT_ID, PAYER_SHARE_ID, 7L, saved.id(), now)));
+            var retried = service.reconcile(SETTLEMENT_ID);
+            assertThat(retried.status()).isEqualTo(SettlementStatus.COMPLETED);
+            assertThat(retried.confirmedAmount()).isEqualTo(6000);
+        }
+        verify(saveTransactionPort, times(1)).saveAllIgnoringDuplicates(anyList());
+        verify(depositStorePort, times(1)).saveAll(anyList());
+        verify(saveSettlementPort, times(1)).update(any(Settlement.class));
     }
 
     private void arrangeSettlement(SettlementStatus status) {

@@ -1,6 +1,6 @@
 # Feature Plan: CODEF Mock KST 거래 시각과 입금 대조 회귀 검증
 
-- Status: In progress
+- Status: Complete
 - Last updated: 2026-09-05
 - Related issue: [상위 Mock #8](https://github.com/Team-HowMuch/codef-mock-server/issues/8), [Mock #9](https://github.com/Team-HowMuch/codef-mock-server/issues/9), [Backend #278](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/278)
 - Related ADR: N/A — 기존 시간 계약 준수
@@ -48,10 +48,10 @@ Mock server.py·web/index.html·test_server.py·README. Backend 어댑터·서�
 두 저장소 브랜치 fix/codef-mock-kst. Mock 최신 main, Backend 최신 develop에서 분기. 사용자 요청으로 이슈 생성·커밋·push·PR 작성까지 수행한다.
 
 - Migration/Input Port/Output Port/Domain/Policy/Service/Web DTO/Infra 구현: N/A — 기존 계약 유지.
-- [ ] Mock 자동 이체·시드·조회 테스트
-- [ ] Mock 관리 화면 KST 기본값
-- [ ] Backend 어댑터·서비스·정책 테스트
-- [ ] 문서·검증 결과·PR
+- [x] Mock 자동 이체·시드·조회 테스트
+- [x] Mock 관리 화면 KST 기본값
+- [x] Backend 어댑터·서비스·정책 테스트
+- [x] 문서·검증 결과·PR
 
 Mock 커밋:
 1. fix(codef): 모의 이체 거래 시각을 KST로 저장
@@ -69,7 +69,16 @@ Mock: 격리 SQLite와 고정 시계, python3 -m unittest -v. 브라우저 UTC·
 
 Backend: ./gradlew compileJava 및 ./gradlew test --tests '*CodefBankTransactionAdapterTest' --tests '*SettlementDepositMatchingPolicyTest' --tests '*SettlementDepositServiceTest'. DB·Redis·필수 환경 확인 후 격리 연동 검증. git diff --check, git status --short --untracked-files=all 및 문서 링크 검사.
 
-결과: Pending. 실제 수행과 미수행 사유를 최종 기록한다.
+### 결과
+
+- Mock Python HTTP 테스트 10개 통과: KST 단일 시각, 날짜 범위, 양쪽 원장, 시드·수동·재시작 보존. Python 3.14에서는 기존 SQLite 연결/HTTPError 정리 ResourceWarning이 있으나 실패는 없었다.
+- 실제 Chrome UTC·Asia/Seoul에서 KST 자정과 연도 변경 후 초기화 통과, 페이지 오류 없음. Mock PR에 전후 스크린샷 포함.
+- Backend compileJava 및 관련 29개 테스트(어댑터 7·서비스 15·정책 4·영속 통합 3) 모두 통과. 격리 PostgreSQL의 SettlementDepositPersistenceIntegrationTest 통과, Flyway V1~V31 및 Hibernate validate 확인.
+- local,codef-mock 기동: 격리 PostgreSQL·별도 Redis(16389)·Mock(18089), 외부 SMS loopback·Outbox 비활성.
+- 실제 Mock POST /admin/api/transfers → 인증된 Backend POST /api/v2/settlements/{id}/deposits/reconcile → PostgreSQL: UTC JVM에서 COMPLETED, confirmedAmount=6000. 재대조 후에도 입금 1건·6000원. 스냅샷 생성 후 2.018초 입금으로 검증.
+- 서울 시간대 JVM의 같은 경로는 기존 추가 문제 재현: Mock 20260905 094129가 백엔드 DB에 2026-09-04 15:41:29로 저장되었다. Mock 저장은 올바르지만 native INSERT/JDBC 시간대 경계에서 추가 이동이 발생하는 것으로 보인다. Backend 운영 코드는 변경하지 않았으며 UTC JVM에서는 정상 완료했다. 서울 JVM 환경에서는 이번 Mock 수정만으로 완료가 보장되지 않는다.
+- 전체 Backend 테스트, 실제 금융 송금, PR 병합 및 배포 후 검증은 미수행. 변경 관련 테스트로 범위를 제한했고 병합은 승인 범위에서 제외했다.
+- 초기 sandbox Gradle 캐시·loopback 접근 실패는 권한 확장 후 해결했고, 작성 중 어댑터 테스트 타입 오류는 수정 후 통과했다.
 
 ## 9. 진행 기록
 
@@ -81,4 +90,4 @@ Backend: ./gradlew compileJava 및 ./gradlew test --tests '*CodefBankTransaction
 
 ## 11. 완료 기록
 
-구현·검증 후 갱신. PR 병합은 수행하지 않는다. Mock main 병합 시 배포 workflow가 실행되므로 배포 후 새 가상 거래 검증까지 확인한 뒤 상위 이슈를 종료한다. 기존 실패 거래 복구는 별도 작업이다.
+Completed on: 2026-09-05. Mock 생성·관리 화면 수정과 Backend 회귀 테스트 구현·검증 완료. 기존 데이터 보존. 서울 JVM의 추가 저장 시각 문제는 별도 검토 사항이다. PR 병합은 수행하지 않는다. Mock main 병합 시 배포 workflow가 실행되므로 배포 후 새 가상 거래 검증까지 확인한 뒤 상위 이슈를 종료한다. 기존 실패 거래 복구는 별도 작업이다.
