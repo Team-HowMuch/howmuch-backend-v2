@@ -242,6 +242,7 @@ The auth Controller maps `TokenResult` to the Web `TokenResponse` boundary, pres
 ## Time handling
 
 - Use UTC `LocalDateTime` for storage and internal server calculations.
+- The application entry point sets the JVM default timezone to UTC before Spring and JDBC initialization, including when the host or `user.timezone` starts in another timezone. Tests that verify this startup guarantee must invoke the main method.
 - Create the current time with `LocalDateTime.now(ZoneOffset.UTC)`.
 - Convert library-specific types such as JWT `Date` at the Adapter boundary.
 - If a request contains timezone-aware input, normalize it to UTC `LocalDateTime` in the Web Adapter.
