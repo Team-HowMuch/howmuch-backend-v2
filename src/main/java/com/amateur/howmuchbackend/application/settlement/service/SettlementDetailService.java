@@ -182,11 +182,11 @@ public class SettlementDetailService implements GetSettlementUseCase {
             Settlement settlement,
             List<SettlementExpense> expenses
     ) {
-        SettlementReceiptInfo receipt = SettlementReceiptInfo.resolve(expenses);
+        SettlementPaymentInfo payment = SettlementPaymentInfo.resolve(expenses);
         return new SettlementDetailResult.PaymentInfo(
                 settlement.totalAmount(),
-                receipt.storeName(),
-                receipt.paidAt()
+                payment.storeName(),
+                payment.paidAt()
         );
     }
 

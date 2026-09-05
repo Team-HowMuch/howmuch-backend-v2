@@ -24,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -158,16 +160,17 @@ class SettlementPaymentExpenseServiceTest {
         assertThat(result.get(1).imported()).isFalse();
     }
 
-    @Test
-    @DisplayName("소유한 계좌의 출금 내역을 잠긴 정산에 저장하고 최신 누적액을 반환한다")
-    void importsOwnedExpenseTransaction() {
+    @ParameterizedTest
+    @CsvSource(value = {"NULL,결제내역", "'  행복식당  ',행복식당"}, nullValues = "NULL")
+    @DisplayName("소유한 출금의 상호명과 UTC 거래 시각을 저장하고 최신 누적액을 반환한다")
+    void importsOwnedExpenseTransaction(String description, String expectedDescription) {
         givenOwnedDraftForUpdate();
         Transaction transaction = transaction(
                 TRANSACTION_ID,
                 "transaction-key",
                 AccountTransactionType.EXPENSE,
                 "42000",
-                null
+                description
         );
         when(loadAccountPort.findActiveByIdAndUserId(ACCOUNT_ID, CREATOR_ID))
                 .thenReturn(Optional.of(account()));
@@ -200,7 +203,9 @@ class SettlementPaymentExpenseServiceTest {
         );
         assertThat(captor.getValue().sourceReference()).isEqualTo("transaction-key");
         assertThat(captor.getValue().sourceAccountId()).isEqualTo(ACCOUNT_ID);
-        assertThat(captor.getValue().description()).isEqualTo("결제내역");
+        assertThat(captor.getValue().description()).isEqualTo(expectedDescription);
+        assertThat(captor.getValue().paidAt()).isEqualTo(transaction.transactedAt());
+        assertThat(captor.getValue().paidAt()).isNotEqualTo(captor.getValue().createdAt());
         assertThat(captor.getValue().displayOrder()).isEqualTo(2);
         assertThat(result.totalExpenseAmount()).isEqualTo(50_000);
     }
@@ -332,6 +337,7 @@ class SettlementPaymentExpenseServiceTest {
                 sourceReference,
                 "점심",
                 12_000,
+                CREATED_AT.minusDays(1),
                 0,
                 CREATED_AT
         );

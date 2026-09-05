@@ -89,6 +89,9 @@ class SettlementOpenApiIntegrationTest {
         );
         assertNullable(document, "SettlementBulkReminderWebResponse", "nextAvailableAt");
         assertNullable(document, "PaymentInfo", "storeName", "paidAt");
+        assertNullable(document, "SettlementLinkEntryWebResponse", "storeName", "paidAt");
+        assertDescriptionContainsUtc(document, "PaymentInfo", "paidAt");
+        assertDescriptionContainsUtc(document, "SettlementLinkEntryWebResponse", "paidAt");
         assertDescriptionContainsUtc(
                 document,
                 "SettlementDetailWebResponse",

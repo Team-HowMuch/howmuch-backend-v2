@@ -74,6 +74,8 @@ class SettlementLinkEntryControllerTest {
 
         mockMvc.perform(get("/api/v2/settlement-links/{token}", TOKEN))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.storeName").value("행복식당"))
+                .andExpect(jsonPath("$.data.paidAt").value("2026-08-24T19:30:00"))
                 .andExpect(jsonPath("$.data.entryMode").value("BROWSER_SELECTION"))
                 .andExpect(jsonPath("$.data.totalAmount").value(10_000))
                 .andExpect(jsonPath("$.data.participantCount").value(2))

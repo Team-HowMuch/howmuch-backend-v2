@@ -250,6 +250,30 @@ class SettlementLinkEntryServiceTest {
     }
 
     @Test
+    @DisplayName("결제내역 정산이면 상호명과 결제일을 함께 준다")
+    void exposesPaymentHistoryStoreNameAndPaidAt() {
+        arrangeItemAllocationAccess();
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
+                List.of(SettlementExpense.paymentHistory(
+                        SETTLEMENT_ID,
+                        1L,
+                        "ocr-1",
+                        "행복식당",
+                        10_000,
+                        PAID_AT,
+                        0,
+                        CREATED_AT
+                ))
+        );
+        when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
+
+        var result = service.resolve(RAW_TOKEN);
+
+        assertThat(result.storeName()).isEqualTo("행복식당");
+        assertThat(result.paidAt()).isEqualTo(PAID_AT);
+    }
+
+    @Test
     @DisplayName("영수증이 두 건 이상이면 어느 가게인지 정할 수 없어 비운다")
     void leavesReceiptInfoEmptyWhenAmbiguous() {
         arrangeItemAllocationAccess();

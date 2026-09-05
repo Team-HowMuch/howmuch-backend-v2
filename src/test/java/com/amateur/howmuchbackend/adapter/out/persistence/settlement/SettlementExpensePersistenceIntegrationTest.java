@@ -191,12 +191,18 @@ class SettlementExpensePersistenceIntegrationTest {
                 "a".repeat(64),
                 "카드 결제",
                 42_000,
+                CREATED_AT.minusDays(1),
                 0,
                 CREATED_AT
         );
 
         SettlementExpense saved = settlementExpensePersistenceAdapter.save(imported);
 
+        SettlementExpense reloaded = settlementExpensePersistenceAdapter
+                .findAllBySettlementId(settlementId).getFirst();
+        assertThat(reloaded.paidAt()).isEqualTo(CREATED_AT.minusDays(1));
+        assertThat(reloaded.paidAt()).isNotEqualTo(reloaded.createdAt());
+        assertThat(reloaded.description()).isEqualTo("카드 결제");
         assertThat(saved.sourceReference()).isEqualTo("a".repeat(64));
         assertThat(saved.sourceAccountId()).isEqualTo(sourceAccountId);
         assertThat(settlementExpensePersistenceAdapter
@@ -213,6 +219,7 @@ class SettlementExpensePersistenceIntegrationTest {
                         "a".repeat(64),
                         "다른 계좌의 같은 거래 Key",
                         42_000,
+                        CREATED_AT.minusDays(1),
                         1,
                         CREATED_AT
                 )
@@ -224,6 +231,7 @@ class SettlementExpensePersistenceIntegrationTest {
                         "a".repeat(64),
                         "같은 카드 결제",
                         42_000,
+                        CREATED_AT.minusDays(1),
                         2,
                         CREATED_AT
                 )

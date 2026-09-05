@@ -277,6 +277,7 @@ class SettlementExpenseServiceTest {
                 "transaction-key",
                 "카드 결제",
                 42_000,
+                null,
                 0,
                 CREATED_AT
         );
