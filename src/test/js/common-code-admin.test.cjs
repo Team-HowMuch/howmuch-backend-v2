@@ -160,13 +160,116 @@ test('late successful login cannot restore authentication after logout', async (
     assertCleared(p); assert.equal(p.writes.length, 0);
 });
 
-test('late refresh cannot save tokens or retry a protected request after logout', async () => {
+test('logout waits for refresh to save the server session before revoking it', async () => {
     const pending = deferred();
-    const p = page(url => url.endsWith('/token/refresh') ? pending.promise
-        : url.includes('/admin/') ? Promise.resolve(response(401)) : Promise.resolve(response()));
-    await flush(); await p.logout(); pending.resolve(tokens()); await flush();
+    const events = [];
+    let serverSession = true;
+    const p = page((url, options) => {
+        if (url.endsWith('/token/refresh')) return pending.promise.then(() => {
+            serverSession = true;
+            events.push('refresh saved');
+            return tokens();
+        });
+        if (url.includes('/admin/')) return Promise.resolve(response(401));
+        if (url.endsWith('/logout')) {
+            assert.equal(options.headers.Authorization, 'Bearer new-access');
+            serverSession = false;
+            events.push('logout deleted');
+            return Promise.resolve(response());
+        }
+    });
+    await flush(); const done = p.logout(); await flush();
+    assert.equal(p.calls.filter(c => c.url.endsWith('/logout')).length, 0);
+    pending.resolve(); await done; await flush();
+    assert.deepEqual(events, ['refresh saved', 'logout deleted']);
+    assert.equal(serverSession, false);
     assertCleared(p); assert.equal(p.writes.length, 0);
     assert.equal(p.calls.filter(c => c.url.includes('/admin/')).length, 1);
+});
+
+test('concurrent protected requests share a refresh before logout', async () => {
+    const pending = deferred();
+    const p = page(url => url.endsWith('/token/refresh') ? pending.promise
+        : url.includes('/admin/') ? Promise.resolve(response(401)) : undefined);
+    await flush(); p.search(); await flush();
+    assert.equal(p.calls.filter(c => c.url.endsWith('/token/refresh')).length, 1);
+    const done = p.logout(); pending.resolve(tokens()); await done; await flush();
+    assert.equal(p.calls.filter(c => c.url.endsWith('/logout')).length, 1);
+    assert.equal(p.calls.filter(c => c.url.includes('/admin/')).length, 2);
+    assertCleared(p); assert.equal(p.writes.length, 0);
+});
+
+test('refresh wait shares the logout deadline and late completion cannot restore authentication', async () => {
+    const pending = deferred();
+    const p = page(url => url.endsWith('/token/refresh') ? pending.promise
+        : url.includes('/admin/') ? Promise.resolve(response(401)) : undefined);
+    await flush(); const done = p.logout(); await flush();
+    assert.equal(p.timers.size, 1);
+    const timer = [...p.timers.values()][0]; assert.equal(timer.ms, 10000); timer.fn();
+    await done;
+    assert.equal(p.storage.size, 0);
+    assert.equal(p.element('message').textContent, WARNING);
+    assert.equal(p.element('loginSubmit').disabled, true);
+    await p.login();
+    assert.equal(p.calls.filter(c => c.url.endsWith('/login')).length, 0);
+    pending.resolve(tokens()); await flush();
+    assertCleared(p); assert.equal(p.writes.length, 0);
+    assert.equal(p.calls.filter(c => c.url.endsWith('/logout')).length, 0);
+    assert.equal(p.element('message').textContent, WARNING);
+});
+
+for (const outcome of ['network', '500', 'invalid body']) {
+    test(`pending refresh ${outcome} reports unconfirmed server logout`, async () => {
+        const pending = deferred();
+        const p = page(url => url.endsWith('/token/refresh') ? pending.promise
+            : url.includes('/admin/') ? Promise.resolve(response(401)) : undefined);
+        await flush(); const done = p.logout();
+        if (outcome === 'network') pending.reject(new TypeError('offline'));
+        else pending.resolve(response(outcome === '500' ? 500 : 200));
+        await done; await flush(); assertCleared(p);
+        assert.equal(p.element('message').textContent, WARNING);
+    });
+}
+
+test('pending refresh 401 still permits revoking an existing access token', async () => {
+    const pending = deferred();
+    const p = page(url => url.endsWith('/token/refresh') ? pending.promise
+        : url.includes('/admin/') ? Promise.resolve(response(401)) : undefined);
+    await flush(); const done = p.logout(); pending.resolve(response(401)); await done;
+    assertCleared(p); assert.equal(p.element('message').classList.contains('hidden'), true);
+    assert.equal(p.calls.filter(c => c.url.endsWith('/logout')).length, 1);
+});
+
+test('duplicate login submissions create only one server session', async () => {
+    const pending = deferred();
+    const p = page(url => url.endsWith('/login') ? pending.promise : undefined, false);
+    const first = p.login(); const duplicate = p.login();
+    assert.equal(p.calls.filter(c => c.url.endsWith('/login')).length, 1);
+    for (const id of ['phoneNumber', 'pin', 'loginSubmit']) assert.equal(p.element(id).disabled, true);
+    pending.resolve(tokens()); await Promise.all([first, duplicate]);
+    assert.equal(p.storage.get(ACCESS), 'new-access');
+    assert.equal(p.element('adminPanel').classList.contains('hidden'), false);
+    assert.equal(p.element('loginSubmit').disabled, false);
+});
+
+test('a failed login unlocks the form for another attempt', async () => {
+    let attempts = 0;
+    const p = page(url => url.endsWith('/login')
+        ? Promise.resolve(++attempts === 1 ? response(401) : tokens()) : undefined, false);
+    await p.login();
+    assert.equal(p.element('loginSubmit').disabled, false);
+    await p.login(); assert.equal(attempts, 2);
+    assert.equal(p.storage.get(ACCESS), 'new-access');
+});
+
+test('finishing login cannot unlock the form during logout', async () => {
+    const loginResponse = deferred(), logoutResponse = deferred();
+    const p = page(url => url.endsWith('/login') ? loginResponse.promise
+        : url.endsWith('/logout') ? logoutResponse.promise : undefined, false);
+    const login = p.login(); p.storage.set(ACCESS, 'old-access'); const logout = p.logout();
+    loginResponse.resolve(tokens()); await login;
+    assert.equal(p.element('loginSubmit').disabled, true);
+    logoutResponse.resolve(response()); await logout; assertCleared(p);
 });
 
 test('late protected response cannot refill the cleared page', async () => {
@@ -187,4 +290,27 @@ test('late login failure cannot overwrite logout warning', async () => {
 test('logout warning lives outside the hidden admin panel', () => {
     const html = fs.readFileSync(path.join(__dirname, '../../main/resources/templates/admin/common-codes.html'), 'utf8');
     assert.ok(html.indexOf('id="message"') < html.indexOf('<section id="loginPanel"'));
+});
+
+
+test('shared refresh still stores tokens and retries protected requests outside logout', async () => {
+    const pending = deferred();
+    const p = page((url, options) => url.endsWith('/token/refresh') ? pending.promise
+        : url.includes('/admin/') ? Promise.resolve(response(options.headers.get('Authorization') === 'Bearer new-access' ? 200 : 401, [])) : undefined);
+    await flush(); p.search(); await flush();
+    assert.equal(p.calls.filter(c => c.url.endsWith('/token/refresh')).length, 1);
+    pending.resolve(tokens()); await flush();
+    assert.equal(p.storage.get(ACCESS), 'new-access');
+    assert.equal(p.storage.get(REFRESH), 'new-refresh');
+    assert.equal(p.calls.filter(c => c.url.includes('/admin/')).length, 4);
+    assert.equal(p.element('loginSubmit').disabled, false);
+});
+
+test('a slow data request after login does not keep the logged-out form locked', async () => {
+    const pending = deferred();
+    const p = page(url => url.endsWith('/login') ? Promise.resolve(tokens())
+        : url.includes('/admin/') ? pending.promise : undefined, false);
+    const login = p.login(); await flush(); await p.logout();
+    assertCleared(p);
+    pending.resolve(response(200, [])); await login; assertCleared(p);
 });

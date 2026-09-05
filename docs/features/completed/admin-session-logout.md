@@ -16,7 +16,7 @@
 ### Success criteria
 - [x] 서버 세션 폐기, 만료 토큰의 1회 갱신, 10초 제한, 로컬 정리·실패 안내, 늦은 인증 응답 무시
 - [x] Node DOM/fetch 회귀, 격리 PostgreSQL·Redis HTTP·화면 검증
-- [ ] PR 게시 및 CI 확인
+- [x] PR 게시 및 최초 CI 확인
 
 ### Out of scope
 입력 제한, 서버 인증 동시성 재설계, Domain·Properties·전역 로깅 변경, 병합·배포.
@@ -56,6 +56,7 @@ Node DOM/fetch 회귀, 격리 PostgreSQL·Redis HTTP·화면 검증로 실제 �
 ### Expected commit boundaries
 1. `docs(auth): 관리자 로그아웃 시 서버 세션 폐기 구현 계획 수립`
 2. `fix(auth): 관리자 로그아웃 시 서버 세션 폐기` — 구현·회귀 테스트·완료 문서
+3. `fix(auth): 관리자 인증 요청과 로그아웃 순서 보장` — PR 리뷰의 갱신·로그인 동시 요청 회귀 수정
 
 ## 8. Verification
 - `./gradlew compileJava`
@@ -65,7 +66,7 @@ Node DOM/fetch 회귀, 격리 PostgreSQL·Redis HTTP·화면 검증로 실제 �
 
 ### Results
 - `node --check src/main/resources/static/admin/common-codes.js`: 통과.
-- `node --test src/test/js/common-code-admin.test.cjs`: 20개 통과.
+- `node --test src/test/js/common-code-admin.test.cjs`: 최초 20개, 리뷰 반영 후 31개 통과.
 - `./gradlew compileJava bootJar --no-daemon`: 통과.
 - `./gradlew test --tests '*CommonCodeAdminControllerTest' --tests '*CommonCodeAdminServiceTest' --no-daemon`: 6개 통과.
 - 격리 PostgreSQL에서 Flyway V1~V31 및 Hibernate validate 후 실제 local 서버 기동.
@@ -94,3 +95,17 @@ Node DOM/fetch 회귀, 격리 PostgreSQL·Redis HTTP·화면 검증로 실제 �
 2026-09-06 구현·관련 검증 완료. API·저장 계약과 기존 토큰 호환성을 유지한다.
 서버 인증 경쟁 상태 해결·실제 로그 유출 조사·병합·배포는 수행하지 않았다.
 PR 게시와 CI 확인은 연결 이슈에서 추적한다.
+
+## 12. PR 리뷰 후속 계획
+- #289의 진행 중 갱신과 로그아웃 경쟁, 중복 로그인 응답 순서 지적을 반영한다.
+- 같은 화면의 진행 중 갱신을 공유하고, 로그아웃은 그 응답을 기다린 뒤 최신 토큰으로 서버 세션을 폐기한다. 갱신 결과는 브라우저에 다시 저장하지 않는다.
+- 기존 10초 제한에 갱신 대기도 포함한다. 대기 시간 초과·갱신 실패는 로컬 정리 후 서버 폐기 확인 실패로 안내한다.
+- 로그인 요청 처리 중 폼을 비활성화하고 중복 submit을 무시한다. 완료 시 로그아웃 진행 상태를 고려해 폼을 복구한다. 갱신 대기가 10초를 넘으면 로컬 정리와 안내는 즉시 완료하되, 같은 화면의 미완료 갱신 응답이 도착할 때까지 새 로그인을 차단한다.
+- Node 대역으로 서버 세션 저장→삭제 순서, 갱신 공유, 대기 시간 초과·오류, 중복 로그인·재시도를 검증한다.
+- 서버의 Redis 원자성, 다른 탭·클라이언트의 갱신, 응답을 확인할 수 없는 요청의 서버 처리까지 보장하지 않는다. Flyway·API·Java 변경은 없다.
+
+### 후속 검증 결과
+- 최초 PR 코드에서 두 리뷰의 회귀 테스트가 각각 실패함을 확인했다(갱신 완료 전 폐기 호출, 중복 로그인 HTTP 2회).
+- 수정 후 Node 회귀 31개 및 JS 구문 검사 통과. 대기 중 갱신의 세션 저장→로그아웃 삭제 순서, 갱신 공유, 시간 초과 후 늦은 응답 무시, 로그인 중복 제출·재시도·폼 잠금 복구를 포함한다.
+- `./gradlew compileJava test --tests '*CommonCodeAdminControllerTest' --tests '*CommonCodeAdminServiceTest' --no-daemon`: 통과, 기존 Java 6개 통과. DB·Redis를 요구하지 않는 기존 단위 테스트만 실행했다.
+- 후속 변경은 Node DOM/fetch 대역으로 검증했으며, 실제 브라우저·PostgreSQL·Redis 검증은 최초 구현 때의 결과이고 이번에는 재실행하지 않았다.

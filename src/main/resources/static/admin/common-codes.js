@@ -5,6 +5,8 @@
     let currentGroup = null;
     let authGeneration = 0;
     let loggingOut = false;
+    let loggingIn = false;
+    let pendingRefresh = null;
     const LOGOUT_TIMEOUT_MS = 10_000;
     const LOGOUT_WARNING = "이 브라우저에서는 로그아웃했지만 서버 로그아웃을 확인하지 못했습니다.";
 
@@ -48,22 +50,58 @@
         if (!isCurrentSession(generation)) throw new Error("인증 상태가 변경되었습니다.");
     }
 
-    async function refreshAccessToken(generation) {
-        requireCurrentSession(generation);
-        const requestToken = sessionStorage.getItem(REQUEST_TOKEN_KEY);
-        if (!requestToken) return false;
+    function updateLoginControls() {
+        $("loginForm").querySelectorAll("input, button").forEach(element => {
+            element.disabled = loggingIn || loggingOut || pendingRefresh !== null;
+        });
+    }
+
+    async function requestRefresh(requestToken) {
         const response = await fetch(`${API_BASE}/auth/token/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ requestToken })
         });
-        requireCurrentSession(generation);
-        if (!response.ok) return false;
+        if (response.status === 401) return null;
+        if (!response.ok) throw new Error(await responseError(response));
         const body = await response.json();
+        if (!body?.data?.accessToken || !body.data.requestToken) throw new Error("토큰 갱신에 실패했습니다.");
+        return body.data;
+    }
+
+    async function refreshAccessToken(generation) {
         requireCurrentSession(generation);
-        sessionStorage.setItem(ACCESS_TOKEN_KEY, body.data.accessToken);
-        sessionStorage.setItem(REQUEST_TOKEN_KEY, body.data.requestToken);
-        return true;
+        const requestToken = sessionStorage.getItem(REQUEST_TOKEN_KEY);
+        if (!requestToken) return false;
+        // Share the server mutation so logout can wait for every refresh from this page.
+        if (!pendingRefresh) pendingRefresh = requestRefresh(requestToken);
+        const refresh = pendingRefresh;
+        updateLoginControls();
+        try {
+            const refreshed = await refresh;
+            requireCurrentSession(generation);
+            if (!refreshed) return false;
+            sessionStorage.setItem(ACCESS_TOKEN_KEY, refreshed.accessToken);
+            sessionStorage.setItem(REQUEST_TOKEN_KEY, refreshed.requestToken);
+            return true;
+        } finally {
+            if (pendingRefresh === refresh) pendingRefresh = null;
+            updateLoginControls();
+        }
+    }
+
+    async function waitForRefresh(refresh, signal) {
+        signal.throwIfAborted();
+        let onAbort;
+        const aborted = new Promise((_, reject) => {
+            onAbort = () => reject(new Error(LOGOUT_WARNING));
+            signal.addEventListener("abort", onAbort, { once: true });
+        });
+        try {
+            return await Promise.race([refresh, aborted]);
+        } finally {
+            signal.removeEventListener("abort", onAbort);
+        }
     }
 
     async function api(path, options = {}, retry = true, generation = authGeneration) {
@@ -123,16 +161,25 @@
 
     async function logout() {
         if (loggingOut) return;
-        const accessToken = token();
-        const requestToken = sessionStorage.getItem(REQUEST_TOKEN_KEY);
+        let accessToken = token();
+        let requestToken = sessionStorage.getItem(REQUEST_TOKEN_KEY);
+        const refresh = pendingRefresh;
         loggingOut = true;
         authGeneration++;
         $("logoutButton").disabled = true;
-        $("loginForm").querySelectorAll("input, button").forEach(element => { element.disabled = true; });
+        updateLoginControls();
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
         let failed = false;
         try {
+            if (refresh) {
+                const refreshed = await waitForRefresh(refresh, controller.signal);
+                if (refreshed) {
+                    accessToken = refreshed.accessToken;
+                    requestToken = refreshed.requestToken;
+                }
+            }
+            controller.signal.throwIfAborted();
             await revokeSession(accessToken, requestToken, controller.signal);
         } catch (_) {
             failed = true;
@@ -141,15 +188,18 @@
             clearLocalSession();
             loggingOut = false;
             $("logoutButton").disabled = false;
-            $("loginForm").querySelectorAll("input, button").forEach(element => { element.disabled = false; });
+            updateLoginControls();
             if (failed) showMessage(LOGOUT_WARNING, "error");
         }
     }
 
     async function login(event) {
         event.preventDefault();
-        if (loggingOut) return;
+        if (loggingOut || loggingIn || pendingRefresh) return;
+        loggingIn = true;
+        updateLoginControls();
         const generation = ++authGeneration;
+        let authenticated = false;
         clearMessage();
         try {
             const response = await fetch(`${API_BASE}/auth/login`, {
@@ -163,10 +213,14 @@
             sessionStorage.setItem(ACCESS_TOKEN_KEY, body.data.accessToken);
             sessionStorage.setItem(REQUEST_TOKEN_KEY, body.data.requestToken);
             setAuthenticated(true);
-            await loadGroups();
+            authenticated = true;
         } catch (error) {
             if (isCurrentSession(generation)) showMessage(error.message, "error");
+        } finally {
+            loggingIn = false;
+            updateLoginControls();
         }
+        if (authenticated && isCurrentSession(generation)) await loadGroups();
     }
 
     async function loadGroups() {
