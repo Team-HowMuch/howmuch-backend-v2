@@ -91,10 +91,14 @@ class SettlementExpenseTest {
                 "  transaction-key  ",
                 "카드 결제",
                 42_000,
+                PAID_AT,
                 0,
                 NOW
         );
 
+        assertThat(imported.paidAt()).isEqualTo(PAID_AT);
+        assertThat(imported.createdAt()).isEqualTo(NOW);
+        assertThat(imported.description()).isEqualTo("카드 결제");
         assertThat(imported.sourceReference()).isEqualTo("transaction-key");
         assertThat(imported.sourceAccountId()).isEqualTo(1L);
         assertThatThrownBy(() -> imported.updateManual("변경", null, NOW.plusMinutes(1)))
@@ -157,6 +161,17 @@ class SettlementExpenseTest {
                 assertThat(exception.getStatusCode()).isEqualTo(
                         SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_SOURCE_REFERENCE
                 ));
+    }
+
+    @Test
+    @DisplayName("결제일을 모르는 결제내역도 생성 시각으로 대체하지 않는다")
+    void keepsUnknownPaymentDateNull() {
+        SettlementExpense expense = SettlementExpense.paymentHistory(
+                SETTLEMENT_ID, 1L, "unknown-date", "카드 결제", 42_000, null, 0, NOW
+        );
+
+        assertThat(expense.paidAt()).isNull();
+        assertThat(expense.createdAt()).isEqualTo(NOW);
     }
 
     private SettlementExpense manualExpense() {

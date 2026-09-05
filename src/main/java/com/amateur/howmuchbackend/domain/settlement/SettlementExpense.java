@@ -115,6 +115,7 @@ public record SettlementExpense(
             String sourceReference,
             String description,
             long amount,
+            LocalDateTime paidAt,
             int displayOrder,
             LocalDateTime now
     ) {
@@ -128,7 +129,7 @@ public record SettlementExpense(
                 sourceAccountId,
                 description,
                 amount,
-                null,
+                paidAt,
                 displayOrder,
                 now,
                 now

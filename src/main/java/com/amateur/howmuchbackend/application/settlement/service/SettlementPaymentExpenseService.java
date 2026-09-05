@@ -118,6 +118,7 @@ public class SettlementPaymentExpenseService implements
                 transaction.externalTransactionKey(),
                 description(transaction.description()),
                 wonAmount(transaction),
+                transaction.transactedAt(),
                 loadSettlementExpensePort.nextDisplayOrder(settlement.id()),
                 now()
         );
