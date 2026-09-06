@@ -1,6 +1,6 @@
 # 정산 리마인드 문구와 푸시 배분 유형 수정
 
-- 상태: 구현 예정
+- 상태: 완료
 - 관련 이슈: [#292](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/292)
 - 기준: origin/develop, 2026-09-06
 
@@ -42,4 +42,32 @@
 
 ## 진행 및 결과
 - 2026-09-06: 이슈와 PR #277, 현재 코드 확인. 사용자 결정과 PR 생성 승인 반영.
-- 구현 및 검증: 대기.
+- 구현: 수동·자동 공통 문구 생성, 알림 스냅샷의 allocationType 전달, 클라이언트 계약 갱신 완료.
+- ./gradlew compileJava: 통과.
+- 관련 테스트 7개 클래스, 51개 테스트 통과(실패 0). 아래 명령으로 실행했다.
+- 격리 PostgreSQL 18(port 55492) / Redis(port 56392), 외부 SMS 전송 없는 설정, Outbox 스케줄 비활성으로 검증했다.
+- 최초 시간 경계 검증에서 JDBC fixture와 JPA 시간 변환 차이를 발견했다. Share를 실제 JPA 저장 경로로 생성하도록 fixture를 수정한 뒤 모두 통과했다.
+- 문구 0/59/60분/25시간, 자동 24시간 경계 및 1회 생성, 과거 메시지 보존, HTTP 조회, 쿨다운·DB 롤백·동시성·Outbox 재시도와 레거시 발송을 확인했다.
+- 신규 푸시 두 타입 × 두 배분 유형의 데이터 및 저장된 제목/본문 전달을 확인했다.
+- git diff --check 및 변경 문서 상대 링크 검사: 통과.
+- 전체 테스트와 별도 bootRun은 실행하지 않았다. 변경 범위의 통합 테스트에서 Spring Context / Flyway / Hibernate 검증을 수행했다.
+- 실제 Firebase credential과 기기 환경이 없어 실제 푸시 수신 및 앱 라우팅은 미검증이다.
+
+### 실행 명령
+
+격리 DB/Redis 환경변수를 주입한 뒤 다음 명령을 실행했다.
+
+```bash
+./gradlew compileJava test --tests '*SettlementReminder*' \
+  --tests '*NotificationInboxIntegrationTest' \
+  --tests '*SettlementNotificationOutboxWorkerTest' \
+  --tests '*FirebaseSettlementPushSenderAdapterTest'
+git diff --check
+git status --short --untracked-files=all
+```
+
+## 완료 기록
+- 완료일: 2026-09-06.
+- [클라이언트 계약](notification-inbox-client-contract.md)에 문구와 배분 유형, 레거시 예외를 반영했다.
+- 배포·병합은 이번 작업 범위 밖이다. 프론트엔드는 allocationType으로 직접 이동을 연결해야 한다.
+

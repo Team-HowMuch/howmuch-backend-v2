@@ -6,6 +6,8 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPush
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementShareLinkStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementNotificationRetryPolicy;
+import com.amateur.howmuchbackend.domain.notification.NotificationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
@@ -100,10 +102,13 @@ class SettlementNotificationOutboxWorkerTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(com.amateur.howmuchbackend.domain.notification.NotificationType.class)
-    void sendsInboxPayloadWithoutPublicLink(com.amateur.howmuchbackend.domain.notification.NotificationType type) {
+    @org.junit.jupiter.params.provider.CsvSource({
+            "SETTLEMENT_REQUEST,DUTCH_PAY", "SETTLEMENT_REQUEST,ITEM_ALLOCATION",
+            "SETTLEMENT_REMINDER,DUTCH_PAY", "SETTLEMENT_REMINDER,ITEM_ALLOCATION"
+    })
+    void sendsInboxPayloadWithoutPublicLink(NotificationType type, SettlementAllocationType allocation) {
         var notification = new com.amateur.howmuchbackend.domain.notification.UserNotification(UUID.randomUUID(), 1L,
-                SETTLEMENT_ID, type, com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType.DUTCH_PAY,
+                SETTLEMENT_ID, type, allocation,
                 "요청자", "알림 제목", "알림 내용", "test-key", null, CREATED_AT);
         var event = SettlementNotificationOutbox.pending(SETTLEMENT_ID, 1L, CREATED_AT, notification.id()).claim(CREATED_AT);
         when(outboxPort.claimNextReady(any())).thenReturn(Optional.of(event));
@@ -115,6 +120,10 @@ class SettlementNotificationOutboxWorkerTest {
         var message = org.mockito.ArgumentCaptor.forClass(SettlementPushSenderPort.NotificationMessage.class);
         org.mockito.Mockito.verify(pushSenderPort).sendNotification(eq("token"), message.capture());
         assertThat(message.getValue().notificationId()).isEqualTo(notification.id());
+        assertThat(message.getValue().settlementId()).isEqualTo(notification.settlementId());
+        assertThat(message.getValue().allocationType()).isEqualTo(notification.allocationType());
+        assertThat(message.getValue().title()).isEqualTo(notification.title());
+        assertThat(message.getValue().body()).isEqualTo(notification.message());
         assertThat(message.getValue().type()).isEqualTo(type.name().equals("SETTLEMENT_REQUEST")
                 ? "SETTLEMENT_PARTICIPATION" : "SETTLEMENT_REMINDER");
         org.mockito.Mockito.verifyNoInteractions(shareLinkStorePort, linkTokenPort);
