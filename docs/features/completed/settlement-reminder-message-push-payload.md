@@ -70,4 +70,3 @@ git status --short --untracked-files=all
 - 완료일: 2026-09-06.
 - [클라이언트 계약](notification-inbox-client-contract.md)에 문구와 배분 유형, 레거시 예외를 반영했다.
 - 배포·병합은 이번 작업 범위 밖이다. 프론트엔드는 allocationType으로 직접 이동을 연결해야 한다.
-
