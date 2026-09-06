@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.out.push;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
@@ -74,8 +75,31 @@ class FirebaseSettlementPushSenderAdapterTest {
                 .isEqualTo(Map.of(
                         "type", "SETTLEMENT_REMINDER",
                         "settlementId", SETTLEMENT_ID.toString(),
-                        "notificationId", SETTLEMENT_ID.toString()
+                        "notificationId", SETTLEMENT_ID.toString(),
+                        "allocationType", "DUTCH_PAY"
                 ));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "SETTLEMENT_PARTICIPATION,DUTCH_PAY", "SETTLEMENT_PARTICIPATION,ITEM_ALLOCATION",
+            "SETTLEMENT_REMINDER,DUTCH_PAY", "SETTLEMENT_REMINDER,ITEM_ALLOCATION"
+    })
+    void sendsAllocationAndStoredBody(String type, SettlementAllocationType allocation) throws Exception {
+        when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
+        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
+        var notificationId = UUID.randomUUID();
+        var body = "정산을 요청받은지 25시간이나 지났어요";
+        adapter.sendNotification(FCM_TOKEN, new SettlementPushSenderPort.NotificationMessage(
+                notificationId, SETTLEMENT_ID, type, allocation, "저장된 제목", body));
+        var captured = ArgumentCaptor.forClass(Message.class);
+        verify(firebaseMessaging).send(captured.capture());
+        assertThat(invoke(captured.getValue(), "getData")).isEqualTo(Map.of(
+                "notificationId", notificationId.toString(), "settlementId", SETTLEMENT_ID.toString(),
+                "type", type, "allocationType", allocation.name()));
+        var push = (com.google.firebase.messaging.Notification) invoke(captured.getValue(), "getNotification");
+        assertThat(push).hasFieldOrPropertyWithValue("title", "저장된 제목")
+                .hasFieldOrPropertyWithValue("body", body);
     }
 
     @Test
@@ -108,7 +132,7 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     private SettlementPushSenderPort.NotificationMessage notification() {
         return new SettlementPushSenderPort.NotificationMessage(SETTLEMENT_ID, SETTLEMENT_ID,
-                "SETTLEMENT_REMINDER", "정산 리마인드", "정산을 완료해 주세요.");
+                "SETTLEMENT_REMINDER", SettlementAllocationType.DUTCH_PAY, "정산 리마인드", "정산을 완료해 주세요.");
     }
 
     private Object invoke(Message message, String methodName) throws Exception {

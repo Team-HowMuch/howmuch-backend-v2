@@ -49,6 +49,7 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
                 .putData("notificationId", notification.notificationId().toString())
                 .putData("settlementId", notification.settlementId().toString())
                 .putData("type", notification.type())
+                .putData("allocationType", notification.allocationType().name())
                 .build());
     }
 

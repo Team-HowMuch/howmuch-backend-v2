@@ -97,7 +97,7 @@ public class SettlementNotificationOutboxWorker {
                 var result = pushSenderPort.sendNotification(recipient.fcmToken(),
                         new SettlementPushSenderPort.NotificationMessage(n.id(), n.settlementId(),
                                 n.type() == NotificationType.SETTLEMENT_REQUEST
-                                        ? "SETTLEMENT_PARTICIPATION" : "SETTLEMENT_REMINDER", n.title(), n.message()));
+                                        ? "SETTLEMENT_PARTICIPATION" : "SETTLEMENT_REMINDER", n.allocationType(), n.title(), n.message()));
                 return result == SettlementPushSenderPort.SendResult.INVALID_TARGET
                         ? fail(event, SettlementNotificationFailureCode.INVALID_TARGET) : succeed(event);
             }

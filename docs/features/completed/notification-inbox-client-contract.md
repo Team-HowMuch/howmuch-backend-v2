@@ -41,11 +41,15 @@
 - `action.type=SETTLEMENT_DETAIL`: 인증된 정산 상세로 이동하고 현재 상태에 따라 참여·송금 화면을 연결합니다.
 - 정산이 삭제되면 본문은 유지하지만 `settlementId=null`, `action.enabled=false`입니다. 완료된 정산은 상세 조회할 수 있습니다.
 - `type`: 요청은 `SETTLEMENT_REQUEST`, 수동·자동 독촉은 `SETTLEMENT_REMINDER`입니다.
-- 새 푸시 데이터에는 `notificationId`, `settlementId`, `type`을 제공합니다. 기존 푸시 타입을 유지해 요청은 `SETTLEMENT_PARTICIPATION`, 독촉은 `SETTLEMENT_REMINDER`입니다. 새 푸시는 공개 `shareLink` 없이 정산 상세로 이동합니다.
-- 배포 전 레거시 Outbox 이벤트는 기존 `shareLink` 경로로 발송될 수 있습니다. 레거시 이벤트에는 `notificationId`가 없습니다.
+- 새 푸시 데이터에는 `notificationId`, `settlementId`, `type`, `allocationType`을 제공합니다. `allocationType`은 알림에 저장된 `DUTCH_PAY` 또는 `ITEM_ALLOCATION`이며 요청·수동·자동 독촉에 모두 포함됩니다. 기존 푸시 타입을 유지해 요청은 `SETTLEMENT_PARTICIPATION`, 독촉은 `SETTLEMENT_REMINDER`입니다. 새 푸시는 공개 `shareLink` 없이 정산 상세로 이동합니다.
+- 배포 전 레거시 Outbox 이벤트는 기존 `shareLink` 경로로 발송될 수 있습니다. 레거시 이벤트에는 `notificationId`와 `allocationType`이 없습니다.
 - 푸시 토큰이 없거나 발송에 실패해도 알림함에 남습니다. 읽음 처리·목록 조회는 참여·납부 상태를 바꾸지 않습니다.
 
 ## 수동·자동 독촉
+
+수동·자동 독촉 메시지는 `정산을 요청받은지 N시간이나 지났어요`입니다. N은 Share 확정 시각(`share.createdAt()`)부터 알림 생성 시각까지 UTC로 계산한 경과 시간이며 시간 미만은 버립니다(59분 → 0시간, 90분 → 1시간). 품목별 정산의 최초 참여 요청 시각이나 실제 기기 수신 시각을 뜻하지 않습니다.
+
+메시지는 생성 시 저장되는 스냅샷입니다. 조회·푸시 발송·재시도에서 경과 시간을 다시 계산하지 않으며 이미 저장된 알림 문구는 소급 변경하지 않습니다. 푸시 본문도 같은 저장 메시지를 사용합니다.
 
 기존 수동 API 주소와 응답 필드를 유지합니다. `sentCount`는 **알림함에 생성한 알림 수**입니다. 실제 FCM 수락 건수가 아니며, API는 푸시 완료를 기다리지 않습니다. 토큰 부재나 FCM 장애를 수동 독촉의 422/503으로 반환하지 않습니다. 기존 생성자 권한·입금 전 대상 조건과 참여자별 30분 제한은 유지합니다.
 
