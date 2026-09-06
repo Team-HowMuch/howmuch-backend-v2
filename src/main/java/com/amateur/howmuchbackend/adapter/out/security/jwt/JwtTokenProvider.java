@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider implements AuthTokenPort {
@@ -56,6 +57,7 @@ public class JwtTokenProvider implements AuthTokenPort {
         LocalDateTime expiresAt = now.plusSeconds(expirationSeconds);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(user.id()))
                 .claim(TOKEN_TYPE_CLAIM, tokenType.name())
                 .claim(SESSION_ID_CLAIM, sessionId)
