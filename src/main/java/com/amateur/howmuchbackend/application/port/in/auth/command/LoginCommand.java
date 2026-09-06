@@ -4,4 +4,9 @@ public record LoginCommand(
         String phoneNumber,
         String pin
 ) {
+
+    @Override
+    public String toString() {
+        return "LoginCommand[phoneNumber=***, pin=***]";
+    }
 }

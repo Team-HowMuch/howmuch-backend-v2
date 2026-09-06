@@ -11,4 +11,10 @@ public record SmsVerificationConfirmedWebResponse(
     public static SmsVerificationConfirmedWebResponse from(SmsVerificationConfirmedResult result) {
         return new SmsVerificationConfirmedWebResponse(result.challengeId(), result.expiresAt());
     }
+
+    @Override
+    public String toString() {
+        return "SmsVerificationConfirmedWebResponse[challengeId=***, expiresAt=%s]"
+                .formatted(expiresAt);
+    }
 }

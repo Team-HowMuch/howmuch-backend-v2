@@ -9,4 +9,9 @@ public record SendSmsVerificationRequest(
     public com.amateur.howmuchbackend.application.port.in.auth.command.SendSmsVerificationCommand toCommand() {
         return new com.amateur.howmuchbackend.application.port.in.auth.command.SendSmsVerificationCommand(phoneNumber);
     }
+
+    @Override
+    public String toString() {
+        return "SendSmsVerificationRequest[phoneNumber=***]";
+    }
 }

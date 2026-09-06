@@ -13,4 +13,9 @@ public record LoginRequest(
     public com.amateur.howmuchbackend.application.port.in.auth.command.LoginCommand toCommand() {
         return new com.amateur.howmuchbackend.application.port.in.auth.command.LoginCommand(phoneNumber, pin);
     }
+
+    @Override
+    public String toString() {
+        return "LoginRequest[phoneNumber=***, pin=***]";
+    }
 }

@@ -6,4 +6,10 @@ public record SmsVerificationConfirmedResult(
         String challengeId,
         LocalDateTime expiresAt
 ) {
+
+    @Override
+    public String toString() {
+        return "SmsVerificationConfirmedResult[challengeId=***, expiresAt=%s]"
+                .formatted(expiresAt);
+    }
 }

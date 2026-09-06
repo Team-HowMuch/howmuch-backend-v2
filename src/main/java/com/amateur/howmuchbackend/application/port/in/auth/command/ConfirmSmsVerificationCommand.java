@@ -5,4 +5,9 @@ public record ConfirmSmsVerificationCommand(
         String verificationRequestId,
         String verificationCode
 ) {
+
+    @Override
+    public String toString() {
+        return "ConfirmSmsVerificationCommand[phoneNumber=***, verificationRequestId=***, verificationCode=***]";
+    }
 }

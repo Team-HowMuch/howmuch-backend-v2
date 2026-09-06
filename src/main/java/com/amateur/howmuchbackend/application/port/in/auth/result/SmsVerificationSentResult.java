@@ -8,4 +8,10 @@ public record SmsVerificationSentResult(
         LocalDateTime expiresAt,
         LocalDateTime resendAvailableAt
 ) {
+
+    @Override
+    public String toString() {
+        return "SmsVerificationSentResult[verificationRequestId=***, phoneNumber=***, expiresAt=%s, resendAvailableAt=%s]"
+                .formatted(expiresAt, resendAvailableAt);
+    }
 }
