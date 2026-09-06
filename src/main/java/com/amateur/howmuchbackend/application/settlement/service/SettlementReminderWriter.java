@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -44,7 +45,7 @@ public class SettlementReminderWriter {
         Target target = loadTarget(settlement, participantId);
         LocalDateTime now = LocalDateTime.now(clock);
         store(settlement, target, "MANUAL_REMINDER:" + UUID.randomUUID(),
-                "정산을 요청받았어요. 지금 정산을 완료해 주세요.", now);
+                reminderMessage(target.share(), now), now);
         return new SettlementReminderResult(now, now.plus(SettlementReminderPolicy.COOLDOWN));
     }
 
@@ -61,9 +62,13 @@ public class SettlementReminderWriter {
                 || automaticTargets.hasAutomaticReminder(target.share().id(), target.recipient().id())) {
             return false;
         }
-        long hours = java.time.Duration.between(target.share().createdAt(), now).toHours();
         return store(settlement, target, "AUTO_REMINDER:" + target.share().id(),
-                "정산 금액이 확정된 지 " + hours + "시간이 지났어요. 지금 정산을 완료해 주세요.", now);
+                reminderMessage(target.share(), now), now);
+    }
+
+    private String reminderMessage(SettlementShare share, LocalDateTime now) {
+        long hours = Duration.between(share.createdAt(), now).toHours();
+        return "정산을 요청받은지 " + hours + "시간이나 지났어요";
     }
 
     private Target loadTarget(Settlement settlement, UUID participantId) {

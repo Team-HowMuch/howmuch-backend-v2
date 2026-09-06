@@ -170,6 +170,46 @@ class NotificationInboxIntegrationTest {
                 .andExpect(jsonPath("$.data.items[0].message").value(n.message()));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"0,0", "59,0", "60,1", "1500,25"})
+    void manualMessageUsesShareTimeAndTruncatesHours(long minutes, long hours) {
+        recorder.record(request());
+        replaceShareCreatedAt(NOW.minusMinutes(minutes));
+        writer.manual(settlement, participant, creator);
+        var saved = notifications.findPage(recipient, null, null, 10);
+        assertThat(saved).filteredOn(n -> n.type() == com.amateur.howmuchbackend.domain.notification.NotificationType.SETTLEMENT_REMINDER)
+                .extracting(UserNotification::message)
+                .containsExactly("정산을 요청받은지 " + hours + "시간이나 지났어요");
+    }
+
+    @Test
+    void automaticMessageStartsAtExactly24HoursFromShare() {
+        recorder.record(request()); // Request was created 25 hours ago.
+        replaceShareCreatedAt(NOW.minusHours(24).plusSeconds(1));
+        assertThat(due()).isEmpty();
+        assertThat(writer.automatic(candidate())).isFalse();
+        when(clock.instant()).thenReturn(NOW.plusSeconds(1).toInstant(ZoneOffset.UTC));
+        assertThat(writer.automatic(candidate())).isTrue();
+        assertThat(notifications.findPage(recipient, null, null, 10))
+                .filteredOn(n -> n.type() == com.amateur.howmuchbackend.domain.notification.NotificationType.SETTLEMENT_REMINDER)
+                .extracting(UserNotification::message)
+                .containsExactly("정산을 요청받은지 24시간이나 지났어요");
+        assertThat(writer.automatic(candidate())).isFalse();
+    }
+
+    @Test
+    void existingReminderMessageIsNotRewritten() throws Exception {
+        var old = NotificationMessages.reminder(settlement, recipient, SettlementAllocationType.DUTCH_PAY,
+                "요청자", "legacy-message", "정산을 요청받았어요. 지금 정산을 완료해 주세요.", NOW.minusDays(1));
+        recorder.record(old);
+        writer.manual(settlement, participant, creator);
+        when(clock.instant()).thenReturn(NOW.plusDays(1).toInstant(ZoneOffset.UTC));
+        mvc.perform(get("/api/v2/notifications").with(user("member")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].message").value("정산을 요청받은지 25시간이나 지났어요"))
+                .andExpect(jsonPath("$.data.items[1].message").value(old.message()));
+    }
+
     @Test
     void outboxFailureRollsBackNotificationAndOwnedCooldown() {
         doThrow(new IllegalStateException("injected outbox failure")).when(outbox).saveAll(anyList());
@@ -291,6 +331,13 @@ class NotificationInboxIntegrationTest {
         assertThat(item.get("required").toString()).contains("readAt", "action", "settlementId", "createdAt");
         assertThat(item.at("/properties/type/enum").toString()).contains("SETTLEMENT_REQUEST", "SETTLEMENT_REMINDER");
         assertThat(document.at("/paths/~1api~1v2~1notifications/get/security").toString()).contains("bearerAuth");
+    }
+
+    private void replaceShareCreatedAt(LocalDateTime createdAt) {
+        // Use the production JPA mapping so JDBC and Hibernate timezone handling cannot diverge.
+        jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
+        shareStore.saveAll(List.of(new com.amateur.howmuchbackend.domain.settlement.SettlementShare(
+                share, settlement, participant, 1000, createdAt)));
     }
 
     private UserNotification request() {
