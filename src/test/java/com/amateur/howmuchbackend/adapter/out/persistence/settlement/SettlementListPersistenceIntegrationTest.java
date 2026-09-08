@@ -180,7 +180,7 @@ class SettlementListPersistenceIntegrationTest {
                 draftId,
                 creatorId,
                 "작성 중 정산",
-                0L,
+                1_000L,
                 SettlementStatus.DRAFT,
                 CREATED_AT.plusMinutes(2),
                 CREATED_AT.plusMinutes(2)

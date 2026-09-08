@@ -135,7 +135,8 @@ class GroupManagementScenarioIntegrationTest {
                                 .isEqualTo(GroupStatusCode.GROUP_MEMBER_EXIT_BLOCKED_BY_SETTLEMENT)
                 );
 
-        accountRecordId = -owner.id();
+        accountRecordId = jdbcTemplate.queryForObject(
+                "SELECT nextval(pg_get_serial_sequence('accounts', 'id'))", Long.class);
         jdbcTemplate.update("""
                 INSERT INTO account_records (
                     id, user_id, organization, type, name, masked_number, currency,
