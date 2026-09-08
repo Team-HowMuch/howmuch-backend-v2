@@ -37,6 +37,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
+import static java.time.temporal.ChronoUnit.MICROS;
 
 @SpringBootTest
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
@@ -118,7 +120,14 @@ class GroupPersistenceIntegrationTest {
 
         assertThat(savedGroup.id()).isPositive();
         assertThat(savedOwner.id()).isPositive();
-        assertThat(groupPersistenceAdapter.findById(savedGroup.id())).contains(savedGroup);
+        assertThat(groupPersistenceAdapter.findById(savedGroup.id())).hasValueSatisfying(loaded -> {
+            assertThat(loaded).usingRecursiveComparison()
+                    .ignoringFields("createdAt", "updatedAt")
+                    .isEqualTo(savedGroup);
+            // PostgreSQL timestamps have microsecond precision; Linux clocks may return nanoseconds.
+            assertThat(loaded.createdAt()).isCloseTo(savedGroup.createdAt(), within(1, MICROS));
+            assertThat(loaded.updatedAt()).isCloseTo(savedGroup.updatedAt(), within(1, MICROS));
+        });
         assertThat(groupMemberPersistenceAdapter.countActiveByGroupId(savedGroup.id())).isEqualTo(1);
         assertThat(summaries).hasSize(1);
         assertThat(summaries.getFirst().groupId()).isEqualTo(savedGroup.id());

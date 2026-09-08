@@ -29,6 +29,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
+import static java.time.temporal.ChronoUnit.MICROS;
 
 @SpringBootTest
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
@@ -166,7 +168,8 @@ class SettlementListPersistenceIntegrationTest {
             // Share가 아직 없어도 납부 대상은 생성자를 뺀 실제 인원이어야 한다.
             assertThat(item.payableParticipantCount()).isEqualTo(1);
             assertThat(item.completedParticipantCount()).isZero();
-            assertThat(item.requestedAt()).isEqualTo(receiveCreatedAt);
+            // JDBC rounds nanosecond audit timestamps to PostgreSQL microsecond precision.
+            assertThat(item.requestedAt()).isCloseTo(receiveCreatedAt, within(1, MICROS));
             assertThat(item.amountToPay()).isNull();
             assertThat(item.groups()).isEmpty();
         });
@@ -224,7 +227,7 @@ class SettlementListPersistenceIntegrationTest {
         assertThat(partiallyPaid).singleElement().satisfies(item -> {
             assertThat(item.payableParticipantCount()).isEqualTo(1);
             assertThat(item.completedParticipantCount()).isZero();
-            assertThat(item.requestedAt()).isEqualTo(request.requestedAt());
+            assertThat(item.requestedAt()).isCloseTo(request.requestedAt(), within(1, MICROS));
         });
 
         insertDeposit(request.shareId(), 300L);

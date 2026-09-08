@@ -83,3 +83,7 @@ gh로 develop 대상 PR 생성 후 실제 CI 결과와 배포 skip을 확인한�
 - 미수행: 운영 배포, 실제 외부 SMS/CODEF/Firebase 호출, 의도적 실패를 push 이벤트로 배포 브랜치에 올리는 검증. 로컬 실패 전파와 workflow 의존성 검증을 구분한다.
 - GitHub CI 링크 및 최종 결과는 PR에 기록한다.
 - 실행 절차: [Test infrastructure and CI](../../testing.md).
+
+- GitHub 첫 실행: [34291002521](https://github.com/Team-HowMuch/howmuch-backend-v2/actions/runs/34291002521)에서 Java 800개 중 시간 정밀도 비교 3개 실패, `build`·`deploy` 모두 skipped 확인. 실패 artifact 다운로드 성공. Linux 시계의 nanosecond와 PostgreSQL microsecond 반올림 차이가 원인이므로 timestamp 비교만 1 microsecond 허용하고 나머지 필드는 그대로 비교한다. 후속 커밋: `test(persistence): DB 시간 정밀도에 맞춰 감사 시각 비교`.
+
+- 시간 비교 보완 후 로컬 관련 영속성 테스트 12개와 Node 31개 성공. 최종 전체 실행은 GitHub CI에서 재검증한다.
