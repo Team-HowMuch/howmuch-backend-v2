@@ -72,13 +72,14 @@ class SmsVerificationRedisIntegrationTest {
                 .digest((phoneHash + ":123456").getBytes(StandardCharsets.UTF_8)));
         initial = new SmsOtpState(UUID.randomUUID().toString(), "01012345678", hash, 0,
                 now().plusSeconds(60), now().plusMinutes(3));
-        adapter.save(phoneHash, initial, Duration.ofMinutes(3));
+        saveState(initial, Duration.ofMinutes(3));
     }
 
     @AfterEach
     void tearDown() {
         if (redis != null) {
             redis.delete(key);
+            redis.delete("auth:sms:cooldown:" + phoneHash);
             challengeKeys.forEach(redis::delete);
         }
         if (connection != null) connection.destroy();
@@ -90,7 +91,7 @@ class SmsVerificationRedisIntegrationTest {
         SmsVerificationRedisAdapter racing = synchronizedReads(2);
         assertThat(race(List.of(() -> fail(racing), () -> fail(racing))))
                 .containsExactly(CODE_MISMATCH, CODE_MISMATCH);
-        assertThat(adapter.findByPhoneHash(phoneHash).orElseThrow().attemptCount()).isEqualTo(2);
+        assertThat(storedState().orElseThrow().attemptCount()).isEqualTo(2);
         assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isPositive().isLessThanOrEqualTo(ttl);
     }
 
@@ -102,7 +103,7 @@ class SmsVerificationRedisIntegrationTest {
         List<SmsOtpState.Outcome> outcomes = race(calls);
         assertThat(outcomes.stream().filter(CODE_MISMATCH::equals).count()).isEqualTo(4);
         assertThat(outcomes.stream().filter(ATTEMPTS_EXCEEDED::equals).count()).isEqualTo(4);
-        assertThat(adapter.findByPhoneHash(phoneHash).orElseThrow().attemptCount()).isEqualTo(5);
+        assertThat(storedState().orElseThrow().attemptCount()).isEqualTo(5);
         assertThat(succeed(adapter)).isEqualTo(ATTEMPTS_EXCEEDED);
         assertCooldown();
     }
@@ -113,7 +114,7 @@ class SmsVerificationRedisIntegrationTest {
         List<SmsOtpState.Outcome> results = race(List.of(() -> succeed(racing), () -> fail(racing)));
         assertThat(results.getFirst()).isEqualTo(VERIFIED);
         assertThat(results.get(1)).isIn(CODE_MISMATCH, EXPIRED);
-        assertThat(adapter.findByPhoneHash(phoneHash).orElseThrow().consumed()).isTrue();
+        assertThat(storedState().orElseThrow().consumed()).isTrue();
         assertThat(fail(adapter)).isEqualTo(EXPIRED);
         assertThat(succeed(adapter)).isEqualTo(EXPIRED);
         assertCooldown();
@@ -154,10 +155,10 @@ class SmsVerificationRedisIntegrationTest {
                 assertThat(read.await(5, TimeUnit.SECONDS)).isTrue();
                 SmsOtpState replacement = new SmsOtpState("replacement", initial.phoneNumber(),
                         initial.codeHash(), 0, now().plusSeconds(60), now().plusMinutes(3));
-                adapter.save(phoneHash, replacement, Duration.ofMinutes(3));
+                saveState(replacement, Duration.ofMinutes(3));
                 release.countDown();
                 assertThat(pending.get(5, TimeUnit.SECONDS)).isEqualTo(CODE_MISMATCH);
-                assertThat(adapter.findByPhoneHash(phoneHash)).contains(replacement);
+                assertThat(storedState()).contains(replacement);
             } finally {
                 release.countDown();
             }
@@ -176,7 +177,7 @@ class SmsVerificationRedisIntegrationTest {
                 assertThat(succeed(adapter)).isEqualTo(VERIFIED);
                 release.countDown();
                 assertThat(pending.get(5, TimeUnit.SECONDS)).isEqualTo(EXPIRED);
-                SmsOtpState stored = adapter.findByPhoneHash(phoneHash).orElseThrow();
+                SmsOtpState stored = storedState().orElseThrow();
                 assertThat(stored.consumed()).isTrue();
                 assertThat(stored.attemptCount()).isZero();
             } finally {
@@ -208,14 +209,14 @@ class SmsVerificationRedisIntegrationTest {
 
     @Test
     void consumedStateAllowsResendAfterOriginalCooldown() {
-        adapter.save(phoneHash, new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
+        saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
                 initial.codeHash(), 0, now().minusSeconds(1), now().plusMinutes(3)), Duration.ofMinutes(3));
         assertThat(succeed(adapter)).isEqualTo(VERIFIED);
         SmsSenderPort sender = mock(SmsSenderPort.class);
         SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender);
         var sent = service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
         assertThat(sent.verificationRequestId()).isNotEqualTo(initial.verificationRequestId());
-        SmsOtpState replacement = adapter.findByPhoneHash(phoneHash).orElseThrow();
+        SmsOtpState replacement = storedState().orElseThrow();
         assertThat(replacement.verificationRequestId()).isEqualTo(sent.verificationRequestId());
         assertThat(replacement.consumed()).isFalse();
         assertThat(replacement.attemptCount()).isZero();
@@ -227,7 +228,7 @@ class SmsVerificationRedisIntegrationTest {
     void ttlExpiryBetweenReadAndTransitionRejectsCorrectCodeDespiteFutureTimestamp() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        adapter.save(phoneHash, new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
+        saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
                 initial.codeHash(), 0, now(), now().plusHours(1)), Duration.ofMinutes(3));
         SmsVerificationRedisAdapter delayed = delayedRead(read, release);
         try (var executor = Executors.newSingleThreadExecutor()) {
@@ -249,7 +250,7 @@ class SmsVerificationRedisIntegrationTest {
     @ParameterizedTest
     @ValueSource(longs = {-3600, 3600})
     void validTtlIsIndependentOfApplicationClockOffset(long offsetSeconds) {
-        adapter.save(phoneHash, new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
+        saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
                 initial.codeHash(), 0, now().plusSeconds(offsetSeconds), now().plusSeconds(offsetSeconds)),
                 Duration.ofMinutes(3));
         long ttl = redis.getExpire(key, TimeUnit.MILLISECONDS);
@@ -263,14 +264,14 @@ class SmsVerificationRedisIntegrationTest {
         redis.persist(key);
         assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isEqualTo(-1);
         assertThat(succeed(adapter)).isEqualTo(EXPIRED);
-        assertThat(adapter.findByPhoneHash(phoneHash)).contains(initial);
+        assertThat(storedState()).contains(initial);
     }
 
     @Test
     void missingKeyAndWrongRequestDoNotIssueSuccess() {
         assertThat(adapter.verifyAndConsume(phoneHash, "old-request", initial.codeHash(), 5))
                 .isEqualTo(CODE_MISMATCH);
-        assertThat(adapter.findByPhoneHash(phoneHash)).contains(initial);
+        assertThat(storedState()).contains(initial);
         redis.delete(key);
         assertThat(succeed(adapter)).isEqualTo(EXPIRED);
         assertThat(redis.hasKey(key)).isFalse();
@@ -295,6 +296,16 @@ class SmsVerificationRedisIntegrationTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThat(succeed(adapter)).isEqualTo(EXPIRED);
         assertCooldown();
+    }
+
+    private void saveState(SmsOtpState state, Duration ttl) {
+        redis.opsForValue().set(key, mapper.writeValueAsString(state), ttl);
+    }
+
+    private java.util.Optional<SmsOtpState> storedState() {
+        String value = redis.opsForValue().get(key);
+        return value == null ? java.util.Optional.empty()
+                : java.util.Optional.of(mapper.readValue(value, SmsOtpState.class));
     }
 
     private void assertCooldown() {
