@@ -7,6 +7,7 @@ import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCodeGroup;
 import com.amateur.howmuchbackend.domain.commoncode.status.CommonCodeStatusCode;
 import org.hibernate.exception.ConstraintViolationException;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,10 +37,13 @@ class CommonCodePersistenceAdapterTest {
     @Mock
     private CacheManager cacheManager;
 
+    @Mock
+    private EntityManager entityManager;
+
     @Test
     @DisplayName("동시 그룹 생성으로 발생한 primary key 충돌을 409로 변환한다")
     void translatesConcurrentGroupCreation() {
-        var adapter = new CommonCodePersistenceAdapter(groupRepository, detailRepository, cacheManager);
+        var adapter = new CommonCodePersistenceAdapter(groupRepository, detailRepository, cacheManager, entityManager);
         when(groupRepository.saveAndFlush(any(CommonCodeGroupJpaEntity.class))).thenThrow(
                 new DataIntegrityViolationException(
                         "duplicate key",

@@ -10,11 +10,15 @@ import com.amateur.howmuchbackend.application.port.out.commoncode.LoadCommonCode
 import com.amateur.howmuchbackend.application.port.out.commoncode.LoadCommonCodePort;
 import com.amateur.howmuchbackend.application.port.out.commoncode.SaveCommonCodeGroupPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCode;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCodeGroup;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCodeGroupSummary;
 import com.amateur.howmuchbackend.domain.commoncode.status.CommonCodeStatusCode;
 import lombok.RequiredArgsConstructor;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.OptimisticLockException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -44,6 +48,7 @@ public class CommonCodePersistenceAdapter
     private final CommonCodeGroupJpaRepository commonCodeGroupRepository;
     private final CommonCodeJpaRepository commonCodeRepository;
     private final CacheManager cacheManager;
+    private final EntityManager entityManager;
 
     @Override
     @Cacheable(cacheNames = "commonCodeByGroupAndCode", sync = true)
@@ -94,6 +99,16 @@ public class CommonCodePersistenceAdapter
     public CommonCodeGroup update(CommonCodeGroup group) {
         CommonCodeGroupJpaEntity groupEntity = commonCodeGroupRepository.findById(group.groupCode())
                 .orElseThrow(() -> ApplicationException.of(CommonCodeStatusCode.COMMON_CODE_GROUP_NOT_FOUND));
+        if (groupEntity.getRevision() != group.revision()) {
+            throw ApplicationException.of(CommonStatusCode.CONCURRENT_UPDATE);
+        }
+        try {
+            // Details are separate entities: claim the edit revision before any detail writes.
+            // Increment immediately so the returned revision also matches the committed state.
+            entityManager.lock(groupEntity, LockModeType.PESSIMISTIC_FORCE_INCREMENT);
+        } catch (OptimisticLockException exception) {
+            throw ApplicationException.of(CommonStatusCode.CONCURRENT_UPDATE, exception);
+        }
         groupEntity.updateFrom(group);
         return saveGroupAndDetails(group, groupEntity);
     }
