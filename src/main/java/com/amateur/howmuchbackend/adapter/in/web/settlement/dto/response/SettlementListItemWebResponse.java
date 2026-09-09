@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Schema(requiredProperties = {
-        "settlementId", "status", "requestedAt", "totalAmount", "participantCount",
+        "settlementId", "status", "requestedAt", "completedAt", "totalAmount", "participantCount",
         "payableParticipantCount", "completedParticipantCount", "amountToPay",
         "requesterName", "groups"
 })
@@ -18,6 +18,8 @@ public record SettlementListItemWebResponse(
         UUID settlementId,
         SettlementStatus status,
         LocalDateTime requestedAt,
+        @Schema(nullable = true, description = "정산 종료 시각. UTC 기준 offset 없는 값이며 미완료 정산은 null입니다.")
+        LocalDateTime completedAt,
         @Schema(nullable = true)
         Long totalAmount,
         @Schema(
@@ -48,6 +50,7 @@ public record SettlementListItemWebResponse(
                 result.settlementId(),
                 result.status(),
                 result.requestedAt(),
+                result.completedAt(),
                 result.totalAmount(),
                 result.allocationType(),
                 result.participantCount(),

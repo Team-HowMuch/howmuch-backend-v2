@@ -20,6 +20,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.id AS settlementId,
                 settlement.status AS status,
                 COALESCE(link.created_at, settlement.created_at) AS requestedAt,
+                CASE WHEN settlement.status = 'COMPLETED' THEN settlement.updated_at END AS completedAt,
                 settlement.total_amount AS totalAmount,
                 settlement.allocation_type AS allocationType,
                 creator.name AS requesterName,
@@ -220,6 +221,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         String getStatus();
 
         LocalDateTime getRequestedAt();
+
+        LocalDateTime getCompletedAt();
 
         long getTotalAmount();
 

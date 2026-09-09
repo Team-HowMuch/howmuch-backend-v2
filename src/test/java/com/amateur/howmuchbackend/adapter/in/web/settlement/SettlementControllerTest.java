@@ -238,6 +238,7 @@ class SettlementControllerTest {
                 SETTLEMENT_ID,
                 SettlementStatus.AWAITING_DEPOSIT,
                 CREATED_AT,
+                null,
                 600L,
                 SettlementAllocationType.DUTCH_PAY,
                 3,

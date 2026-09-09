@@ -118,6 +118,7 @@ public class SettlementPersistenceAdapter implements
                 projection.getSettlementId(),
                 status,
                 projection.getRequestedAt(),
+                projection.getCompletedAt(),
                 tab == SettlementListTab.RECEIVE ? projection.getTotalAmount() : null,
                 projection.getAllocationType() == null
                         ? null
