@@ -1,6 +1,6 @@
 # 배포 이미지 digest 고정 (#309)
 
-- 상태: 구현 준비
+- 상태: 구현 완료 (실제 EC2 배포 미검증)
 - 갱신일: 2026-09-10
 
 ## 목적과 완료 조건
@@ -37,4 +37,11 @@
 
 - [x] 최신 origin/develop 및 기존 PR 컨벤션 확인
 - [x] 설계 및 migration 불필요 확인
-- [ ] 구현 및 검증
+- [x] 구현 및 로컬 검증
+- 회귀 테스트 6건 통과: build output/추적 기록, 잘못된 digest, 태그 덮어쓰기·재실행, 잘못된 참조, pull 실패·이미지 불일치, workflow 연결.
+- YAML 파싱, bash 구문, 합성 설정으로 Docker Compose 병합, git diff --check 통과.
+- 실제 GHCR 게시·EC2 배포 및 실제 동시 Actions 실행은 미실행. 로컬 검증은 mock Docker로 이미지 선택 계약을 확인했으며 실제 배포 증거가 아니다.
+- ./gradlew compileJava --no-daemon 통과 (Gradle 캐시 접근을 허용한 재실행).
+- Java 변경이 없어 전체 Java 테스트 및 bootRun은 미실행. PR CI에서 기존 Java/JavaScript 테스트와 배포 회귀 테스트를 수행한다.
+- 운영 안내: [deployment.md](../../deployment.md).
+- 종료 시 임시 override가 제거되므로 수동 재배포도 안내된 digest override를 사용해야 한다.

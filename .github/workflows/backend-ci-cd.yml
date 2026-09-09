@@ -67,6 +67,11 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Verify deployment image identity
+        run: |
+          python3 -m pip install PyYAML==6.0.2
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
+
       - name: Run Java and JavaScript tests
         run: bash scripts/test.sh
 
@@ -140,6 +145,7 @@ jobs:
           DIGEST: ${{ steps.publish.outputs.digest }}
         run: |
           set -eu
+          case "$DIGEST" in *[!a-z0-9:]*) exit 1 ;; esac
           printf '%s' "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'
           repository=$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
           image="$REGISTRY/$repository@$DIGEST"
@@ -179,6 +185,7 @@ jobs:
           envs: GHCR_USERNAME,GHCR_PAT,APP_DIR,APP_IMAGE,DEPLOY_SHA,DEPLOY_RUN_ID,DEPLOY_RUN_ATTEMPT
           script: |
             set -eu
+            case "$APP_IMAGE" in *[!a-z0-9./_:@-]*) exit 1 ;; esac
             printf '%s' "$APP_IMAGE" | grep -Eq '^ghcr[.]io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'
             export APP_IMAGE
             cd "$APP_DIR"
