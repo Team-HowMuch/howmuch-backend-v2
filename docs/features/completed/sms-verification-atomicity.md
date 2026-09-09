@@ -1,6 +1,6 @@
 # Feature Plan: SMS 인증번호 검증·소비 원자성
 
-- 상태: 설계 완료
+- 상태: 완료
 - 갱신: 2026-09-09
 - 관련 이슈: #297, 상위 #294
 
@@ -23,7 +23,7 @@
 - Domain SmsOtpState가 판정과 다음 상태를 정의하고 Redis Adapter는 원본 JSON 비교와 TTL 보존을 담당한다.
 - POST /api/v2/auth/sms/confirm 경로·입출력·기존 오류 코드 유지.
 - Flyway migration required: No. DB 및 외부 SMS API·환경 변수 변경 없음.
-- 기존 Redis 키/TTL을 유지하고 JSON에 consumed를 추가한다. 기존 JSON의 누락 필드는 false로 읽는다.
+- 기존 Redis 키/TTL을 유지하고 JSON에 consumed를 추가한다. 기존 JSON의 누락 필드는 Adapter에서 false로 보완한 뒤 읽는다.
 
 ## 5. 설계 결정
 Redis Lua compare-and-set으로 읽은 원본 JSON이 동일한 경우만 다음 상태를 KEEPTTL로 저장한다. Redis TIME으로 저장된 UTC 만료 시각을 실행 시점에 재검사한다. 충돌하면 재조회한다. JVM 잠금은 여러 서버를 보호하지 못하며, Lua 안에 도메인 규칙과 날짜 파싱을 중복 구현하는 방식은 피한다.
@@ -57,4 +57,13 @@ Java 21과 격리 Redis를 사용한다. 해당 테스트는 직접 Redis 연결
 2026-09-09: 상태 판정은 Domain, 원자성은 Redis CAS로 분리. 성공·차단 상태를 TTL까지 보존해 쿨다운 유지.
 
 ## 11. 완료 기록
-구현 및 검증 후 갱신.
+- 완료일: 2026-09-09
+- 정상/실패/경계 및 도메인·포트·서비스·Redis Adapter 구현 완료. 새 Web 계약·Policy·Infra·migration은 N/A.
+- `./gradlew compileJava`: 통과.
+- `REDIS_HOST=127.0.0.1 REDIS_PORT=17397 ./gradlew compileJava test --tests '*SmsVerificationRedisIntegrationTest'`: 12개 통과, 실패·건너뜀 없음.
+- 실제 Redis에서 동일 snapshot을 읽도록 latch로 강제한 동시 실패 누적, 8개 실패의 한도 차단, 성공·실패 경쟁, 성공 2개의 challenge 단일 저장 검증.
+- 지연 실패와 요청 교체/소비/Redis TTL 만료, 읽기 후 논리적 만료, TTL·쿨다운 보존, 쿨다운 이후 재발송, 이전 JSON, challenge 저장 실패 시 복원 금지 검증.
+- 초기 9개 테스트 중 기존 JSON 호환 테스트 1개가 실패했다. Jackson 3의 누락 primitive 역직렬화 거부를 확인하고 consumed 누락을 Adapter에서 보완한 뒤 확장한 12개 모두 통과.
+- `git diff --check` 및 문서 경로 확인 통과. 전체 테스트·별도 bootRun·외부 SMS 발송·운영 배포는 변경 관련 격리 Redis 검증으로 범위를 제한해 수행하지 않음.
+- 남은 한계: challenge 저장 실패 시 재발송이 필요하다. 구버전 인증 서버와 혼합 운영하면 원자성을 보장할 수 없어 구버전 트래픽을 종료하고 전환해야 한다. 발송 예약/발송 실패 정리 경쟁(F02)은 별도 이슈 범위다.
+
