@@ -82,6 +82,8 @@ class JwtTokenProviderTest {
         var sessions = mock(AuthSessionPort.class);
         when(sessions.findByUserId(7L)).thenAnswer(call -> Optional.ofNullable(current.get()));
         doAnswer(call -> { current.set(call.getArgument(0)); return null; }).when(sessions).save(any());
+        when(sessions.rotate(any(), any())).thenAnswer(call ->
+                current.compareAndSet(call.getArgument(0), call.getArgument(1)));
         var users = mock(LoadUserPort.class);
         when(users.findById(7L)).thenReturn(Optional.of(user));
         var service = new AuthTokenService(provider, sessions, users, new AuthSessionPolicy(true, true));
