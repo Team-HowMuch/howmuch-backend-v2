@@ -132,6 +132,8 @@ class GroupPersistenceIntegrationTest {
         assertThat(summaries).hasSize(1);
         assertThat(summaries.getFirst().groupId()).isEqualTo(savedGroup.id());
         assertThat(summaries.getFirst().name()).isEqualTo("여행 모임");
+        assertThat(summaries.getFirst().memberCount()).isEqualTo(1);
+        assertThat(summaries.getFirst().memberNames()).containsExactly("최수아");
     }
 
     @Test
@@ -361,6 +363,53 @@ class GroupPersistenceIntegrationTest {
         assertThat(groupMemberPersistenceAdapter.findByGroupIdAndUserId(
                 savedGroup.id(), memberUserId
         )).get().extracting(GroupMember::status).isEqualTo(GroupMemberStatus.LEFT);
+    }
+
+    @Test
+    @DisplayName("요약은 본인 포함 활성 사용자만 세고 그룹장·가입 시각·ID 순으로 세 이름을 반환한다")
+    void summarizesOnlyActiveUsersWithBoundedOrderedNames() {
+        Group group = saveGroup();
+        groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT.plusDays(1)));
+        Long first = insertUser("이름, 공백");
+        Long second = insertUser("동명이인");
+        Long third = insertUser("동명이인");
+        Long inactive = insertUser("비활성");
+        Long left = insertUser("탈퇴");
+        Long removed = insertUser("강퇴");
+        for (Long id : List.of(first, second, third, inactive, left, removed)) {
+            groupMemberPersistenceAdapter.save(GroupMember.member(group.id(), id, CREATED_AT));
+        }
+        jdbcTemplate.update("UPDATE users SET active = FALSE WHERE id = ?", inactive);
+        jdbcTemplate.update("UPDATE group_members SET status = 'LEFT', left_at = ? WHERE user_id = ?",
+                CREATED_AT.plusHours(1), left);
+        jdbcTemplate.update("UPDATE group_members SET status = 'REMOVED', left_at = ? WHERE user_id = ?",
+                CREATED_AT.plusHours(1), removed);
+
+        var summary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId).getFirst();
+        assertThat(summary.memberCount()).isEqualTo(4);
+        assertThat(summary.memberNames()).containsExactly("최수아", "이름, 공백", "동명이인");
+        assertThat(groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(left)).isEmpty();
+        assertThat(groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(removed)).isEmpty();
+
+        // 가입 시각이 바뀌면 ID보다 시각을 우선하고 동명이인도 각각 보존한다.
+        jdbcTemplate.update("UPDATE group_members SET joined_at = ? WHERE user_id = ?",
+                CREATED_AT.plusHours(1), first);
+        summary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId).getFirst();
+        assertThat(summary.memberCount()).isEqualTo(4);
+        assertThat(summary.memberNames()).containsExactly("최수아", "동명이인", "동명이인");
+    }
+
+    @Test
+    @DisplayName("활성 사용자가 없는 그룹 요약은 0명과 빈 이름 배열을 반환한다")
+    void summarizesNoActiveUsers() {
+        Group group = saveGroup();
+        groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT));
+        jdbcTemplate.update("UPDATE users SET active = FALSE WHERE id = ?", userId);
+
+        var summary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId).getFirst();
+        assertThat(summary.memberCount()).isZero();
+        assertThat(summary.memberNames()).isEmpty();
+        assertThat(groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(-1L)).isEmpty();
     }
 
     private Group saveGroup() {

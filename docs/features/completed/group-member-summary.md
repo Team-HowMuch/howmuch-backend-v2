@@ -1,6 +1,6 @@
 # Feature Plan: 그룹 목록 구성원 요약
 
-- 상태: 진행 중
+- 상태: 완료
 - 작성일: 2026-09-09
 - 관련 이슈: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/333
 
@@ -42,4 +42,12 @@ Java 21에서 `./gradlew compileJava`, 그룹 Service·Web·PostgreSQL 통합 �
 
 ## 진행 및 결과
 
-- 설계 완료. 구현 및 검증 대기.
+- 설계·구현·회귀 검증 완료. 스키마 변경 없이 단일 SQL로 요약을 반환한다.
+- `./gradlew compileJava compileTestJava`: 통과. 구현 중 Swagger 문자열 오류는 수정 후 재검증했다.
+- 격리 PostgreSQL 18·Redis 8에서 `bash scripts/test.sh compileJava test --tests '*group.*'`: Java 83개, JavaScript 35개 통과(실패·건너뜀 없음).
+- 실제 DB의 이름 정렬·상한·동명이인·구분자 보존·비활성/탈퇴/강퇴 제외·빈 결과 및 기존 그룹 회귀를 검증했다. Service/Web 응답 필드 매핑도 검증했다.
+- Swagger 응답 스키마 검증에 memberCount/memberNames를 추가했다.
+- `git diff --check`: 통과. 문서에 상대 링크가 없으며 참조한 코드 식별자와 경로를 확인했다.
+- 전체 프로젝트 테스트, 별도 실제 HTTP 목록 요청 및 운영 데이터 부하 검증은 범위상 미실행. 로컬 검증은 그룹 관련 테스트에 한정한다.
+- 기존 상세 API의 memberCount는 활성 멤버십만 집계하지만 이번 목록 요약은 사용자 활성 상태도 적용한다. 상세 API 변경은 이슈 범위에서 제외한다.
+- 완료일: 2026-09-09. 별도 후속 구현 없음.

@@ -117,7 +117,9 @@ class GroupOpenApiIntegrationTest {
                 "GroupSummaryWebResponse",
                 "groupId",
                 "name",
-                "imageUrl"
+                "imageUrl",
+                "memberCount",
+                "memberNames"
         );
         assertSchemaProperties(
                 document,

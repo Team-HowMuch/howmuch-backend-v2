@@ -126,7 +126,14 @@ class GroupControllerTest {
         mockMvc.perform(get("/api/v2/groups"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].groupId").value(20))
-                .andExpect(jsonPath("$.data[1].imageUrl").isEmpty());
+                .andExpect(jsonPath("$.data[1].imageUrl").isEmpty())
+                .andExpect(jsonPath("$.data[0].memberCount").value(4))
+                .andExpect(jsonPath("$.data[0].memberNames.length()").value(3))
+                .andExpect(jsonPath("$.data[0].memberNames[0]").value("그룹장"))
+                .andExpect(jsonPath("$.data[0].memberNames[1]").value("동명이인"))
+                .andExpect(jsonPath("$.data[0].memberNames[2]").value("동명이인"))
+                .andExpect(jsonPath("$.data[1].memberCount").value(1))
+                .andExpect(jsonPath("$.data[1].memberNames[0]").value("본인"));
     }
 
     @Test

@@ -62,6 +62,10 @@ class GroupQueryServiceTest {
         assertThat(result).extracting(item -> item.groupId()).containsExactly(20L, 10L);
         assertThat(result.getFirst().imageUrl()).isEqualTo("/api/v2/groups/20/image");
         assertThat(result.get(1).imageUrl()).isNull();
+        assertThat(result.getFirst().memberCount()).isEqualTo(4);
+        assertThat(result.getFirst().memberNames()).containsExactly("그룹장", "동명이인", "동명이인");
+        assertThat(result.get(1).memberCount()).isEqualTo(1);
+        assertThat(result.get(1).memberNames()).containsExactly("본인");
     }
 
     @Test
