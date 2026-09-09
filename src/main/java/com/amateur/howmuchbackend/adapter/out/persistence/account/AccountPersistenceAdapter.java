@@ -62,6 +62,23 @@ public class AccountPersistenceAdapter implements
 
     @Override
     @Transactional(readOnly = true)
+    public List<Account> findActiveByConnectionAndOrganization(
+            Long connectionId,
+            Long userId,
+            String organization
+    ) {
+        return accountRepository
+                .findByExternalConnection_IdAndUser_IdAndOrganizationAndActiveTrueOrderByIdAsc(
+                        connectionId,
+                        userId,
+                        organization
+                ).stream()
+                .map(this::toDomainWithAccountKey)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<Account> findActiveByIdAndUserId(Long accountId, Long userId) {
         return accountRepository.findByIdAndUser_IdAndActiveTrue(accountId, userId)
                 .map(this::toDomainWithAccountKey);

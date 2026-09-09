@@ -25,6 +25,12 @@ public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, Lo
 
     List<AccountJpaEntity> findByUser_IdAndActiveTrue(Long userId);
 
+    List<AccountJpaEntity> findByExternalConnection_IdAndUser_IdAndOrganizationAndActiveTrueOrderByIdAsc(
+            Long connectionId,
+            Long userId,
+            String organization
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select account

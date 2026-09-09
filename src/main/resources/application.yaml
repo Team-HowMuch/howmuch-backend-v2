@@ -16,6 +16,11 @@ spring:
     password: ${DB_PASSWORD}
     hikari:
       connection-timeout: ${DB_CONNECTION_TIMEOUT:3000}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
   jpa:
     open-in-view: false
@@ -38,6 +43,20 @@ spring:
 howmuch:
   persistence:
     lock-timeout: ${DB_LOCK_TIMEOUT:500ms}
+  account:
+    transaction-sync:
+      canary-account-ids: ${ACCOUNT_TRANSACTION_SYNC_CANARY_ACCOUNT_IDS:}
+      connector:
+        base-url: ${FINANCE_CONNECTOR_BASE_URL:http://127.0.0.1:8081}
+        service-token: ${FINANCE_CONNECTOR_SERVICE_TOKEN:}
+        connect-timeout: ${FINANCE_CONNECTOR_CONNECT_TIMEOUT:3s}
+        read-timeout: ${FINANCE_CONNECTOR_READ_TIMEOUT:5s}
+      outbox:
+        enabled: ${ACCOUNT_TRANSACTION_SYNC_OUTBOX_ENABLED:false}
+        command-topic: finance.sync.command.v1
+        poll-interval: ${ACCOUNT_TRANSACTION_SYNC_OUTBOX_POLL_INTERVAL:200ms}
+        initial-delay: ${ACCOUNT_TRANSACTION_SYNC_OUTBOX_INITIAL_DELAY:1s}
+        batch-size: ${ACCOUNT_TRANSACTION_SYNC_OUTBOX_BATCH_SIZE:50}
   group:
     image:
       storage-dir: ${GROUP_IMAGE_STORAGE_DIR:./uploads/group-images}
