@@ -1,7 +1,7 @@
 # 부분 납부·완납 송금 안내 금액 반영
 
 - 이슈: #299
-- 상태: 진행 중
+- 상태: 완료
 - 관련 규칙: [Architecture](../../architecture.md), [Coding Guidelines](../../coding-guidelines.md)
 
 ## 1. 목적과 범위
@@ -48,10 +48,20 @@ Web 테스트에서 0원·빈 배열 JSON 계약을 확인한다. 기존 상태�
 대상 테스트는 Mockito/standalone MockMvc로 PostgreSQL·Redis·환경 변수가 필요 없다.
 전체 테스트와 실제 서버 검증은 별도 PostgreSQL·Redis 및 프로필 환경이 필요하다.
 
-- 예정: `./gradlew compileJava`, 관련 송금 테스트, 문서 링크 확인, `git diff --check`.
-- 결과: 검증 후 기록.
+- `./gradlew compileJava`: 통과.
+- `./gradlew compileJava test --tests '*TransferInstruction*Test' --tests '*SettlementTransferLinkAdapterTest'`: 60개 통과(신규 16개).
+- 양 서비스에서 미납, 4,000원 부분 납부, 완납, 초과 납부, Long.MAX_VALUE 입금 및 REQUESTED/SUSPENDED 부분 납부를 확인했다.
+- 다른 Share의 9,000원 입금이 본인 잔액에 영향을 주지 않는지와 잔액 0일 때 Adapter 미호출을 검증했다.
+- 양 Web 경로의 HTTP 200·amount=0·transferLinks=[] 및 기존 Toss/Mock Adapter 회귀를 확인했다.
+- 문서 상대 링크와 `git diff --check`: 통과.
+- 전체 테스트·bootRun·실제 서버 HTTP 검증은 로컬에서 수행하지 않았다. 별도 PostgreSQL·Redis/실행 프로필을 준비하지 않았으며 변경 범위는 서비스 단위 및 standalone MockMvc로 검증했다.
 
 ## 7. 진행 및 결정 기록
 
 2026-09-09: 최신 origin/develop 기준으로 흐름과 저장 집계를 확인했다.
 기존 응답 필드를 유지하며 0원·빈 링크로 완납을 표현한다. 전체 정산 상태 제한은 유지한다.
+
+## 8. 완료 기록
+
+2026-09-09: 구현·Swagger·회귀 검증 완료. DB migration 및 후속 설계 결정 없음.
+조회 후 발생한 입금으로 잔액이 달라질 수 있는 기존 조회 시점의 한계는 유지한다.

@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement;
 import com.amateur.howmuchbackend.application.port.in.settlement.ResolveMyTransferInstructionUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementTransferInstructionResult;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -80,4 +81,21 @@ class SettlementMemberTransferInstructionControllerTest {
                 ));
     }
 
+
+    @Test
+    @DisplayName("완납 응답은 0원과 빈 링크 배열을 유지한다")
+    void returnsPaidInstructionWithoutLinks() throws Exception {
+        when(getUseCase.getMyTransferInstruction(SETTLEMENT_ID)).thenReturn(new SettlementTransferInstructionResult(
+                SETTLEMENT_ID, PARTICIPANT_ID, SHARE_ID, 0,
+                "최수아", "0020", "우리은행", "1002123456789", List.of()
+        ));
+
+        mockMvc.perform(get("/api/v2/settlements/{settlementId}/my-transfer-instruction", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.amount").value(0))
+                .andExpect(jsonPath("$.data.transferLinks").isArray())
+                .andExpect(jsonPath("$.data.transferLinks").isEmpty())
+                .andExpect(jsonPath("$.data.shareId").value(SHARE_ID.toString()))
+                .andExpect(jsonPath("$.data.recipientAccountNumber").value("1002123456789"));
+    }
 }

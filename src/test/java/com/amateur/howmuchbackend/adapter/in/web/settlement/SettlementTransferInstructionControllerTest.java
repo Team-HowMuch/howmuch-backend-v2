@@ -92,4 +92,22 @@ class SettlementTransferInstructionControllerTest {
                 ))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("완납 응답은 0원과 빈 링크 배열을 유지한다")
+    void returnsPaidInstructionWithoutLinks() throws Exception {
+        when(getUseCase.get(TOKEN, CONTEXT_ID)).thenReturn(new SettlementTransferInstructionResult(
+                SETTLEMENT_ID, PARTICIPANT_ID, SHARE_ID, 0,
+                "최수아", "0020", "우리은행", "1002123456789", List.of()
+        ));
+
+        mockMvc.perform(get("/api/v2/settlement-links/{token}/transfer-instruction", TOKEN)
+                        .header("Link-Participant-Context", CONTEXT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.amount").value(0))
+                .andExpect(jsonPath("$.data.transferLinks").isArray())
+                .andExpect(jsonPath("$.data.transferLinks").isEmpty())
+                .andExpect(jsonPath("$.data.shareId").value(SHARE_ID.toString()))
+                .andExpect(jsonPath("$.data.recipientAccountNumber").value("1002123456789"));
+    }
 }
