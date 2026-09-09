@@ -31,13 +31,13 @@ public class CommonCodeJpaEntity extends BaseTimeJpaEntity implements Persistabl
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
-    @Column(length = 100)
+    @Column(length = 255)
     private String attr1;
 
-    @Column(length = 100)
+    @Column(length = 255)
     private String attr2;
 
-    @Column(length = 100)
+    @Column(length = 255)
     private String attr3;
 
     @Column(name = "use_yn", nullable = false)

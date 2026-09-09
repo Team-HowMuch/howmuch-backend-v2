@@ -11,9 +11,9 @@ public record CommonCodeDetailWebRequest(
         @NotBlank @Size(max = 100) String name,
         @Size(max = 500) String description,
         @NotNull @PositiveOrZero Integer sortOrder,
-        @Size(max = 100) String attr1,
-        @Size(max = 100) String attr2,
-        @Size(max = 100) String attr3,
+        @Size(max = 255) String attr1,
+        @Size(max = 255) String attr2,
+        @Size(max = 255) String attr3,
         @NotNull Boolean active
 ) {
     public CommonCodeDetailCommand toCommand() {

@@ -285,9 +285,9 @@
             <td><input class="code-input" name="code" maxlength="50" value="${escapeHtml(detail.code || "")}" ${existing ? "readonly" : "required"}></td>
             <td><input name="name" maxlength="100" value="${escapeHtml(detail.name || "")}" required></td>
             <td><input name="description" maxlength="500" value="${escapeHtml(detail.description || "")}"></td>
-            <td><input name="attr1" maxlength="100" value="${escapeHtml(detail.attr1 || "")}"></td>
-            <td><input name="attr2" maxlength="100" value="${escapeHtml(detail.attr2 || "")}"></td>
-            <td><input name="attr3" maxlength="100" value="${escapeHtml(detail.attr3 || "")}"></td>
+            <td><input name="attr1" maxlength="255" value="${escapeHtml(detail.attr1 || "")}"></td>
+            <td><input name="attr2" maxlength="255" value="${escapeHtml(detail.attr2 || "")}"></td>
+            <td><input name="attr3" maxlength="255" value="${escapeHtml(detail.attr3 || "")}"></td>
             <td class="active-cell"><input name="active" type="checkbox" ${detail.active !== false ? "checked" : ""}></td>
             <td class="delete-cell"><button class="delete-button" type="button">삭제</button></td>
         </tr>`;
