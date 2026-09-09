@@ -12,12 +12,38 @@ import tools.jackson.databind.node.ObjectNode;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
 public class SmsVerificationRedisAdapter implements SmsVerificationStorePort {
     private static final String KEY_PREFIX = "auth:sms:otp:";
+    private static final String COOLDOWN_PREFIX = "auth:sms:cooldown:";
+
+    // Compare the legacy snapshot before interpreting its remaining TTL. Both writes are atomic.
+    private static final DefaultRedisScript<Long> RESERVE = new DefaultRedisScript<>("""
+            if redis.call('EXISTS', KEYS[2]) == 1 then return -1 end
+            local current = redis.call('GET', KEYS[1])
+            if (current or '') ~= ARGV[1] then return 0 end
+            if current then
+                local ttl = redis.call('PTTL', KEYS[1])
+                if ttl == -1 then return -1 end
+                local remaining = ttl - tonumber(ARGV[2])
+                if remaining > 0 then
+                    redis.call('SET', KEYS[2], ARGV[3], 'PX', remaining)
+                    return -1
+                end
+            end
+            redis.call('SET', KEYS[2], ARGV[3], 'PX', ARGV[6])
+            redis.call('SET', KEYS[1], ARGV[4], 'PX', ARGV[5])
+            return 1
+            """, Long.class);
+
+    private static final DefaultRedisScript<Long> DISCARD = new DefaultRedisScript<>("""
+            local current = redis.call('GET', KEYS[1])
+            if not current then return 0 end
+            if cjson.decode(current).verificationRequestId ~= ARGV[1] then return 0 end
+            return redis.call('DEL', KEYS[1])
+            """, Long.class);
 
     // The snapshot comparison protects every decision, including failures and request replacement.
     // Use Redis TTL at the linearization point; expiresAt belongs to the application host clock.
@@ -55,28 +81,35 @@ public class SmsVerificationRedisAdapter implements SmsVerificationStorePort {
     }
 
     @Override
-    public Optional<SmsOtpState> findByPhoneHash(String phoneHash) {
-        String value = redis.opsForValue().get(key(phoneHash));
-        if (value == null) return Optional.empty();
-        try {
-            return Optional.of(readState(value));
-        } catch (JacksonException exception) {
-            return Optional.empty();
+    public boolean tryReserve(String phoneHash, SmsOtpState state, Duration otpTtl, Duration cooldown) {
+        long otpMillis = otpTtl.toMillis();
+        long cooldownMillis = cooldown.toMillis();
+        if (otpMillis <= 0 || cooldownMillis <= 0) {
+            throw new IllegalArgumentException("SMS lifetimes must be positive milliseconds.");
+        }
+        String replacement = objectMapper.writeValueAsString(state);
+        while (true) {
+            String snapshot = redis.opsForValue().get(key(phoneHash));
+            long legacyGapMillis = 0;
+            if (snapshot != null) {
+                SmsOtpState existing = readState(snapshot);
+                // Timestamp difference is a duration; never compare clocks across application hosts.
+                legacyGapMillis = Duration.between(existing.resendAvailableAt(), existing.expiresAt()).toMillis();
+            }
+            Long result = redis.execute(RESERVE, List.of(key(phoneHash), COOLDOWN_PREFIX + phoneHash),
+                    snapshot == null ? "" : snapshot, Long.toString(legacyGapMillis),
+                    state.verificationRequestId(), replacement,
+                    Long.toString(otpMillis), Long.toString(cooldownMillis));
+            if (result == null) throw new IllegalStateException("Missing SMS reservation result.");
+            if (result == -1) return false;
+            if (result == 1) return true;
         }
     }
 
     @Override
-    public void save(String phoneHash, SmsOtpState state, Duration ttl) {
-        try {
-            redis.opsForValue().set(key(phoneHash), objectMapper.writeValueAsString(state), ttl);
-        } catch (JacksonException exception) {
-            throw new IllegalStateException("Unable to serialize SMS verification state.", exception);
-        }
-    }
-
-    @Override
-    public void deleteByPhoneHash(String phoneHash) {
-        redis.delete(key(phoneHash));
+    public void discardRequest(String phoneHash, String requestId) {
+        Long result = redis.execute(DISCARD, List.of(key(phoneHash)), requestId);
+        if (result == null) throw new IllegalStateException("Missing SMS discard result.");
     }
 
     private SmsOtpState readState(String value) {

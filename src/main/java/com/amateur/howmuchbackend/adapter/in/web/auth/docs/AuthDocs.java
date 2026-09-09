@@ -18,7 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "인증 API", description = "인증 관련 API")
 public interface AuthDocs {
 
-    @Operation(summary = "sms 인증번호 전송", description = "사용자에게 SMS 인증번호를 전송합니다.")
+    @Operation(summary = "sms 인증번호 전송", description = "사용자에게 SMS 인증번호를 전송합니다. 재발송 대기 시간에는 요청이 차단되며, 인증 실패 한도 소진·인증 완료·인증번호 만료·발송 오류로 대기 시간이 해제되지 않습니다.")
     ApiResponse<SmsVerificationSentWebResponse> sendSms(SendSmsVerificationRequest request);
 
     @Operation(summary = "sms 인증번호 확인", description = "SMS 인증번호를 한 번만 소비하여 challenge를 발급합니다. 실패 허용 횟수에 도달하면 해당 인증번호는 차단됩니다. 인증 성공·차단 후에도 기존 재발송 대기 시간이 유지됩니다.")

@@ -19,7 +19,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
@@ -42,14 +41,6 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
         String phoneHash = identityPolicy.phoneHash(phoneNumber);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
-        smsVerificationStorePort.findByPhoneHash(phoneHash).ifPresent(existing -> {
-            if (existing.isExpired(now)) {
-                smsVerificationStorePort.deleteByPhoneHash(phoneHash);
-            } else if (!existing.canResend(now)) {
-                throw new ApplicationException(AuthStatusCode.SMS_RESEND_TOO_SOON);
-            }
-        });
-
         String verificationCode = generateCode();
         LocalDateTime expiresAt = now.plus(smsVerificationPolicy.otpTtl());
         LocalDateTime resendAvailableAt = now.plus(smsVerificationPolicy.resendCooldown());
@@ -62,16 +53,15 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
                 expiresAt
         );
 
-        smsVerificationStorePort.save(
-                phoneHash,
-                state,
-                Duration.between(now, expiresAt)
-        );
+        if (!smsVerificationStorePort.tryReserve(
+                phoneHash, state, smsVerificationPolicy.otpTtl(), smsVerificationPolicy.resendCooldown())) {
+            throw new ApplicationException(AuthStatusCode.SMS_RESEND_TOO_SOON);
+        }
         try {
             smsSenderPort.send(phoneNumber, verificationCode);
         } catch (RuntimeException exception) {
             try {
-                smsVerificationStorePort.deleteByPhoneHash(phoneHash);
+                smsVerificationStorePort.discardRequest(phoneHash, state.verificationRequestId());
             } catch (RuntimeException cleanupException) {
                 exception.addSuppressed(cleanupException);
             }
