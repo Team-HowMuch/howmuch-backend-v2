@@ -1,6 +1,6 @@
 # Feature Plan: 정산 종료 시각과 연월 조회
 
-- 상태: 진행 중
+- 상태: 완료
 - 작성일: 2026-09-10
 - 관련 이슈: #345
 
@@ -41,7 +41,8 @@ SettlementPersistenceAdapter·SettlementJpaRepository와 관련 Web/Application/
 
 1. `feat(settlement): 정산 목록에 종료 시각 추가` — 조회 투영과 응답 연결, 기존 테스트 생성자 갱신.
 2. `feat(settlement): 종료 연월 기준 목록 필터 추가` — 입력부터 SQL까지 필터 연결과 문서.
-3. `test(settlement): 종료 시각과 연월 경계 회귀 검증` — 동작 테스트 및 검증 결과.
+3. `fix(settlement): 종료 시각과 월 경계의 UTC 매핑 보장` — native query 시각의 JVM 시간대 독립성과 Swagger 타입 보완.
+4. `test(settlement): 종료 시각과 연월 경계 회귀 검증` — 동작 테스트 및 검증 결과.
 
 마이그레이션·신규 Domain·Policy·Infra 구현은 N/A. 각 구현 커밋은 컴파일 가능한 상태로 유지한다.
 
@@ -58,4 +59,17 @@ PostgreSQL·Redis 가용성을 먼저 확인하고 격리된 테스트 DB 및 sc
 
 ## 완료 기록
 
-검증 후 갱신한다.
+- 완료일: 2026-09-10
+- [x] 완료 시각 투영과 응답 전달, 미완료 명시적 null 검증.
+- [x] 연월 필터 전체 흐름과 Swagger 계약 검증.
+- [x] RECEIVE/PAY, 월 시작 포함·다음 월 제외, 연도 경계, 그룹 탈퇴 접근 차단 검증.
+- [x] 기본 상태 유지, 필터 생략, 잘못된 연월 400 검증.
+- 검증: `./gradlew compileJava compileTestJava` 통과.
+- 검증: 격리 PostgreSQL DB `howmuch_issue345`, Redis 16379에서 아래 명령으로 Java 46건 및 JavaScript 35건 통과.
+  `bash scripts/test.sh test --tests '*SettlementListServiceTest' --tests '*SettlementControllerTest' --tests '*SettlementListPersistenceIntegrationTest' --tests '*SettlementOpenApiIntegrationTest'`
+- 미실행: 전체 프로젝트 테스트, 별도 서버를 띄운 실제 HTTP 요청. 관련 계층을 MockMvc와 실제 PostgreSQL로 검증했으며 전체 CI 검증은 PR에서 수행한다.
+- 후속 위험: 기존 requestedAt native projection의 JVM 시간대 영향은 이번 completedAt 추가 범위에서 변경하지 않았다.
+- 1차 검증에서 테스트 import 누락 수정 후 native timestamp의 9시간 이동과 Swagger의 null 타입을 발견했다.
+  기존 입금 후보 조회의 `AT TIME ZONE 'UTC'` + `Instant` 패턴을 재사용하여 응답과 경계를 명시적으로 매핑하고 재검증했다.
+- 문서의 저장 경로 참조 확인 및 `git diff --check` 통과.
+

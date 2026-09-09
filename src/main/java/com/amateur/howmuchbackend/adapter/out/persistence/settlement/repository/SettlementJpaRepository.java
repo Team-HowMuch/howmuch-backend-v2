@@ -9,9 +9,10 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.Optional;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEntity, UUID> {
@@ -20,7 +21,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.id AS settlementId,
                 settlement.status AS status,
                 COALESCE(link.created_at, settlement.created_at) AS requestedAt,
-                CASE WHEN settlement.status = 'COMPLETED' THEN settlement.updated_at END AS completedAt,
+                CASE WHEN settlement.status = 'COMPLETED' THEN settlement.updated_at AT TIME ZONE 'UTC' END AS completedAt,
                 settlement.total_amount AS totalAmount,
                 settlement.allocation_type AS allocationType,
                 creator.name AS requesterName,
@@ -87,11 +88,11 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 )
                AND settlement.status <> 'DRAFT'
                AND (
-                    CAST(:completedFrom AS timestamp) IS NULL
+                    CAST(:completedFrom AS timestamptz) IS NULL
                     OR (
                         settlement.status = 'COMPLETED'
-                        AND settlement.updated_at >= :completedFrom
-                        AND settlement.updated_at < :completedBefore
+                        AND settlement.updated_at >= (CAST(:completedFrom AS timestamptz) AT TIME ZONE 'UTC')
+                        AND settlement.updated_at < (CAST(:completedBefore AS timestamptz) AT TIME ZONE 'UTC')
                     )
                 )
                AND (
@@ -130,8 +131,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
             @Param("tab") String tab,
             @Param("status") String status,
             @Param("groupId") Long groupId,
-            @Param("completedFrom") LocalDateTime completedFrom,
-            @Param("completedBefore") LocalDateTime completedBefore
+            @Param("completedFrom") Instant completedFrom,
+            @Param("completedBefore") Instant completedBefore
     );
 
     @Query(value = """
@@ -232,7 +233,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
 
         LocalDateTime getRequestedAt();
 
-        LocalDateTime getCompletedAt();
+        Instant getCompletedAt();
 
         long getTotalAmount();
 

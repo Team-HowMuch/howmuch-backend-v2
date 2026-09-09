@@ -16,7 +16,10 @@ public record SettlementListWebRequest(
         @Positive(message = "groupId는 양수여야 합니다.")
         @Schema(description = "그룹 출처 참여자가 있는 정산만 조회", example = "10", nullable = true)
         Long groupId,
-        @Schema(description = "종료 연월(yyyy-MM, Asia/Seoul 기준). 생략하면 전체 기간. 미완료 정산 제외, status와 교집합 적용", example = "2026-09", type = "string", nullable = true)
+        @Schema(
+                description = "종료 연월(yyyy-MM, Asia/Seoul 기준). 생략하면 전체 기간. 미완료 정산 제외, status와 교집합 적용",
+                example = "2026-09", type = "string", implementation = String.class
+        )
         YearMonth yearMonth
 ) {
     public GetSettlementsCommand toCommand() {
