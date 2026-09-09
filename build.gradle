@@ -28,6 +28,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'com.solapi:sdk:1.1.0'
     implementation 'com.google.firebase:firebase-admin:9.10.0'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
@@ -54,6 +56,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    systemProperty 'management.server.port', '0'
     // Each cached integration context owns a connection pool; release old contexts
     // before the full suite exhausts PostgreSQL's default connection limit.
     systemProperty 'spring.test.context.cache.maxSize', '4'

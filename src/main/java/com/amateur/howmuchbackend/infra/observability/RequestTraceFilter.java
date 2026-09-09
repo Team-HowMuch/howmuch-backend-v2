@@ -4,6 +4,8 @@ import com.amateur.howmuchbackend.common.data.BaseResponse;
 import com.amateur.howmuchbackend.common.data.ErrorResponse;
 import com.amateur.howmuchbackend.common.exception.SafeExceptionLogger;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,6 +33,7 @@ public class RequestTraceFilter extends OncePerRequestFilter {
     private static final String ID_ATTRIBUTE = RequestTraceFilter.class.getName() + ".id";
     private static final String RECORDED_ATTRIBUTE = RequestTraceFilter.class.getName() + ".recorded";
     private final ObjectMapper objectMapper;
+    private final ObjectProvider<MeterRegistry> registries;
 
     @Override
     protected boolean shouldNotFilterAsyncDispatch() { return false; }
@@ -75,9 +78,13 @@ public class RequestTraceFilter extends OncePerRequestFilter {
                 if (!request.isAsyncStarted() && request.getAttribute(RECORDED_ATTRIBUTE) == null) {
                     request.setAttribute(RECORDED_ATTRIBUTE, true);
                     int status = failureStatus == 0 ? response.getStatus() : failureStatus;
+                    String area = area(request);
+                    registries.ifAvailable(registry -> registry.counter("howmuch.http.requests",
+                            "area", area, "status", status >= 100 && status <= 599
+                                    ? Integer.toString(status) : "other").increment());
                     if (status >= 400) {
                         log.atWarn().addKeyValue("event", "request_failed")
-                                .addKeyValue("status", status).log("Request failed");
+                                .addKeyValue("status", status).addKeyValue("area", area).log("Request failed");
                     }
                 }
             } finally {
@@ -85,5 +92,13 @@ public class RequestTraceFilter extends OncePerRequestFilter {
                 else MDC.put("requestId", previousId);
             }
         }
+    }
+
+    private String area(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        if (path.startsWith("/api/v2/auth/")) return "auth";
+        if (path.startsWith("/api/v2/settlements/") || path.equals("/api/v2/settlements")
+                || path.startsWith("/api/v2/settlement-links/")) return "settlement";
+        return "other";
     }
 }
