@@ -72,4 +72,3 @@ PostgreSQL·Redis 가용성을 먼저 확인하고 격리된 테스트 DB 및 sc
 - 1차 검증에서 테스트 import 누락 수정 후 native timestamp의 9시간 이동과 Swagger의 null 타입을 발견했다.
   기존 입금 후보 조회의 `AT TIME ZONE 'UTC'` + `Instant` 패턴을 재사용하여 응답과 경계를 명시적으로 매핑하고 재검증했다.
 - 문서의 저장 경로 참조 확인 및 `git diff --check` 통과.
-
