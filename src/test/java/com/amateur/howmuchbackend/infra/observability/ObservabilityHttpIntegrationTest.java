@@ -8,6 +8,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.ReadinessState;
+import org.springframework.context.ApplicationContext;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -93,6 +96,24 @@ class ObservabilityHttpIntegrationTest {
         assertThat(get(port, "/actuator/prometheus").statusCode()).isBetween(400, 499);
         assertThat(get(managementPort, "/actuator/env").statusCode()).isBetween(400, 499);
         assertThat(registry.find("http.server.requests").meters()).isEmpty();
+    }
+
+    @Autowired private ApplicationContext applicationContext;
+
+    @Test
+    void readinessReflectsAvailabilityAndRemainsPrivate() throws Exception {
+        assertThat(get(managementPort, "/actuator/health/readiness").statusCode()).isEqualTo(200);
+        assertThat(get(port, "/actuator/health/readiness").statusCode()).isBetween(400, 499);
+        try {
+            AvailabilityChangeEvent.publish(applicationContext,
+                    ReadinessState.REFUSING_TRAFFIC);
+            var response = get(managementPort, "/actuator/health/readiness");
+            assertThat(response.statusCode()).isEqualTo(503);
+            assertThat(response.body()).doesNotContain("components", "details");
+        } finally {
+            AvailabilityChangeEvent.publish(applicationContext,
+                    ReadinessState.ACCEPTING_TRAFFIC);
+        }
     }
 
     private HttpResponse<String> get(int targetPort, String path) throws Exception {

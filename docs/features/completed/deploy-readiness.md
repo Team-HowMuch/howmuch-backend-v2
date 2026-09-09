@@ -1,6 +1,6 @@
 # 배포 readiness 검증 (#308)
 
-- 상태: 구현 중
+- 상태: 완료
 - 기준: origin/develop a8ac009
 - 날짜: 2026-09-10
 
@@ -24,3 +24,17 @@ Flyway migration: No. 스키마·Redis 저장 형식 변경 없음. UseCase, Com
 ## 검증 계획
 
 Python unittest로 실제 셸 스크립트를 mock Docker와 실행하여 정상·지연·영구 실패·종료·재시작·도구 오류를 검증한다. 컴파일, 셸 구문, diff 검사, 문서 경로 검사를 수행한다. 실제 앱 실행은 disposable PostgreSQL·Redis 가용성을 확인한 뒤 시도한다. 실제 EC2 배포는 PR 병합 전 실행하지 않는다.
+
+## 검증 결과
+
+- `./gradlew compileJava --no-daemon`: 통과.
+- `python3 -m unittest discover -s scripts/tests -v`: 2개 테스트 메서드, 9개 시나리오 통과. 정상·지연·영구 미준비·종료·재시작·컨테이너 누락·inspect 오류·exec 오류·pull 오류 검증.
+- 전용 PostgreSQL 18(25432)·Redis 8(26379)에서 `bash scripts/test.sh test --tests '*ObservabilityHttpIntegrationTest'`: 실제 HTTP 테스트 5건 및 JavaScript 35건 통과. readiness 200, REFUSING_TRAFFIC 503, 공개 포트 차단 확인.
+- `bash -n scripts/deploy-readiness.sh`, `git diff --check`: 통과.
+- 전체 Java 테스트, prod 프로필, 실제 이미지 빌드·EC2 SSH 배포는 미실행. 실제 배포는 병합 후 CI에서 확인한다.
+
+## 운영 조건과 한계
+
+서버에 Bash, GNU timeout, Docker Compose가 필요하며 Compose 서비스명은 `app`이어야 한다. SSH action은 checkout된 스크립트를 전송하므로 서버에 별도 스크립트 설치는 필요 없다. 컨테이너 내부 `MANAGEMENT_SERVER_PORT` 기본값은 9091이며 기본 관리 경로를 사용한다. 배포 실패 시 자동 롤백은 수행하지 않는다. timeout 진단에 추가로 최대 10초가 사용된다. 이미지 식별 보장은 #309에서 처리한다.
+
+병행 작업이 공유 checkout의 브랜치를 바꿔 첫 커밋 e658ef3이 다른 작업 브랜치에 기록되었다. #308은 별도 worktree에서 동일 변경을 e76e1e9로 적용했다. 다른 작업의 후속 변경은 수정하지 않았다.
