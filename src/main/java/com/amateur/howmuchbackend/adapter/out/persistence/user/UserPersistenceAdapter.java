@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.user;
 
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.RecordUserLoginPort;
 import com.amateur.howmuchbackend.application.port.out.user.MatchContactUsersPort;
 import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.SearchUserPort;
@@ -25,6 +26,7 @@ import java.util.Optional;
 public class UserPersistenceAdapter implements
         LoadUserPort,
         SaveUserPort,
+        RecordUserLoginPort,
         SearchUserPort,
         MatchContactUsersPort,
         UserPushTargetStorePort {
@@ -119,6 +121,13 @@ public class UserPersistenceAdapter implements
             return UserMapper.toDomain(userJpaRepository.saveAndFlush(entity));
         } catch (DataIntegrityViolationException exception) {
             throw translateConstraintViolation(exception);
+        }
+    }
+
+    @Override
+    public void recordLogin(Long userId, LocalDateTime now) {
+        if (userJpaRepository.recordLogin(userId, now) != 1) {
+            throw new IllegalArgumentException("User not found: " + userId);
         }
     }
 
