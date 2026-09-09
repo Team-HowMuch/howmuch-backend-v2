@@ -19,6 +19,10 @@ import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,9 +63,14 @@ public class SettlementPersistenceAdapter implements
             Long userId,
             SettlementListTab tab,
             SettlementListStatusFilter status,
-            Long groupId
+            Long groupId,
+            YearMonth yearMonth
     ) {
-        var projections = settlementJpaRepository.findAllForUser(userId, tab.name(), status.name(), groupId);
+        var projections = settlementJpaRepository.findAllForUser(
+                userId, tab.name(), status.name(), groupId,
+                yearMonth == null ? null : monthStartUtc(yearMonth),
+                yearMonth == null ? null : monthStartUtc(yearMonth.plusMonths(1))
+        );
         if (projections.isEmpty()) {
             return List.of();
         }
@@ -90,6 +99,11 @@ public class SettlementPersistenceAdapter implements
                         groupsBySettlementId.getOrDefault(projection.getSettlementId(), List.of())
                 ))
                 .toList();
+    }
+
+    private LocalDateTime monthStartUtc(YearMonth yearMonth) {
+        return yearMonth.atDay(1).atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
     @Override

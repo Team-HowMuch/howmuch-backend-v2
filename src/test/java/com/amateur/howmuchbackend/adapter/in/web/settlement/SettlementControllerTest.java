@@ -233,7 +233,8 @@ class SettlementControllerTest {
         when(getSettlementsUseCase.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                10L
+                10L,
+                null
         ))).thenReturn(List.of(new SettlementListItemResult(
                 SETTLEMENT_ID,
                 SettlementStatus.AWAITING_DEPOSIT,

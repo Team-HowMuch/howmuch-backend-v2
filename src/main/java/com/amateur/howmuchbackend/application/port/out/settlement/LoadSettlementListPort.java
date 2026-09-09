@@ -5,11 +5,14 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.Settlem
 
 import java.util.List;
 
+import java.time.YearMonth;
+
 public interface LoadSettlementListPort {
     List<SettlementListReadModel> findAll(
             Long userId,
             SettlementListTab tab,
             SettlementListStatusFilter status,
-            Long groupId
+            Long groupId,
+            YearMonth yearMonth
     );
 }

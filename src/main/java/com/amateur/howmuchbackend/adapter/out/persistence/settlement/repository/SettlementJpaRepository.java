@@ -87,6 +87,14 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 )
                AND settlement.status <> 'DRAFT'
                AND (
+                    CAST(:completedFrom AS timestamp) IS NULL
+                    OR (
+                        settlement.status = 'COMPLETED'
+                        AND settlement.updated_at >= :completedFrom
+                        AND settlement.updated_at < :completedBefore
+                    )
+                )
+               AND (
                     :status = 'ALL'
                     OR (
                         :status = 'IN_PROGRESS'
@@ -121,7 +129,9 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
             @Param("userId") Long userId,
             @Param("tab") String tab,
             @Param("status") String status,
-            @Param("groupId") Long groupId
+            @Param("groupId") Long groupId,
+            @Param("completedFrom") LocalDateTime completedFrom,
+            @Param("completedBefore") LocalDateTime completedBefore
     );
 
     @Query(value = """

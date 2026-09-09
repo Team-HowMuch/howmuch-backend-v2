@@ -56,21 +56,24 @@ class SettlementListServiceTest {
                 USER_ID,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                10L
+                10L,
+                null
         ))
                 .thenReturn(List.of(readModel));
 
         var result = service.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                10L
+                10L,
+                null
         ));
 
         verify(loadSettlementListPort).findAll(
                 USER_ID,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                10L
+                10L,
+                null
         );
         assertThat(result).containsExactly(new SettlementListItemResult(
                 SETTLEMENT_ID,

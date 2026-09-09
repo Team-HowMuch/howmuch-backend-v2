@@ -157,6 +157,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -196,12 +197,14 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
         var all = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.ALL,
+                null,
                 null
         );
 
@@ -221,6 +224,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -236,6 +240,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -264,6 +269,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -277,6 +283,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -292,6 +299,7 @@ class SettlementListPersistenceIntegrationTest {
                 payerId,
                 SettlementListTab.PAY,
                 SettlementListStatusFilter.AWAITING_DEPOSIT,
+                null,
                 null
         );
 
@@ -328,13 +336,15 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                groupId
+                groupId,
+                null
         );
         var notMatching = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                unauthorizedGroupId
+                unauthorizedGroupId,
+                null
         );
 
         assertThat(matching).singleElement().satisfies(item -> {
