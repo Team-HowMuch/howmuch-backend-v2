@@ -83,4 +83,3 @@ git status --short --untracked-files=all
 - `git diff --check`: 통과. 본 문서에 상대 링크는 없으며 참조하는 소스·테스트·설정 파일 존재를 확인했다.
 - 전체 테스트, 별도 bootRun/실제 HTTP, 실제 SMS 공급자 전달, 운영 배포는 수행하지 않았다. 공개 HTTP 구조는 그대로이며 검증은 Service와 Redis 저장 경계에 집중했다.
 - 잔여 조건: 구버전 인증 트래픽 종료 후 전환, Redis Cluster 도입 시 hash slot 설계. 공급자 오류 후에도 설정된 cooldown까지 기다려야 한다.
-
