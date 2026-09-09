@@ -2,12 +2,14 @@ package com.amateur.howmuchbackend.application.group.service;
 
 import com.amateur.howmuchbackend.application.port.out.group.GroupImageStoragePort;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class GroupImageTransactionSupport {
     private final GroupImageStoragePort groupImageStoragePort;
 
@@ -18,8 +20,8 @@ public class GroupImageTransactionSupport {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) {
-                    groupImageStoragePort.delete(newlyStoredFileName);
+                if (status == STATUS_ROLLED_BACK) {
+                    deleteSafely(newlyStoredFileName, "rollback");
                 }
             }
         });
@@ -42,8 +44,8 @@ public class GroupImageTransactionSupport {
 
             @Override
             public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED && newlyStoredFileName != null) {
-                    groupImageStoragePort.delete(newlyStoredFileName);
+                if (status == STATUS_ROLLED_BACK && newlyStoredFileName != null) {
+                    deleteSafely(newlyStoredFileName, "rollback");
                 }
             }
         });
@@ -51,7 +53,21 @@ public class GroupImageTransactionSupport {
 
     private void deletePreviousIfChanged(String previousFileName, String currentFileName) {
         if (previousFileName != null && !previousFileName.equals(currentFileName)) {
-            groupImageStoragePort.delete(previousFileName);
+            deleteSafely(previousFileName, "after_commit");
+        }
+    }
+
+    private void deleteSafely(String fileName, String phase) {
+        try {
+            groupImageStoragePort.delete(fileName);
+        } catch (RuntimeException exception) {
+            log.atWarn()
+                    .addKeyValue("event", "image_cleanup_failed")
+                    .addKeyValue("imageDomain", "group")
+                    .addKeyValue("fileName", fileName)
+                    .addKeyValue("phase", phase)
+                    .addKeyValue("exceptionType", exception.getClass().getName())
+                    .log("Image cleanup failed; manual cleanup requires checking current references");
         }
     }
 }
