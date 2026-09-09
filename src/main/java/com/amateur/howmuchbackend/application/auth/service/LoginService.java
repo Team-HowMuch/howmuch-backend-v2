@@ -7,7 +7,7 @@ import com.amateur.howmuchbackend.application.port.in.auth.command.LoginCommand;
 import com.amateur.howmuchbackend.application.port.in.auth.result.TokenResult;
 import com.amateur.howmuchbackend.application.port.out.auth.LoginAttemptStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
-import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.RecordUserLoginPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -26,7 +26,7 @@ public class LoginService implements LoginUseCase {
     private final IdentityPolicy identityPolicy;
     private final LoginAttemptStorePort loginAttemptStorePort;
     private final LoadUserPort loadUserPort;
-    private final SaveUserPort saveUserPort;
+    private final RecordUserLoginPort recordUserLoginPort;
     private final PasswordEncoder passwordEncoder;
     private final AuthTokenService authTokenService;
 
@@ -53,7 +53,7 @@ public class LoginService implements LoginUseCase {
 
         loginAttemptStorePort.resetAfterSuccess(phoneHash, attempt.generation());
         User updated = user.markLoggedIn(now);
-        saveUserPort.update(updated);
+        recordUserLoginPort.recordLogin(user.id(), updated.lastLoginAt());
         return authTokenService.issueNewSession(updated);
     }
 

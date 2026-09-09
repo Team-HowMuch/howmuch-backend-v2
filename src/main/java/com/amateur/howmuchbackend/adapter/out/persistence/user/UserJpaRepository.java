@@ -42,6 +42,15 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update UserJpaEntity user
+            set user.lastLoginAt = :now,
+                user.updatedAt = :now
+            where user.id = :userId
+            """)
+    int recordLogin(@Param("userId") Long userId, @Param("now") LocalDateTime now);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update UserJpaEntity user
             set user.fcmToken = null,
                 user.updatedAt = :now
             where user.fcmToken = :firebaseInstallationId

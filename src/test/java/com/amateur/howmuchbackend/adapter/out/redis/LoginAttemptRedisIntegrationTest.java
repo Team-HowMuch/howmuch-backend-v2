@@ -7,7 +7,7 @@ import com.amateur.howmuchbackend.application.auth.service.LoginService;
 import com.amateur.howmuchbackend.application.port.in.auth.command.LoginCommand;
 import com.amateur.howmuchbackend.application.port.in.auth.result.TokenResult;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
-import com.amateur.howmuchbackend.application.port.out.user.SaveUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.RecordUserLoginPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -43,7 +43,7 @@ class LoginAttemptRedisIntegrationTest {
     private String phoneHash;
     private String key;
     private LoadUserPort users;
-    private SaveUserPort saveUsers;
+    private RecordUserLoginPort loginRecords;
     private PasswordEncoder encoder;
     private AuthTokenService tokens;
     private User user;
@@ -64,7 +64,7 @@ class LoginAttemptRedisIntegrationTest {
         phoneHash = identity.phoneHash(PHONE);
         key = "auth:login:attempt:" + phoneHash;
         users = mock(LoadUserPort.class);
-        saveUsers = mock(SaveUserPort.class);
+        loginRecords = mock(RecordUserLoginPort.class);
         encoder = mock(PasswordEncoder.class);
         tokens = mock(AuthTokenService.class);
         user = mock(User.class);
@@ -73,7 +73,7 @@ class LoginAttemptRedisIntegrationTest {
         when(user.active()).thenReturn(true);
         when(user.markLoggedIn(any())).thenReturn(user);
         when(tokens.issueNewSession(user)).thenReturn(new TokenResult("synthetic-access", "synthetic-request"));
-        service = new LoginService(new PinPolicy(5, LOCK), identity, attempts, users, saveUsers, encoder, tokens);
+        service = new LoginService(new PinPolicy(5, LOCK), identity, attempts, users, loginRecords, encoder, tokens);
     }
 
     @AfterEach
@@ -121,7 +121,7 @@ class LoginAttemptRedisIntegrationTest {
                         .isEqualTo(9 - allowed);
                 assertThat(login(PIN)).isEqualTo(AuthStatusCode.PIN_ATTEMPTS_EXCEEDED);
                 verify(encoder, times(allowed)).matches(PIN, "synthetic-hash");
-                verifyNoInteractions(saveUsers, tokens);
+                verifyNoInteractions(loginRecords, tokens);
             } finally {
                 release.countDown();
             }
@@ -134,7 +134,7 @@ class LoginAttemptRedisIntegrationTest {
         when(encoder.matches(PIN, "synthetic-hash")).thenReturn(true);
         assertThat(login(PIN)).isInstanceOf(TokenResult.class);
         assertThat(redis.hasKey(key)).isFalse();
-        verify(saveUsers).update(user);
+        verify(loginRecords).recordLogin(user.id(), user.lastLoginAt());
         verify(tokens).issueNewSession(user);
         when(encoder.matches(PIN, "synthetic-hash")).thenReturn(false);
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.INVALID_LOGIN_CREDENTIALS);
@@ -234,7 +234,7 @@ class LoginAttemptRedisIntegrationTest {
         when(users.findByPhoneNumber(PHONE)).thenReturn(Optional.empty());
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.INVALID_LOGIN_CREDENTIALS);
         assertThat(redis.opsForValue().get(key)).endsWith(":1");
-        verifyNoInteractions(encoder, saveUsers, tokens);
+        verifyNoInteractions(encoder, loginRecords, tokens);
     }
 
     @Test
@@ -243,7 +243,7 @@ class LoginAttemptRedisIntegrationTest {
         when(user.active()).thenReturn(false);
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.USER_INACTIVE);
         assertThat(redis.opsForValue().get(key)).endsWith(":1");
-        verifyNoInteractions(saveUsers, tokens);
+        verifyNoInteractions(loginRecords, tokens);
     }
 
     @Test
@@ -251,7 +251,7 @@ class LoginAttemptRedisIntegrationTest {
         when(encoder.matches(PIN, "synthetic-hash")).thenThrow(new IllegalStateException("verification unavailable"));
         assertThatThrownBy(() -> login(PIN)).isInstanceOf(IllegalStateException.class);
         assertThat(redis.opsForValue().get(key)).endsWith(":1");
-        verifyNoInteractions(saveUsers, tokens);
+        verifyNoInteractions(loginRecords, tokens);
     }
 
     private Object login(String pin) {
