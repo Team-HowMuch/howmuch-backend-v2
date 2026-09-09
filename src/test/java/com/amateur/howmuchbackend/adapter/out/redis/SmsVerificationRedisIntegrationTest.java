@@ -79,7 +79,7 @@ class SmsVerificationRedisIntegrationTest {
     void tearDown() {
         if (redis != null) {
             redis.delete(key);
-            redis.delete("auth:sms:cooldown:" + phoneHash);
+            redis.delete(cooldownKey());
             challengeKeys.forEach(redis::delete);
         }
         if (connection != null) connection.destroy();
@@ -296,6 +296,204 @@ class SmsVerificationRedisIntegrationTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThat(succeed(adapter)).isEqualTo(EXPIRED);
         assertCooldown();
+    }
+
+    @Test
+    void sentOtpExhaustionPreservesCooldownAndNextSendCanBeConfirmed() throws Exception {
+        redis.delete(key);
+        SmsSenderPort sender = mock(SmsSenderPort.class);
+        List<String> codes = new ArrayList<>();
+        doAnswer(call -> { codes.add(call.getArgument(1)); return null; })
+                .when(sender).send(anyString(), anyString());
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender);
+        AuthChallengeRedisAdapter challenges = new AuthChallengeRedisAdapter(redis, mapper);
+        ConfirmSmsVerificationService confirm = new ConfirmSmsVerificationService(identity, policy, adapter, challenges);
+        var first = service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
+        long cooldown = redis.getExpire(cooldownKey(), TimeUnit.MILLISECONDS);
+        for (int attempt = 1; attempt <= policy.maxAttempts(); attempt++) {
+            AuthStatusCode expected = attempt == policy.maxAttempts()
+                    ? AuthStatusCode.SMS_VERIFICATION_ATTEMPTS_EXCEEDED
+                    : AuthStatusCode.SMS_VERIFICATION_CODE_MISMATCH;
+            assertThatThrownBy(() -> confirm.confirm(new ConfirmSmsVerificationCommand(
+                    initial.phoneNumber(), first.verificationRequestId(), "000000")))
+                    .isInstanceOfSatisfying(ApplicationException.class,
+                            error -> assertThat(error.getStatusCode()).isEqualTo(expected));
+        }
+        assertCooldown();
+        assertThat(redis.getExpire(cooldownKey(), TimeUnit.MILLISECONDS))
+                .isPositive().isLessThanOrEqualTo(cooldown);
+        elapseCooldown();
+        var second = service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
+        assertThat(second.verificationRequestId()).isNotEqualTo(first.verificationRequestId());
+        var confirmed = confirm.confirm(new ConfirmSmsVerificationCommand(
+                initial.phoneNumber(), second.verificationRequestId(), codes.getLast()));
+        challengeKeys.add("auth:challenge:" + confirmed.challengeId());
+        assertThat(challenges.findById(confirmed.challengeId())).isPresent();
+        verify(sender, times(2)).send(anyString(), anyString());
+    }
+
+    @Test
+    void otpExpiryBeforeCooldownDoesNotAllowResend() throws Exception {
+        redis.delete(key);
+        SmsVerificationPolicy shortOtp = new SmsVerificationPolicy(
+                Duration.ofMillis(30), policy.challengeTtl(), Duration.ofSeconds(60), 5);
+        SmsSenderPort sender = mock(SmsSenderPort.class);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, shortOtp, adapter, sender);
+        service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
+        TimeUnit.MILLISECONDS.sleep(60);
+        assertThat(redis.hasKey(key)).isFalse();
+        assertThat(succeed(adapter)).isEqualTo(EXPIRED);
+        assertThatThrownBy(() -> service.send(new SendSmsVerificationCommand(initial.phoneNumber())))
+                .isInstanceOfSatisfying(ApplicationException.class,
+                        error -> assertThat(error.getStatusCode()).isEqualTo(AuthStatusCode.SMS_RESEND_TOO_SOON));
+        verify(sender, times(1)).send(anyString(), anyString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void simultaneousSendsReserveAndDeliverExactlyOnce(boolean legacyExists) throws Exception {
+        redis.delete(key);
+        if (legacyExists) {
+            saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(), initial.codeHash(),
+                    5, now().minusSeconds(1), now().plusMinutes(3)), Duration.ofMinutes(3));
+        }
+        SmsSenderPort sender = mock(SmsSenderPort.class);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, synchronizedReads(8), sender);
+        Callable<Object> send = () -> {
+            try { return service.send(new SendSmsVerificationCommand(initial.phoneNumber())); }
+            catch (ApplicationException error) { return error.getStatusCode(); }
+        };
+        List<Callable<Object>> calls = new ArrayList<>();
+        for (int i = 0; i < 8; i++) calls.add(send);
+        List<Object> results = race(calls);
+        assertThat(results.stream().filter(AuthStatusCode.SMS_RESEND_TOO_SOON::equals).count()).isEqualTo(7);
+        verify(sender, times(1)).send(anyString(), anyString());
+        assertThat(redis.opsForValue().get(cooldownKey()))
+                .isEqualTo(storedState().orElseThrow().verificationRequestId());
+    }
+
+    @Test
+    void deliveryFailureDiscardsOnlyOtpAndKeepsCooldown() {
+        redis.delete(key);
+        SmsSenderPort sender = mock(SmsSenderPort.class);
+        RuntimeException failure = new IllegalStateException("synthetic delivery failure");
+        doThrow(failure).when(sender).send(anyString(), anyString());
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender);
+        assertThatThrownBy(() -> service.send(new SendSmsVerificationCommand(initial.phoneNumber())))
+                .isSameAs(failure);
+        assertThat(redis.hasKey(key)).isFalse();
+        assertThat(redis.getExpire(cooldownKey(), TimeUnit.MILLISECONDS)).isPositive();
+        assertThatThrownBy(() -> service.send(new SendSmsVerificationCommand(initial.phoneNumber())))
+                .isInstanceOfSatisfying(ApplicationException.class,
+                        error -> assertThat(error.getStatusCode()).isEqualTo(AuthStatusCode.SMS_RESEND_TOO_SOON));
+        verify(sender, times(1)).send(anyString(), anyString());
+    }
+
+    @Test
+    void delayedDeliveryFailureCannotDeleteNewRequestOrCooldown() throws Exception {
+        redis.delete(key);
+        CountDownLatch sending = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        SmsSenderPort delayedSender = (phone, code) -> {
+            sending.countDown();
+            try {
+                if (!release.await(5, TimeUnit.SECONDS)) throw new AssertionError("Delivery timed out");
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(error);
+            }
+            throw new IllegalStateException("synthetic delayed delivery failure");
+        };
+        SendSmsVerificationService delayed = new SendSmsVerificationService(identity, policy, adapter, delayedSender);
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var pending = executor.submit(() -> delayed.send(new SendSmsVerificationCommand(initial.phoneNumber())));
+            try {
+                assertThat(sending.await(5, TimeUnit.SECONDS)).isTrue();
+                elapseCooldown();
+                SendSmsVerificationService next = new SendSmsVerificationService(
+                        identity, policy, adapter, mock(SmsSenderPort.class));
+                var replacement = next.send(new SendSmsVerificationCommand(initial.phoneNumber()));
+                release.countDown();
+                assertThatThrownBy(() -> pending.get(5, TimeUnit.SECONDS))
+                        .hasCauseInstanceOf(IllegalStateException.class);
+                assertThat(storedState().orElseThrow().verificationRequestId())
+                        .isEqualTo(replacement.verificationRequestId());
+                assertThat(redis.opsForValue().get(cooldownKey())).isEqualTo(replacement.verificationRequestId());
+                assertCooldown();
+            } finally { release.countDown(); }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-3600, 3600})
+    void legacyCooldownUsesRedisLifetimeDespiteClockOffset(long offset) {
+        saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(), initial.codeHash(),
+                5, now().plusSeconds(offset + 60), now().plusSeconds(offset + 180)), Duration.ofMinutes(3));
+        assertCooldown();
+        assertThat(redis.getExpire(cooldownKey(), TimeUnit.MILLISECONDS)).isBetween(1L, 60000L);
+    }
+
+    @Test
+    void consumedOtpKeepsIndependentCooldown() {
+        redis.delete(key);
+        assertThat(adapter.tryReserve(phoneHash, initial, policy.otpTtl(), policy.resendCooldown())).isTrue();
+        assertThat(succeed(adapter)).isEqualTo(VERIFIED);
+        redis.delete(key);
+        assertThat(adapter.tryReserve(phoneHash, initial, policy.otpTtl(), policy.resendCooldown())).isFalse();
+    }
+
+    @Test
+    void nonExpiringLegacyOtpDoesNotPermitSend() {
+        redis.persist(key);
+        assertThat(adapter.tryReserve(phoneHash, initial, policy.otpTtl(), policy.resendCooldown())).isFalse();
+    }
+
+    @Test
+    void realCooldownExpiryAllowsReplacementWhileOtpRemains() throws Exception {
+        redis.delete(key);
+        SmsVerificationPolicy shortCooldown = new SmsVerificationPolicy(
+                policy.otpTtl(), policy.challengeTtl(), Duration.ofMillis(80), 5);
+        SendSmsVerificationService service = new SendSmsVerificationService(
+                identity, shortCooldown, adapter, mock(SmsSenderPort.class));
+        var first = service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
+        TimeUnit.MILLISECONDS.sleep(120);
+        assertThat(redis.hasKey(cooldownKey())).isFalse();
+        assertThat(redis.hasKey(key)).isTrue();
+        var next = service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
+        assertThat(next.verificationRequestId()).isNotEqualTo(first.verificationRequestId());
+    }
+
+    @Test
+    void legacyJsonWithoutConsumedRetainsCooldown() {
+        redis.opsForValue().set(key, mapper.writeValueAsString(initial).replace(",\"consumed\":false", ""),
+                policy.otpTtl());
+        assertCooldown();
+        assertThat(redis.getExpire(cooldownKey(), TimeUnit.MILLISECONDS)).isPositive();
+    }
+
+    @Test
+    void corruptLegacyStateDoesNotTriggerDelivery() {
+        redis.opsForValue().set(key, "invalid-json", policy.otpTtl());
+        SmsSenderPort sender = mock(SmsSenderPort.class);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender);
+        assertThatThrownBy(() -> service.send(new SendSmsVerificationCommand(initial.phoneNumber())))
+                .isInstanceOf(RuntimeException.class);
+        verifyNoInteractions(sender);
+        assertThat(redis.opsForValue().get(key)).isEqualTo("invalid-json");
+    }
+
+    private String cooldownKey() {
+        return "auth:sms:cooldown:" + phoneHash;
+    }
+
+    private void elapseCooldown() throws InterruptedException {
+        // Advance both Redis lifetimes consistently without waiting the full production minute.
+        SmsOtpState state = storedState().orElseThrow();
+        long remainingOtp = Duration.between(state.resendAvailableAt(), state.expiresAt()).toMillis();
+        redis.expire(key, Duration.ofMillis(remainingOtp));
+        redis.expire(cooldownKey(), Duration.ofMillis(1));
+        TimeUnit.MILLISECONDS.sleep(20);
+        assertThat(redis.hasKey(cooldownKey())).isFalse();
     }
 
     private void saveState(SmsOtpState state, Duration ttl) {
