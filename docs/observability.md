@@ -43,7 +43,7 @@ User IDs, request IDs, settlement IDs, URLs, token values and exception messages
 
 ## Verification
 
-See the [feature record](features/active/request-observability.md) for execution results and [test setup](testing.md) for database/Redis prerequisites. Integration tests use a random management port to prevent clashes between cached test contexts.
+See the [feature record](features/completed/request-observability.md) for execution results and [test setup](testing.md) for database/Redis prerequisites. Integration tests use a random management port to prevent clashes between cached test contexts.
 
 ## Framework references
 
