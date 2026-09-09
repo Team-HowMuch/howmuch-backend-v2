@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementLinkPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantContextPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,6 +38,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +58,7 @@ class SettlementTransferInstructionServiceTest {
     @Mock private LoadSettlementParticipantContextPort loadParticipantContextPort;
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
+    @Mock private LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     @Mock private LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
     @Mock private SettlementTransferLinkPort transferLinkPort;
     @Mock private BankCatalog bankCatalog;
@@ -70,6 +74,7 @@ class SettlementTransferInstructionServiceTest {
                 new SettlementTransferInstructionReader(
                         loadSettlementPort,
                         loadSettlementSharePort,
+                        loadDepositSummaryPort,
                         loadSnapshotPort,
                         List.of(transferLinkPort),
                         bankCatalog
@@ -237,6 +242,57 @@ class SettlementTransferInstructionServiceTest {
                                 SettlementStatusCode.SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND
                         ));
         verify(loadSnapshotPort, never()).findBySettlementId(SETTLEMENT_ID);
+    }
+
+    @ParameterizedTest(name = "{0}: 납부 {1}원 → 잔액 {2}원")
+    @CsvSource({
+            "AWAITING_DEPOSIT, 0, 10000",
+            "AWAITING_DEPOSIT, 4000, 6000",
+            "AWAITING_DEPOSIT, 10000, 0",
+            "AWAITING_DEPOSIT, 12000, 0",
+            "AWAITING_DEPOSIT, 9223372036854775807, 0",
+            "REQUESTED, 4000, 6000",
+            "SUSPENDED, 4000, 6000"
+    })
+    @DisplayName("본인 Share의 확인된 입금만 차감하고 완납이면 링크를 생성하지 않는다")
+    void reflectsRemainingAmount(SettlementStatus status, long confirmedAmount, long expectedAmount) {
+        arrangeLinkAndContext();
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(status)));
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(
+                SETTLEMENT_ID, PARTICIPANT_ID
+        )).thenReturn(Optional.of(new SettlementShare(
+                SHARE_ID, SETTLEMENT_ID, PARTICIPANT_ID, 10_000, CREATED_AT
+        )));
+        when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
+                .thenReturn(Optional.of(snapshot()));
+        var otherShare = new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(UUID.randomUUID(), 9_000);
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(confirmedAmount == 0 ? List.of(otherShare) : List.of(
+                        otherShare,
+                        new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(SHARE_ID, confirmedAmount)
+                ));
+        String url = "supertoss://send?accountNo=1002123456789&amount=" + expectedAmount;
+        if (expectedAmount > 0) {
+            when(transferLinkPort.create("0020", "1002123456789", expectedAmount, "최수아"))
+                    .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink("TOSS", url)));
+        }
+
+        var result = service.get(RAW_TOKEN, CONTEXT_ID);
+
+        assertThat(result.amount()).isEqualTo(expectedAmount);
+        assertThat(result.shareId()).isEqualTo(SHARE_ID);
+        assertThat(result.participantId()).isEqualTo(PARTICIPANT_ID);
+        assertThat(result.recipientAccountNumber()).isEqualTo("1002123456789");
+        if (expectedAmount == 0) {
+            assertThat(result.transferLinks()).isEmpty();
+            verifyNoInteractions(transferLinkPort);
+        } else {
+            assertThat(result.transferLinks()).singleElement()
+                    .satisfies(link -> assertThat(link.url()).isEqualTo(url));
+            verify(transferLinkPort).create("0020", "1002123456789", expectedAmount, "최수아");
+        }
+        verify(loadDepositSummaryPort).findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID);
     }
 
     private void arrangeLinkAndContext() {

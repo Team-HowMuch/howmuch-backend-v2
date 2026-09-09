@@ -14,8 +14,11 @@ import java.util.UUID;
 public interface SettlementMemberTransferInstructionDocs {
     @Operation(
             summary = "내 송금 안내 조회",
-            description = "로그인 회원과 연결된 참여자의 확정 Share와 수금 계좌를 반환합니다. "
+            description = "로그인 회원과 연결된 참여자의 확정 Share의 미납 잔액과 수금 계좌를 반환합니다. "
                     + "링크 경로와 응답이 같으며 transferLinks는 설정에 따라 Toss 딥링크 또는 HTTPS Mock 송금 화면 URL을 반환합니다. "
+                    + "amount와 링크 금액은 확인된 입금액을 차감한 잔액입니다. "
+                    + "조회 가능한 정산에서 완납·초과 납부 시 amount는 0, transferLinks는 빈 배열입니다. "
+                    + "전체 정산이 COMPLETED이면 기존처럼 404를 반환합니다. "
                     + "Mock에서도 provider는 TOSS이며 클라이언트는 url을 그대로 엽니다. "
                     + "서버가 송금을 실행하거나 링크 조회로 납부 상태를 변경하지는 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
@@ -36,7 +39,7 @@ public interface SettlementMemberTransferInstructionDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "422",
-                    description = "SETTLEMENT_TRANSFER_LINK_NOT_SUPPORTED"
+                    description = "SETTLEMENT_TRANSFER_LINK_NOT_SUPPORTED — 잔액이 있으나 지원하는 송금 링크가 없음"
             )
     })
     ApiResponse<SettlementTransferInstructionWebResponse> getMyTransferInstruction(
