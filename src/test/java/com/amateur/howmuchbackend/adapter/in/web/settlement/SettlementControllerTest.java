@@ -850,7 +850,8 @@ class SettlementControllerTest {
                         true,
                         8_000L,
                         4_000,
-                        SettlementDetailResult.PaymentStatus.PARTIALLY_PAID
+                        SettlementDetailResult.PaymentStatus.PARTIALLY_PAID,
+                        true
                 ))
         );
     }

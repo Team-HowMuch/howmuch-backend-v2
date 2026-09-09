@@ -60,7 +60,8 @@ public record SettlementDetailResult(
             boolean linked,
             Long expectedAmount,
             long confirmedAmount,
-            PaymentStatus paymentStatus
+            PaymentStatus paymentStatus,
+            boolean hasAvatar
     ) {
     }
 }
