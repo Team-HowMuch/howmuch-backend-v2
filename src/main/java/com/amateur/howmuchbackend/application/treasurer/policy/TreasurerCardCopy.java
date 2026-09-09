@@ -27,6 +27,9 @@ public class TreasurerCardCopy {
             - 이번 달 내가 보낼 정산은 얼마야?
             - 여행 모임에서 받을 돈이 있어?
             - 이번 달 지출을 요약해줘""";
+    public static final String CLARIFY_ANSWER = """
+            정산과 관련된 질문으로 이해했어요.
+            어떤 정산을 확인하고 싶은지 알려주시면 더 정확하게 도와드릴게요.""";
     private static final ZoneId USER_ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter DATE_LABEL = DateTimeFormatter.ofPattern("yyyy.MM.dd");
 

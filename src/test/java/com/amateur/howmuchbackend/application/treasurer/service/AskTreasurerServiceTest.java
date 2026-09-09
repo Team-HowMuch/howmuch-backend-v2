@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreas
 import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
+import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerAnswerFactCheck;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerCardCopy;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -541,6 +542,7 @@ class AskTreasurerServiceTest {
         return new AskTreasurerService(
                 treasurerSettlementQuery,
                 new InquiryParser(),
+                new InquiryScopePolicy(),
                 generateTreasurerAnswerPort,
                 new TreasurerAnswerFactCheck(),
                 new TreasurerCardCopy(),
