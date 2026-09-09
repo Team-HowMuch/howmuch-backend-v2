@@ -119,14 +119,21 @@ class GroupControllerTest {
     @DisplayName("내 그룹 목록을 응답 DTO로 변환한다")
     void getsMyGroups() throws Exception {
         when(getMyGroupsUseCase.getMyGroups()).thenReturn(List.of(
-                new GroupSummaryResult(20L, "최근 그룹", "/api/v2/groups/20/image"),
-                new GroupSummaryResult(10L, "이전 그룹", null)
+                new GroupSummaryResult(20L, "최근 그룹", "/api/v2/groups/20/image", 4, List.of("그룹장", "동명이인", "동명이인")),
+                new GroupSummaryResult(10L, "이전 그룹", null, 1, List.of("본인"))
         ));
 
         mockMvc.perform(get("/api/v2/groups"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].groupId").value(20))
-                .andExpect(jsonPath("$.data[1].imageUrl").isEmpty());
+                .andExpect(jsonPath("$.data[1].imageUrl").isEmpty())
+                .andExpect(jsonPath("$.data[0].memberCount").value(4))
+                .andExpect(jsonPath("$.data[0].memberNames.length()").value(3))
+                .andExpect(jsonPath("$.data[0].memberNames[0]").value("그룹장"))
+                .andExpect(jsonPath("$.data[0].memberNames[1]").value("동명이인"))
+                .andExpect(jsonPath("$.data[0].memberNames[2]").value("동명이인"))
+                .andExpect(jsonPath("$.data[1].memberCount").value(1))
+                .andExpect(jsonPath("$.data[1].memberNames[0]").value("본인"));
     }
 
     @Test

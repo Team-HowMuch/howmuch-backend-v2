@@ -19,7 +19,9 @@ public class GroupResultAssembler {
         return new GroupSummaryResult(
                 group.groupId(),
                 group.name(),
-                imageUrl(group.groupId(), group.imageFileName())
+                imageUrl(group.groupId(), group.imageFileName()),
+                group.memberCount(),
+                group.memberNames()
         );
     }
 

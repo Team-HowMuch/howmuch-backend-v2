@@ -56,10 +56,32 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMemberJpaEn
             SELECT
                 target_group.id AS groupId,
                 target_group.name AS name,
-                target_group.image_file_name AS imageFileName
+                target_group.image_file_name AS imageFileName,
+                summary.memberCount AS memberCount,
+                summary.firstMemberName AS firstMemberName,
+                summary.secondMemberName AS secondMemberName,
+                summary.thirdMemberName AS thirdMemberName
               FROM group_members member
               JOIN groups target_group
                 ON target_group.id = member.group_id
+              CROSS JOIN LATERAL (
+                SELECT COUNT(*) AS memberCount,
+                       MAX(ranked.name) FILTER (WHERE ranked.position = 1) AS firstMemberName,
+                       MAX(ranked.name) FILTER (WHERE ranked.position = 2) AS secondMemberName,
+                       MAX(ranked.name) FILTER (WHERE ranked.position = 3) AS thirdMemberName
+                  FROM (
+                    SELECT member_user.name,
+                           ROW_NUMBER() OVER (
+                               ORDER BY CASE WHEN active_member.role = 'OWNER' THEN 0 ELSE 1 END,
+                                        active_member.joined_at ASC, active_member.id ASC
+                           ) AS position
+                      FROM group_members active_member
+                      JOIN users member_user ON member_user.id = active_member.user_id
+                     WHERE active_member.group_id = target_group.id
+                       AND active_member.status = 'ACTIVE'
+                       AND member_user.active = TRUE
+                  ) ranked
+              ) summary
              WHERE member.user_id = :userId
                AND member.status = 'ACTIVE'
                AND target_group.status = 'ACTIVE'
@@ -73,6 +95,14 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMemberJpaEn
         String getName();
 
         String getImageFileName();
+
+        long getMemberCount();
+
+        String getFirstMemberName();
+
+        String getSecondMemberName();
+
+        String getThirdMemberName();
     }
 
     interface GroupRosterProjection {
