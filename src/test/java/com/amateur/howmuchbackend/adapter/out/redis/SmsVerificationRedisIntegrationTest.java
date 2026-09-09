@@ -14,6 +14,8 @@ import com.amateur.howmuchbackend.domain.auth.verification.SmsOtpState;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -222,24 +224,46 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void expirationBetweenReadAndTransitionRejectsCorrectCode() throws Exception {
+    void ttlExpiryBetweenReadAndTransitionRejectsCorrectCodeDespiteFutureTimestamp() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         adapter.save(phoneHash, new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
-                initial.codeHash(), 0, now(), now().plusSeconds(1)), Duration.ofMinutes(3));
+                initial.codeHash(), 0, now(), now().plusHours(1)), Duration.ofMinutes(3));
         SmsVerificationRedisAdapter delayed = delayedRead(read, release);
         try (var executor = Executors.newSingleThreadExecutor()) {
             var pending = executor.submit(() -> succeed(delayed));
             try {
                 assertThat(read.await(5, TimeUnit.SECONDS)).isTrue();
-                TimeUnit.MILLISECONDS.sleep(1100);
+                redis.expire(key, Duration.ofMillis(1));
+                TimeUnit.MILLISECONDS.sleep(20);
+                assertThat(redis.hasKey(key)).isFalse();
                 release.countDown();
                 assertThat(pending.get(5, TimeUnit.SECONDS)).isEqualTo(EXPIRED);
-                assertThat(adapter.findByPhoneHash(phoneHash).orElseThrow().consumed()).isFalse();
+                assertThat(redis.hasKey(key)).isFalse();
             } finally {
                 release.countDown();
             }
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-3600, 3600})
+    void validTtlIsIndependentOfApplicationClockOffset(long offsetSeconds) {
+        adapter.save(phoneHash, new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
+                initial.codeHash(), 0, now().plusSeconds(offsetSeconds), now().plusSeconds(offsetSeconds)),
+                Duration.ofMinutes(3));
+        long ttl = redis.getExpire(key, TimeUnit.MILLISECONDS);
+        assertThat(succeed(adapter)).isEqualTo(VERIFIED);
+        assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isPositive().isLessThanOrEqualTo(ttl);
+        assertThat(succeed(adapter)).isEqualTo(EXPIRED);
+    }
+
+    @Test
+    void keyWithoutExpiryCannotBeConsumed() {
+        redis.persist(key);
+        assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isEqualTo(-1);
+        assertThat(succeed(adapter)).isEqualTo(EXPIRED);
+        assertThat(adapter.findByPhoneHash(phoneHash)).contains(initial);
     }
 
     @Test

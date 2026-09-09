@@ -11,7 +11,6 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.time.Duration;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,14 +20,12 @@ public class SmsVerificationRedisAdapter implements SmsVerificationStorePort {
     private static final String KEY_PREFIX = "auth:sms:otp:";
 
     // The snapshot comparison protects every decision, including failures and request replacement.
-    // Check expiration at the linearization point, not at the earlier Java read.
+    // Use Redis TTL at the linearization point; expiresAt belongs to the application host clock.
     private static final DefaultRedisScript<Long> TRANSITION = new DefaultRedisScript<>("""
             local current = redis.call('GET', KEYS[1])
             if not current then return -1 end
             if current ~= ARGV[1] then return 0 end
-            local time = redis.call('TIME')
-            local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
-            if now >= tonumber(ARGV[3]) then return -1 end
+            if redis.call('PTTL', KEYS[1]) <= 0 then return -1 end
             redis.call('SET', KEYS[1], ARGV[2], 'KEEPTTL')
             return 1
             """, Long.class);
@@ -50,8 +47,7 @@ public class SmsVerificationRedisAdapter implements SmsVerificationStorePort {
             }
             SmsOtpState.Verification verification = state.verify(requestId, codeHash, maxAttempts);
             String replacement = objectMapper.writeValueAsString(verification.state());
-            Long result = redis.execute(TRANSITION, List.of(key(phoneHash)), snapshot, replacement,
-                    Long.toString(state.expiresAt().toInstant(ZoneOffset.UTC).toEpochMilli()));
+            Long result = redis.execute(TRANSITION, List.of(key(phoneHash)), snapshot, replacement);
             if (result == null) throw new IllegalStateException("Missing SMS verification transition result.");
             if (result == -1) return SmsOtpState.Outcome.EXPIRED;
             if (result == 1) return verification.outcome();

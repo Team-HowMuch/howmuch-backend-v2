@@ -26,7 +26,7 @@
 - 기존 Redis 키/TTL을 유지하고 JSON에 consumed를 추가한다. 기존 JSON의 누락 필드는 Adapter에서 false로 보완한 뒤 읽는다.
 
 ## 5. 설계 결정
-Redis Lua compare-and-set으로 읽은 원본 JSON이 동일한 경우만 다음 상태를 KEEPTTL로 저장한다. Redis TIME으로 저장된 UTC 만료 시각을 실행 시점에 재검사한다. 충돌하면 재조회한다. JVM 잠금은 여러 서버를 보호하지 못하며, Lua 안에 도메인 규칙과 날짜 파싱을 중복 구현하는 방식은 피한다.
+Redis Lua compare-and-set으로 읽은 원본 JSON이 동일한 경우만 다음 상태를 KEEPTTL로 저장한다. Lua 실행 시점의 Redis PTTL이 양수일 때만 전이를 허용한다. JVM에서 만든 expiresAt과 Redis 시계를 비교하지 않아 서버 간 시계 차이로 조기 만료되지 않는다. 충돌하면 재조회한다. JVM 잠금은 여러 서버를 보호하지 못하며, Lua 안에 도메인 규칙과 날짜 파싱을 중복 구현하는 방식은 피한다.
 소비·차단 상태를 삭제하지 않아 재발송 쿨다운을 유지한다. challenge 저장 실패 시 OTP를 복원하지 않는다(재발송 필요). OTP 소비와 challenge 저장의 장애 시 원자적 복구, 발송 예약 경쟁(F02), CODEF, 다른 인증 흐름 수정은 범위 밖이다. 구버전 서버는 분리된 저장을 수행하므로 배포 시 구버전 인증 트래픽을 종료한 뒤 전환해야 한다.
 
 ## 6. 영향 범위
@@ -60,10 +60,17 @@ Java 21과 격리 Redis를 사용한다. 해당 테스트는 직접 Redis 연결
 - 완료일: 2026-09-09
 - 정상/실패/경계 및 도메인·포트·서비스·Redis Adapter 구현 완료. 새 Web 계약·Policy·Infra·migration은 N/A.
 - `./gradlew compileJava`: 통과.
-- `REDIS_HOST=127.0.0.1 REDIS_PORT=17397 ./gradlew compileJava test --tests '*SmsVerificationRedisIntegrationTest'`: 12개 통과, 실패·건너뜀 없음.
+- `REDIS_HOST=127.0.0.1 REDIS_PORT=17397 ./gradlew compileJava test --tests '*SmsVerificationRedisIntegrationTest'`: 리뷰 반영 후 15개 통과, 실패·건너뜀 없음.
 - 실제 Redis에서 동일 snapshot을 읽도록 latch로 강제한 동시 실패 누적, 8개 실패의 한도 차단, 성공·실패 경쟁, 성공 2개의 challenge 단일 저장 검증.
-- 지연 실패와 요청 교체/소비/Redis TTL 만료, 읽기 후 논리적 만료, TTL·쿨다운 보존, 쿨다운 이후 재발송, 이전 JSON, challenge 저장 실패 시 복원 금지 검증.
+- 지연 실패와 요청 교체/소비/Redis TTL 만료, 읽기 후 TTL 만료와 JVM 시계 편차, TTL·쿨다운 보존, 쿨다운 이후 재발송, 이전 JSON, challenge 저장 실패 시 복원 금지 검증.
 - 초기 9개 테스트 중 기존 JSON 호환 테스트 1개가 실패했다. Jackson 3의 누락 primitive 역직렬화 거부를 확인하고 consumed 누락을 Adapter에서 보완한 뒤 확장한 12개 모두 통과.
 - `git diff --check` 및 문서 경로 확인 통과. 전체 테스트·별도 bootRun·외부 SMS 발송·운영 배포는 변경 관련 격리 Redis 검증으로 범위를 제한해 수행하지 않음.
 - 남은 한계: challenge 저장 실패 시 재발송이 필요하다. 구버전 인증 서버와 혼합 운영하면 원자성을 보장할 수 없어 구버전 트래픽을 종료하고 전환해야 한다. 발송 예약/발송 실패 정리 경쟁(F02)은 별도 이슈 범위다.
 
+
+## 12. PR 리뷰 후속 계획
+- 2026-09-09: PR #314의 시계 혼용 지적을 수용한다. JVM expiresAt과 Redis TIME의 비교를 제거하고 Lua의 PTTL > 0을 검증·소비의 만료 기준으로 사용한다. 응답용 expiresAt과 기존 키·TTL·쿨다운 구조는 유지한다.
+- 영향: SmsVerificationRedisAdapter 및 Redis 회귀 테스트. Flyway migration 불필요.
+- 검증: expiresAt을 Redis 시각보다 과거/미래로 이동한 상태에서 TTL 유효 시 성공, TTL 만료 시 정답도 거부, 만료 없는 비정상 키 거부, 기존 동시성 회귀 전체 실행.
+- 예상 커밋: fix(auth): SMS 인증 만료 판정을 Redis TTL로 통일
+- 결과: 수정 전 시계 편차(-1시간) 및 만료 없는 키 테스트 2개 실패로 문제를 재현했다. 수정 후 compileJava 및 전체 Redis 회귀 15개 통과. git diff --check와 참조 경로 검사 통과. 전체 테스트·bootRun·운영 배포는 후속 수정에서 수행하지 않았다.
