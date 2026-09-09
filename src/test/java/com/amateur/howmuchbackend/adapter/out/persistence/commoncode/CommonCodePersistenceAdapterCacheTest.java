@@ -168,7 +168,6 @@ class CommonCodePersistenceAdapterCacheTest {
 
     private void saveGroup() {
 
-        when(commonCodeGroupRepository.findById("BANK")).thenReturn(Optional.empty());
         when(commonCodeGroupRepository.saveAndFlush(any(CommonCodeGroupJpaEntity.class)))
                 .thenAnswer(invocation -> {
                     CommonCodeGroupJpaEntity entity = invocation.getArgument(0, CommonCodeGroupJpaEntity.class);
@@ -177,7 +176,7 @@ class CommonCodePersistenceAdapterCacheTest {
                 });
         when(commonCodeRepository.findAllByGroupCode("BANK")).thenReturn(List.of());
 
-        saveCommonCodeGroupPort.save(
+        saveCommonCodeGroupPort.create(
                 CommonCodeGroup.create("BANK", "은행 코드", null, null, null, null, true)
         );
     }

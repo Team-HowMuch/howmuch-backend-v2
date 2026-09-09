@@ -86,14 +86,19 @@ public class CommonCodePersistenceAdapter
     }
 
     @Override
-    public CommonCodeGroup save(CommonCodeGroup group) {
-        CommonCodeGroupJpaEntity groupEntity = commonCodeGroupRepository.findById(group.groupCode())
-                .map(existing -> {
-                    existing.updateFrom(group);
-                    return existing;
-                })
-                .orElseGet(() -> new CommonCodeGroupJpaEntity(group));
+    public CommonCodeGroup create(CommonCodeGroup group) {
+        return saveGroupAndDetails(group, new CommonCodeGroupJpaEntity(group));
+    }
 
+    @Override
+    public CommonCodeGroup update(CommonCodeGroup group) {
+        CommonCodeGroupJpaEntity groupEntity = commonCodeGroupRepository.findById(group.groupCode())
+                .orElseThrow(() -> ApplicationException.of(CommonCodeStatusCode.COMMON_CODE_GROUP_NOT_FOUND));
+        groupEntity.updateFrom(group);
+        return saveGroupAndDetails(group, groupEntity);
+    }
+
+    private CommonCodeGroup saveGroupAndDetails(CommonCodeGroup group, CommonCodeGroupJpaEntity groupEntity) {
         CommonCodeGroupJpaEntity savedGroup;
         try {
             savedGroup = commonCodeGroupRepository.saveAndFlush(groupEntity);
