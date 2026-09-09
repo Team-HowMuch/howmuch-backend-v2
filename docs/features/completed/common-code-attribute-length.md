@@ -1,6 +1,6 @@
 # Feature Plan: 공통 코드 속성 길이 통일
 
-- 상태: 진행 중
+- 상태: 완료
 - 갱신일: 2026-09-09
 - 관련 이슈: #304
 
@@ -31,9 +31,9 @@ DB 계약에 맞춰 기존 경계의 길이 선언만 수정한다. 계층 간 �
 2. `fix(commoncode): 상세 속성 입력과 매핑 길이를 255자로 통일`
 3. `test(commoncode): 속성 길이 경계와 저장값 보존 검증`
 
-- [ ] API·JPA·화면·설명 수정
-- [ ] 경계 및 기존 값 조회·수정 회귀 검증
-- [ ] 결과 기록 및 완료 문서 이동
+- [x] API·JPA·화면·설명 수정
+- [x] 경계 및 기존 값 조회·수정 회귀 검증
+- [x] 결과 기록 및 완료 문서 이동
 
 ## 6. 검증 계획
 
@@ -46,4 +46,18 @@ DB 계약에 맞춰 기존 경계의 길이 선언만 수정한다. 계층 간 �
 ## 7. 진행 및 완료 기록
 
 - 2026-09-09: 최신 origin/develop에서 fix/common-code-attribute-length 생성. V19 및 생성·수정 흐름 확인.
-- 검증 결과: 진행 중.
+- 검증 결과: `./gradlew compileJava` 통과. 공통 코드 Java 37개(신규 10개), JavaScript 35개(신규 4개) 모두 통과.
+- 실제 PostgreSQL에서 100·101·255자 상세 추가, 영속성 컨텍스트 초기화 후 재조회·수정 및 세 컬럼/JPA의 255자 계약을 확인했다. MockMvc는 각 속성 256자 요청의 400 및 저장 호출 차단을 확인했다.
+- 초기 local 실행은 기존 DB의 V16 체크섬 불일치로 실패했고, 격리 스키마 실행은 Discord 설정 누락으로 실패했다. 아래 설정으로 재실행하여 통과했다. 기존 DB 이력은 수정하지 않았다.
+
+```bash
+DB_URL='jdbc:postgresql://localhost:5432/howmuch?currentSchema=issue304_attribute_test' \
+SPRING_FLYWAY_SCHEMAS=issue304_attribute_test \
+DISCORD_SMS_WEBHOOK_URL='http://localhost:9/test-only' \
+./gradlew test --tests '*commoncode*'
+node --test src/test/js/common-code-admin.test.cjs
+```
+
+- 전체 Java 테스트, 실제 서버 HTTP 및 브라우저 수동 조작은 미실행. 이번 변경에 맞춘 MockMvc·실제 DB·DOM 대역 검증으로 범위를 한정했다. 브라우저 고유 입력 동작은 수동 확인 범위로 남는다.
+- `git diff --check` 및 참조 파일 존재 확인 통과. V19 SQL 변경 없음.
+- 완료일: 2026-09-09.

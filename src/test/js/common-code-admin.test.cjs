@@ -20,6 +20,8 @@ function page(handler, authenticated = true) {
                 listeners: {}, checked: false, readOnly: false,
                 addEventListener(type, fn) { this.listeners[type] = fn; },
                 reset() { this.value = ''; },
+                insertAdjacentHTML(position, html) { this.innerHTML += html; },
+                lastElementChild: { querySelector: () => ({ focus() {} }) },
                 replaceChildren() { this.innerHTML = ''; },
                 querySelectorAll() { return [element('phoneNumber'), element('pin'), element('loginSubmit')]; },
                 classList: null };
@@ -38,7 +40,14 @@ function page(handler, authenticated = true) {
     const writes = [], calls = [], timers = new Map();
     let timerId = 0;
     vm.runInNewContext(source, {
-        document: { getElementById: element, querySelectorAll: () => [] },
+        document: { getElementById: element, querySelectorAll: selector => {
+            if (selector !== '.group-item') return [];
+            return [...element('groupList').innerHTML.matchAll(/data-group-code="([^"]+)"/g)].map(match => {
+                const button = element('group-' + match[1]);
+                button.dataset = { groupCode: match[1] };
+                return button;
+            });
+        } },
         sessionStorage: { getItem: key => storage.get(key) ?? null,
             setItem: (key, value) => { writes.push([key, value]); storage.set(key, value); },
             removeItem: key => storage.delete(key) },
@@ -313,4 +322,29 @@ test('a slow data request after login does not keep the logged-out form locked',
     const login = p.login(); await flush(); await p.logout();
     assertCleared(p);
     pending.resolve(response(200, [])); await login; assertCleared(p);
+});
+
+for (const length of [100, 101, 255]) {
+    test(`existing ${length}-character attributes remain intact and all inputs allow 255`, async () => {
+        const value = '가'.repeat(length);
+        const p = page(url => Promise.resolve(response(200, url.endsWith('/BANK')
+            ? { groupCode: 'BANK', groupName: '은행', revision: 1, active: true,
+                details: [{ code: 'TEST', name: '상세', attr1: value, attr2: value, attr3: value }] }
+            : [{ groupCode: 'BANK', groupName: '은행', detailCount: 1 }])));
+        await flush();
+        await p.element('group-BANK').listeners.click();
+        const html = p.element('detailRows').innerHTML;
+        for (const field of ['attr1', 'attr2', 'attr3']) {
+            assert.ok(html.includes(`name="${field}" maxlength="255" value="${value}"`));
+        }
+        assert.ok(html.includes('name="name" maxlength="100"'));
+    });
+}
+
+test('new detail inputs allow 255 characters for all three attributes', () => {
+    const p = page(() => undefined, false);
+    p.element('addDetailButton').listeners.click();
+    for (const field of ['attr1', 'attr2', 'attr3']) {
+        assert.ok(p.element('detailRows').innerHTML.includes(`name="${field}" maxlength="255" value=""`));
+    }
 });

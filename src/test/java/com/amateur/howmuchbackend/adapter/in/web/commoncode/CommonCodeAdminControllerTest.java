@@ -10,6 +10,14 @@ import com.amateur.howmuchbackend.application.port.in.commoncode.result.CommonCo
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
+import com.amateur.howmuchbackend.application.port.in.commoncode.command.UpdateCommonCodeGroupCommand;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -119,6 +127,48 @@ class CommonCodeAdminControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {100, 101, 255})
+    void acceptsAttributeBoundariesWithoutTruncation(int length) throws Exception {
+        String value = "가".repeat(length);
+        when(updateUseCase.update(eq("BANK"), any())).thenReturn(groupResult());
+        mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(attributeRequest(value, value, value)))
+                .andExpect(status().isOk());
+        var captor = ArgumentCaptor.forClass(UpdateCommonCodeGroupCommand.class);
+        verify(updateUseCase).update(eq("BANK"), captor.capture());
+        var detail = captor.getValue().details().getFirst();
+        assertThat(List.of(detail.attr1(), detail.attr2(), detail.attr3()))
+                .containsExactly(value, value, value);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3})
+    void rejectsEachOversizedAttributeBeforeSaving(int attribute) throws Exception {
+        String[] values = {"valid", "valid", "valid"};
+        values[attribute - 1] = "가".repeat(256);
+        var result = mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(attributeRequest(values[0], values[1], values[2])))
+                .andExpect(status().isBadRequest()).andReturn();
+        var error = (MethodArgumentNotValidException) result.getResolvedException();
+        assertThat(error.getBindingResult().getFieldErrors())
+                .anySatisfy(field -> {
+                    assertThat(field.getField()).isEqualTo("details[0].attr" + attribute);
+                    assertThat(field.getCode()).isEqualTo("Size");
+                });
+        verifyNoInteractions(updateUseCase);
+    }
+
+    private String attributeRequest(String attr1, String attr2, String attr3) {
+        return """
+                {"revision":1,"groupName":"은행 코드","active":true,
+                 "details":[{"code":"0020","name":"우리은행","sortOrder":1,
+                 "attr1":"%s","attr2":"%s","attr3":"%s","active":true}]}
+                """.formatted(attr1, attr2, attr3);
     }
 
     private CommonCodeGroupResult groupResult() {
