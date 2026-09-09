@@ -66,12 +66,13 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMemberJpaEn
                 ON target_group.id = member.group_id
               CROSS JOIN LATERAL (
                 SELECT COUNT(*) AS memberCount,
-                       MAX(ranked.name) FILTER (WHERE ranked.position = 1) AS firstMemberName,
-                       MAX(ranked.name) FILTER (WHERE ranked.position = 2) AS secondMemberName,
-                       MAX(ranked.name) FILTER (WHERE ranked.position = 3) AS thirdMemberName
+                       MAX(ranked.name) FILTER (WHERE ranked.userId <> :userId AND ranked.position = 1) AS firstMemberName,
+                       MAX(ranked.name) FILTER (WHERE ranked.userId <> :userId AND ranked.position = 2) AS secondMemberName,
+                       MAX(ranked.name) FILTER (WHERE ranked.userId <> :userId AND ranked.position = 3) AS thirdMemberName
                   FROM (
-                    SELECT member_user.name,
+                    SELECT member_user.name, active_member.user_id AS userId,
                            ROW_NUMBER() OVER (
+                               PARTITION BY (active_member.user_id = :userId)
                                ORDER BY CASE WHEN active_member.role = 'OWNER' THEN 0 ELSE 1 END,
                                         active_member.joined_at ASC, active_member.id ASC
                            ) AS position

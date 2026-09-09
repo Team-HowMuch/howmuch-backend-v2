@@ -47,7 +47,7 @@ public interface GroupDocs {
             summary = "내 그룹 목록 조회",
             description = "현재 사용자의 활성 그룹 전체를 최근 가입 순으로 조회합니다. "
                     + "memberCount는 본인을 포함한 활성 사용자·활성 멤버십의 전체 수이며 탈퇴·강퇴·비활성 사용자는 제외합니다. "
-                    + "memberNames는 그룹장 우선, 가입 시각·멤버 ID 오름차순으로 최대 3개를 반환합니다.",
+                    + "memberNames는 요청자 본인을 먼저 제외한 뒤 그룹장 우선, 가입 시각·멤버 ID 오름차순으로 최대 3개를 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     ApiResponse<List<GroupSummaryWebResponse>> getMyGroups();

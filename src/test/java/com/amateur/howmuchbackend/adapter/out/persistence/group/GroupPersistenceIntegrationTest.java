@@ -133,7 +133,7 @@ class GroupPersistenceIntegrationTest {
         assertThat(summaries.getFirst().groupId()).isEqualTo(savedGroup.id());
         assertThat(summaries.getFirst().name()).isEqualTo("여행 모임");
         assertThat(summaries.getFirst().memberCount()).isEqualTo(1);
-        assertThat(summaries.getFirst().memberNames()).containsExactly("최수아");
+        assertThat(summaries.getFirst().memberNames()).isEmpty();
     }
 
     @Test
@@ -387,7 +387,7 @@ class GroupPersistenceIntegrationTest {
 
         var summary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId).getFirst();
         assertThat(summary.memberCount()).isEqualTo(4);
-        assertThat(summary.memberNames()).containsExactly("최수아", "이름, 공백", "동명이인");
+        assertThat(summary.memberNames()).containsExactly("이름, 공백", "동명이인", "동명이인");
         assertThat(groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(left)).isEmpty();
         assertThat(groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(removed)).isEmpty();
 
@@ -396,7 +396,53 @@ class GroupPersistenceIntegrationTest {
                 CREATED_AT.plusHours(1), first);
         summary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId).getFirst();
         assertThat(summary.memberCount()).isEqualTo(4);
-        assertThat(summary.memberNames()).containsExactly("최수아", "동명이인", "동명이인");
+        assertThat(summary.memberNames()).containsExactly("동명이인", "동명이인", "이름, 공백");
+    }
+
+    @Test
+    @DisplayName("요청자 위치와 동명이인에 관계없이 다른 구성원 세 명과 전체 인원수를 반환한다")
+    void excludesRequesterBeforeSelectingThreeNames() {
+        Group group = saveGroup();
+        groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT));
+        List<Long> members = new ArrayList<>();
+        for (String name : List.of("최수아", "두번째", "세번째", "네번째")) {
+            Long id = insertUser(name);
+            members.add(id);
+            groupMemberPersistenceAdapter.save(GroupMember.member(group.id(), id, CREATED_AT));
+        }
+
+        var ownerSummary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId).getFirst();
+        assertThat(ownerSummary.memberCount()).isEqualTo(5);
+        assertThat(ownerSummary.memberNames()).containsExactly("최수아", "두번째", "세번째");
+
+        List<List<String>> expectedNames = List.of(
+                List.of("최수아", "두번째", "세번째"),
+                List.of("최수아", "최수아", "세번째"),
+                List.of("최수아", "최수아", "두번째"),
+                List.of("최수아", "최수아", "두번째")
+        );
+        for (int index = 0; index < members.size(); index++) {
+            var summary = groupMemberPersistenceAdapter
+                    .findActiveGroupSummariesByUserId(members.get(index)).getFirst();
+            assertThat(summary.memberCount()).isEqualTo(5);
+            assertThat(summary.memberNames()).containsExactlyElementsOf(expectedNames.get(index));
+        }
+    }
+
+    @Test
+    @DisplayName("두 명인 그룹은 요청자 외 한 이름만 반환하고 인원수는 2를 유지한다")
+    void returnsOneOtherNameForTwoMembers() {
+        Group group = saveGroup();
+        groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT));
+        Long other = insertUser("다른 멤버");
+        groupMemberPersistenceAdapter.save(GroupMember.member(group.id(), other, CREATED_AT));
+
+        var summary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId).getFirst();
+        assertThat(summary.memberCount()).isEqualTo(2);
+        assertThat(summary.memberNames()).containsExactly("다른 멤버");
+        summary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(other).getFirst();
+        assertThat(summary.memberCount()).isEqualTo(2);
+        assertThat(summary.memberNames()).containsExactly("최수아");
     }
 
     @Test
