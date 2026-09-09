@@ -33,7 +33,7 @@ public interface AuthDocs {
     @Operation(summary = "로그인", description = "휴대폰 번호와 PIN으로 로그인합니다. 새 로그인은 기존 기기 세션을 만료시킵니다.")
     ApiResponse<TokenWebResponse> login(LoginRequest request);
 
-    @Operation(summary = "토큰 갱신", description = "만료된 토큰을 갱신합니다.")
+    @Operation(summary = "토큰 갱신", description = "유효한 Refresh Token으로 토큰을 갱신합니다. 토큰 회전 시 로그아웃·새 로그인·다른 갱신으로 기존 세션이 변경되면 INVALID_TOKEN으로 실패합니다.")
     ApiResponse<TokenWebResponse> refresh(RefreshTokenRequest request);
 
     @Operation(

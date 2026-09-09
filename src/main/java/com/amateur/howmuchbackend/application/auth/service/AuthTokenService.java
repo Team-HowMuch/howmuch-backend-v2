@@ -30,7 +30,7 @@ public class AuthTokenService implements RefreshTokenUseCase {
     private final AuthSessionPolicy authSessionPolicy;
 
     public TokenResult issueNewSession(User user) {
-        return issue(user, UUID.randomUUID().toString());
+        return issue(user, UUID.randomUUID().toString(), null);
     }
 
     @Override
@@ -60,17 +60,22 @@ public class AuthTokenService implements RefreshTokenUseCase {
             String accessToken = authTokenPort.createAccessToken(user, sessionId);
             return new TokenResult(accessToken, requestToken);
         }
-        return issue(user, sessionId);
+        return issue(user, sessionId, session);
     }
 
-    private TokenResult issue(User user, String sessionId) {
+    private TokenResult issue(User user, String sessionId, AuthSession expected) {
         String accessToken = authTokenPort.createAccessToken(user, sessionId);
         String requestToken = authTokenPort.createRefreshToken(user, sessionId);
         JwtPayload requestPayload = authTokenPort.parsePayload(requestToken)
                 .filter(value -> value.isType(JwtTokenType.REFRESH))
                 .orElseThrow(() -> new IllegalStateException("Issued request token is invalid."));
 
-        authSessionPort.save(new AuthSession(user.id(), sessionId, requestToken, requestPayload.expiresAt()));
+        AuthSession replacement = new AuthSession(user.id(), sessionId, requestToken, requestPayload.expiresAt());
+        if (expected == null) {
+            authSessionPort.save(replacement);
+        } else if (!authSessionPort.rotate(expected, replacement)) {
+            throw ApplicationException.of(AuthStatusCode.INVALID_TOKEN);
+        }
         return new TokenResult(accessToken, requestToken);
     }
 }

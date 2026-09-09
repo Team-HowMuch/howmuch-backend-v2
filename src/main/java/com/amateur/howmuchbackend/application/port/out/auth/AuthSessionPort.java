@@ -10,7 +10,11 @@ public interface AuthSessionPort {
 
     boolean existsActiveByUserIdAndSessionId(Long userId, String sessionId, LocalDateTime now);
 
+    /** Creates or replaces a session for a new login. */
     void save(AuthSession authSession);
+
+    /** Replaces only the still-active expected session; a conflict leaves storage unchanged. */
+    boolean rotate(AuthSession expected, AuthSession replacement);
 
     void deleteByUserId(Long userId);
 }
