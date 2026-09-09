@@ -16,6 +16,7 @@ import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -26,6 +27,7 @@ import java.time.ZoneOffset;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UpdateMyProfileService implements UpdateMyProfileUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadUserPort loadUserPort;
@@ -79,7 +81,7 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
             ));
         } catch (RuntimeException exception) {
             if (newlyStoredFileName != null) {
-                profileImageStoragePort.delete(newlyStoredFileName);
+                deleteSafely(newlyStoredFileName, "rollback");
             }
             throw exception;
         }
@@ -106,8 +108,8 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
 
             @Override
             public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED && newlyStoredFileName != null) {
-                    profileImageStoragePort.delete(newlyStoredFileName);
+                if (status == STATUS_ROLLED_BACK && newlyStoredFileName != null) {
+                    deleteSafely(newlyStoredFileName, "rollback");
                 }
             }
         });
@@ -115,11 +117,25 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
 
     private void cleanupAfterCommit(String previousAvatarFileName, String avatarFileName) {
         if (previousAvatarFileName != null && !previousAvatarFileName.equals(avatarFileName)) {
-            profileImageStoragePort.delete(previousAvatarFileName);
+            deleteSafely(previousAvatarFileName, "after_commit");
         }
     }
 
     private boolean equalsNullable(String left, String right) {
         return left == null ? right == null : left.equals(right);
+    }
+
+    private void deleteSafely(String fileName, String phase) {
+        try {
+            profileImageStoragePort.delete(fileName);
+        } catch (RuntimeException exception) {
+            log.atWarn()
+                    .addKeyValue("event", "image_cleanup_failed")
+                    .addKeyValue("imageDomain", "profile")
+                    .addKeyValue("fileName", fileName)
+                    .addKeyValue("phase", phase)
+                    .addKeyValue("exceptionType", exception.getClass().getName())
+                    .log("Image cleanup failed; manual cleanup requires checking current references");
+        }
     }
 }
