@@ -16,10 +16,15 @@ public class ManagementSecurityConfig {
     @Bean
     @Order(0)
     SecurityFilterChain managementSecurityFilterChain(HttpSecurity http, Environment environment) throws Exception {
-        return http.securityMatcher(EndpointRequest.toAnyEndpoint())
+        String basePath = environment.getProperty("management.endpoints.web.base-path", "/actuator");
+        return http.securityMatcher(basePath, basePath + "/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(authorize -> authorize.anyRequest().access((authentication, context) -> {
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, error) -> response.setStatus(403))
+                        .accessDeniedHandler((request, response, error) -> response.setStatus(403)))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(EndpointRequest.toAnyEndpoint()).access((authentication, context) -> {
                     var request = context.getRequest();
                     // Use the actual bound management port, including random-port tests.
                     int managementPort = environment.getProperty("local.management.port", Integer.class, -1);
@@ -27,7 +32,7 @@ public class ManagementSecurityConfig {
                     return new AuthorizationDecision(managementPort != applicationPort
                             && request.getLocalPort() == managementPort
                             && "127.0.0.1".equals(request.getLocalAddr()));
-                }))
+                }).anyRequest().denyAll())
                 .build();
     }
 }

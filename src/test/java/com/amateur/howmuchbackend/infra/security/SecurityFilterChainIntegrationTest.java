@@ -155,6 +155,14 @@ class SecurityFilterChainIntegrationTest {
     }
 
     @Test
+    @DisplayName("유효한 API 인증으로도 서비스 포트의 관리 지표에 접근할 수 없다")
+    void rejectsManagementAccessWithValidApiToken() throws Exception {
+        jdbc.update("UPDATE users SET role='ADMIN' WHERE id=?", userId);
+        assertThat(request("GET", "/actuator/metrics", accessToken).statusCode()).isEqualTo(403);
+        assertThat(request("GET", "/actuator/prometheus", accessToken).statusCode()).isEqualTo(403);
+    }
+
+    @Test
     @DisplayName("공개 관리자 화면은 인증 없이 접근 가능하다")
     void preservesPublicPage() throws Exception {
         assertThat(request("GET", "/admin/common-codes", null).statusCode()).isEqualTo(200);

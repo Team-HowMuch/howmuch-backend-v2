@@ -2,7 +2,7 @@
 
 ## Request correlation and safe logs
 
-Every servlet request receives a server-generated UUID in `X-Request-ID`. Search console JSON logs for the matching `requestId`. Incoming IDs are ignored: a client must not be able to inject a credential into this field. `request_failed` contains the HTTP status and a fixed area (`auth`, `settlement`, `other`). Handled exceptions also emit `request_exception` with their type, status and up to 12 application code locations.
+Every application servlet request receives a server-generated UUID in `X-Request-ID`. Search console JSON logs for the matching `requestId`. Incoming IDs are ignored: a client must not be able to inject a credential into this field. `request_failed` contains the HTTP status and a fixed area (`auth`, `settlement`, `other`). Handled exceptions also emit `request_exception` with their type, status and up to 12 application code locations.
 
 The application does not record request bodies, query strings, raw paths, headers, exception messages, causes or suppressed exceptions in these events. This includes PIN, OTP, JWT, participant-context and share-link tokens. Avoid enabling request/body or SQL bind-value debug logging in production. Existing auth audit records and Outbox processing logs remain available. Stack traces intentionally omit exception messages; reproduce with synthetic input when more diagnosis is needed.
 
@@ -22,7 +22,7 @@ curl --fail http://127.0.0.1:9091/actuator/prometheus
 
 | Meter | Tags | Meaning |
 |---|---|---|
-| `howmuch.http.requests` | `area`, `status` | Completed servlet requests, including Security 401/403, validation 400, application errors and unexpected 500 |
+| `howmuch.http.requests` | `area`, `status` | Completed application servlet requests, including Security 401/403, validation 400, application errors and unexpected 500 |
 | `howmuch.settlement.outbox.events` | `outcome` | Existing BatchResult totals: recovered, claimed, succeeded, retried, failed, ownership_lost |
 | `howmuch.settlement.outbox.poll.failures` | none | Outbox polling exceptions |
 
