@@ -120,7 +120,7 @@ class GroupControllerTest {
     void getsMyGroups() throws Exception {
         when(getMyGroupsUseCase.getMyGroups()).thenReturn(List.of(
                 new GroupSummaryResult(20L, "최근 그룹", "/api/v2/groups/20/image", 4, List.of("그룹장", "동명이인", "동명이인")),
-                new GroupSummaryResult(10L, "이전 그룹", null, 1, List.of("본인"))
+                new GroupSummaryResult(10L, "이전 그룹", null, 1, List.of())
         ));
 
         mockMvc.perform(get("/api/v2/groups"))
@@ -133,7 +133,7 @@ class GroupControllerTest {
                 .andExpect(jsonPath("$.data[0].memberNames[1]").value("동명이인"))
                 .andExpect(jsonPath("$.data[0].memberNames[2]").value("동명이인"))
                 .andExpect(jsonPath("$.data[1].memberCount").value(1))
-                .andExpect(jsonPath("$.data[1].memberNames[0]").value("본인"));
+                .andExpect(jsonPath("$.data[1].memberNames").isEmpty());
     }
 
     @Test

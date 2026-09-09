@@ -54,7 +54,7 @@ class GroupQueryServiceTest {
     void getsMyGroupsInPersistenceOrder() {
         when(loadGroupMemberPort.findActiveGroupSummariesByUserId(1L)).thenReturn(List.of(
                 new GroupSummaryReadModel(20L, "최근 그룹", "image.jpg", 4, List.of("그룹장", "동명이인", "동명이인")),
-                new GroupSummaryReadModel(10L, "이전 그룹", null, 1, List.of("본인"))
+                new GroupSummaryReadModel(10L, "이전 그룹", null, 1, List.of())
         ));
 
         var result = service.getMyGroups();
@@ -65,7 +65,7 @@ class GroupQueryServiceTest {
         assertThat(result.getFirst().memberCount()).isEqualTo(4);
         assertThat(result.getFirst().memberNames()).containsExactly("그룹장", "동명이인", "동명이인");
         assertThat(result.get(1).memberCount()).isEqualTo(1);
-        assertThat(result.get(1).memberNames()).containsExactly("본인");
+        assertThat(result.get(1).memberNames()).isEmpty();
     }
 
     @Test

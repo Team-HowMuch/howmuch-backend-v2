@@ -133,7 +133,7 @@ class GroupPersistenceIntegrationTest {
         assertThat(summaries.getFirst().groupId()).isEqualTo(savedGroup.id());
         assertThat(summaries.getFirst().name()).isEqualTo("여행 모임");
         assertThat(summaries.getFirst().memberCount()).isEqualTo(1);
-        assertThat(summaries.getFirst().memberNames()).containsExactly("최수아");
+        assertThat(summaries.getFirst().memberNames()).isEmpty();
     }
 
     @Test
@@ -387,7 +387,7 @@ class GroupPersistenceIntegrationTest {
 
         var summary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId).getFirst();
         assertThat(summary.memberCount()).isEqualTo(4);
-        assertThat(summary.memberNames()).containsExactly("최수아", "이름, 공백", "동명이인");
+        assertThat(summary.memberNames()).containsExactly("이름, 공백", "동명이인", "동명이인");
         assertThat(groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(left)).isEmpty();
         assertThat(groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(removed)).isEmpty();
 
@@ -396,7 +396,7 @@ class GroupPersistenceIntegrationTest {
                 CREATED_AT.plusHours(1), first);
         summary = groupMemberPersistenceAdapter.findActiveGroupSummariesByUserId(userId).getFirst();
         assertThat(summary.memberCount()).isEqualTo(4);
-        assertThat(summary.memberNames()).containsExactly("최수아", "동명이인", "동명이인");
+        assertThat(summary.memberNames()).containsExactly("동명이인", "동명이인", "이름, 공백");
     }
 
     @Test
