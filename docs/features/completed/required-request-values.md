@@ -1,6 +1,6 @@
 # 필수 요청값 누락 상태 코드 수정
 
-- 상태: 진행 중
+- 상태: 완료
 - 관련 이슈: #306
 
 ## 목적과 계약
@@ -31,3 +31,14 @@ HTTP 400, `success: false`, `error.code: INVALID_ARGUMENT` 및 기존 메시지�
 - 본문 파싱·검증 오류와 ApplicationException 401·403 및 generic 500의 상태·응답 본문을 확인한다.
 - 격리 테스트는 DB·Redis·환경 변수가 필요 없다. 전체 통합 테스트와 실제 서버 실행은 별도 서비스·환경 설정이 필요하여 이번 검증에서 제외한다.
 - `git diff --check`, 문서 경로, 작업 상태를 확인한다.
+
+## 검증 결과
+
+- Java 21 `./gradlew compileJava`: 통과.
+- `./gradlew compileJava test --tests '*GlobalExceptionHandlerTest' --tests '*SettlementTransferInstructionControllerTest' --tests '*SettlementPaymentExpenseControllerTest'`: 21개 통과(신규 14개).
+- 실제 Advice와 실제 정산 Controller에서 누락·빈 값·형식 오류가 400이며 UseCase를 호출하지 않음을 확인했다.
+- 선택 파라미터 생략, 정상 송금 안내, 본문 파싱·필드 검증, ApplicationException 401·403 및 예상하지 못한 500을 확인했다.
+- `git diff --check`: 통과. 문서에 참조하는 코드 및 테스트 경로 확인.
+- 전체 통합 테스트·실제 서버 HTTP·보안 필터 체인 통합 테스트는 수행하지 않았다. 이번 검증은 외부 서비스 없이 실행하는 MockMvc 범위이며, 실제 서비스·환경 설정을 사용하는 테스트는 제외했다.
+- 보안 필터 자체는 변경하지 않았으며 401·403 검증은 Advice의 ApplicationException 처리 범위이다.
+- DB 변경 및 추가 후속 결정 없음.
