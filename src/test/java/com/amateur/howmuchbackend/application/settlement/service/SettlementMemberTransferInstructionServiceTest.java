@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
@@ -50,6 +51,7 @@ class SettlementMemberTransferInstructionServiceTest {
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
+    @Mock private LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     @Mock private LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
     @Mock private SettlementTransferLinkPort transferLinkPort;
     @Mock private BankCatalog bankCatalog;
@@ -65,6 +67,7 @@ class SettlementMemberTransferInstructionServiceTest {
                 new SettlementTransferInstructionReader(
                         loadSettlementPort,
                         loadSettlementSharePort,
+                        loadDepositSummaryPort,
                         loadSnapshotPort,
                         List.of(transferLinkPort),
                         bankCatalog

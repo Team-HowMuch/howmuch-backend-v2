@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementTransferInstructionResult;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementTransferLinkPort;
@@ -36,6 +37,7 @@ import java.util.UUID;
 public class SettlementTransferInstructionReader {
     private final LoadSettlementPort loadSettlementPort;
     private final LoadSettlementSharePort loadSettlementSharePort;
+    private final LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     private final LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
     private final List<SettlementTransferLinkPort> transferLinkPorts;
     private final BankCatalog bankCatalog;
@@ -69,9 +71,18 @@ public class SettlementTransferInstructionReader {
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND
                 ));
-        List<SettlementTransferInstructionResult.TransferLink> transferLinks = transferLinkPorts.stream()
+        long confirmedAmount = loadDepositSummaryPort
+                .findConfirmedShareAmountsBySettlementId(settlement.id()).stream()
+                .filter(confirmed -> confirmed.shareId().equals(share.id()))
+                .mapToLong(LoadSettlementDepositSummaryPort.ConfirmedShareAmount::amount)
+                .findFirst()
+                .orElse(0L);
+        long remainingAmount = Math.max(0L, share.amount() - confirmedAmount);
+        List<SettlementTransferInstructionResult.TransferLink> transferLinks = remainingAmount == 0
+                ? List.of()
+                : transferLinkPorts.stream()
                 .map(port -> port.create(
-                        snapshot.organization(), snapshot.accountNumber(), share.amount(), snapshot.accountHolder()
+                        snapshot.organization(), snapshot.accountNumber(), remainingAmount, snapshot.accountHolder()
                 ))
                 .flatMap(Optional::stream)
                 .map(generatedLink -> new SettlementTransferInstructionResult.TransferLink(
@@ -79,14 +90,14 @@ public class SettlementTransferInstructionReader {
                         generatedLink.url()
                 ))
                 .toList();
-        if (transferLinks.isEmpty()) {
+        if (remainingAmount > 0 && transferLinks.isEmpty()) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_TRANSFER_LINK_NOT_SUPPORTED);
         }
         return new SettlementTransferInstructionResult(
                 settlement.id(),
                 participantId,
                 share.id(),
-                share.amount(),
+                remainingAmount,
                 snapshot.accountHolder(),
                 snapshot.organization(),
                 // 코드만으로는 화면에 은행을 못 보여준다. 이름을 못 찾으면 코드로 대신한다.
