@@ -145,6 +145,9 @@ jobs:
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
       APP_DIR: ${{ vars.APP_DIR || '/opt/howmuch-infra' }}
     steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1
         env:
@@ -156,10 +159,4 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: GHCR_USERNAME,GHCR_PAT,APP_DIR
-          script: |
-            set -eu
-            cd "$APP_DIR"
-            printf '%s' "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-            docker compose pull
-            docker compose up -d
-            docker image prune -f
+          script_path: scripts/deploy-readiness.sh
