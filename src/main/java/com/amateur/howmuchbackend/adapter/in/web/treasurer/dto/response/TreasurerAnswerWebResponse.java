@@ -39,7 +39,9 @@ public record TreasurerAnswerWebResponse(
             String subtitle,
             String direction,
             long amount,
-            String marker
+            String marker,
+            String allocationType,
+            String status
     ) {
         private static Item from(TreasurerAnswerResult.Item item) {
             return new Item(
@@ -49,7 +51,9 @@ public record TreasurerAnswerWebResponse(
                     item.subtitle(),
                     item.direction().name(),
                     item.amount(),
-                    item.marker().name()
+                    item.marker().name(),
+                    item.allocationType() == null ? null : item.allocationType().name(),
+                    item.status() == null ? null : item.status().name()
             );
         }
     }

@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.port.in.treasurer.result;
 
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
 import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
@@ -29,7 +31,9 @@ public record TreasurerAnswerResult(
             String subtitle,
             SettlementDirection direction,
             long amount,
-            TreasurerCardMarker marker
+            TreasurerCardMarker marker,
+            SettlementAllocationType allocationType,
+            SettlementStatus status
     ) {
     }
 

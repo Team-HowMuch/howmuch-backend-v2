@@ -153,6 +153,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.status AS status,
                 settlement.created_at AS requestedAt,
                 creator.name AS requesterName,
+                settlement.allocation_type AS allocationType,
                 MAX(CASE
                         WHEN participant.linked_user_id = :userId THEN share.amount
                     END) AS amountToPay,
@@ -202,7 +203,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     )
                 )
              GROUP BY settlement.id, settlement.title, settlement.status, settlement.created_at,
-                      creator.name
+                      settlement.allocation_type, creator.name
              ORDER BY settlement.created_at DESC, settlement.id DESC
             """, nativeQuery = true)
     List<TreasurerSettlementProjection> findAllForTreasurer(
@@ -256,6 +257,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         LocalDateTime getRequestedAt();
 
         String getRequesterName();
+
+        String getAllocationType();
 
         Long getAmountToPay();
 

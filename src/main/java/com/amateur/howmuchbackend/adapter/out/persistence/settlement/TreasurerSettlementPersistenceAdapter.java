@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
 import com.amateur.howmuchbackend.application.port.out.treasurer.LoadTreasurerSettlementsPort;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,10 @@ public class TreasurerSettlementPersistenceAdapter implements LoadTreasurerSettl
         return List.copyOf(records);
     }
 
+    private SettlementAllocationType allocationTypeOf(String allocationType) {
+        return allocationType == null ? null : SettlementAllocationType.valueOf(allocationType);
+    }
+
     private List<TreasurerSettlementRecord> map(
             List<SettlementJpaRepository.TreasurerSettlementProjection> projections,
             SettlementDirection direction
@@ -44,7 +49,8 @@ public class TreasurerSettlementPersistenceAdapter implements LoadTreasurerSettl
                                 : Long.valueOf(projection.getReceivableAmount()),
                         projection.getRequesterName(),
                         Math.toIntExact(projection.getPayerCount()),
-                        Math.toIntExact(projection.getCompletedPayerCount())
+                        Math.toIntExact(projection.getCompletedPayerCount()),
+                        allocationTypeOf(projection.getAllocationType())
                 ))
                 .toList();
     }
