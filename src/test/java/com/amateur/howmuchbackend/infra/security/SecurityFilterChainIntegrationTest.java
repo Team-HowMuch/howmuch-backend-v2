@@ -11,6 +11,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -156,6 +158,61 @@ class SecurityFilterChainIntegrationTest {
     @DisplayName("공개 관리자 화면은 인증 없이 접근 가능하다")
     void preservesPublicPage() throws Exception {
         assertThat(request("GET", "/admin/common-codes", null).statusCode()).isEqualTo(200);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing", "", "not-a-uuid"})
+    @DisplayName("실제 공개 API에서 필수 헤더 누락·빈 값·형식 오류는 400이다")
+    void rejectsInvalidRequiredHeaderOverHttp(String value) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
+                + "/api/v2/settlement-links/" + "x".repeat(43) + "/transfer-instruction"))
+                .timeout(Duration.ofSeconds(10));
+        if (!value.equals("missing")) {
+            request.header("Link-Participant-Context", value);
+        }
+        assertInvalidArgument(http.send(request.GET().build(), HttpResponse.BodyHandlers.ofString()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "?accountId=", "?accountId=not-a-number"})
+    @DisplayName("실제 JWT·Redis 인증을 통과한 요청의 필수 파라미터 오류는 400이다")
+    void rejectsInvalidRequiredParameterOverHttp(String query) throws Exception {
+        assertInvalidArgument(request("GET", paymentCandidatesPath() + query, accessToken));
+    }
+
+    @Test
+    @DisplayName("필수 파라미터가 누락되어도 미인증 보호 API는 먼저 401로 거절한다")
+    void preservesAuthenticationBeforeParameterBinding() throws Exception {
+        assertError(request("GET", paymentCandidatesPath(), null), 401, "UNAUTHORIZED");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "{", "{}"})
+    @DisplayName("실제 로그인 API의 본문 누락·파싱·검증 오류는 기존 400을 유지한다")
+    void preservesBodyErrorsOverHttp(String body) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v2/auth/login"))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+        var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        assertInvalidArgument(response);
+        if (body.equals("{}")) {
+            var details = json.readTree(response.body()).path("error").path("details");
+            assertThat(details.path("phoneNumber").stringValue()).isEqualTo("휴대폰 번호는 필수입니다.");
+            assertThat(details.path("pin").stringValue()).isEqualTo("PIN은 필수입니다.");
+        }
+    }
+
+    private String paymentCandidatesPath() {
+        return "/api/v2/settlements/" + UUID.randomUUID() + "/expense-candidates/payment-history";
+    }
+
+    private void assertInvalidArgument(HttpResponse<String> response) {
+        assertError(response, 400, "INVALID_ARGUMENT");
+        var body = json.readTree(response.body());
+        assertThat(body.has("data")).isFalse();
+        assertThat(body.path("error").path("message").stringValue()).isEqualTo("요청값이 올바르지 않습니다.");
+        assertThat(body.path("error").path("timestamp").stringValue()).isNotBlank();
     }
 
     private void saveSession(String id) {
