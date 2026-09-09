@@ -218,7 +218,8 @@ class CommonCodePersistenceAdapterCacheTest {
                 CommonCodeJpaRepository commonCodeRepository,
                 CacheManager cacheManager
         ) {
-            return new CommonCodePersistenceAdapter(commonCodeGroupRepository, commonCodeRepository, cacheManager);
+            return new CommonCodePersistenceAdapter(commonCodeGroupRepository, commonCodeRepository, cacheManager,
+                    mock(jakarta.persistence.EntityManager.class));
         }
     }
 
