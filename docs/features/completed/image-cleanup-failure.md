@@ -1,6 +1,6 @@
 # 이미지 정리 실패 처리 (#305)
 
-- 상태: 구현 중
+- 상태: 완료
 - 기준: origin/develop 6e3197d
 
 ## 목적과 완료 조건
@@ -31,4 +31,11 @@ DB·Redis를 사용하지 않는 Mockito 및 Spring 트랜잭션 동기화 테�
 
 ## 진행
 - [x] 요구사항·호출 흐름·마이그레이션 필요 여부 확인
-- [ ] 구현·회귀 검증·문서 완료
+- [x] 구현·회귀 검증·문서 완료
+
+## 완료 기록 (2026-09-10)
+- ./gradlew compileJava: 통과
+- 관련 테스트 25건 통과: ImageCleanupTransactionTest, UpdateMyProfileServiceTest, CreateGroupServiceTest, UpdateGroupServiceTest, DeleteGroupServiceTest
+- git diff --check 및 문서 내 코드 경로 확인: 통과
+- 실제 PostgreSQL 커밋·HTTP 응답과 전체 테스트는 미실행. 외부 서비스 없이 Spring TransactionTemplate의 커밋/롤백 콜백과 삭제 Port 실패를 주입해 검증했다.
+- 로그 기반 수동 후속 정리이며 자동 재시도는 제공하지 않는다. STATUS_UNKNOWN 파일은 보존하고 운영 확인이 필요하다.
