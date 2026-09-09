@@ -4,6 +4,10 @@ import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.account.Transaction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -36,14 +40,14 @@ class SettlementDepositMatchingPolicyTest {
     }
 
     @Test
-    @DisplayName("거래 설명이 둘 이상의 참여자 이름과 일치하면 자동 연결하지 않는다")
-    void rejectsAmbiguousNames() {
+    @DisplayName("전체 이름과 부분 이름 후보가 함께 있으면 전체 이름만 연결한다")
+    void matchesFullNameDespiteSubstringCandidate() {
         var shares = List.of(
                 payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0)),
                 payable(UUID.randomUUID(), "선영", LocalDateTime.of(2026, 8, 24, 0, 0))
         );
 
-        assertThat(policy.match(transaction("민선영 입금", "6000"), shares)).isEmpty();
+        assertThat(policy.match(transaction("민선영 입금", "6000"), shares)).contains(SHARE_ID);
     }
 
     @Test
@@ -70,6 +74,91 @@ class SettlementDepositMatchingPolicyTest {
                 .contains(SHARE_ID);
         assertThat(policy.match(transaction, List.of(payable(SHARE_ID, "민선영", depositedAt.minusSeconds(1)))))
                 .contains(SHARE_ID);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "선영, 민선영 입금",
+            "선영, 민선영",
+            "민선, 민선영 입금",
+            "선영, 민 선 영 입금",
+            "민선영, 민선영입금",
+            "민선영, 입금 민선영",
+            "민선영, 민선영 입금 완료",
+            "민선영, 민선영 입금 입금",
+            "민선영, 민선영(입금)",
+            "민선영, 민선영 최수아 입금",
+            "민선영, 민선영/최수아",
+            "민선영, 민선영2 입금",
+            "Ann, Joanne 입금"
+    })
+    @DisplayName("부분 이름이나 허용하지 않은 표시 표현만으로 연결하지 않는다")
+    void rejectsPartialNamesAndUnapprovedDescriptions(String name, String description) {
+        assertThat(policy.match(transaction(description, "6000"), List.of(
+                payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
+        ))).isEmpty();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "민선영, 민선영",
+            "민선영, 민선영 입금",
+            "민선영, 민 선 영 입금",
+            "민 선 영, 민선영",
+            "Alice Kim, ＡＬＩＣＥ ＫＩＭ 입금",
+            "민선영, 민선영　입금",
+            "민선영, 민선영 입금"
+    })
+    @DisplayName("전체 이름과 허용 접미어에 기존 공백·Unicode·대소문자 정규화를 적용한다")
+    void matchesNormalizedFullNames(String name, String description) {
+        assertThat(policy.match(transaction("  " + description + "  ", "3000"), List.of(
+                payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
+        ))).contains(SHARE_ID);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "　", " ", "\t\n"})
+    @DisplayName("null과 정규화 후 빈 이름은 자동 연결하지 않는다")
+    void rejectsMissingNames(String name) {
+        assertThat(policy.match(transaction("민선영 입금", "6000"), List.of(
+                payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
+        ))).isEmpty();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "　", " ", "\t\n"})
+    @DisplayName("null과 공백 거래 설명은 자동 연결하지 않는다")
+    void rejectsMissingDescriptions(String description) {
+        assertThat(policy.match(transaction(description, "6000"), List.of(
+                payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0))
+        ))).isEmpty();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "민선영, 민선영, 민선영 입금",
+            "민선영, 민 선 영, 민선영 입금",
+            "민선영, 민선영입금, 민선영 입금",
+            "민선영, 최수아, 민선영 최수아 입금"
+    })
+    @DisplayName("동명이인·정규화 충돌·복수 해석과 복수 이름은 확정하지 않는다")
+    void rejectsAmbiguousFullNames(String first, String second, String description) {
+        var createdAt = LocalDateTime.of(2026, 8, 24, 0, 0);
+        assertThat(policy.match(transaction(description, "6000"), List.of(
+                payable(SHARE_ID, first, createdAt),
+                payable(UUID.randomUUID(), second, createdAt)
+        ))).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1", "6000.5", "7000", "9223372036854775808"})
+    @DisplayName("전체 이름이 일치해도 유효하지 않은 입금 금액은 거부한다")
+    void rejectsInvalidAmounts(String amount) {
+        assertThat(policy.match(transaction("민선영", amount), List.of(
+                payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0))
+        ))).isEmpty();
     }
 
     private SettlementDepositMatchingPolicy.PayableShare payable(

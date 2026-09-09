@@ -254,6 +254,26 @@ class SettlementDepositServiceTest {
     }
 
     @Test
+    @DisplayName("부분 이름만 맞는 거래는 입금을 저장하거나 정산을 완료하지 않는다")
+    void doesNotConfirmDepositForSubstringName() {
+        arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
+        arrangeFetchedTransaction(transaction("6000"));
+        when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
+                CREATOR_ID, 7L, "0020", "1002123456789"
+        )).thenReturn(List.of(new SettlementDepositStorePort.PayableDepositCandidate(
+                SETTLEMENT_ID, PAYER_SHARE_ID, "선영", 6_000, CREATED_AT
+        )));
+
+        var result = service.reconcile(SETTLEMENT_ID);
+
+        assertThat(result.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        assertThat(result.confirmedAmount()).isZero();
+        assertThat(result.completedParticipantCount()).isZero();
+        verify(depositStorePort).saveAll(List.of());
+        verify(saveSettlementPort, never()).update(any(Settlement.class));
+    }
+
+    @Test
     @DisplayName("재연결 전 계좌 생명주기에서 이미 연결한 거래는 다시 연결하지 않는다")
     void rejectsTransactionMatchedBeforeAccountReconnection() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);

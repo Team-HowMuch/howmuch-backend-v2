@@ -14,7 +14,8 @@ public interface SettlementDepositDocs {
     @Operation(
             summary = "정산 입금 대조 실행",
             description = "생성자가 수금 계좌의 최신 CODEF 수입 거래를 조회해 참여자 Share와 안전하게 대조합니다. "
-                    + "모호하거나 초과한 거래는 자동 반영하지 않으며 모든 납부 대상 Share가 확인되면 정산을 완료합니다.",
+                    + "입금자명은 유니코드·대소문자·공백 정규화 후 이름 전체가 일치해야 하며, 공백으로 구분된 마지막 '입금'만 추가로 허용합니다. "
+                    + "다른 이름의 부분 일치, 모호하거나 초과한 거래는 자동 반영하지 않으며 모든 납부 대상 Share가 확인되면 정산을 완료합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({

@@ -33,20 +33,34 @@ public class SettlementDepositMatchingPolicy {
         }
 
         String description = normalize(transaction.description());
+        String fullName = description.replace(" ", "");
+        // 접미어의 공백 경계는 이름 내부 공백을 제거하기 전에 확인한다.
+        String nameBeforeDeposit = description.endsWith(" 입금")
+                ? description.substring(0, description.length() - " 입금".length()).replace(" ", "")
+                : "";
         List<UUID> matches = payableShares.stream()
                 .filter(share -> !transaction.transactedAt().isBefore(share.snapshotCreatedAt()))
                 .filter(share -> share.remainingAmount() >= amount)
-                .filter(share -> description.contains(normalize(share.payerName())))
+                .filter(share -> matchesName(share.payerName(), fullName, nameBeforeDeposit))
                 .map(PayableShare::shareId)
                 .limit(2)
                 .toList();
         return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
     }
 
+    private boolean matchesName(String payerName, String fullName, String nameBeforeDeposit) {
+        if (payerName == null) {
+            return false;
+        }
+        String name = normalize(payerName).replace(" ", "");
+        return !name.isEmpty() && (name.equals(fullName) || name.equals(nameBeforeDeposit));
+    }
+
     private String normalize(String value) {
         return Normalizer.normalize(value, Normalizer.Form.NFKC)
                 .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", "");
+                .replaceAll("(?U)\\s+", " ")
+                .strip();
     }
 
     public record PayableShare(
