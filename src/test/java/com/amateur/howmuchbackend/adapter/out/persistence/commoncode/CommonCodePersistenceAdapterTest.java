@@ -19,6 +19,8 @@ import java.sql.SQLException;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +57,7 @@ class CommonCodePersistenceAdapterTest {
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         org.assertj.core.api.Assertions.assertThat(exception.getStatusCode())
                                 .isEqualTo(CommonCodeStatusCode.COMMON_CODE_GROUP_ALREADY_EXISTS));
-        verifyNoInteractions(detailRepository);
+        verify(groupRepository, never()).findById(any());
+        verifyNoInteractions(detailRepository, cacheManager);
     }
 }

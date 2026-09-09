@@ -1,6 +1,6 @@
 # 공통 코드 동시 생성 충돌 처리
 
-- 상태: 진행 중
+- 상태: 완료
 - 작성일: 2026-09-09
 - 관련 이슈: #303
 
@@ -53,4 +53,16 @@ UseCase/Command/Result, Domain, Policy, Web DTO, Infra, migration 구현은 변�
 ## 진행 및 결정 기록
 
 - 2026-09-09: develop과 #303, 기존 PR 컨벤션 확인. 기존 Persistable/PK를 활용해 schema 변경 없이 해결한다.
-- 검증 결과: 진행 중.
+- 2026-09-09: 구현과 실제 DB 교차 실행 회귀 검증 완료.
+
+## 검증 결과와 완료 기록
+
+- `./gradlew compileJava`: 통과.
+- 격리 PostgreSQL 18(15433)·Redis(16380) 및 Java 21에서 `bash scripts/test.sh compileJava test --tests '*CommonCode*'`: Java 18개(신규 6개), JavaScript 31개 통과.
+- 선행 커밋 이후 지연 생성(상세 유무), 실제 두 스레드 동시 INSERT, 중복 생성의 상세 덮어쓰기 차단, 정상 수정·누락 상세 비활성화, 미존재 수정 거부를 검증했다.
+- 기존 upsert 동작을 임시 복원하면 선행 커밋 2건과 상세 덮어쓰기 1건이 실패했다. 수정 코드를 복원한 최종 테스트는 모두 통과했다.
+- 테스트 작성 중 타입 추론 오류와 정리 SQL 테이블명 오류를 수정한 뒤 최종 재실행했다.
+- `git diff --check` 통과. 문서 내 관련 로컬 경로와 계약을 확인했다.
+- 전체 Java 테스트·별도 실제 HTTP 요청은 실행하지 않았다. 관련 Service/Adapter 및 Controller 단위 테스트 범위로 검증했다.
+- 완료 조건: 단일 생성 성공, 409 충돌, 기존 그룹·revision·상세 보존 모두 확인.
+- 잔여 범위: F10 수정 revision 경쟁 보호는 별도 이슈이며 이번에 변경하지 않았다. 구버전 생성 요청 종료 후 전환이 필요하다.
