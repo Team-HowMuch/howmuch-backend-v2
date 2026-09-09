@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDra
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerAnswerFactCheck;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerCardCopy;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
@@ -356,6 +357,37 @@ class AskTreasurerServiceTest {
         assertThat(result.prompts()).extracting(item -> item.question()).contains("이번 주에 정산 있어?");
         verifyNoInteractions(generateTreasurerAnswerPort);
         verifyNoInteractions(treasurerSettlementQuery);
+    }
+
+    @Test
+    void carriesAllocationTypeAndStatusOnAnswerItems() {
+        UUID id = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        id,
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.AWAITING_DEPOSIT,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자",
+                        1,
+                        0,
+                        SettlementAllocationType.ITEM_ALLOCATION
+                )
+        ));
+        when(generateTreasurerAnswerPort.generate(any()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
+                        .fallbackAnswer()));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 내가 보낼 정산은 얼마야?"));
+
+        assertThat(result.items()).singleElement().satisfies(item -> {
+            assertThat(item.settlementId()).isEqualTo(id);
+            assertThat(item.allocationType()).isEqualTo(SettlementAllocationType.ITEM_ALLOCATION);
+            assertThat(item.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        });
     }
 
     @Test

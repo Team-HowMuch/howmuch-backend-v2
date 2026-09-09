@@ -138,6 +138,8 @@ class TreasurerSettlementPersistenceIntegrationTest {
                     assertThat(item.amount()).isEqualTo(6_000L);
                     assertThat(item.payerCount()).isEqualTo(1);
                     assertThat(item.completedPayerCount()).isZero();
+                    assertThat(item.allocationType()).isEqualTo(SettlementAllocationType.DUTCH_PAY);
+                    assertThat(item.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
                 });
     }
 
@@ -152,6 +154,8 @@ class TreasurerSettlementPersistenceIntegrationTest {
                 .satisfies(item -> {
                     assertThat(item.direction()).isEqualTo(SettlementDirection.SEND);
                     assertThat(item.amount()).isEqualTo(5_500L);
+                    assertThat(item.allocationType()).isEqualTo(SettlementAllocationType.DUTCH_PAY);
+                    assertThat(item.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
                 });
     }
 
