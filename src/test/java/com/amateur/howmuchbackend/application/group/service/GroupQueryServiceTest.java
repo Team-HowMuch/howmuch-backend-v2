@@ -53,8 +53,8 @@ class GroupQueryServiceTest {
     @DisplayName("Persistence가 제공한 최근 가입 순서를 유지하고 이미지 URL을 조립한다")
     void getsMyGroupsInPersistenceOrder() {
         when(loadGroupMemberPort.findActiveGroupSummariesByUserId(1L)).thenReturn(List.of(
-                new GroupSummaryReadModel(20L, "최근 그룹", "image.jpg"),
-                new GroupSummaryReadModel(10L, "이전 그룹", null)
+                new GroupSummaryReadModel(20L, "최근 그룹", "image.jpg", 4, List.of("그룹장", "동명이인", "동명이인")),
+                new GroupSummaryReadModel(10L, "이전 그룹", null, 1, List.of("본인"))
         ));
 
         var result = service.getMyGroups();

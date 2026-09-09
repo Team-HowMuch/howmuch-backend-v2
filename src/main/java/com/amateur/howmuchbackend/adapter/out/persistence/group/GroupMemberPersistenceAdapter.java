@@ -107,7 +107,12 @@ public class GroupMemberPersistenceAdapter implements
                 .map(group -> new GroupSummaryReadModel(
                         group.getGroupId(),
                         group.getName(),
-                        group.getImageFileName()
+                        group.getImageFileName(),
+                        Math.toIntExact(group.getMemberCount()),
+                        java.util.stream.Stream.of(group.getFirstMemberName(),
+                                        group.getSecondMemberName(), group.getThirdMemberName())
+                                .filter(java.util.Objects::nonNull)
+                                .toList()
                 ))
                 .toList();
     }

@@ -119,8 +119,8 @@ class GroupControllerTest {
     @DisplayName("내 그룹 목록을 응답 DTO로 변환한다")
     void getsMyGroups() throws Exception {
         when(getMyGroupsUseCase.getMyGroups()).thenReturn(List.of(
-                new GroupSummaryResult(20L, "최근 그룹", "/api/v2/groups/20/image"),
-                new GroupSummaryResult(10L, "이전 그룹", null)
+                new GroupSummaryResult(20L, "최근 그룹", "/api/v2/groups/20/image", 4, List.of("그룹장", "동명이인", "동명이인")),
+                new GroupSummaryResult(10L, "이전 그룹", null, 1, List.of("본인"))
         ));
 
         mockMvc.perform(get("/api/v2/groups"))
