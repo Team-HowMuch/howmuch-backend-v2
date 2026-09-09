@@ -17,6 +17,8 @@ import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerView;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerCardMarker;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -356,6 +358,53 @@ class AskTreasurerServiceTest {
         assertThat(result.view()).isEqualTo(TreasurerAnswerView.TEXT);
         assertThat(result.answer()).contains("이렇게 물어볼 수 있어요");
         assertThat(result.prompts()).extracting(item -> item.question()).contains("이번 주에 정산 있어?");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+        verifyNoInteractions(treasurerSettlementQuery);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "정산은 어떻게 하는 거야?",
+            "정산이 뭐야?",
+            "정산은 어디서 확인해?",
+            "정산 기한이 지나면 어떻게 돼?",
+            "이 서비스는 어떻게 사용하는 거야?",
+            "내가 아직 돈 안 보낸 게 있어?",
+            "누구한테 돈 줘야 해?",
+            "나한테 돈 들어올 거 있어?",
+            "여행에서 내가 부담해야 하는 금액이 있어?",
+            "왜 아직 정산이 안 끝났어?",
+            "내 정산 중에 뭐가 남았어?"
+    })
+    void clarifiesServiceRelatedQuestionInsteadOfGuidingScope(String question) {
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(result.view()).isEqualTo(TreasurerAnswerView.TEXT);
+        assertThat(result.answer()).contains("정산과 관련된 질문으로 이해했어요");
+        assertThat(result.answer()).doesNotContain("이렇게 물어볼 수 있어요");
+        assertThat(result.prompts()).extracting(item -> item.question()).contains("이번 주에 정산 있어?");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+        verifyNoInteractions(treasurerSettlementQuery);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "푸딩 만드는 방법 알려줘.",
+            "오늘 날씨 알려줘.",
+            "Java 공부법 알려줘.",
+            "영화 추천해줘.",
+            "주식 추천해줘."
+    })
+    void guidesScopeForQuestionUnrelatedToService(String question) {
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(result.view()).isEqualTo(TreasurerAnswerView.TEXT);
+        assertThat(result.answer()).contains("이렇게 물어볼 수 있어요");
+        assertThat(result.answer()).doesNotContain("정산과 관련된 질문으로 이해했어요");
         verifyNoInteractions(generateTreasurerAnswerPort);
         verifyNoInteractions(treasurerSettlementQuery);
     }
