@@ -8,7 +8,7 @@
 
 정산 인원 선택에서 접힌 그룹에도 구성원 요약을 표시한다. `GET /api/v2/groups`의 기존 필드를 유지하고 `memberCount`와 최대 3개의 `memberNames`를 추가한다.
 
-- 본인 포함, `group_members.status = ACTIVE`이면서 `users.active = true`인 사용자만 집계한다.
+- `memberCount`는 본인 포함, `group_members.status = ACTIVE`이면서 `users.active = true`인 사용자만 집계한다. `memberNames`는 요청자 userId를 먼저 제외한 뒤 최대 3개를 선택한다.
 - 기존 구성원 순서인 OWNER 우선, joined_at ASC, member id ASC를 적용한다. 동명이인은 인원별로 유지한다.
 - 기존 그룹 목록 정렬·접근 범위와 이미지 URL은 유지한다. 빈 목록은 빈 배열이다.
 - 그룹별 추가 DB 요청 없이 목록과 요약을 한 SQL에서 가져온다.
@@ -23,7 +23,7 @@
 ## 저장소 설계와 영향
 
 - Flyway migration required: No. 기존 groups, group_members, users를 조회하며 스키마 변경이 없다.
-- PostgreSQL LATERAL 집계에서 활성 구성원에 순번을 부여하고 전체 수와 상위 3개 이름만 투영한다. 문자열 구분자 결합 없이 이름을 보존한다.
+- PostgreSQL LATERAL 집계에서 활성 구성원을 요청자 여부로 나눠 순번을 부여하고 전체 수와 요청자 외 상위 3개 이름만 투영한다. 문자열 구분자 결합 없이 이름을 보존한다.
 - 전체 구성원을 애플리케이션에 적재하거나 그룹마다 쿼리를 호출하는 대안을 제외한다.
 - API DTO, Result, 조회 모델, 매핑, 기존 Repository SQL, Swagger와 관련 테스트가 영향 범위다.
 - 인증, Redis, 환경 설정, Domain, Infra 변경은 없다.

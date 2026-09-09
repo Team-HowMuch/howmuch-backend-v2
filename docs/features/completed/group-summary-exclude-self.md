@@ -1,6 +1,6 @@
 # Feature Plan: 그룹 요약 이름에서 요청자 제외
 
-- 상태: 진행 중
+- 상태: 완료
 - 관련 이슈: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/333
 
 ## 목적과 계약
@@ -21,3 +21,12 @@ Flyway migration required: No. SQL 조회와 Swagger, 테스트, 관련 완료 �
 ## 검증 계획
 
 격리 PostgreSQL·Redis 상태를 확인하고 Java 21에서 compileJava 및 그룹 관련 테스트를 실행한다. 그룹장/일반 멤버 요청, 3명 초과, 혼자/둘인 그룹, 본인과 동명인 다른 회원, 비활성 제외를 확인한다. git diff --check와 문서 참조도 확인한다.
+
+## 완료 및 검증 결과
+
+- 2026-09-09 구현·문서·회귀 검증 완료.
+- `./gradlew compileJava compileTestJava`: 통과.
+- 격리 PostgreSQL 18·Redis 8에서 `bash scripts/test.sh compileJava test --tests '*group.*'`: Java 85개 및 JavaScript 35개 통과, 실패·건너뜀 없음.
+- 본인이 그룹장/일반 멤버이고 정렬상 앞·중간·뒤에 있는 경우, 다른 구성원 3명 이상, 혼자/둘인 그룹과 동명이인 보존을 검증했다. 기존 비활성·탈퇴·강퇴 제외 회귀도 통과했다.
+- `git diff --check` 통과. 상대 링크는 없고 참조한 코드 경로·계약을 확인했다.
+- 전체 프로젝트 테스트와 별도 실제 HTTP 요청은 변경 범위를 벗어나 미실행. 후속 구현 없음.
