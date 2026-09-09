@@ -1,9 +1,14 @@
+# syntax=docker/dockerfile:1.7
 FROM eclipse-temurin:21-jdk-jammy AS build
 
 WORKDIR /workspace
 COPY . .
 
-RUN chmod +x gradlew \
+RUN --mount=type=secret,id=github_actor \
+    --mount=type=secret,id=github_token \
+    export GITHUB_ACTOR="$(cat /run/secrets/github_actor)" \
+    && export GITHUB_TOKEN="$(cat /run/secrets/github_token)" \
+    && chmod +x gradlew \
     && ./gradlew bootJar --no-daemon -x test \
     && jar_file="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' -print -quit)" \
     && test -n "$jar_file" \
