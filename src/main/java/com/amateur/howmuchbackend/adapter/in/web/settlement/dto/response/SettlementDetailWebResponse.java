@@ -58,7 +58,9 @@ public record SettlementDetailWebResponse(
                 PaymentSummary.from(result.paymentSummary()),
                 result.reminderNextAvailableAt(),
                 result.participants().stream()
-                        .map(ParticipantPayment::from)
+                        .map(payment -> ParticipantPayment.from(
+                                result.settlementId(), result.viewerRole(), payment
+                        ))
                         .toList()
         );
     }
@@ -108,7 +110,7 @@ public record SettlementDetailWebResponse(
     }
 
     @Schema(requiredProperties = {
-            "participantId", "displayName", "linked", "expectedAmount", "confirmedAmount", "paymentStatus"
+            "participantId", "displayName", "linked", "expectedAmount", "confirmedAmount", "paymentStatus", "avatarUrl"
     })
     public record ParticipantPayment(
             UUID participantId,
@@ -117,9 +119,13 @@ public record SettlementDetailWebResponse(
             @Schema(nullable = true)
             Long expectedAmount,
             long confirmedAmount,
-            SettlementDetailResult.PaymentStatus paymentStatus
+            SettlementDetailResult.PaymentStatus paymentStatus,
+            @Schema(nullable = true, description = "인증이 필요한 프로필 이미지 상대 경로. 사진이 없거나 비회원이면 null")
+            String avatarUrl
     ) {
         private static ParticipantPayment from(
+                UUID settlementId,
+                SettlementDetailResult.ViewerRole viewerRole,
                 SettlementDetailResult.ParticipantPayment result
         ) {
             return new ParticipantPayment(
@@ -128,7 +134,13 @@ public record SettlementDetailWebResponse(
                     result.linked(),
                     result.expectedAmount(),
                     result.confirmedAmount(),
-                    result.paymentStatus()
+                    result.paymentStatus(),
+                    !result.hasAvatar() ? null
+                            : viewerRole == SettlementDetailResult.ViewerRole.PARTICIPANT
+                                    ? "/api/v2/user/me/avatar"
+                                    : "/api/v2/settlements/%s/participants/%s/avatar".formatted(
+                                            settlementId, result.participantId()
+                                    )
             );
         }
     }

@@ -219,6 +219,9 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data.reminderNextAvailableAt")
                         .value("2026-08-21T09:00:00"))
                 .andExpect(jsonPath("$.data.participants[0].linked").value(true))
+                .andExpect(jsonPath("$.data.participants[0].avatarUrl").value(
+                        "/api/v2/settlements/%s/participants/%s/avatar".formatted(SETTLEMENT_ID, PARTICIPANT_ID)
+                ))
                 .andExpect(jsonPath("$.data.participants[0].paymentStatus").value("PARTIALLY_PAID"))
                 .andExpect(jsonPath("$.data.creatorId").doesNotExist())
                 .andExpect(jsonPath("$.data.receivingAccountId").doesNotExist());
@@ -824,7 +827,35 @@ class SettlementControllerTest {
         );
     }
 
+    @Test
+    @DisplayName("참여자 본인에게는 사용 가능한 내 프로필 이미지 경로를 반환한다")
+    void returnsSelfAvatarUrl() throws Exception {
+        when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(
+                detailResult(SettlementDetailResult.ViewerRole.PARTICIPANT, true)
+        );
+        mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.participants[0].avatarUrl").value("/api/v2/user/me/avatar"));
+    }
+
+    @Test
+    @DisplayName("사진 없는 행은 avatarUrl 필드를 null로 반환한다")
+    void returnsNullAvatarUrl() throws Exception {
+        when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(
+                detailResult(SettlementDetailResult.ViewerRole.CREATOR, false)
+        );
+        mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.participants[0]").value(
+                        org.hamcrest.Matchers.hasEntry(org.hamcrest.Matchers.is("avatarUrl"), org.hamcrest.Matchers.nullValue())
+                ));
+    }
+
     private SettlementDetailResult detailResult() {
+        return detailResult(SettlementDetailResult.ViewerRole.CREATOR, true);
+    }
+
+    private SettlementDetailResult detailResult(SettlementDetailResult.ViewerRole viewerRole, boolean hasAvatar) {
         return new SettlementDetailResult(
                 SETTLEMENT_ID,
                 "회식 정산",
@@ -832,7 +863,7 @@ class SettlementControllerTest {
                 null,
                 SettlementStatus.AWAITING_DEPOSIT,
                 CREATED_AT,
-                SettlementDetailResult.ViewerRole.CREATOR,
+                viewerRole,
                 "최수아",
                 "NH농협",
                 "3510018989873",
@@ -850,7 +881,8 @@ class SettlementControllerTest {
                         true,
                         8_000L,
                         4_000,
-                        SettlementDetailResult.PaymentStatus.PARTIALLY_PAID
+                        SettlementDetailResult.PaymentStatus.PARTIALLY_PAID,
+                        hasAvatar
                 ))
         );
     }

@@ -55,6 +55,7 @@ public interface SettlementDocs {
     @Operation(
             summary = "정산 상세 조회",
             description = "정산 생성자는 전체 납부 현황을, 연결 참여자는 자신의 납부 행을 조회합니다. "
+                    + "참여자의 프로필 이미지 경로 avatarUrl을 반환하며 사진이 없거나 비회원이면 null입니다. "
                     + "실제 입금 확인액, 미납액, 진행률과 참여자별 납부 상태를 반환하며 "
                     + "내부 사용자 ID, 연락처와 계좌번호는 노출하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
