@@ -1,6 +1,6 @@
 # Feature Plan: 로그인 시 프로필 변경 보존
 
-- 상태: 설계 완료
+- 상태: 완료
 - 갱신일: 2026-09-09
 - 관련 이슈: #301
 
@@ -8,9 +8,9 @@
 
 로그인이 읽은 User 전체를 저장하면서 그 사이 커밋된 publicId와 avatarFileName이 유실될 수 있다. 삭제된 이전 이미지 참조까지 복원되는 문제를 방지한다.
 
-- [ ] 로그인과 프로필 변경의 교차 실행에서 최신 publicId와 이미지 참조를 보존한다.
-- [ ] lastLoginAt과 updatedAt을 갱신한다.
-- [ ] 이미지 삭제 후에도 이전 참조가 복원되지 않는다.
+- [x] 로그인과 프로필 변경의 교차 실행에서 최신 publicId와 이미지 참조를 보존한다.
+- [x] lastLoginAt과 updatedAt을 갱신한다.
+- [x] 이미지 삭제 후에도 이전 참조가 복원되지 않는다.
 
 CODEF, 이미지 정리 실패 처리, 다른 사용자 수정 경로의 일반적인 동시성 개선은 제외한다.
 
@@ -22,7 +22,7 @@ CODEF, 이미지 정리 실패 처리, 다른 사용자 수정 경로의 일반�
 
 ## 3. 계약과 설계
 
-- LoginRequest → LoginCommand → LoginUseCase → TokenResult → TokenResponse 계약은 유지한다.
+- LoginRequest → LoginCommand → LoginUseCase → TokenResult → TokenWebResponse 계약은 유지한다.
 - `RecordUserLoginPort.recordLogin(Long userId, LocalDateTime now)`를 LoginService가 호출하고 UserPersistenceAdapter가 구현한다.
 - JPQL 부분 갱신은 lastLoginAt과 updatedAt만 변경한다. 갱신 대상이 없으면 기존 update의 IllegalArgumentException 의미를 유지한다.
 - 기존 User.markLoggedIn은 세션 발급에 넘기는 Domain 값에 사용하되 전체 스냅샷을 저장하지 않는다.
@@ -42,9 +42,9 @@ CODEF, 이미지 정리 실패 처리, 다른 사용자 수정 경로의 일반�
 3. `test(auth): 로그인과 프로필 변경 교차 실행 회귀 검증` — 실제 PostgreSQL 교차 트랜잭션과 인증 실패 회귀를 검증한다.
 
 - [x] 설계와 migration 판단
-- [ ] Port·Service·Adapter 구현
-- [ ] 회귀 테스트 및 컴파일
-- [ ] 완료 기록과 PR
+- [x] Port·Service·Adapter 구현
+- [x] 회귀 테스트 및 컴파일
+- [x] 완료 기록 (PR은 아래 커밋 이후 생성)
 - N/A: Migration, Input 계약, Domain/Policy, Web DTO/Swagger, Infra 변경
 
 ## 6. 검증
@@ -57,4 +57,11 @@ Java 21과 격리 PostgreSQL·Redis를 사용한다. [테스트 실행 지침](.
 
 ## 7. 결과·완료 기록
 
-구현 전. 구버전 로그인 서버는 전체 저장을 수행하므로 배포 전환 시 구버전 로그인 요청을 종료해야 보존을 보장한다.
+- 실제 PostgreSQL의 별도 연결·REQUIRES_NEW로 프로필 수정 커밋과 이미지 파일 삭제를 로그인 조회·저장 사이에 실행한다. Spring Context/Flyway/Hibernate와 실제 프로필 Service·저장 Adapter를 사용하며 PIN 검증·시도 예약·세션 발급은 제어를 위해 mock한다. 실제 Redis 시도 제한은 기존 테스트로 별도 검증한다.
+- 신규 7개: 아바타 교체/초기화 교차 실행, 로그인 후 프로필 변경, 로그인 시각만 갱신 및 1차 캐시 정리, 잘못된 PIN, 없는 사용자, 세션 발급 실패 시 DB 롤백.
+- 기존 전체 스냅샷 저장을 임시 복원했을 때 두 교차 실행 테스트 모두 publicId가 이전 값으로 돌아가 실패했다. 이후 수정 코드로 복구했다.
+- 전체 테스트·실제 HTTP 로그인·운영 배포는 수행하지 않는다. 변경 범위에 맞춰 5개 클래스의 관련 테스트를 선택했다.
+
+구버전 로그인 서버는 전체 저장을 수행하므로 배포 전환 시 구버전 로그인 요청을 종료해야 보존을 보장한다.
+
+검증 완료: `./gradlew compileJava` 및 관련 Java 테스트 33개(신규 7개), 실행 스크립트의 JavaScript 테스트 31개 통과. `git diff --check`와 문서 상대 링크 검사를 통과했다. 완료일: 2026-09-09.
