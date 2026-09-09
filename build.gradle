@@ -54,4 +54,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // Each cached integration context owns a connection pool; release old contexts
+    // before the full suite exhausts PostgreSQL's default connection limit.
+    systemProperty 'spring.test.context.cache.maxSize', '4'
 }

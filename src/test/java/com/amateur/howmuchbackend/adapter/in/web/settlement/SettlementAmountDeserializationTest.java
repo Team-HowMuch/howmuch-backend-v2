@@ -11,12 +11,14 @@ import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUs
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.MatchSettlementContactsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.RemoveSettlementParticipantUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.RenameSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ResumeSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SuspendSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthTokenPort;
+import com.amateur.howmuchbackend.application.port.out.group.TrackGroupInviteRequestPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,6 +65,9 @@ class SettlementAmountDeserializationTest {
     private RemoveSettlementParticipantUseCase removeSettlementParticipantUseCase;
 
     @MockitoBean
+    private RenameSettlementParticipantUseCase renameSettlementParticipantUseCase;
+
+    @MockitoBean
     private SuspendSettlementUseCase suspendSettlementUseCase;
 
     @MockitoBean
@@ -91,6 +96,9 @@ class SettlementAmountDeserializationTest {
 
     @MockitoBean
     private AuthSessionPort authSessionPort;
+
+    @MockitoBean
+    private TrackGroupInviteRequestPort trackGroupInviteRequestPort;
 
     @Test
     @DisplayName("원 단위 총액이 조용히 절삭되지 않도록 생성 요청의 소수를 거부한다")
