@@ -38,19 +38,20 @@ public class LoginService implements LoginUseCase {
 
         String phoneHash = identityPolicy.phoneHash(phoneNumber);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        if (loginAttemptStorePort.getFailureCount(phoneHash) >= pinPolicy.maxAttempts()) {
-            throw ApplicationException.of(AuthStatusCode.PIN_ATTEMPTS_EXCEEDED);
-        }
+        var attempt = loginAttemptStorePort.reserve(phoneHash, pinPolicy.maxAttempts(), pinPolicy.lockDuration())
+                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.PIN_ATTEMPTS_EXCEEDED));
 
         User user = loadUserPort.findByPhoneNumber(phoneNumber).orElse(null);
         if (user == null || !passwordEncoder.matches(command.pin(), user.pinHash())) {
-            handleFailure(phoneHash);
+            throw ApplicationException.of(attempt.attemptCount() >= pinPolicy.maxAttempts()
+                    ? AuthStatusCode.PIN_ATTEMPTS_EXCEEDED
+                    : AuthStatusCode.INVALID_LOGIN_CREDENTIALS);
         }
         if (!user.active()) {
             throw ApplicationException.of(AuthStatusCode.USER_INACTIVE);
         }
 
-        loginAttemptStorePort.deleteByPhoneHash(phoneHash);
+        loginAttemptStorePort.resetAfterSuccess(phoneHash, attempt.generation());
         User updated = user.markLoggedIn(now);
         saveUserPort.update(updated);
         return authTokenService.issueNewSession(updated);
@@ -62,14 +63,4 @@ public class LoginService implements LoginUseCase {
         }
     }
 
-    private void handleFailure(String phoneHash) {
-        long failureCount = loginAttemptStorePort.increaseFailureCount(
-                phoneHash,
-                pinPolicy.maxAttempts(),
-                pinPolicy.lockDuration()
-        );
-        throw ApplicationException.of(failureCount >= pinPolicy.maxAttempts()
-                ? AuthStatusCode.PIN_ATTEMPTS_EXCEEDED
-                : AuthStatusCode.INVALID_LOGIN_CREDENTIALS);
-    }
 }
