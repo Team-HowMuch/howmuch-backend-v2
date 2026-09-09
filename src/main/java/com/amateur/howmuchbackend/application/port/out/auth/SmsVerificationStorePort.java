@@ -6,6 +6,9 @@ import java.time.Duration;
 import java.util.Optional;
 
 public interface SmsVerificationStorePort {
+    /** Atomically validates the current request and consumes it at most once, preserving its TTL. */
+    SmsOtpState.Outcome verifyAndConsume(String phoneHash, String requestId, String codeHash, int maxAttempts);
+
     Optional<SmsOtpState> findByPhoneHash(String phoneHash);
 
     void save(String phoneHash, SmsOtpState state, Duration ttl);

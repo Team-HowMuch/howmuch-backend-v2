@@ -15,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -33,34 +32,20 @@ public class ConfirmSmsVerificationService implements ConfirmSmsVerificationUseC
     public SmsVerificationConfirmedResult confirm(ConfirmSmsVerificationCommand command) {
         String phoneNumber = identityPolicy.normalizePhoneNumber(command.phoneNumber());
         String phoneHash = identityPolicy.phoneHash(phoneNumber);
-        SmsOtpState state = smsVerificationStorePort.findByPhoneHash(phoneHash)
-                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_EXPIRED));
+        SmsOtpState.Outcome outcome = smsVerificationStorePort.verifyAndConsume(
+                phoneHash, command.verificationRequestId(),
+                SendSmsVerificationService.hashCode(phoneHash, command.verificationCode()),
+                smsVerificationPolicy.maxAttempts());
+        switch (outcome) {
+            case EXPIRED -> throw ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_EXPIRED);
+            case CODE_MISMATCH -> throw ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_CODE_MISMATCH);
+            case ATTEMPTS_EXCEEDED -> throw ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_ATTEMPTS_EXCEEDED);
+            case VERIFIED -> { }
+        }
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-
-        if (!state.verificationRequestId().equals(command.verificationRequestId())) {
-            throw ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_CODE_MISMATCH);
-        }
-        if (state.isExpired(now)) {
-            smsVerificationStorePort.deleteByPhoneHash(phoneHash);
-            throw ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_EXPIRED);
-        }
-
-        if (!state.codeHash().equals(SendSmsVerificationService.hashCode(phoneHash, command.verificationCode()))) {
-            SmsOtpState increased = state.increaseAttemptCount();
-            if (increased.attemptCount() >= smsVerificationPolicy.maxAttempts()) {
-                smsVerificationStorePort.deleteByPhoneHash(phoneHash);
-                throw ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_ATTEMPTS_EXCEEDED);
-            }
-
-            Duration remainingTtl = Duration.between(now, state.expiresAt());
-            smsVerificationStorePort.save(phoneHash, increased, remainingTtl);
-            throw ApplicationException.of(AuthStatusCode.SMS_VERIFICATION_CODE_MISMATCH);
-        }
-
-        smsVerificationStorePort.deleteByPhoneHash(phoneHash);
         AuthChallenge challenge = new AuthChallenge(
                 UUID.randomUUID().toString(),
-                state.phoneNumber(),
+                phoneNumber,
                 now.plus(smsVerificationPolicy.challengeTtl())
         );
         authChallengeStorePort.save(
