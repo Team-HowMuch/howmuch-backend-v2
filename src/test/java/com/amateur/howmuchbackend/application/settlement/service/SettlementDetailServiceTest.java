@@ -237,6 +237,10 @@ class SettlementDetailServiceTest {
     @Test
     @DisplayName("Share가 없는 참여자는 금액을 추측하지 않고 NOT_READY로 반환한다")
     void returnsNotReadyBeforeShareCreation() {
+        User payer = mock(User.class);
+        when(payer.id()).thenReturn(PAYER_ID);
+        when(payer.avatarFileName()).thenReturn("payer.png");
+        when(loadUserPort.findAllByIds(java.util.Set.of(PAYER_ID))).thenReturn(List.of(payer));
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
@@ -248,6 +252,7 @@ class SettlementDetailServiceTest {
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
+        assertThat(result.participants().getFirst().hasAvatar()).isTrue();
         assertThat(result.paymentSummary().expectedAmount()).isZero();
         assertThat(result.paymentSummary().progressPercent()).isZero();
         assertThat(result.participants()).allSatisfy(payment -> {
@@ -270,6 +275,7 @@ class SettlementDetailServiceTest {
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
         verifyNoInteractions(
+                loadUserPort,
                 loadSettlementExpensePort,
                 loadSettlementSharePort,
                 loadDepositSummaryPort
@@ -297,6 +303,61 @@ class SettlementDetailServiceTest {
         assertThat(result.participants()).singleElement()
                 .satisfies(payment -> assertThat(payment.participantId())
                         .isEqualTo(PAYER_PARTICIPANT_ID));
+    }
+
+    @Test
+    @DisplayName("표시 대상 사용자를 일괄 조회해 사진 보유 여부를 반환한다")
+    void returnsAvatarPresenceForLinkedUsersOnly() {
+        givenSettlement(CREATOR_ID);
+        User payer = mock(User.class);
+        when(payer.id()).thenReturn(PAYER_ID);
+        when(payer.avatarFileName()).thenReturn("payer.png");
+        when(loadUserPort.findAllByIds(java.util.Set.of(PAYER_ID))).thenReturn(List.of(payer));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.participants()).extracting(
+                SettlementDetailResult.ParticipantPayment::hasAvatar
+        ).containsExactly(true, false);
+        org.mockito.Mockito.verify(loadUserPort).findAllByIds(java.util.Set.of(PAYER_ID));
+        org.mockito.Mockito.verifyNoMoreInteractions(loadUserPort);
+    }
+
+    @Test
+    @DisplayName("프로필 사진이 없거나 사용자가 없으면 이미지 없음으로 반환한다")
+    void returnsNoAvatarForMissingImageOrUser() {
+        givenSettlement(CREATOR_ID);
+        User payer = mock(User.class);
+        when(loadUserPort.findAllByIds(java.util.Set.of(PAYER_ID)))
+                .thenReturn(List.of(payer)).thenReturn(List.of());
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            assertThat(service.get(SETTLEMENT_ID).participants())
+                    .allSatisfy(payment -> assertThat(payment.hasAvatar()).isFalse());
+        }
+    }
+
+    @Test
+    @DisplayName("참여자는 다른 연결 참여자의 사진 정보를 조회하지 않는다")
+    void loadsOnlyViewerAvatar() {
+        givenSettlement(PAYER_ID);
+        var expandedParticipants = new java.util.ArrayList<>(participants());
+        expandedParticipants.add(new SettlementParticipant(
+                UUID.randomUUID(), SETTLEMENT_ID,
+                SettlementParticipantSource.REGISTERED_USER, OTHER_USER_ID,
+                null, null, "참여자", 3, NOW, NOW
+        ));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(expandedParticipants);
+        User payer = mock(User.class);
+        when(payer.id()).thenReturn(PAYER_ID);
+        when(payer.avatarFileName()).thenReturn("payer.png");
+        when(loadUserPort.findAllByIds(java.util.Set.of(PAYER_ID))).thenReturn(List.of(payer));
+
+        assertThat(service.get(SETTLEMENT_ID).participants()).singleElement()
+                .satisfies(payment -> assertThat(payment.hasAvatar()).isTrue());
+        org.mockito.Mockito.verify(loadUserPort).findAllByIds(java.util.Set.of(PAYER_ID));
+        org.mockito.Mockito.verifyNoMoreInteractions(loadUserPort);
     }
 
     private void givenSettlement(Long actorId) {

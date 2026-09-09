@@ -1,6 +1,6 @@
 # Feature Plan: 정산 상세 참여자 프로필 이미지
 
-- Status: In progress
+- Status: Completed
 - Last updated: 2026-09-09
 - Related issue: #334
 
@@ -72,4 +72,12 @@ Application은 이미지 보유 여부만 반환하고 Web DTO가 상대 API 경
 
 ## 11. 완료 기록
 
-- 구현 및 검증 후 갱신 예정.
+- 완료일: 2026-09-09. nullable `avatarUrl`과 화면별 접근 가능한 경로 제공 완료.
+- `./gradlew compileJava compileTestJava` 통과.
+- `bash scripts/test.sh compileJava test --tests '*SettlementDetailServiceTest' --tests '*SettlementControllerTest' --tests '*SettlementParticipantServiceTest' --tests '*UserControllerTest' --tests '*SettlementOpenApiIntegrationTest'` 통과.
+- 별도 PostgreSQL DB와 로컬 Redis를 확인한 환경에서 Java 81개, JavaScript 35개 통과.
+- 사진 유무·미존재 사용자·비회원·참여자 공개 범위·권한 거부·Share 생성 전 상태 및 JSON/Swagger 필드 계약 검증 완료.
+- `git diff --check` 통과. 영향 범위에 적은 소스 및 테스트 경로의 존재 확인.
+- 전체 테스트와 실제 소켓 HTTP/앱 이미지 렌더링은 미실행(관련 서비스·MockMvc·Spring 통합 검증으로 범위 제한).
+- 기존 이미지 기능과 동일하게 상세 조회 후 사진 삭제 시 이미지 요청이 404가 될 수 있다.
+- 추가 스키마 작업은 없다.

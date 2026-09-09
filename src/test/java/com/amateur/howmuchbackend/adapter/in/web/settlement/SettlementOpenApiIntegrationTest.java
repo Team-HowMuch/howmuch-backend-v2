@@ -72,7 +72,7 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "ParticipantPayment",
                 "participantId", "displayName", "linked", "expectedAmount",
-                "confirmedAmount", "paymentStatus"
+                "confirmedAmount", "paymentStatus", "avatarUrl"
         );
         assertRequired(document, "RegisterPushTargetWebRequest", "firebaseInstallationId");
         assertNullable(
@@ -88,6 +88,7 @@ class SettlementOpenApiIntegrationTest {
                 "reminderNextAvailableAt"
         );
         assertNullable(document, "SettlementBulkReminderWebResponse", "nextAvailableAt");
+        assertNullable(document, "ParticipantPayment", "avatarUrl");
         assertNullable(document, "PaymentInfo", "storeName", "paidAt");
         assertNullable(document, "SettlementLinkEntryWebResponse", "storeName", "paidAt");
         assertDescriptionContainsUtc(document, "PaymentInfo", "paidAt");
