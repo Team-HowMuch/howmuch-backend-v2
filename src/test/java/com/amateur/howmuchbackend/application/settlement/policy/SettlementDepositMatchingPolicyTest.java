@@ -36,14 +36,14 @@ class SettlementDepositMatchingPolicyTest {
     }
 
     @Test
-    @DisplayName("거래 설명이 둘 이상의 참여자 이름과 일치하면 자동 연결하지 않는다")
-    void rejectsAmbiguousNames() {
+    @DisplayName("전체 이름과 부분 이름 후보가 함께 있으면 전체 이름만 연결한다")
+    void matchesFullNameDespiteSubstringCandidate() {
         var shares = List.of(
                 payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0)),
                 payable(UUID.randomUUID(), "선영", LocalDateTime.of(2026, 8, 24, 0, 0))
         );
 
-        assertThat(policy.match(transaction("민선영 입금", "6000"), shares)).isEmpty();
+        assertThat(policy.match(transaction("민선영 입금", "6000"), shares)).contains(SHARE_ID);
     }
 
     @Test
