@@ -91,7 +91,7 @@ class CommonCodeAdminServiceTest {
                 List.of(new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true))
         );
         when(loadCommonCodeGroupPort.findByGroupCode("BANK")).thenReturn(Optional.of(current));
-        when(saveCommonCodeGroupPort.save(any(CommonCodeGroup.class)))
+        when(saveCommonCodeGroupPort.update(any(CommonCodeGroup.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = service.update(
@@ -118,7 +118,7 @@ class CommonCodeAdminServiceTest {
         );
 
         ArgumentCaptor<CommonCodeGroup> captor = ArgumentCaptor.forClass(CommonCodeGroup.class);
-        verify(saveCommonCodeGroupPort).save(captor.capture());
+        verify(saveCommonCodeGroupPort).update(captor.capture());
         CommonCodeGroup saved = captor.getValue();
         assertThat(saved.attr1Name()).isEqualTo("아이콘 URL");
         assertThat(saved.attr2Name()).isEqualTo("은행 홈페이지");
@@ -143,7 +143,7 @@ class CommonCodeAdminServiceTest {
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(CommonStatusCode.CONCURRENT_UPDATE));
 
-        verify(saveCommonCodeGroupPort, never()).save(any());
+        verify(saveCommonCodeGroupPort, never()).update(any());
     }
 
     private User user(UserRole role) {

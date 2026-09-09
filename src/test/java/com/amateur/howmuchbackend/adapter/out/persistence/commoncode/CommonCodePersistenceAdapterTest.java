@@ -16,10 +16,11 @@ import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.sql.SQLException;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +40,6 @@ class CommonCodePersistenceAdapterTest {
     @DisplayName("동시 그룹 생성으로 발생한 primary key 충돌을 409로 변환한다")
     void translatesConcurrentGroupCreation() {
         var adapter = new CommonCodePersistenceAdapter(groupRepository, detailRepository, cacheManager);
-        when(groupRepository.findById("TEST")).thenReturn(Optional.empty());
         when(groupRepository.saveAndFlush(any(CommonCodeGroupJpaEntity.class))).thenThrow(
                 new DataIntegrityViolationException(
                         "duplicate key",
@@ -53,10 +53,11 @@ class CommonCodePersistenceAdapterTest {
 
         var group = CommonCodeGroup.create("TEST", "테스트", null, null, null, null, true);
 
-        assertThatThrownBy(() -> adapter.save(group))
+        assertThatThrownBy(() -> adapter.create(group))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         org.assertj.core.api.Assertions.assertThat(exception.getStatusCode())
                                 .isEqualTo(CommonCodeStatusCode.COMMON_CODE_GROUP_ALREADY_EXISTS));
-        verifyNoInteractions(detailRepository);
+        verify(groupRepository, never()).findById(any());
+        verifyNoInteractions(detailRepository, cacheManager);
     }
 }

@@ -78,7 +78,7 @@ public class CommonCodeAdminService implements
                 command.attr3Name(),
                 command.active()
         );
-        return toResult(saveCommonCodeGroupPort.save(group));
+        return toResult(saveCommonCodeGroupPort.create(group));
     }
 
     @Override
@@ -101,7 +101,7 @@ public class CommonCodeAdminService implements
                 command.active(),
                 details
         );
-        return toResult(saveCommonCodeGroupPort.save(updated));
+        return toResult(saveCommonCodeGroupPort.update(updated));
     }
 
     private void requireAdmin() {
