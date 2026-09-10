@@ -67,7 +67,7 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Verify deployment image identity
+      - name: Verify deployment image identity and readiness
         run: |
           python3 -m pip install PyYAML==6.0.2
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
@@ -168,6 +168,9 @@ jobs:
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
       APP_DIR: ${{ vars.APP_DIR || '/opt/howmuch-infra' }}
     steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1
         env:
@@ -183,26 +186,4 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: GHCR_USERNAME,GHCR_PAT,APP_DIR,APP_IMAGE,DEPLOY_SHA,DEPLOY_RUN_ID,DEPLOY_RUN_ATTEMPT
-          script: |
-            set -eu
-            case "$APP_IMAGE" in *[!a-z0-9./_:@-]*) exit 1 ;; esac
-            printf '%s' "$APP_IMAGE" | grep -Eq '^ghcr[.]io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'
-            export APP_IMAGE
-            cd "$APP_DIR"
-            override=$(mktemp "$APP_DIR/.deploy-image.XXXXXX.yml")
-            trap 'rm -f "$override"' EXIT
-            printf 'services:\n  app:\n    image: %s\n' "$APP_IMAGE" > "$override"
-            compose() { docker compose -f compose.yml -f "$override" "$@"; }
-            printf 'Deploying commit=%s run=%s attempt=%s image=%s\n' \
-              "$DEPLOY_SHA" "$DEPLOY_RUN_ID" "$DEPLOY_RUN_ATTEMPT" "$APP_IMAGE"
-            printf '%s' "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-            compose pull app
-            compose up -d --no-build --pull never app
-            expected=$(docker image inspect "$APP_IMAGE" --format '{{.Id}}')
-            container=$(compose ps -q app)
-            test -n "$container"
-            actual=$(docker inspect "$container" --format '{{.Image}}')
-            test "$actual" = "$expected"
-            printf 'Verified commit=%s run=%s attempt=%s image=%s image_id=%s\n' \
-              "$DEPLOY_SHA" "$DEPLOY_RUN_ID" "$DEPLOY_RUN_ATTEMPT" "$APP_IMAGE" "$actual"
-            docker image prune -f
+          script_path: scripts/deploy-readiness.sh

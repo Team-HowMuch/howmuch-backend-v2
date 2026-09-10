@@ -8,7 +8,13 @@ For manual deployment with the repository [Compose file](../compose.yml), export
 
 For a server-owned Compose file that still names a branch tag, use an explicit override with that recorded digest for **both** pull and up. Plain `docker compose up` after the workflow finishes can revert to the server file's tag. Do not use a mutable tag for rollback.
 
-Re-running only deploy reuses the successful build's output. Re-running all jobs can produce a new digest; deploy uses that new build output. Concurrency still serializes deployments per branch, but does not guarantee commit ordering, application readiness, or automatic rollback.
+Re-running only deploy reuses the successful build's output. Re-running all jobs can produce a new digest; deploy uses that new build output. Concurrency still serializes deployments per branch, but does not guarantee commit ordering or automatic rollback.
+
+## Readiness gate
+
+After image identity verification, the [deployment script](../scripts/deploy-readiness.sh) waits up to 180 seconds for HTTP 200 from `/actuator/health/readiness` inside the same container. The loopback management port defaults to 9091 (`MANAGEMENT_SERVER_PORT`); readiness includes application availability, PostgreSQL, and Redis. EC2 requires Bash and GNU `timeout`, and the application image includes curl. The management port remains private.
+
+Exited or restarting containers fail immediately; persistent unready responses time out. Failure diagnostics report container status, exit code, OOM, restart count, and the last HTTP code, without printing environment variables or raw application logs. Diagnosis may take up to 10 additional seconds. Both success and failure remove the temporary image override; image pruning and the final verification log occur only after both checks pass. Manual Compose commands above do not run this gate.
 
 ## Verification
 

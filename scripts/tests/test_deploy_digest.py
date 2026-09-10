@@ -10,7 +10,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = yaml.safe_load((ROOT / ".github/workflows/backend-ci-cd.yml").read_text())
 BUILD = WORKFLOW["jobs"]["build"]["steps"][-1]["run"]
-DEPLOY = WORKFLOW["jobs"]["deploy"]["steps"][0]["with"]["script"]
+DEPLOY_STEP = next(s for s in WORKFLOW["jobs"]["deploy"]["steps"] if "with" in s)
+DEPLOY = (ROOT / DEPLOY_STEP["with"]["script_path"]).read_text()
 REPOSITORY = "ghcr.io/team-howmuch/howmuch-backend-v2"
 A = REPOSITORY + "@sha256:" + "a" * 64
 B = REPOSITORY + "@sha256:" + "b" * 64
@@ -27,10 +28,13 @@ case "$*" in
     case "$*" in
       "pull app") test "${FAIL_PULL:-0}" = 0 ;;
       "up -d --no-build --pull never app") ;;
-      "ps -q app") printf 'container\n' ;;
+      "ps --all --quiet app") printf 'container\n' ;;
       *) exit 90 ;;
     esac ;;
   "image inspect "*) printf '%s\n' "$APP_IMAGE" ;;
+  "inspect --format {{.State.Status}} container") printf 'running\n' ;;
+  "inspect --format "*) printf 'diagnostic\n' ;;
+  "exec container "*) printf '200' ;;
   "inspect container "*) printf '%s\n' "${ACTUAL_IMAGE:-$APP_IMAGE}" ;;
   "image prune -f") ;;
   *) exit 91 ;;
@@ -46,6 +50,9 @@ class DeployDigestTest(unittest.TestCase):
         docker = self.directory / "docker"
         docker.write_text(MOCK)
         docker.chmod(0o755)
+        timeout = self.directory / "timeout"
+        timeout.write_text("#!/usr/bin/env python3\nimport subprocess,sys\ntry: sys.exit(subprocess.run(sys.argv[2:],timeout=float(sys.argv[1])).returncode)\nexcept subprocess.TimeoutExpired: sys.exit(124)\n")
+        timeout.chmod(0o755)
         self.env = {
             **os.environ, "PATH": str(self.directory) + ":" + os.environ["PATH"],
             "APP_DIR": str(self.directory), "LOG": str(self.directory / "docker.log"),
@@ -97,6 +104,7 @@ class DeployDigestTest(unittest.TestCase):
             result = self.run_script(DEPLOY, APP_IMAGE=A, **extra)
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn("Verified", result.stdout)
+            self.assertNotIn("Application ready:", result.stdout)
             self.assertEqual(list(self.directory.glob(".deploy-image.*")), [])
 
     def test_workflow_wires_build_output(self):
@@ -105,9 +113,9 @@ class DeployDigestTest(unittest.TestCase):
         publish = next(s for s in jobs["build"]["steps"] if s.get("id") == "publish")
         self.assertEqual(publish["uses"], "docker/build-push-action@v6")
         self.assertEqual(jobs["deploy"]["needs"], "build")
-        self.assertEqual(jobs["deploy"]["steps"][0]["env"]["APP_IMAGE"],
+        self.assertEqual(DEPLOY_STEP["env"]["APP_IMAGE"],
                          "${{ needs.build.outputs.image }}")
-        self.assertIn("APP_IMAGE", jobs["deploy"]["steps"][0]["with"]["envs"])
+        self.assertIn("APP_IMAGE", DEPLOY_STEP["with"]["envs"])
 
 
 if __name__ == "__main__":
