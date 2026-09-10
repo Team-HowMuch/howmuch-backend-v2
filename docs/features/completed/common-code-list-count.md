@@ -1,6 +1,6 @@
 # Feature Plan: 공통 코드 그룹 목록 N+1 집계 제거
 
-- 상태: 진행 중
+- 상태: 완료
 - 갱신일: 2026-09-10
 - 관련 이슈: [#312](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/312)
 - 기준: 최신 `origin/develop`의 `6216763`, 브랜치 `fix/312-common-code-list-n-plus-one`
@@ -9,10 +9,10 @@
 
 관리자 공통 코드 그룹 목록은 그룹 N개를 조회할 때 그룹 목록 1회와 상세 개수 N회를 실행한다. 그룹이 증가해도 추가 쿼리가 늘지 않도록 전체·검색 목록의 집계를 개선한다.
 
-- [ ] 결과가 있는 목록은 그룹 수와 관계없이 SQL 2회로 조회한다.
-- [ ] 빈 그룹은 `detailCount=0`, 비활성 상세도 기존처럼 개수에 포함한다.
-- [ ] 그룹 코드 오름차순, 코드·이름의 대소문자 무시 부분 검색, 공백 검색어 처리를 유지한다.
-- [ ] 쿼리 수와 응답 집계 정확성을 실제 PostgreSQL 회귀 테스트로 검증한다.
+- [x] 결과가 있는 목록은 그룹 수와 관계없이 SQL 2회로 조회한다.
+- [x] 빈 그룹은 `detailCount=0`, 비활성 상세도 기존처럼 개수에 포함한다.
+- [x] 그룹 코드 오름차순, 코드·이름의 대소문자 무시 부분 검색, 공백 검색어 처리를 유지한다.
+- [x] 쿼리 수와 응답 집계 정확성을 실제 PostgreSQL 회귀 테스트로 검증한다.
 
 쓰기 무결성, revision 처리, 캐시 정책, CODEF 연동, 목록 페이지네이션은 범위에서 제외한다.
 
@@ -54,9 +54,9 @@ CommonCodeGroupSummary -> CommonCodeGroupSummaryResult -> CommonCodeGroupSummary
 3. `test(commoncode): 목록 쿼리 수와 집계 정확성 회귀 검증`
 
 - [x] 입력·출력 흐름, 관련 구현과 migration 필요 여부 확인
-- [ ] Output Adapter·Repository 집계 변경
-- [ ] PostgreSQL 회귀 테스트와 기존 공통 코드 테스트 실행
-- [ ] 검증 결과 기록 및 완료 문서 이동
+- [x] Output Adapter·Repository 집계 변경
+- [x] PostgreSQL 회귀 테스트와 기존 공통 코드 테스트 실행
+- [x] 검증 결과 기록 및 완료 문서 이동
 - Migration PR, 새 계약·Domain·Policy·Service·Web·Infra 구현: **N/A** (변경 불필요)
 
 ## 6. 검증 계획
@@ -71,5 +71,19 @@ CommonCodeGroupSummary -> CommonCodeGroupSummaryResult -> CommonCodeGroupSummary
 ## 7. 진행 및 완료 기록
 
 - 2026-09-10: 기존 작업 트리 변경 없음 확인. 최신 develop에서 브랜치 생성, 이슈·기존 PR 및 커밋 컨벤션 확인. 테스트용 PostgreSQL·Redis 컨테이너의 healthy 상태 확인.
-- 검증 결과: 진행 예정.
-- 미검증 범위 및 남은 위험: 완료 시 기록.
+- `./gradlew compileJava`: 설계 기준 및 구현 변경 후 통과. 회귀 실행에서도 Java·테스트 컴파일 통과.
+- 아래 명령으로 공통 코드 Java **47건**(신규 통합 테스트 **10건**)과 JavaScript **35건** 통과. 실패·오류·건너뜀 0건.
+
+```bash
+DB_URL='jdbc:postgresql://127.0.0.1:15432/howmuch_test' \
+DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test \
+REDIS_HOST=127.0.0.1 REDIS_PORT=16379 \
+bash scripts/test.sh test --tests '*commoncode*'
+```
+
+- [목록 집계 통합 테스트](../../../src/test/java/com/amateur/howmuchbackend/adapter/out/persistence/commoncode/CommonCodeListPersistenceIntegrationTest.java): 그룹 1·10·100개를 추가한 전체·검색 조회 모두 prepared statement 2회, 빈 검색 결과는 1회 확인. 빈 그룹·활성/비활성 상세, 비활성 그룹, 요약 필드·정렬, 코드·이름 검색, 검색 제외 그룹, null·빈 문자열·공백 검색어 검증.
+- 테스트는 기존 일회용 PostgreSQL 18·Redis 8 컨테이너와 테스트 전용 설정을 사용했다. 새 테스트의 fixture는 트랜잭션 롤백으로 정리된다.
+- `git diff --check`, 문서 참조 및 변경 범위 확인 통과. API·Swagger·migration 변경 없음.
+- 전체 Java 테스트와 실제 서버 HTTP·브라우저 수동 검증은 로컬에서 미실행. 이번 변경은 persistence 내부 조회에 한정하며 관련 Service·Web·캐시·쓰기 회귀 테스트까지 검증했다.
+- 남은 한계: 무제한 목록의 크기와 두 조회 사이 동시 쓰기 가시성은 기존 계약을 유지한다. 추가 후속 작업 없음.
+- 완료일: 2026-09-10.
