@@ -10,9 +10,11 @@ services:
     environment:
       GROUP_IMAGE_STORAGE_DIR: /app/uploads/group-images
       PROFILE_IMAGE_STORAGE_DIR: /app/uploads/profile-images
+      LOG_FILE: /app/logs/howmuch-backend-v2.log
     volumes:
       - group_images:/app/uploads/group-images
       - ${PROFILE_IMAGE_HOST_DIR:-./uploads/profile-images}:/app/uploads/profile-images
+      - ${LOG_HOST_DIR:-./logs}:/app/logs
     restart: unless-stopped
 
 volumes:
