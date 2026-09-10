@@ -34,10 +34,11 @@ class InquiryScopePolicyTest {
             "오늘 날씨 알려줘.",
             "Java 공부법 알려줘.",
             "영화 추천해줘.",
-            "주식 추천해줘."
+            "주식 추천해줘.",
+            "공원이 어디야?"
     })
-    void doesNotTreatUnrelatedQuestionsAsRelated(String question) {
-        assertThat(policy.classify(question)).isNotEqualTo(InquiryScope.RELATED);
+    void treatsQuestionsWithoutServiceVocabularyAsUnrelated(String question) {
+        assertThat(policy.classify(question)).isEqualTo(InquiryScope.UNRELATED);
     }
 
     @Test

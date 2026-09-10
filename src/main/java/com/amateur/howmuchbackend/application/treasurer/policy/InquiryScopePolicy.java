@@ -12,7 +12,7 @@ public class InquiryScopePolicy {
             "정산", "더치페이", "더치", "송금", "입금", "납부", "회비", "지출", "결제", "비용"
     );
     private static final List<String> MONEY_TERMS = List.of(
-            "돈", "금액", "얼마", "원을", "원이", "계좌", "이체"
+            "돈", "금액", "얼마", "계좌", "이체"
     );
     private static final List<String> GROUP_TERMS = List.of(
             "모임", "그룹", "멤버", "참여자", "총무"
@@ -36,7 +36,7 @@ public class InquiryScopePolicy {
                 || containsAny(compact, SERVICE_TERMS)) {
             return InquiryScope.RELATED;
         }
-        return InquiryScope.UNCERTAIN;
+        return InquiryScope.UNRELATED;
     }
 
     private boolean containsAny(String compact, List<String> terms) {
