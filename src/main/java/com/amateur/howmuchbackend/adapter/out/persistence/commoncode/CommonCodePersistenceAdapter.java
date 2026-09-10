@@ -76,10 +76,22 @@ public class CommonCodePersistenceAdapter
         List<CommonCodeGroupJpaEntity> groups = keyword == null || keyword.isBlank()
                 ? commonCodeGroupRepository.findAllByOrderByGroupCodeAsc()
                 : commonCodeGroupRepository.findAllByKeyword(keyword.trim());
+        if (groups.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> groupCodes = groups.stream()
+                .map(CommonCodeGroupJpaEntity::getGroupCode)
+                .toList();
+        Map<String, Long> detailCounts = commonCodeRepository.countByGroupCodes(groupCodes).stream()
+                .collect(Collectors.toMap(
+                        CommonCodeJpaRepository.GroupDetailCountProjection::getGroupCode,
+                        CommonCodeJpaRepository.GroupDetailCountProjection::getDetailCount
+                ));
         return groups.stream()
                 .map(group -> CommonCodeGroupMapper.toSummary(
                         group,
-                        commonCodeRepository.countByGroupCode(group.getGroupCode())
+                        detailCounts.getOrDefault(group.getGroupCode(), 0L)
                 ))
                 .toList();
     }
