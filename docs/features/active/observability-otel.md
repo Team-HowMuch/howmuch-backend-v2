@@ -87,8 +87,8 @@ trace link, 실제 EC2 server-owned Compose·방화벽 변경은 제외한다.
 3. [x] OTel dependency, sampling/export/propagation 및 profile logging 설정
 4. [x] `X-Trace-ID`, observation redaction, management CIDR security 구현
 5. [x] HTTP/Outbox 관측 회귀 테스트 보강
-6. [ ] 운영 템플릿과 현재 운영 문서 추가
-7. [ ] compile/test/static configuration 검증 및 결과 기록
+6. [x] 운영 템플릿과 현재 운영 문서 추가
+7. [x] compile/test/static configuration 검증 및 결과 기록
 8. [ ] push 후 `develop` 대상 PR 생성
 
 ## 6. 검증 계획
@@ -118,12 +118,21 @@ git status --short --untracked-files=all
 
 ```text
 1. docs(observability): 관측성 전환 계획 수립
-2. feat(observability): OTel 추적 및 로그 상관관계 적용
-3. feat(observability): 관측성 인프라 템플릿과 운영 문서 추가
+2. feat(observability): OTel 공통 계측 설정 추가
+3. feat(observability): trace ID 응답 상관관계 적용
+4. fix(observability): 관리 포트 private CIDR 제한
+5. feat(observability): 관측 데이터 민감정보 제거
+6. feat(observability): Outbox polling trace 계측
+7. test(observability): HTTP trace 전파와 실패 경계 검증
+8. feat(observability): JSON 로그 백업 저장 연결
+9. feat(observability): 관측성 운영 스택 템플릿 추가
+10. docs(observability): 운영 계약과 검증 결과 갱신
 ```
 
 ## 8. 진행 기록
 
 - 최신 `origin/develop` 확인 및 `feat/observability-otel` 브랜치 생성 완료
 - DB schema 변경이 없어 Flyway migration은 생성하지 않음
-- 관련 단위 테스트는 실행했으며 HTTP 통합 테스트는 로컬 PostgreSQL 연결 전제에서 확인 예정
+- 관련 단위·보안·HTTP 통합 테스트와 전체 Gradle 테스트 통과
+- Compose, YAML, Alloy fmt 정적 검증 통과
+- 실제 EC2 server-owned Compose 적용은 수행하지 않음
