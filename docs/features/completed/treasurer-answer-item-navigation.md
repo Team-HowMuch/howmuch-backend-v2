@@ -1,6 +1,6 @@
 # Feature Plan: AI 비서 답변 항목에 정산 유형·상태 추가
 
-- Status: Draft
+- Status: Completed
 - Last updated: 2026-09-09
 - Related issue: [#341](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/341)
 - Related ADR: N/A
@@ -22,10 +22,10 @@
 
 ### Success criteria
 
-- [ ] `items[].allocationType`이 `DUTCH_PAY` / `ITEM_ALLOCATION` 또는 `null`로 내려간다.
-- [ ] `items[].status`가 정산 목록 응답과 같은 값으로 내려간다.
-- [ ] 기존 필드와 응답 구조가 변경되지 않아 기존 앱 버전이 그대로 동작한다.
-- [ ] 정산 조회 횟수가 늘지 않는다.
+- [x] `items[].allocationType`이 `DUTCH_PAY` / `ITEM_ALLOCATION` 또는 `null`로 내려간다.
+- [x] `items[].status`가 정산 목록 응답과 같은 값으로 내려간다.
+- [x] 기존 필드와 응답 구조가 변경되지 않아 기존 앱 버전이 그대로 동작한다.
+- [x] 정산 조회 횟수가 늘지 않는다.
 
 ### Out of scope
 
@@ -153,16 +153,16 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] Migration-only pull request to `develop` — **N/A** (스키마 변경 없음)
-- [ ] UseCase and Application Command/Result — `TreasurerAnswerResult.Item`
-- [ ] Required Output Ports — `LoadTreasurerSettlementsPort.TreasurerSettlementRecord`
-- [ ] Domain models and rules — `PersonalSettlement`
-- [ ] Application Policies — `TreasurerCardCopy.Card`
-- [ ] Application Service — `AskTreasurerService.toItem`
-- [ ] Output Adapters — native query, projection, 매핑
-- [ ] Web Request/Response DTOs — `TreasurerAnswerWebResponse.Item`
-- [ ] Infra configuration and Bean wiring — **N/A**
-- [ ] Documentation and verification results
+- [x] Migration-only pull request to `develop` — **N/A** (스키마 변경 없음)
+- [x] UseCase and Application Command/Result — `TreasurerAnswerResult.Item`
+- [x] Required Output Ports — `LoadTreasurerSettlementsPort.TreasurerSettlementRecord`
+- [x] Domain models and rules — `PersonalSettlement`
+- [x] Application Policies — `TreasurerCardCopy.Card`
+- [x] Application Service — `AskTreasurerService.toItem`
+- [x] Output Adapters — native query, projection, 매핑
+- [x] Web Request/Response DTOs — `TreasurerAnswerWebResponse.Item`
+- [x] Infra configuration and Bean wiring — **N/A**
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -187,21 +187,27 @@ git diff --check
 
 ### Completion criteria
 
-- [ ] 응답에 두 필드가 나가는 것을 확인했다.
-- [ ] native query가 배분 유형을 함께 싣는 것을 통합 테스트로 확인했다.
-- [ ] 기존 필드와 문구가 변하지 않았다.
+- [x] 응답에 두 필드가 나가는 것을 확인했다.
+- [x] native query가 배분 유형을 함께 싣는 것을 통합 테스트로 확인했다.
+- [x] 기존 필드와 문구가 변하지 않았다.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
-| 설계 문서 | Pending | 본 문서 |
+| treasurer·inquiry 테스트 | 67개 통과, 실패 0, 건너뜀 0 | `compose.test.yml`(PostgreSQL 18 · Redis 8) + `scripts/test.sh` |
+| native query 배분 유형 조회 | 통과 | `TreasurerSettlementPersistenceIntegrationTest` 2건 |
+| 배분 유형 매핑(값 있음·null) | 통과 | `TreasurerSettlementPersistenceAdapterTest` 2건 |
+| 카드 세 분기 필드 전달 | 통과 | `TreasurerCardCopyTest` 5건 |
+| 응답 JSON 필드 노출 | 통과 | `TreasurerControllerTest` 5건 |
+| 수동 앱 연동 확인 | 미수행 | 앱 화면 전환은 howmuch-frontend-v2#99에서 검증 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-09-09 | 이슈 분석, 설계 문서 작성, 구현 | 검증 | 적용 범위(추천 API) 미결 |
+| 2026-09-10 | 카드 분기 테스트 보강, 전체 검증 완료 | PR 생성 | 없음 |
 
 ## 10. Decision log
 
@@ -210,15 +216,16 @@ git diff --check
 | 2026-09-09 | 앱 추가 조회 대신 서버 필드 추가 | 화면 전환 지연과 AI 비서만 다른 동작을 피한다 | 응답 필드가 늘어난다 |
 | 2026-09-09 | 웹 응답에서 두 값을 문자열로 내린다 | 이 DTO의 기존 열거형 필드(`direction`, `marker`)가 모두 문자열이다 | JSON 표현은 열거형 직렬화와 동일하다 |
 | 2026-09-09 | `PersonalSettlement`에 기존 생성자 시그니처를 보존한다 | 정산 조회 외 호출부와 테스트의 변경을 막는다 | 생성자 오버로드가 2개 늘어난다 |
+| 2026-09-10 | `/recommendations`에는 추가하지 않는다 | 저장소 선례를 따른다. 배분 방식을 응답에 담은 기존 작업(`4224665`)이 필요한 응답 하나만 변경했고, `settlementId`를 담은 웹 응답 18개 중 `allocationType`을 가진 것은 6개다 | 추천 카드가 탭 대상이 될 때 같은 방식으로 추가한다 |
 
 ## 11. Open questions
 
-- `GET /api/v2/treasurer/recommendations`의 `Item`에도 같은 두 필드를 추가할지. 지금 앱에서 그 카드는 탭 대상이 아니지만 이슈에서 판단을 요청했다.
+- 없음. `GET /api/v2/treasurer/recommendations` 적용 여부는 아래 결정 기록으로 종결했다.
 
 ## 12. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- Completed on: 2026-09-10
+- Final behavior: `POST /api/v2/treasurer/questions` 응답의 `items`가 `allocationType`(`DUTCH_PAY` / `ITEM_ALLOCATION` / `null`)과 `status`를 함께 반환한다. 기존 필드와 카드 문구는 변경하지 않았고, 정산 조회 횟수도 늘지 않았다.
+- Unverified items: 앱에서의 실제 화면 전환. 서버 계약까지만 검증했고 앱 동작은 howmuch-frontend-v2#99 범위다.
+- Remaining risks: `status`는 정산 전체 상태이므로 본인이 납부를 마쳐도 다른 참여자가 미납이면 `COMPLETED`가 아니다. `SUSPENDED` 정산도 `COMPLETED`가 아니라, 이슈에 적힌 앱 분기(`status !== "COMPLETED"`)로는 두 경우 모두 참여·송금 화면으로 이동한다. 정산 목록 API와 동일한 동작이라 일관성은 유지되지만 분기 기준은 프론트와 합의가 필요하다.
+- Follow-up work: 사용자별 납부 여부와 정산 `COMPLETED`의 분리(`ai-treasurer.md` 미해결 과제). 추천 API 적용은 해당 카드가 탭 대상이 될 때.
