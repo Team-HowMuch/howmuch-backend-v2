@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.settlement.service.SettlementNotif
 import com.amateur.howmuchbackend.infra.settlement.SettlementNotificationOutboxScheduler;
 import com.amateur.howmuchbackend.infra.settlement.config.SettlementNotificationOutboxProperties;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.*;
@@ -14,9 +15,10 @@ class SettlementOutboxMetricsTest {
     void reusesBatchOutcomesAndCountsPollingFailure() {
         var worker = mock(SettlementNotificationOutboxWorker.class);
         var registry = new SimpleMeterRegistry();
+        var observations = ObservationRegistry.create();
         try {
             var scheduler = new SettlementNotificationOutboxScheduler(worker,
-                    new SettlementNotificationOutboxProperties(null, null, 50), registry);
+                    new SettlementNotificationOutboxProperties(null, null, 50), registry, observations);
             when(worker.processBatch(50)).thenReturn(new SettlementNotificationOutboxWorker.BatchResult(2, 10, 4, 3, 2, 1));
             scheduler.poll();
             assertThat(registry.get("howmuch.settlement.outbox.events").tag("outcome", "retried").counter().count()).isEqualTo(3);

@@ -3,6 +3,8 @@ package com.amateur.howmuchbackend.infra.settlement;
 import com.amateur.howmuchbackend.application.settlement.service.SettlementNotificationOutboxWorker;
 import com.amateur.howmuchbackend.infra.settlement.config.SettlementNotificationOutboxProperties;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -22,15 +24,21 @@ public class SettlementNotificationOutboxScheduler {
     private final SettlementNotificationOutboxWorker worker;
     private final SettlementNotificationOutboxProperties properties;
     private final MeterRegistry registry;
+    private final ObservationRegistry observationRegistry;
 
     @Scheduled(
             fixedDelayString = "${howmuch.settlement.notification-outbox.poll-interval:1s}",
             initialDelayString = "${howmuch.settlement.notification-outbox.initial-delay:1s}"
     )
     public void poll() {
+        Observation observation = Observation.createNotStarted(
+                        "howmuch.settlement.notification.outbox.poll", observationRegistry)
+                .lowCardinalityKeyValue("component", "settlement-outbox")
+                .start();
         try {
             SettlementNotificationOutboxWorker.BatchResult result =
                     worker.processBatch(properties.batchSize());
+            observation.lowCardinalityKeyValue("outcome", "processed");
             record("recovered", result.recovered());
             record("claimed", result.claimed());
             record("succeeded", result.succeeded());
@@ -50,11 +58,14 @@ public class SettlementNotificationOutboxScheduler {
                 );
             }
         } catch (RuntimeException exception) {
+            observation.lowCardinalityKeyValue("outcome", "failed");
             registry.counter("howmuch.settlement.outbox.poll.failures").increment();
             log.error(
                     "Settlement notification Outbox polling failed. failureType={}",
                     exception.getClass().getSimpleName()
             );
+        } finally {
+            observation.stop();
         }
     }
 
