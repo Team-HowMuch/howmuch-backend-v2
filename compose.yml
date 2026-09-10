@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/team-howmuch/howmuch-backend-v2:${IMAGE_TAG}
+    image: ${APP_IMAGE:?APP_IMAGE must be a digest-pinned image reference}
     env_file:
       - ./.env
     ports:

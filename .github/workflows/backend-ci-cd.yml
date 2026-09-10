@@ -67,6 +67,11 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Verify deployment image identity
+        run: |
+          python3 -m pip install PyYAML==6.0.2
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
+
       - name: Run Java and JavaScript tests
         run: bash scripts/test.sh
 
@@ -84,6 +89,8 @@ jobs:
 
   build:
     name: Build Docker image
+    outputs:
+      image: ${{ steps.image.outputs.image }}
     needs: test
     runs-on: ubuntu-latest
     steps:
@@ -121,6 +128,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and publish Docker image
+        id: publish
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -129,6 +137,21 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Record published image
+        if: github.event_name == 'push'
+        id: image
+        env:
+          DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          set -eu
+          case "$DIGEST" in *[!a-z0-9:]*) exit 1 ;; esac
+          printf '%s' "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          repository=$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          image="$REGISTRY/$repository@$DIGEST"
+          printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
+          printf 'Commit: %s\nRun: %s (attempt %s)\nImage: %s\n' \
+            "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$image" >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     name: Deploy to EC2
@@ -151,15 +174,35 @@ jobs:
           GHCR_USERNAME: ${{ env.GHCR_USERNAME }}
           GHCR_PAT: ${{ env.GHCR_PAT }}
           APP_DIR: ${{ env.APP_DIR }}
+          APP_IMAGE: ${{ needs.build.outputs.image }}
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+          DEPLOY_RUN_ATTEMPT: ${{ github.run_attempt }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: GHCR_USERNAME,GHCR_PAT,APP_DIR
+          envs: GHCR_USERNAME,GHCR_PAT,APP_DIR,APP_IMAGE,DEPLOY_SHA,DEPLOY_RUN_ID,DEPLOY_RUN_ATTEMPT
           script: |
             set -eu
+            case "$APP_IMAGE" in *[!a-z0-9./_:@-]*) exit 1 ;; esac
+            printf '%s' "$APP_IMAGE" | grep -Eq '^ghcr[.]io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'
+            export APP_IMAGE
             cd "$APP_DIR"
+            override=$(mktemp "$APP_DIR/.deploy-image.XXXXXX.yml")
+            trap 'rm -f "$override"' EXIT
+            printf 'services:\n  app:\n    image: %s\n' "$APP_IMAGE" > "$override"
+            compose() { docker compose -f compose.yml -f "$override" "$@"; }
+            printf 'Deploying commit=%s run=%s attempt=%s image=%s\n' \
+              "$DEPLOY_SHA" "$DEPLOY_RUN_ID" "$DEPLOY_RUN_ATTEMPT" "$APP_IMAGE"
             printf '%s' "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-            docker compose pull
-            docker compose up -d
+            compose pull app
+            compose up -d --no-build --pull never app
+            expected=$(docker image inspect "$APP_IMAGE" --format '{{.Id}}')
+            container=$(compose ps -q app)
+            test -n "$container"
+            actual=$(docker inspect "$container" --format '{{.Image}}')
+            test "$actual" = "$expected"
+            printf 'Verified commit=%s run=%s attempt=%s image=%s image_id=%s\n' \
+              "$DEPLOY_SHA" "$DEPLOY_RUN_ID" "$DEPLOY_RUN_ATTEMPT" "$APP_IMAGE" "$actual"
             docker image prune -f
