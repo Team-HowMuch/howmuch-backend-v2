@@ -112,6 +112,9 @@ howmuch:
         api-key: ${GEMINI_API_KEY:}
         model: ${GEMINI_MODEL:gemini-flash-latest}
         base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+  observability:
+    management:
+      allowed-cidr: ${MANAGEMENT_ALLOWED_CIDR:127.0.0.1/32}
 
 jwt:
   secret: ${JWT_SECRET:local-development-jwt-secret-key-must-be-at-least-32-bytes}
@@ -127,14 +130,23 @@ springdoc:
     tags-sorter: alpha
 
 logging:
+  file:
+    name: ${LOG_FILE:${java.io.tmpdir}/howmuch-backend-v2.log}
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${LOG_FILE_PATTERN:${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz}
+      max-file-size: ${LOG_MAX_FILE_SIZE:100MB}
+      total-size-cap: ${LOG_TOTAL_SIZE_CAP:5GB}
+      max-history: ${LOG_MAX_HISTORY:15}
   structured:
     format:
       console: logstash
+      file: logstash
 
 management:
   server:
     port: ${MANAGEMENT_SERVER_PORT:9091}
-    address: 127.0.0.1
+    address: ${MANAGEMENT_SERVER_ADDRESS:127.0.0.1}
   endpoints:
     web:
       exposure:
@@ -150,3 +162,38 @@ management:
   metrics:
     enable:
       http.server.requests: false
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  tracing:
+    baggage:
+      enabled: false
+    propagation:
+      consume: []
+      produce: []
+    sampling:
+      probability: ${OTEL_TRACING_SAMPLING_PROBABILITY:1.0}
+  opentelemetry:
+    enabled: ${OTEL_ENABLED:true}
+    tracing:
+      sampler: PARENT_BASED_TRACE_ID_RATIO
+      export:
+        timeout: ${OTEL_EXPORTER_OTLP_TIMEOUT:10s}
+        max-batch-size: ${OTEL_BSP_MAX_EXPORT_BATCH_SIZE:512}
+        max-queue-size: ${OTEL_BSP_MAX_QUEUE_SIZE:2048}
+        schedule-delay: ${OTEL_BSP_SCHEDULE_DELAY:5s}
+        otlp:
+          transport: HTTP
+
+jdbc:
+  includes: QUERY
+  datasource-proxy:
+    enabled: true
+    include-parameter-values: false
+    query:
+      enable-logging: false
+    slow-query:
+      enable-logging: false
+  resultset-operations:
+    enabled: false
