@@ -14,7 +14,7 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.Settlem
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementDetailWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
-import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementListItemWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementListPageWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
 import com.amateur.howmuchbackend.application.port.in.settlement.AddSettlementParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
@@ -103,13 +103,12 @@ public class SettlementController implements SettlementDocs {
 
     @Override
     @GetMapping
-    public ApiResponse<List<SettlementListItemWebResponse>> getSettlements(
+    public ApiResponse<SettlementListPageWebResponse> getSettlements(
             @Valid @ModelAttribute SettlementListWebRequest request
     ) {
-        return ApiResponse.success(getSettlementsUseCase.get(request.toCommand())
-                .stream()
-                .map(SettlementListItemWebResponse::from)
-                .toList());
+        return ApiResponse.success(SettlementListPageWebResponse.from(
+                getSettlementsUseCase.get(request.toCommand())
+        ));
     }
 
     @Override

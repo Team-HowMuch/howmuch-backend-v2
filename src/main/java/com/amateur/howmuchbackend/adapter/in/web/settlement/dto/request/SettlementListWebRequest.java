@@ -6,6 +6,9 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.Settlem
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Size;
 
 import java.time.YearMonth;
 
@@ -25,11 +28,17 @@ public record SettlementListWebRequest(
                 description = "종료 연월(yyyy-MM, 0001-01~9999-12, Asia/Seoul 기준). 생략하면 전체 기간. 미완료 정산 제외, status와 교집합 적용",
                 example = "2026-09", type = "string", implementation = String.class
         )
-        String yearMonth
+        String yearMonth,
+        @Size(max = 256)
+        @Schema(description = "이전 응답의 nextCursor. 첫 조회·필터 변경 시 생략")
+        String cursor,
+        @Min(1) @Max(50)
+        @Schema(description = "페이지 크기 (1~50)", defaultValue = "20", minimum = "1", maximum = "50")
+        Integer size
 ) {
     public GetSettlementsCommand toCommand() {
         return new GetSettlementsCommand(
-                tab, status, groupId, yearMonth == null ? null : YearMonth.parse(yearMonth)
+                tab, status, groupId, yearMonth == null ? null : YearMonth.parse(yearMonth), cursor, size
         );
     }
 }

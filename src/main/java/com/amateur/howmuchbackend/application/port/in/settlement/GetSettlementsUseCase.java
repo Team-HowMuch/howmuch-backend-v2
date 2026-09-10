@@ -1,10 +1,8 @@
 package com.amateur.howmuchbackend.application.port.in.settlement;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSettlementsCommand;
-import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
-
-import java.util.List;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListPageResult;
 
 public interface GetSettlementsUseCase {
-    List<SettlementListItemResult> get(GetSettlementsCommand command);
+    SettlementListPageResult get(GetSettlementsCommand command);
 }

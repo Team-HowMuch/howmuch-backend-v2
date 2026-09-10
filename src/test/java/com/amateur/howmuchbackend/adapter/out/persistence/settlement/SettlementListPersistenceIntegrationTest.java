@@ -8,30 +8,50 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementLinkJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementParticipantJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementShareJpaRepository;
+import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSettlementsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
+import com.amateur.howmuchbackend.application.settlement.service.SettlementListService;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
+import static java.time.temporal.ChronoUnit.MICROS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
-import static java.time.temporal.ChronoUnit.MICROS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
@@ -105,7 +125,10 @@ class SettlementListPersistenceIntegrationTest {
                 receiveSettlement,
                 paySettlement
         ));
-        receiveCreatedAt = receiveSettlement.getCreatedAt();
+        // Pin raw UTC fixture values independently of auditing and the test JVM timezone.
+        jdbcTemplate.update("UPDATE settlements SET created_at = ?, updated_at = ? WHERE id = ?",
+                CREATED_AT, CREATED_AT, receiveSettlementId);
+        receiveCreatedAt = CREATED_AT;
 
         SettlementParticipant receiveCreator = SettlementParticipant.registeredUser(
                 receiveSettlementId, creatorId, "받는 사람", 0, CREATED_AT
@@ -154,13 +177,12 @@ class SettlementListPersistenceIntegrationTest {
     @Test
     @DisplayName("RECEIVE는 생성자 정산의 총액과 참여자 수를 조회한다")
     void loadsReceiveSettlementSummary() {
-        var result = settlementPersistenceAdapter.findAll(
+        var result = settlementPersistenceAdapter.findPage(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 null,
-                null
-        );
+                null, null, null, 21);
 
         assertThat(result).singleElement().satisfies(item -> {
             assertThat(item.settlementId()).isEqualTo(receiveSettlementId);
@@ -194,20 +216,18 @@ class SettlementListPersistenceIntegrationTest {
                 SettlementParticipant.registeredUser(draftId, creatorId, "받는 사람", 0, CREATED_AT)
         ));
 
-        var inProgress = settlementPersistenceAdapter.findAll(
+        var inProgress = settlementPersistenceAdapter.findPage(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 null,
-                null
-        );
-        var all = settlementPersistenceAdapter.findAll(
+                null, null, null, 21);
+        var all = settlementPersistenceAdapter.findPage(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.ALL,
                 null,
-                null
-        );
+                null, null, null, 21);
 
         assertThat(inProgress).extracting(item -> item.settlementId())
                 .containsExactly(receiveSettlementId);
@@ -221,13 +241,12 @@ class SettlementListPersistenceIntegrationTest {
         RequestFixture request = insertReceiveRequest(600L);
         insertDeposit(request.shareId(), 300L);
 
-        var partiallyPaid = settlementPersistenceAdapter.findAll(
+        var partiallyPaid = settlementPersistenceAdapter.findPage(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 null,
-                null
-        );
+                null, null, null, 21);
 
         assertThat(partiallyPaid).singleElement().satisfies(item -> {
             assertThat(item.payableParticipantCount()).isEqualTo(1);
@@ -237,13 +256,12 @@ class SettlementListPersistenceIntegrationTest {
 
         insertDeposit(request.shareId(), 300L);
 
-        var fullyPaid = settlementPersistenceAdapter.findAll(
+        var fullyPaid = settlementPersistenceAdapter.findPage(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 null,
-                null
-        );
+                null, null, null, 21);
 
         assertThat(fullyPaid).singleElement().satisfies(item -> {
             // 분모와 분자가 같은 기준이라 전원 납부 시 100%가 된다.
@@ -266,13 +284,12 @@ class SettlementListPersistenceIntegrationTest {
         ));
         insertDeposit(creatorShareId, 100L);
 
-        var creatorOnlyPaid = settlementPersistenceAdapter.findAll(
+        var creatorOnlyPaid = settlementPersistenceAdapter.findPage(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 null,
-                null
-        );
+                null, null, null, 21);
 
         assertThat(creatorOnlyPaid).singleElement()
                 .extracting(item -> item.completedParticipantCount())
@@ -280,13 +297,12 @@ class SettlementListPersistenceIntegrationTest {
 
         insertDeposit(request.shareId(), 600L);
 
-        var payerPaid = settlementPersistenceAdapter.findAll(
+        var payerPaid = settlementPersistenceAdapter.findPage(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 null,
-                null
-        );
+                null, null, null, 21);
 
         assertThat(payerPaid).singleElement()
                 .extracting(item -> item.completedParticipantCount())
@@ -296,13 +312,12 @@ class SettlementListPersistenceIntegrationTest {
     @Test
     @DisplayName("PAY는 연결 참여자의 Share 금액과 요청자 이름을 조회한다")
     void loadsPaySettlementSummary() {
-        var result = settlementPersistenceAdapter.findAll(
+        var result = settlementPersistenceAdapter.findPage(
                 payerId,
                 SettlementListTab.PAY,
                 SettlementListStatusFilter.AWAITING_DEPOSIT,
                 null,
-                null
-        );
+                null, null, null, 21);
 
         assertThat(result).singleElement().satisfies(item -> {
             assertThat(item.settlementId()).isEqualTo(paySettlementId);
@@ -333,20 +348,18 @@ class SettlementListPersistenceIntegrationTest {
                  WHERE id = ?
                 """, unauthorizedGroupId, receiveCreatorParticipantId);
 
-        var matching = settlementPersistenceAdapter.findAll(
+        var matching = settlementPersistenceAdapter.findPage(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 groupId,
-                null
-        );
-        var notMatching = settlementPersistenceAdapter.findAll(
+                null, null, null, 21);
+        var notMatching = settlementPersistenceAdapter.findPage(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 unauthorizedGroupId,
-                null
-        );
+                null, null, null, 21);
 
         assertThat(matching).singleElement().satisfies(item -> {
             assertThat(item.settlementId()).isEqualTo(receiveSettlementId);
@@ -362,9 +375,9 @@ class SettlementListPersistenceIntegrationTest {
     @Test
     void acceptedYearMonthExtremesCanBeQueried() {
         for (YearMonth month : java.util.List.of(YearMonth.of(1, 1), YearMonth.of(9999, 12))) {
-            assertThat(settlementPersistenceAdapter.findAll(
+            assertThat(settlementPersistenceAdapter.findPage(
                     creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
-                    null, month)).isEmpty();
+                    null, month, null, null, 21)).isEmpty();
         }
     }
 
@@ -381,10 +394,10 @@ class SettlementListPersistenceIntegrationTest {
                 end.minusNanos(1000), end)) {
             jdbcTemplate.update("UPDATE settlements SET updated_at = ? WHERE id IN (?, ?)",
                     completedAt, receiveSettlementId, paySettlementId);
-            var receive = settlementPersistenceAdapter.findAll(
-                    creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, month);
-            var pay = settlementPersistenceAdapter.findAll(
-                    payerId, SettlementListTab.PAY, SettlementListStatusFilter.COMPLETED, null, month);
+            var receive = settlementPersistenceAdapter.findPage(
+                    creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, month, null, null, 21);
+            var pay = settlementPersistenceAdapter.findPage(
+                    payerId, SettlementListTab.PAY, SettlementListStatusFilter.COMPLETED, null, month, null, null, 21);
             boolean included = !completedAt.isBefore(start) && completedAt.isBefore(end);
             if (included) {
                 assertThat(receive).singleElement().satisfies(item -> {
@@ -401,8 +414,8 @@ class SettlementListPersistenceIntegrationTest {
                 assertThat(pay).isEmpty();
             }
         }
-        assertThat(settlementPersistenceAdapter.findAll(
-                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null))
+        assertThat(settlementPersistenceAdapter.findPage(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null, null, null, 21))
                 .singleElement().satisfies(item -> assertThat(item.completedAt()).isEqualTo(end));
     }
 
@@ -412,12 +425,12 @@ class SettlementListPersistenceIntegrationTest {
         for (SettlementStatus state : SettlementStatus.values()) {
             jdbcTemplate.update("UPDATE settlements SET status = ?, updated_at = ? WHERE id = ?",
                     state.name(), completedAt, receiveSettlementId);
-            var filtered = settlementPersistenceAdapter.findAll(
+            var filtered = settlementPersistenceAdapter.findPage(
                     creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL,
-                    null, YearMonth.of(2026, 9));
+                    null, YearMonth.of(2026, 9), null, null, 21);
             assertThat(filtered).hasSize(state == SettlementStatus.COMPLETED ? 1 : 0);
-            var unfiltered = settlementPersistenceAdapter.findAll(
-                    creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null);
+            var unfiltered = settlementPersistenceAdapter.findPage(
+                    creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null, null, null, 21);
             if (state != SettlementStatus.DRAFT) {
                 assertThat(unfiltered).singleElement().satisfies(item ->
                         assertThat(item.completedAt()).isEqualTo(
@@ -425,9 +438,9 @@ class SettlementListPersistenceIntegrationTest {
             }
         }
         jdbcTemplate.update("UPDATE settlements SET status = 'COMPLETED' WHERE id = ?", receiveSettlementId);
-        assertThat(settlementPersistenceAdapter.findAll(
+        assertThat(settlementPersistenceAdapter.findPage(
                 creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS,
-                null, YearMonth.of(2026, 9))).isEmpty();
+                null, YearMonth.of(2026, 9), null, null, 21)).isEmpty();
     }
 
     @Test
@@ -438,17 +451,214 @@ class SettlementListPersistenceIntegrationTest {
                 groupId, receivePayerParticipantId);
         jdbcTemplate.update("UPDATE settlements SET status = 'COMPLETED', updated_at = ? WHERE id = ?",
                 LocalDateTime.of(2026, 12, 31, 15, 0), receiveSettlementId);
-        assertThat(settlementPersistenceAdapter.findAll(
+        assertThat(settlementPersistenceAdapter.findPage(
                 creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
-                groupId, YearMonth.of(2027, 1))).hasSize(1);
-        assertThat(settlementPersistenceAdapter.findAll(
+                groupId, YearMonth.of(2027, 1), null, null, 21)).hasSize(1);
+        assertThat(settlementPersistenceAdapter.findPage(
                 creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
-                groupId, YearMonth.of(2026, 12))).isEmpty();
+                groupId, YearMonth.of(2026, 12), null, null, 21)).isEmpty();
         jdbcTemplate.update("UPDATE group_members SET status = 'LEFT', left_at = ? WHERE group_id = ? AND user_id = ?",
                 CREATED_AT, groupId, creatorId);
-        assertThat(settlementPersistenceAdapter.findAll(
+        assertThat(settlementPersistenceAdapter.findPage(
                 creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
-                groupId, YearMonth.of(2027, 1))).isEmpty();
+                groupId, YearMonth.of(2027, 1), null, null, 21)).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"UTC", "Asia/Seoul"})
+    void traversesTiedRequestTimesWithoutMissingOrDuplicatingRows(String timezone) {
+        var previousTimezone = java.util.TimeZone.getDefault();
+        try {
+            java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(timezone));
+            assertTiedRequestTimePages();
+        } finally {
+            java.util.TimeZone.setDefault(previousTimezone);
+        }
+    }
+
+    private void assertTiedRequestTimePages() {
+        jdbcTemplate.update("UPDATE settlements SET status = 'DRAFT' WHERE id = ?", receiveSettlementId);
+        List<UUID> ids = List.of(
+                UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"),
+                UUID.fromString("80000000-0000-0000-0000-000000000000"),
+                UUID.fromString("7fffffff-ffff-ffff-ffff-ffffffffffff"),
+                UUID.fromString("00000000-0000-0000-0000-000000000002"),
+                UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        LocalDateTime time = CREATED_AT.withNano(123456000);
+        for (UUID id : ids) {
+            jdbcTemplate.update("""
+                    INSERT INTO settlements (id, creator_id, title, total_amount, status, created_at, updated_at)
+                    VALUES (?, ?, 'pagination-tie', 600, 'AWAITING_DEPOSIT', ?, ?)
+                    """, id, creatorId, time, time);
+        }
+        // A link timestamp must take precedence over the settlement creation timestamp.
+        UUID linkedId = ids.get(1);
+        jdbcTemplate.update("UPDATE settlements SET created_at = ? WHERE id = ?", time.minusDays(1), linkedId);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_links (id, settlement_id, token_hash, status, expires_at, created_at, updated_at)
+                VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?)
+                """, UUID.randomUUID(), linkedId, randomExternalKey(), time.plusDays(1), time, time);
+        var service = listService(creatorId);
+        List<UUID> seen = new ArrayList<>();
+        String cursor = null;
+        for (int expectedSize : List.of(2, 2, 1)) {
+            var page = service.get(new GetSettlementsCommand(null, null, null, null, cursor, 2));
+            assertThat(page.items()).hasSize(expectedSize).allSatisfy(item ->
+                    assertThat(item.requestedAt()).isEqualTo(time));
+            seen.addAll(page.items().stream().map(SettlementListItemResult::settlementId).toList());
+            assertThat(page.hasNext()).isEqualTo(seen.size() < ids.size());
+            cursor = page.nextCursor();
+        }
+        assertThat(seen).containsExactlyElementsOf(ids);
+        assertThat(cursor).isNull();
+        assertThat(settlementPersistenceAdapter.findPage(creatorId, SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.ALL, null, null, time, ids.getLast(), 3)).isEmpty();
+        assertThat(listService(payerId).get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, null, null, null, null, 2)).items()).isEmpty();
+    }
+
+    @Test
+    void limitsLargeHistoryAndAggregationsForBothTabsAndMeasuresPlan() throws Exception {
+        insertLargeHistory(1200);
+        var receive = listService(creatorId).get(new GetSettlementsCommand(null, null, null, null, null, 50));
+        assertThat(receive.items()).hasSize(50).allSatisfy(item -> {
+            assertThat(item.totalAmount()).isEqualTo(600L);
+            assertThat(item.participantCount()).isEqualTo(2);
+            assertThat(item.payableParticipantCount()).isEqualTo(1);
+            assertThat(item.completedParticipantCount()).isEqualTo(1);
+        });
+        assertThat(receive.hasNext()).isTrue();
+        var pay = listService(payerId).get(new GetSettlementsCommand(
+                SettlementListTab.PAY, null, null, null, null, 50));
+        assertThat(pay.items()).hasSize(50).allSatisfy(item -> {
+            assertThat(item.amountToPay()).isEqualTo(600L);
+            assertThat(item.requesterName()).isEqualTo("받는 사람");
+        });
+        assertThat(pay.items()).extracting(SettlementListItemResult::settlementId)
+                .containsExactlyElementsOf(receive.items().stream().map(SettlementListItemResult::settlementId).toList());
+        var next = listService(creatorId).get(new GetSettlementsCommand(null, null, null, null, receive.nextCursor(), 50));
+        assertThat(next.items()).hasSize(50);
+        assertThat(next.items()).extracting(SettlementListItemResult::settlementId)
+                .doesNotContainAnyElementsOf(receive.items().stream().map(SettlementListItemResult::settlementId).toList());
+
+        String sql = java.util.Arrays.stream(SettlementJpaRepository.class.getMethods())
+                .filter(method -> method.getName().equals("findPageForUser")).findFirst().orElseThrow()
+                .getAnnotation(Query.class).value();
+        var params = new MapSqlParameterSource().addValue("userId", creatorId).addValue("tab", "RECEIVE")
+                .addValue("status", "IN_PROGRESS").addValue("groupId", null, java.sql.Types.BIGINT)
+                .addValue("completedFrom", null).addValue("completedBefore", null)
+                .addValue("cursorRequestedAt", null).addValue("cursorId", null).addValue("limit", 51);
+        for (String table : List.of("settlements", "settlement_participants", "settlement_shares",
+                "settlement_deposits", "account_transactions", "settlement_links")) {
+            jdbcTemplate.execute("ANALYZE " + table);
+        }
+        String planText = new NamedParameterJdbcTemplate(jdbcTemplate).queryForObject(
+                "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + sql, params, String.class);
+        Path report = Path.of("build/reports/settlement-pagination-explain.json");
+        Files.createDirectories(report.getParent());
+        Files.writeString(report, planText);
+        JsonNode plan = new ObjectMapper().readTree(planText);
+        List<JsonNode> nodes = new ArrayList<>();
+        collectPlanNodes(plan.get(0).path("Plan"), nodes);
+        assertThat(nodes).filteredOn(node -> node.has("Subplan Name")
+                        && "CTE selected_settlements".equals(node.path("Subplan Name").stringValue()))
+                .singleElement().satisfies(node -> assertThat(node.path("Actual Rows").asInt()).isEqualTo(51));
+        // With one payer/share per settlement, each grouped result is bounded by selected IDs.
+        assertThat(nodes).filteredOn(node -> node.path("Node Type").stringValue().contains("Aggregate"))
+                .hasSizeGreaterThanOrEqualTo(3).allSatisfy(node ->
+                        assertThat(node.path("Actual Rows").asInt()).isLessThanOrEqualTo(51));
+    }
+
+    @Test
+    void rechecksMonthAndGroupAccessOnEveryPage() {
+        insertLargeHistory(5);
+        Long groupId = insertGroup("페이지 그룹", creatorId);
+        insertGroupMember(groupId, creatorId, "ACTIVE");
+        jdbcTemplate.update("""
+                UPDATE settlement_participants SET source = 'GROUP_MEMBER', source_group_id = ?
+                 WHERE linked_user_id = ? AND settlement_id IN (
+                     SELECT id FROM settlements WHERE creator_id = ? AND title = 'pagination-bulk'
+                 )
+                """, groupId, payerId, creatorId);
+        jdbcTemplate.update("""
+                UPDATE settlements SET status = 'COMPLETED', updated_at = ?
+                 WHERE creator_id = ? AND title = 'pagination-bulk'
+                """, LocalDateTime.of(2026, 9, 1, 0, 0), creatorId);
+        var service = listService(creatorId);
+        var first = service.get(new GetSettlementsCommand(SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.COMPLETED, groupId, YearMonth.of(2026, 9), null, 2));
+        assertThat(first.items()).hasSize(2).allSatisfy(item -> {
+            assertThat(item.status()).isEqualTo(SettlementStatus.COMPLETED);
+            assertThat(item.groups()).singleElement().satisfies(group -> assertThat(group.groupId()).isEqualTo(groupId));
+        });
+        var second = service.get(new GetSettlementsCommand(SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.COMPLETED, groupId, YearMonth.of(2026, 9), first.nextCursor(), 2));
+        assertThat(second.items()).hasSize(2).doesNotContainAnyElementsOf(first.items());
+        assertThat(service.get(new GetSettlementsCommand(SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.COMPLETED, groupId, YearMonth.of(2026, 8), first.nextCursor(), 2)).items()).isEmpty();
+        assertThat(listService(otherUserId).get(new GetSettlementsCommand(SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.COMPLETED, groupId, YearMonth.of(2026, 9), first.nextCursor(), 2)).items()).isEmpty();
+        jdbcTemplate.update("UPDATE group_members SET status = 'LEFT', left_at = ? WHERE group_id = ? AND user_id = ?",
+                CREATED_AT, groupId, creatorId);
+        assertThat(service.get(new GetSettlementsCommand(SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.COMPLETED, groupId, YearMonth.of(2026, 9), first.nextCursor(), 2)).items()).isEmpty();
+    }
+
+    private SettlementListService listService(Long userId) {
+        CurrentActorPort actor = mock(CurrentActorPort.class);
+        when(actor.getCurrentActor()).thenReturn(new CurrentActor(userId));
+        return new SettlementListService(actor, settlementPersistenceAdapter);
+    }
+
+    private void collectPlanNodes(JsonNode node, List<JsonNode> nodes) {
+        nodes.add(node);
+        node.path("Plans").forEach(child -> collectPlanNodes(child, nodes));
+    }
+
+    private void insertLargeHistory(int count) {
+        jdbcTemplate.update("""
+                INSERT INTO settlements (id, creator_id, title, total_amount, status, created_at, updated_at)
+                SELECT md5('pagination-' || ? || '-' || n)::uuid, ?, 'pagination-bulk', 600,
+                       'AWAITING_DEPOSIT', timestamp '2029-01-01' + n * interval '1 microsecond', timestamp '2029-01-01'
+                  FROM generate_series(1, ?) n
+                """, creatorId, creatorId, count);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_participants
+                    (id, settlement_id, source, display_name, linked_user_id, display_order, created_at, updated_at)
+                SELECT md5(s.id::text || '-' || person.n)::uuid, s.id, 'REGISTERED_USER', '대량 참여자',
+                       CASE WHEN person.n = 0 THEN ? ELSE ? END, person.n, s.created_at, s.created_at
+                  FROM settlements s CROSS JOIN generate_series(0, 1) person(n)
+                 WHERE s.creator_id = ? AND s.title = 'pagination-bulk'
+                """, creatorId, payerId, creatorId);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_receiving_account_snapshots
+                    (settlement_id, source_account_id, organization, account_number_ciphertext, account_holder, created_at)
+                SELECT id, ?, '0020', 'test-snapshot', '받는 사람', created_at
+                  FROM settlements WHERE creator_id = ? AND title = 'pagination-bulk'
+                """, accountId, creatorId);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_shares (id, settlement_id, payer_participant_id, amount, created_at)
+                SELECT md5(s.id::text || '-share')::uuid, s.id, p.id, 600, s.created_at
+                  FROM settlements s JOIN settlement_participants p ON p.settlement_id = s.id
+                 WHERE s.creator_id = ? AND s.title = 'pagination-bulk' AND p.linked_user_id = ?
+                """, creatorId, payerId);
+        jdbcTemplate.update("""
+                INSERT INTO account_transactions
+                    (account_id, external_transaction_key, transaction_type, amount,
+                     transacted_at, description, after_balance, created_at, updated_at)
+                SELECT ?, replace(s.id::text, '-', '') || md5(s.id::text || n), 'INCOME', 300, s.created_at,
+                       'pagination-bulk', 100000, s.created_at, s.created_at
+                  FROM settlements s CROSS JOIN generate_series(1, 2) n
+                 WHERE s.creator_id = ? AND s.title = 'pagination-bulk'
+                """, accountId, creatorId);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_deposits
+                    (id, settlement_id, share_id, source_account_id, account_transaction_id, matched_at)
+                SELECT md5(t.external_transaction_key)::uuid, s.id, share.id, ?, t.id, s.created_at
+                  FROM settlements s JOIN settlement_shares share ON share.settlement_id = s.id
+                  JOIN account_transactions t ON left(t.external_transaction_key, 32) = replace(s.id::text, '-', '')
+                 WHERE s.creator_id = ? AND s.title = 'pagination-bulk' AND t.account_id = ?
+                """, accountId, creatorId, accountId);
     }
 
     private Long insertUser(String identityKey, String name) {
@@ -561,7 +771,9 @@ class SettlementListPersistenceIntegrationTest {
                         LocalDateTime.of(2030, 1, 1, 0, 0)
                 )
         );
-        return new RequestFixture(shareId, link.getCreatedAt());
+        LocalDateTime requestedAt = CREATED_AT.plusHours(2);
+        jdbcTemplate.update("UPDATE settlement_links SET created_at = ? WHERE id = ?", requestedAt, link.getId());
+        return new RequestFixture(shareId, requestedAt);
     }
 
     private void insertDeposit(UUID shareId, long amount) {
