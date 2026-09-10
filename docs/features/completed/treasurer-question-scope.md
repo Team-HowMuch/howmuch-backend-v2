@@ -137,7 +137,7 @@ Authentication: 기존 /api/** authenticated
 - Planned migration: N/A
 - Migration pull request (`Pending` / URL): N/A
 - Redis key, TTL, or serialization changes: 없음
-- External API or message changes: LLM 분류 호출 1건 추가. 기존 `treasurerLlmRestClient`와 `TreasurerLlmProperties`를 재사용한다.
+- External API or message changes: 없음. 관련성 판정을 규칙만으로 수행하므로 외부 호출을 추가하지 않는다.
 - Environment variable or profile changes: 없음
 
 ## 5. Design decisions
@@ -168,7 +168,7 @@ Authentication: 기존 /api/** authenticated
 | Redis | 없음 | - |
 | Security | 없음 | 기존 `/api/**` authenticated |
 | Configuration | 없음 | `TreasurerLlmProperties` 재사용 |
-| Documentation | 본 문서, `ai-treasurer.md` 갱신 | `docs/features/active/` |
+| Documentation | 본 문서, `ai-treasurer.md`의 의도 실패 응답 서술 갱신 | `docs/features/completed/treasurer-question-scope.md`, `docs/features/active/ai-treasurer.md` |
 
 Existing behavior that must remain unchanged:
 
