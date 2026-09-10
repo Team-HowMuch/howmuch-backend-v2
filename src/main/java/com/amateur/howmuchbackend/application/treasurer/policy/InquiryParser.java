@@ -74,10 +74,11 @@ public class InquiryParser {
         if (question == null || question.isBlank()) {
             return new ParsedInquiry(InquiryIntent.UNKNOWN, null, null);
         }
-        String compact = question.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        String spaceless = question.replaceAll("\\s+", "");
+        String compact = spaceless.toLowerCase(Locale.ROOT);
         InquiryPeriod period = periodOf(compact);
         InquiryIntent intent = intentOf(compact);
-        String titleHint = usesTitleFilter(intent) ? titleHint(compact) : null;
+        String titleHint = usesTitleFilter(intent) ? titleHint(compact, spaceless) : null;
         return new ParsedInquiry(intent, period, titleHint);
     }
 
@@ -123,11 +124,11 @@ public class InquiryParser {
         return InquiryIntent.UNKNOWN;
     }
 
-    private String titleHint(String compact) {
+    private String titleHint(String compact, String spaceless) {
         boolean[] grammar = grammarMask(compact);
         Matcher matcher = TITLE_SUFFIX.matcher(compact);
         while (matcher.find()) {
-            String candidate = titleAt(compact, grammar, matcher.start(), matcher.end());
+            String candidate = titleAt(compact, spaceless, grammar, matcher.start(), matcher.end());
             if (candidate != null) {
                 return candidate;
             }
@@ -139,7 +140,7 @@ public class InquiryParser {
      * 접미사(모임/정산) 앞을 문법 구간에 닿을 때까지만 거슬러 올라간다.
      * 문자열을 잘라내지 않으므로 후보는 항상 원문의 연속 부분 문자열이다.
      */
-    private String titleAt(String compact, boolean[] grammar, int suffixStart, int suffixEnd) {
+    private String titleAt(String compact, String spaceless, boolean[] grammar, int suffixStart, int suffixEnd) {
         int start = suffixStart;
         while (start > 0
                 && !grammar[start - 1]
@@ -151,7 +152,15 @@ public class InquiryParser {
         if (prefix.length() < MIN_TITLE_PREFIX || containsAny(prefix, TITLE_STOP_WORDS)) {
             return null;
         }
-        return compact.substring(start, suffixEnd);
+        return titleSource(compact, spaceless).substring(start, suffixEnd);
+    }
+
+    /**
+     * 제목은 `scopeLabel`의 안내 문구에 그대로 나가므로 원문 표기를 쓴다.
+     * 소문자 변환이 길이를 바꾼 경우에만 위치가 어긋나므로 소문자 쪽으로 물러선다.
+     */
+    private String titleSource(String compact, String spaceless) {
+        return spaceless.length() == compact.length() ? spaceless : compact;
     }
 
     /** 문법 어휘가 차지한 문자 위치를 표시한다. 제목 후보는 이 구간을 넘지 못한다. */

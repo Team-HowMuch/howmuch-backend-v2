@@ -157,6 +157,14 @@ class InquiryParserTest {
     }
 
     @Test
+    void keepsOriginalLetterCaseInTitleHint() {
+        InquiryParser.ParsedInquiry parsed = parser.parse("MT 정산에서 받을 돈 있어?");
+
+        assertThat(parsed.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parsed.titleHint()).isEqualTo("MT정산");
+    }
+
+    @Test
     void ignoresTitleHintWhenIntentDoesNotFilterByTitle() {
         InquiryParser.ParsedInquiry parsed = parser.parse("OCR 정산은 어떻게 해?");
 
