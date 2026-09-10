@@ -60,17 +60,21 @@ public class SettlementPersistenceAdapter implements
     }
 
     @Override
-    public List<SettlementListReadModel> findAll(
+    public List<SettlementListReadModel> findPage(
             Long userId,
             SettlementListTab tab,
             SettlementListStatusFilter status,
             Long groupId,
-            YearMonth yearMonth
+            YearMonth yearMonth,
+            LocalDateTime cursorRequestedAt,
+            UUID cursorId,
+            int limit
     ) {
-        var projections = settlementJpaRepository.findAllForUser(
+        var projections = settlementJpaRepository.findPageForUser(
                 userId, tab.name(), status.name(), groupId,
                 yearMonth == null ? null : monthStartUtc(yearMonth),
-                yearMonth == null ? null : monthStartUtc(yearMonth.plusMonths(1))
+                yearMonth == null ? null : monthStartUtc(yearMonth.plusMonths(1)),
+                cursorRequestedAt, cursorId, limit
         );
         if (projections.isEmpty()) {
             return List.of();
@@ -132,7 +136,7 @@ public class SettlementPersistenceAdapter implements
         return new SettlementListReadModel(
                 projection.getSettlementId(),
                 status,
-                projection.getRequestedAt(),
+                LocalDateTime.ofInstant(projection.getRequestedAt(), ZoneOffset.UTC),
                 projection.getCompletedAt() == null
                         ? null
                         : LocalDateTime.ofInstant(projection.getCompletedAt(), ZoneOffset.UTC),

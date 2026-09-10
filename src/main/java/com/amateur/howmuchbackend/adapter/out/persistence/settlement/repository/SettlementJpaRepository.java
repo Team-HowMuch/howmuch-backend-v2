@@ -17,62 +17,11 @@ import java.util.UUID;
 
 public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEntity, UUID> {
     @Query(value = """
-            SELECT
-                settlement.id AS settlementId,
-                settlement.status AS status,
-                COALESCE(link.created_at, settlement.created_at) AS requestedAt,
-                CASE WHEN settlement.status = 'COMPLETED' THEN settlement.updated_at AT TIME ZONE 'UTC' END AS completedAt,
-                settlement.total_amount AS totalAmount,
-                settlement.allocation_type AS allocationType,
-                creator.name AS requesterName,
-                COUNT(DISTINCT participant.id) AS participantCount,
-                COUNT(DISTINCT CASE
-                        WHEN participant.linked_user_id IS NULL
-                             OR participant.linked_user_id <> settlement.creator_id
-                        THEN participant.id
-                    END) AS payableParticipantCount,
-                MAX(payment_summary.completed_participant_count) AS completedParticipantCount,
-                MAX(CASE
-                        WHEN participant.linked_user_id = :userId THEN share.amount
-                    END) AS amountToPay
-              FROM settlements settlement
-              JOIN users creator
-                ON creator.id = settlement.creator_id
-              LEFT JOIN settlement_participants participant
-                ON participant.settlement_id = settlement.id
-              LEFT JOIN settlement_shares share
-                ON share.settlement_id = settlement.id
-               AND share.payer_participant_id = participant.id
-              LEFT JOIN settlement_links link
-                ON link.settlement_id = settlement.id
-              LEFT JOIN (
-                    SELECT payable_share.settlement_id,
-                           COUNT(*) FILTER (
-                               WHERE COALESCE(confirmed.confirmed_amount, 0)
-                                     >= payable_share.amount
-                           ) AS completed_participant_count
-                      FROM settlement_shares payable_share
-                      JOIN settlement_participants payer
-                        ON payer.settlement_id = payable_share.settlement_id
-                       AND payer.id = payable_share.payer_participant_id
-                      JOIN settlements payable_settlement
-                        ON payable_settlement.id = payable_share.settlement_id
-                 LEFT JOIN (
-                            SELECT deposit.settlement_id,
-                                   deposit.share_id,
-                                   SUM(account_transaction.amount) AS confirmed_amount
-                              FROM settlement_deposits deposit
-                              JOIN account_transactions account_transaction
-                                ON account_transaction.id = deposit.account_transaction_id
-                             GROUP BY deposit.settlement_id, deposit.share_id
-                           ) confirmed
-                        ON confirmed.settlement_id = payable_share.settlement_id
-                       AND confirmed.share_id = payable_share.id
-                     WHERE payer.linked_user_id IS NULL
-                        OR payer.linked_user_id <> payable_settlement.creator_id
-                     GROUP BY payable_share.settlement_id
-                ) payment_summary
-                ON payment_summary.settlement_id = settlement.id
+            WITH selected_settlements AS MATERIALIZED (
+                SELECT settlement.id,
+                       COALESCE(link.created_at, settlement.created_at) AS requested_at
+                  FROM settlements settlement
+                  LEFT JOIN settlement_links link ON link.settlement_id = settlement.id
              WHERE (
                     (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
                     OR (
@@ -122,17 +71,87 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                            AND group_participant.source_group_id = :groupId
                     )
                 )
-             GROUP BY settlement.id, settlement.status, settlement.created_at, link.created_at,
+               AND (
+                    CAST(:cursorRequestedAt AS timestamp) IS NULL
+                    OR (COALESCE(link.created_at, settlement.created_at), settlement.id)
+                       < (CAST(:cursorRequestedAt AS timestamp), CAST(:cursorId AS uuid))
+                )
+                 ORDER BY COALESCE(link.created_at, settlement.created_at) DESC, settlement.id DESC
+                 LIMIT :limit
+            )
+            SELECT
+                settlement.id AS settlementId,
+                settlement.status AS status,
+                selected.requested_at AT TIME ZONE 'UTC' AS requestedAt,
+                CASE WHEN settlement.status = 'COMPLETED' THEN settlement.updated_at AT TIME ZONE 'UTC' END AS completedAt,
+                settlement.total_amount AS totalAmount,
+                settlement.allocation_type AS allocationType,
+                creator.name AS requesterName,
+                COUNT(DISTINCT participant.id) AS participantCount,
+                COUNT(DISTINCT CASE
+                        WHEN participant.linked_user_id IS NULL
+                             OR participant.linked_user_id <> settlement.creator_id
+                        THEN participant.id
+                    END) AS payableParticipantCount,
+                MAX(payment_summary.completed_participant_count) AS completedParticipantCount,
+                MAX(CASE
+                        WHEN participant.linked_user_id = :userId THEN share.amount
+                    END) AS amountToPay
+              FROM selected_settlements selected
+              JOIN settlements settlement ON settlement.id = selected.id
+              JOIN users creator
+                ON creator.id = settlement.creator_id
+              LEFT JOIN settlement_participants participant
+                ON participant.settlement_id = settlement.id
+              LEFT JOIN settlement_shares share
+                ON share.settlement_id = settlement.id
+               AND share.payer_participant_id = participant.id
+              LEFT JOIN (
+                    SELECT payable_share.settlement_id,
+                           COUNT(*) FILTER (
+                               WHERE COALESCE(confirmed.confirmed_amount, 0)
+                                     >= payable_share.amount
+                           ) AS completed_participant_count
+                      FROM selected_settlements payable_selected
+                      JOIN settlement_shares payable_share
+                        ON payable_share.settlement_id = payable_selected.id
+                      JOIN settlement_participants payer
+                        ON payer.settlement_id = payable_share.settlement_id
+                       AND payer.id = payable_share.payer_participant_id
+                      JOIN settlements payable_settlement
+                        ON payable_settlement.id = payable_share.settlement_id
+                 LEFT JOIN (
+                            SELECT deposit.settlement_id,
+                                   deposit.share_id,
+                                   SUM(account_transaction.amount) AS confirmed_amount
+                              FROM selected_settlements deposit_selected
+                              JOIN settlement_deposits deposit
+                                ON deposit.settlement_id = deposit_selected.id
+                              JOIN account_transactions account_transaction
+                                ON account_transaction.id = deposit.account_transaction_id
+                             GROUP BY deposit.settlement_id, deposit.share_id
+                           ) confirmed
+                        ON confirmed.settlement_id = payable_share.settlement_id
+                       AND confirmed.share_id = payable_share.id
+                     WHERE payer.linked_user_id IS NULL
+                        OR payer.linked_user_id <> payable_settlement.creator_id
+                     GROUP BY payable_share.settlement_id
+                ) payment_summary
+                ON payment_summary.settlement_id = settlement.id
+             GROUP BY settlement.id, settlement.status, selected.requested_at,
                       settlement.total_amount, settlement.allocation_type, creator.name
-             ORDER BY COALESCE(link.created_at, settlement.created_at) DESC, settlement.id DESC
+             ORDER BY selected.requested_at DESC, settlement.id DESC
             """, nativeQuery = true)
-    List<SettlementListProjection> findAllForUser(
+    List<SettlementListProjection> findPageForUser(
             @Param("userId") Long userId,
             @Param("tab") String tab,
             @Param("status") String status,
             @Param("groupId") Long groupId,
             @Param("completedFrom") Instant completedFrom,
-            @Param("completedBefore") Instant completedBefore
+            @Param("completedBefore") Instant completedBefore,
+            @Param("cursorRequestedAt") LocalDateTime cursorRequestedAt,
+            @Param("cursorId") UUID cursorId,
+            @Param("limit") int limit
     );
 
     @Query(value = """
@@ -232,7 +251,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
 
         String getStatus();
 
-        LocalDateTime getRequestedAt();
+        Instant getRequestedAt();
 
         Instant getCompletedAt();
 

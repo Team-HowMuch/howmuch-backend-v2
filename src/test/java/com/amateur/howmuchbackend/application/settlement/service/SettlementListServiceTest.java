@@ -52,30 +52,27 @@ class SettlementListServiceTest {
                 List.of(new SettlementListReadModel.GroupSummary(10L, "여행 모임", true))
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
-        when(loadSettlementListPort.findAll(
+        when(loadSettlementListPort.findPage(
                 USER_ID,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 10L,
-                null
-        ))
+                null, null, null, 21))
                 .thenReturn(List.of(readModel));
 
         var result = service.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 10L,
-                null
-        ));
+                null, null, null));
 
-        verify(loadSettlementListPort).findAll(
+        verify(loadSettlementListPort).findPage(
                 USER_ID,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 10L,
-                null
-        );
-        assertThat(result).containsExactly(new SettlementListItemResult(
+                null, null, null, 21);
+        assertThat(result.items()).containsExactly(new SettlementListItemResult(
                 SETTLEMENT_ID,
                 SettlementStatus.AWAITING_DEPOSIT,
                 LocalDateTime.of(2026, 8, 13, 0, 0),
@@ -102,11 +99,11 @@ class SettlementListServiceTest {
                 SETTLEMENT_ID, SettlementStatus.COMPLETED, completedAt.minusMonths(1), completedAt,
                 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 1, null, null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
-        when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.COMPLETED, 10L, month)).thenReturn(List.of(readModel));
+        when(loadSettlementListPort.findPage(USER_ID, SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.COMPLETED, 10L, month, null, null, 21)).thenReturn(List.of(readModel));
         var service = new SettlementListService(currentActorPort, loadSettlementListPort);
         assertThat(service.get(new GetSettlementsCommand(
-                SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED, 10L, month)))
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED, 10L, month, null, null)).items())
                 .singleElement().satisfies(item -> {
                     assertThat(item.completedAt()).isEqualTo(completedAt);
                     assertThat(item.requestedAt()).isEqualTo(completedAt.minusMonths(1));
