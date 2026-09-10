@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.treasurer.policy;
 
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.treasurer.PersonalSettlement;
 import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
@@ -63,6 +64,77 @@ class TreasurerCardCopyTest {
         assertThat(copy.item(completed, now).headline()).isEqualTo("9,000원 지출");
         assertThat(copy.item(completed, now).subtitle()).isEqualTo("요청자 요청 - 완료");
         assertThat(copy.item(completed, now).marker()).isEqualTo(TreasurerCardMarker.NONE);
+    }
+
+    @Test
+    void carriesAllocationTypeAndStatusOnEveryCardBranch() {
+        Instant now = Instant.parse("2026-08-26T00:00:00Z");
+        PersonalSettlement outstandingSend = new PersonalSettlement(
+                UUID.randomUUID(),
+                "여행",
+                SettlementDirection.SEND,
+                SettlementStatus.AWAITING_DEPOSIT,
+                LocalDateTime.of(2026, 8, 13, 0, 0),
+                200L,
+                "빵장",
+                0,
+                0,
+                SettlementAllocationType.ITEM_ALLOCATION
+        );
+        PersonalSettlement completedSend = new PersonalSettlement(
+                UUID.randomUUID(),
+                "회식",
+                SettlementDirection.SEND,
+                SettlementStatus.COMPLETED,
+                LocalDateTime.of(2026, 8, 2, 0, 0),
+                9_000L,
+                "요청자",
+                0,
+                0,
+                SettlementAllocationType.DUTCH_PAY
+        );
+        PersonalSettlement receive = new PersonalSettlement(
+                UUID.randomUUID(),
+                "회식",
+                SettlementDirection.RECEIVE,
+                SettlementStatus.AWAITING_DEPOSIT,
+                LocalDateTime.of(2026, 8, 13, 0, 0),
+                600L,
+                "나",
+                3,
+                1,
+                SettlementAllocationType.DUTCH_PAY
+        );
+
+        assertThat(copy.item(outstandingSend, now)).satisfies(card -> {
+            assertThat(card.allocationType()).isEqualTo(SettlementAllocationType.ITEM_ALLOCATION);
+            assertThat(card.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        });
+        assertThat(copy.item(completedSend, now)).satisfies(card -> {
+            assertThat(card.allocationType()).isEqualTo(SettlementAllocationType.DUTCH_PAY);
+            assertThat(card.status()).isEqualTo(SettlementStatus.COMPLETED);
+        });
+        assertThat(copy.item(receive, now)).satisfies(card -> {
+            assertThat(card.allocationType()).isEqualTo(SettlementAllocationType.DUTCH_PAY);
+            assertThat(card.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        });
+    }
+
+    @Test
+    void keepsAllocationTypeNullWhenNotDecidedYet() {
+        Instant now = Instant.parse("2026-08-26T00:00:00Z");
+        PersonalSettlement notDecided = new PersonalSettlement(
+                UUID.randomUUID(),
+                "여행",
+                SettlementDirection.SEND,
+                SettlementStatus.REQUESTED,
+                LocalDateTime.of(2026, 8, 13, 0, 0),
+                200L,
+                "빵장"
+        );
+
+        assertThat(copy.item(notDecided, now).allocationType()).isNull();
+        assertThat(copy.item(notDecided, now).status()).isEqualTo(SettlementStatus.REQUESTED);
     }
 
     @Test
