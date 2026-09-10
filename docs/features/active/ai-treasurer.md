@@ -19,7 +19,7 @@
 
 - [x] 로그인 사용자가 본인 정산 현황 요약(받을/보낼/진행 중/완료 건수·금액, 안내 문구 1개)을 조회한다.
 - [x] 자연어 질문으로 보낼 정산, 받을 정산, 진행 상태, 지출 요약을 조회한다. 기간(`이번 달`/`지난달`)·정산 제목(모임명 대용) 필터와 조회 기준 안내를 포함한다.
-- [x] 의도 파악 실패 시 예시 질문을 안내한다.
+- [x] 의도 파악 실패 시, 서비스와 관련된 질문이면 되묻고 무관한 질문이면 예시 질문을 안내한다.
 - [x] 미완료 정산을 보낼/받을·장기 미처리 우선순위로 안내하고 화면 이동 액션만 제공한다.
 - [x] 정산 데이터를 변경하지 않는다.
 - [x] 질의 답변 문장은 OpenAI 또는 Gemini로 생성하고, 키/호출 실패 시 서버 템플릿으로 내려간다.
@@ -77,7 +77,8 @@
 ### Boundary conditions
 
 - 정산 없음: 금액 0, “현재 처리할 정산이 없어요.”
-- 질문 의도 없음: UNKNOWN + 예시
+- 질문 의도 없음 + 서비스 무관: UNKNOWN + 예시
+- 질문 의도 없음 + 서비스 관련: UNKNOWN + 되묻기(`TreasurerCardCopy.CLARIFY_ANSWER`) + 예시 칩
 - 기간/제목 필터 후 0건: 건수 0 안내
 
 ## 4. Contracts
@@ -108,6 +109,7 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 ## 5. Design decisions
 
 - 의도 분류는 키워드 (`InquiryParser`). 금액·건수는 서버가 계산한다.
+- 세부 의도 분류에 실패하면 `InquiryScopePolicy`가 서비스 관련성을 다시 판정한다. 관련이면 되묻고 무관이면 범위를 안내한다. 응답 `intent`는 두 경우 모두 `UNKNOWN`이며 `answer` 문구로 구분한다. 상세는 `treasurer-question-scope.md`(#317) 참고.
 - `answer` 문장만 OpenAI(`gpt-4o-mini`) 또는 Gemini(`gemini-flash-latest`)가 생성한다. `TREASURER_LLM_PROVIDER=none` 이거나 키/호출 실패면 템플릿 문장을 쓴다.
 - 기존 `LoadSettlementListPort`는 title이 없어 treasurer 전용 조회를 둔다. 목록 HTTP 계약은 변경하지 않는다.
 - 내부 시각은 UTC 저장값을 쓰되, `이번 달`은 Asia/Seoul 달력이다.

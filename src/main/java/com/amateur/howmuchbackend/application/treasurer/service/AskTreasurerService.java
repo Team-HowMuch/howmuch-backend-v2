@@ -4,8 +4,10 @@ import com.amateur.howmuchbackend.application.port.in.treasurer.AskTreasurerUseC
 import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreasurerCommand;
 import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerAnswerResult;
 import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
+import com.amateur.howmuchbackend.application.treasurer.model.InquiryScope;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
+import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerAnswerFactCheck;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerCardCopy;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
@@ -36,6 +38,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
 
     private final TreasurerSettlementQuery treasurerSettlementQuery;
     private final InquiryParser inquiryParser;
+    private final InquiryScopePolicy inquiryScopePolicy;
     private final GenerateTreasurerAnswerPort generateTreasurerAnswerPort;
     private final TreasurerAnswerFactCheck treasurerAnswerFactCheck;
     private final TreasurerCardCopy treasurerCardCopy;
@@ -46,11 +49,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     public TreasurerAnswerResult ask(AskTreasurerCommand command) {
         InquiryParser.ParsedInquiry parsed = inquiryParser.parse(command.question());
         if (parsed.intent() == InquiryIntent.UNKNOWN) {
-            return textAnswer(
-                    InquiryIntent.UNKNOWN,
-                    TreasurerCardCopy.UNKNOWN_ANSWER,
-                    treasurerCardCopy.suggestions().stream().map(this::toPrompt).toList()
-            );
+            return unmatchedAnswer(command.question());
         }
         if (parsed.intent() == InquiryIntent.GUIDE) {
             return textAnswer(InquiryIntent.GUIDE, TreasurerCardCopy.OCR_ANSWER, List.of());
@@ -119,6 +118,17 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             );
             case GUIDE, UNKNOWN -> throw new IllegalStateException("이미 처리됨");
         };
+    }
+
+    private TreasurerAnswerResult unmatchedAnswer(String question) {
+        String answer = inquiryScopePolicy.classify(question) == InquiryScope.RELATED
+                ? TreasurerCardCopy.CLARIFY_ANSWER
+                : TreasurerCardCopy.UNKNOWN_ANSWER;
+        return textAnswer(
+                InquiryIntent.UNKNOWN,
+                answer,
+                treasurerCardCopy.suggestions().stream().map(this::toPrompt).toList()
+        );
     }
 
     private TreasurerAnswerResult textAnswer(
