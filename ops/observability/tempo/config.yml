@@ -1,3 +1,5 @@
+stream_over_http_enabled: true
+
 server:
   http_listen_port: 3200
 
@@ -8,12 +10,11 @@ distributor:
         http:
           endpoint: 0.0.0.0:4318
 
-ingester:
-  max_block_duration: 5m
-
-compactor:
-  compaction:
-    block_retention: 360h
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 360h
 
 storage:
   trace:
