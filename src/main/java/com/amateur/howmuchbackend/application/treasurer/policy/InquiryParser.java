@@ -5,7 +5,6 @@ import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -27,7 +26,12 @@ public class InquiryParser {
     private static final List<String> DUE_KEYWORDS = List.of("마감해야 할 정산", "마감할 정산", "마감해야", "마감할", "마감");
     private static final List<String> GUIDE_KEYWORDS = List.of("ocr", "영수증");
     private static final List<String> FILLER_KEYWORDS = List.of("알려줘", "어떻게해", "어떻게", "누구야", "있어");
-    private static final Pattern TITLE_HINT = Pattern.compile("([가-힣A-Za-z0-9]{1,20}(?:모임|정산))");
+    private static final Pattern TITLE_SUFFIX = Pattern.compile("모임|정산");
+    private static final List<String> TITLE_STOP_WORDS = List.of(
+            "왜", "언제", "어디", "어떤", "무슨", "뭐", "누가", "누구", "얼마", "아직", "지금", "방금"
+    );
+    private static final int MIN_TITLE_PREFIX = 2;
+    private static final int MAX_TITLE_PREFIX = 20;
 
     public ParsedInquiry parse(String question) {
         if (question == null || question.isBlank()) {
@@ -36,7 +40,7 @@ public class InquiryParser {
         String compact = question.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
         InquiryPeriod period = periodOf(compact);
         InquiryIntent intent = intentOf(compact);
-        String titleHint = titleHint(question);
+        String titleHint = usesTitleFilter(intent) ? titleHint(compact) : null;
         return new ParsedInquiry(intent, period, titleHint);
     }
 
@@ -82,19 +86,57 @@ public class InquiryParser {
         return InquiryIntent.UNKNOWN;
     }
 
-    private String titleHint(String question) {
-        Matcher matcher = TITLE_HINT.matcher(stripQueryGrammar(question.replaceAll("\\s+", "")));
+    private String titleHint(String compact) {
+        boolean[] grammar = grammarMask(compact);
+        Matcher matcher = TITLE_SUFFIX.matcher(compact);
         while (matcher.find()) {
-            String candidate = matcher.group(1);
-            if (!isQueryGrammar(candidate)) {
+            String candidate = titleAt(compact, grammar, matcher.start(), matcher.end());
+            if (candidate != null) {
                 return candidate;
             }
         }
         return null;
     }
 
-    private String stripQueryGrammar(String compact) {
-        String remainder = compact;
+    /**
+     * 접미사(모임/정산) 앞을 문법 구간에 닿을 때까지만 거슬러 올라간다.
+     * 문자열을 잘라내지 않으므로 후보는 항상 원문의 연속 부분 문자열이다.
+     */
+    private String titleAt(String compact, boolean[] grammar, int suffixStart, int suffixEnd) {
+        int start = suffixStart;
+        while (start > 0
+                && !grammar[start - 1]
+                && suffixStart - (start - 1) <= MAX_TITLE_PREFIX
+                && isNameCharacter(compact.charAt(start - 1))) {
+            start--;
+        }
+        String prefix = compact.substring(start, suffixStart);
+        if (prefix.length() < MIN_TITLE_PREFIX || containsAny(prefix, TITLE_STOP_WORDS)) {
+            return null;
+        }
+        return compact.substring(start, suffixEnd);
+    }
+
+    /** 문법 어휘가 차지한 문자 위치를 표시한다. 제목 후보는 이 구간을 넘지 못한다. */
+    private boolean[] grammarMask(String compact) {
+        boolean[] mask = new boolean[compact.length()];
+        for (String phrase : grammarPhrases()) {
+            String needle = compactPhrase(phrase);
+            if (needle.isEmpty()) {
+                continue;
+            }
+            int from = compact.indexOf(needle);
+            while (from >= 0) {
+                for (int i = from; i < from + needle.length(); i++) {
+                    mask[i] = true;
+                }
+                from = compact.indexOf(needle, from + 1);
+            }
+        }
+        return mask;
+    }
+
+    private List<String> grammarPhrases() {
         List<String> phrases = new ArrayList<>();
         phrases.addAll(PERIOD_THIS_WEEK);
         phrases.addAll(PERIOD_THIS_MONTH);
@@ -107,26 +149,14 @@ public class InquiryParser {
         phrases.addAll(DUE_KEYWORDS);
         phrases.addAll(GUIDE_KEYWORDS);
         phrases.addAll(FILLER_KEYWORDS);
-        phrases.sort(Comparator.comparingInt((String phrase) -> compactPhrase(phrase).length()).reversed());
-        for (String phrase : phrases) {
-            remainder = remainder.replace(compactPhrase(phrase), "");
-        }
-        return remainder;
+        return phrases;
     }
 
-    private boolean isQueryGrammar(String candidate) {
-        String compact = compactPhrase(candidate).toLowerCase(Locale.ROOT);
-        return containsAny(compact, PERIOD_THIS_WEEK)
-                || containsAny(compact, PERIOD_THIS_MONTH)
-                || containsAny(compact, PERIOD_LAST_MONTH)
-                || containsAny(compact, SEND_KEYWORDS)
-                || containsAny(compact, RECEIVE_KEYWORDS)
-                || containsAny(compact, UNPAID_TO_ME)
-                || containsAny(compact, EXPENSE_KEYWORDS)
-                || containsAny(compact, STATUS_KEYWORDS)
-                || containsAny(compact, DUE_KEYWORDS)
-                || containsAny(compact, GUIDE_KEYWORDS)
-                || containsAny(compact, FILLER_KEYWORDS);
+    private boolean isNameCharacter(char value) {
+        return (value >= '가' && value <= '힣')
+                || (value >= 'a' && value <= 'z')
+                || (value >= 'A' && value <= 'Z')
+                || (value >= '0' && value <= '9');
     }
 
     private boolean containsAny(String compact, List<String> phrases) {
@@ -142,6 +172,14 @@ public class InquiryParser {
             }
         }
         return earliest;
+    }
+
+    private boolean usesTitleFilter(InquiryIntent intent) {
+        return intent == InquiryIntent.SEND_SETTLEMENTS
+                || intent == InquiryIntent.RECEIVE_SETTLEMENTS
+                || intent == InquiryIntent.SETTLEMENT_STATUS
+                || intent == InquiryIntent.EXPENSE_SUMMARY
+                || intent == InquiryIntent.DUE_SETTLEMENTS;
     }
 
     private String compactPhrase(String phrase) {
