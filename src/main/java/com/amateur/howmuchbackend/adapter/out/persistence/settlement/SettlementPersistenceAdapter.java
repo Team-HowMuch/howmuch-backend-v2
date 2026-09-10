@@ -158,12 +158,12 @@ public class SettlementPersistenceAdapter implements
     }
 
     @Override
-    public boolean existsDraftByReceivingAccountId(Long accountId) {
-        return settlementJpaRepository.existsByReceivingAccountIdAndStatus(accountId, SettlementStatus.DRAFT);
+    public boolean existsInProgressByReceivingAccountId(Long accountId) {
+        return settlementJpaRepository.existsByReceivingAccountIdAndStatusNot(accountId, SettlementStatus.COMPLETED);
     }
 
     @Override
-    public void detachIssuedByReceivingAccountId(Long accountId) {
-        settlementJpaRepository.detachIssuedByReceivingAccountId(accountId, SettlementStatus.DRAFT);
+    public void detachCompletedByReceivingAccountId(Long accountId) {
+        settlementJpaRepository.detachCompletedByReceivingAccountId(accountId, SettlementStatus.COMPLETED);
     }
 }

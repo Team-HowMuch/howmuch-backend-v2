@@ -302,17 +302,17 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         long getCompletedPayerCount();
     }
 
-    boolean existsByReceivingAccountIdAndStatus(Long accountId, SettlementStatus status);
+    boolean existsByReceivingAccountIdAndStatusNot(Long accountId, SettlementStatus status);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update SettlementJpaEntity settlement
                set settlement.receivingAccountId = null
              where settlement.receivingAccountId = :accountId
-               and settlement.status <> :draftStatus
+               and settlement.status = :completedStatus
             """)
-    int detachIssuedByReceivingAccountId(
+    int detachCompletedByReceivingAccountId(
             @Param("accountId") Long accountId,
-            @Param("draftStatus") SettlementStatus draftStatus
+            @Param("completedStatus") SettlementStatus completedStatus
     );
 }
