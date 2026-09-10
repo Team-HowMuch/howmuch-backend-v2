@@ -19,11 +19,12 @@ public interface CommonCodeJpaRepository extends JpaRepository<CommonCodeJpaEnti
     List<CommonCodeJpaEntity> findAllByGroupCode(@Param("groupCode") String groupCode);
 
     @Query("""
-           select count(commonCode)
+           select commonCode.id.groupCode as groupCode, count(commonCode) as detailCount
              from CommonCodeJpaEntity commonCode
-            where commonCode.id.groupCode = :groupCode
+            where commonCode.id.groupCode in :groupCodes
+            group by commonCode.id.groupCode
            """)
-    long countByGroupCode(@Param("groupCode") String groupCode);
+    List<GroupDetailCountProjection> countByGroupCodes(@Param("groupCodes") List<String> groupCodes);
 
     @Query("""
             select commonCode
@@ -75,4 +76,10 @@ public interface CommonCodeJpaRepository extends JpaRepository<CommonCodeJpaEnti
             @Param("groupCode") String groupCode,
             @Param("code") String code
     );
+
+    interface GroupDetailCountProjection {
+        String getGroupCode();
+
+        long getDetailCount();
+    }
 }
