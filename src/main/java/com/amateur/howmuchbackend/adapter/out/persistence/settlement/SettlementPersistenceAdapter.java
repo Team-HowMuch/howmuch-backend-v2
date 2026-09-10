@@ -19,6 +19,11 @@ import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,9 +64,14 @@ public class SettlementPersistenceAdapter implements
             Long userId,
             SettlementListTab tab,
             SettlementListStatusFilter status,
-            Long groupId
+            Long groupId,
+            YearMonth yearMonth
     ) {
-        var projections = settlementJpaRepository.findAllForUser(userId, tab.name(), status.name(), groupId);
+        var projections = settlementJpaRepository.findAllForUser(
+                userId, tab.name(), status.name(), groupId,
+                yearMonth == null ? null : monthStartUtc(yearMonth),
+                yearMonth == null ? null : monthStartUtc(yearMonth.plusMonths(1))
+        );
         if (projections.isEmpty()) {
             return List.of();
         }
@@ -92,6 +102,11 @@ public class SettlementPersistenceAdapter implements
                 .toList();
     }
 
+    private Instant monthStartUtc(YearMonth yearMonth) {
+        return yearMonth.atDay(1).atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .toInstant();
+    }
+
     @Override
     public Settlement update(Settlement settlement) {
         var entity = settlementJpaRepository.findById(settlement.id())
@@ -118,6 +133,9 @@ public class SettlementPersistenceAdapter implements
                 projection.getSettlementId(),
                 status,
                 projection.getRequestedAt(),
+                projection.getCompletedAt() == null
+                        ? null
+                        : LocalDateTime.ofInstant(projection.getCompletedAt(), ZoneOffset.UTC),
                 tab == SettlementListTab.RECEIVE ? projection.getTotalAmount() : null,
                 projection.getAllocationType() == null
                         ? null
