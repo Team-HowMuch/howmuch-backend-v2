@@ -1,7 +1,5 @@
 # Feature Plan: 정산 목록 조회
 
-> 현재 페이지 계약은 [정산 목록 페이지네이션](settlement-pagination.md)을 따른다. #310에서 기존 배열 응답을 `items`, `nextCursor`, `hasNext` 객체로 변경하고 기본 20건·최대 50건을 적용했다. 아래 내용은 최초 구현 기록이다.
-
 - Status: Completed
 - Last updated: 2026-08-28
 - Related issue: [#192 정산 목록 실제 납부 완료 인원 집계](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/192), [#128 정산 목록 조회 API 및 사용자별 상태 요약](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/128), [#129 정산 목록 조회 계약 및 UseCase 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/129), [#130 정산 목록 조회 및 사용자별 금액 요약 구현](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/130), [#131 정산 목록 조회 Swagger 및 통합 검증 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/131)

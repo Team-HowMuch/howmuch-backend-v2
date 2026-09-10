@@ -7,8 +7,6 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum SettlementStatusCode implements StatusCode {
-    INVALID_SETTLEMENT_PAGE_SIZE("정산 목록 크기는 1 이상 50 이하여야 합니다.", 400),
-    INVALID_SETTLEMENT_CURSOR("정산 목록 커서가 올바르지 않습니다.", 400),
     INVALID_SETTLEMENT_TITLE("정산 제목은 1자 이상 100자 이하여야 합니다.", 400),
     INVALID_SETTLEMENT_AMOUNT("정산 총액은 1원 이상이어야 합니다.", 400),
     INVALID_SETTLEMENT_UPDATE("수정할 제목 또는 총액이 필요합니다.", 400),
