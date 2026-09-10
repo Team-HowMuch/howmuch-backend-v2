@@ -15,14 +15,42 @@ public class InquiryParser {
     private static final List<String> PERIOD_THIS_WEEK = List.of("이번주", "이번 주");
     private static final List<String> PERIOD_THIS_MONTH = List.of("이번달", "이번 달");
     private static final List<String> PERIOD_LAST_MONTH = List.of("지난달", "지난 달", "저번달", "저번 달");
-    private static final List<String> SEND_KEYWORDS = List.of("보낼", "내야", "보내야", "낼정산", "송금");
-    private static final List<String> RECEIVE_KEYWORDS = List.of("받을", "받을돈", "받을금액", "받아야");
+    /** 내가 낼 돈을 가리키는 표현 */
+    private static final List<String> SEND_SUBJECT = List.of("보낼", "낼정산", "보낼돈", "낼돈");
+    /** 내가 내야 한다는 의무 표현 */
+    private static final List<String> SEND_OBLIGATION = List.of("내야", "보내야", "줘야", "부담해야", "부담할", "지불해야");
+    /** 아직 내지 않았다는 미납 표현 */
+    private static final List<String> SEND_UNPAID = List.of("송금", "안보낸", "안냈", "안낸");
+    private static final List<String> SEND_KEYWORDS =
+            merge(SEND_SUBJECT, SEND_OBLIGATION, SEND_UNPAID);
+
+    /** 내가 받을 돈을 가리키는 표현 */
+    private static final List<String> RECEIVE_SUBJECT = List.of("받을", "받을돈", "받을금액");
+    /** 받아야 한다는 의무 표현과 입금 예정 표현 */
+    private static final List<String> RECEIVE_INCOMING = List.of("받아야", "들어올", "들어와");
+    private static final List<String> RECEIVE_KEYWORDS =
+            merge(RECEIVE_SUBJECT, RECEIVE_INCOMING);
+
     private static final List<String> UNPAID_TO_ME = List.of("송금안", "아직송금");
-    private static final List<String> EXPENSE_KEYWORDS = List.of("지출", "사용했", "사용내역", "소비", "결제");
-    private static final List<String> STATUS_KEYWORDS = List.of(
+
+    /** 지출 자체를 가리키는 표현 */
+    private static final List<String> EXPENSE_SUBJECT = List.of("지출", "소비", "결제");
+    /** 얼마를 썼는지 묻는 표현 */
+    private static final List<String> EXPENSE_SPENT = List.of("사용했", "사용내역", "얼마나했", "썼", "지불했");
+    private static final List<String> EXPENSE_KEYWORDS =
+            merge(EXPENSE_SUBJECT, EXPENSE_SPENT);
+
+    /** 진행 상태를 직접 묻는 표현 */
+    private static final List<String> STATUS_PROGRESS = List.of(
             "진행상태", "진행 상황", "진행상황", "진행중인", "진행 중인", "진행중", "진행 중",
             "정산상태", "정산 있어", "정산있어", "어디까지"
     );
+    /** 아직 끝나지 않았거나 남아 있다는 표현 */
+    private static final List<String> STATUS_OUTSTANDING = List.of(
+            "안끝났", "안끝난", "남았", "남은", "처리해야", "처리할", "처리하지"
+    );
+    private static final List<String> STATUS_KEYWORDS =
+            merge(STATUS_PROGRESS, STATUS_OUTSTANDING);
     private static final List<String> DUE_KEYWORDS = List.of("마감해야 할 정산", "마감할 정산", "마감해야", "마감할", "마감");
     private static final List<String> GUIDE_KEYWORDS = List.of("ocr", "영수증");
     private static final List<String> FILLER_KEYWORDS = List.of("알려줘", "어떻게해", "어떻게", "누구야", "있어");
@@ -32,6 +60,15 @@ public class InquiryParser {
     );
     private static final int MIN_TITLE_PREFIX = 2;
     private static final int MAX_TITLE_PREFIX = 20;
+
+    @SafeVarargs
+    private static List<String> merge(List<String>... groups) {
+        List<String> merged = new ArrayList<>();
+        for (List<String> group : groups) {
+            merged.addAll(group);
+        }
+        return List.copyOf(merged);
+    }
 
     public ParsedInquiry parse(String question) {
         if (question == null || question.isBlank()) {
