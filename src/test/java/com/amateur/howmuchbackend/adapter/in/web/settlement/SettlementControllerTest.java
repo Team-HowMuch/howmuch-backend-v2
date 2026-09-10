@@ -257,6 +257,9 @@ class SettlementControllerTest {
                 .queryParam("groupId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.hasNext").value(false))
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.hasEntry(
+                        org.hamcrest.Matchers.equalTo("nextCursor"), org.hamcrest.Matchers.nullValue())))
                 .andExpect(jsonPath("$.data.items[0].settlementId").value(SETTLEMENT_ID.toString()))
                 .andExpect(jsonPath("$.data.items[0].status").value("AWAITING_DEPOSIT"))
                 .andExpect(jsonPath("$.data.items[0]").value(org.hamcrest.Matchers.hasEntry(
@@ -286,6 +289,32 @@ class SettlementControllerTest {
                         .queryParam("groupId", "10").queryParam("yearMonth", "2026-09"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].completedAt").value("2026-09-01T00:00:00"));
+    }
+
+    @Test
+    void bindsPaginationAndReturnsNextPageMetadata() throws Exception {
+        when(getSettlementsUseCase.get(new GetSettlementsCommand(
+                null, null, null, null, "opaque-cursor", 50)))
+                .thenReturn(new SettlementListPageResult(List.of(), "next-cursor", true));
+        mockMvc.perform(get("/api/v2/settlements").queryParam("cursor", "opaque-cursor")
+                        .queryParam("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isArray())
+                .andExpect(jsonPath("$.data.nextCursor").value("next-cursor"))
+                .andExpect(jsonPath("$.data.hasNext").value(true));
+    }
+
+    @Test
+    void rejectsInvalidPaginationParameters() throws Exception {
+        for (String size : List.of("-1", "0", "51", "2147483647", "2147483648", "text")) {
+            mockMvc.perform(get("/api/v2/settlements").queryParam("size", size))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+        }
+        mockMvc.perform(get("/api/v2/settlements").queryParam("cursor", "x".repeat(257)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+        verifyNoInteractions(getSettlementsUseCase);
     }
 
     @Test

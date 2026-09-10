@@ -37,6 +37,11 @@ class SettlementOpenApiIntegrationTest {
                 .getContentAsByteArray();
         JsonNode document = objectMapper.readTree(new String(content, StandardCharsets.UTF_8));
 
+        assertRequired(document, "SettlementListPageWebResponse", "items", "nextCursor", "hasNext");
+        assertNullable(document, "SettlementListPageWebResponse", "nextCursor");
+        assertThat(schema(document, "SettlementListPageWebResponse").path("properties").path("items")
+                .path("items").path("$ref").stringValue()).endsWith("/SettlementListItemWebResponse");
+
         assertRequired(
                 document,
                 "SettlementListItemWebResponse",
@@ -84,6 +89,15 @@ class SettlementOpenApiIntegrationTest {
         List<JsonNode> parameters = new ArrayList<>();
         document.path("paths").path("/api/v2/settlements").path("get").path("parameters")
                 .forEach(parameters::add);
+        assertThat(parameters).filteredOn(parameter -> "size".equals(parameter.path("name").stringValue()))
+                .singleElement().satisfies(parameter -> {
+                    assertThat(parameter.path("schema").path("minimum").asInt()).isEqualTo(1);
+                    assertThat(parameter.path("schema").path("maximum").asInt()).isEqualTo(50);
+                    assertThat(parameter.path("schema").path("default").asInt()).isEqualTo(20);
+                });
+        assertThat(parameters).filteredOn(parameter -> "cursor".equals(parameter.path("name").stringValue()))
+                .singleElement().satisfies(parameter ->
+                        assertThat(parameter.path("required").asBoolean()).isFalse());
         assertThat(parameters).filteredOn(parameter -> "yearMonth".equals(parameter.path("name").stringValue()))
                 .singleElement().satisfies(parameter -> {
                     assertThat(parameter.path("required").asBoolean()).isFalse();
