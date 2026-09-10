@@ -29,13 +29,28 @@ public class InquiryParser {
     );
     /** 지출 질문은 금액을 묻는 표현도 맥락으로 본다 */
     private static final List<String> EXPENSE_CONTEXT = merge(SETTLEMENT_CONTEXT, List.of("얼마"));
+    /**
+     * 맥락 단어 뒤에 붙을 수 있는 조사와 어미.
+     * 이 중 하나로 끝나야 그 어절이 맥락 단어다. "돈까스"의 "돈"은 맥락이 아니다.
+     */
+    private static final List<String> CONTEXT_SUFFIXES = List.of(
+            "은", "는", "이", "가", "을", "를", "의", "에", "도", "만", "과", "와", "로", "나", "랑", "요",
+            "으로", "에서", "에게", "한테", "부터", "까지", "이랑", "보다", "처럼", "밖에", "대로",
+            "조차", "마저", "이나", "라도", "만큼", "께", "께서",
+            "해야", "하는", "한", "할", "했", "하면", "해서", "하고"
+    );
 
     /** 내가 낼 돈. 단독으로도 뜻이 분명하다 */
     private static final List<String> SEND_STRONG = List.of(
-            "보낼", "낼정산", "보낼돈", "낼돈", "내야", "보내야", "송금", "안보낸", "안냈", "안낸"
+            "보낼", "낼정산", "보낼돈", "낼돈", "내야", "보내야", "송금"
     );
-    /** 부담·지불 표현. 정산 맥락이 있어야 인정한다 */
-    private static final List<String> SEND_WEAK = List.of("줘야", "부담해야", "부담할", "지불해야");
+    /**
+     * 부담·지불·미납 표현. 정산 맥락이 있어야 인정한다.
+     * "안 냈"은 "숙제 안 냈어?" 처럼 돈과 무관하게도 쓰인다.
+     */
+    private static final List<String> SEND_WEAK = List.of(
+            "줘야", "부담해야", "부담할", "지불해야", "안보낸", "안냈", "안낸"
+    );
 
     /** 내가 받을 돈. 단독으로도 뜻이 분명하다 */
     private static final List<String> RECEIVE_STRONG = List.of("받을", "받을돈", "받을금액", "받아야");
@@ -71,12 +86,14 @@ public class InquiryParser {
             "왜", "언제", "어디", "어떤", "무슨", "뭐", "누가", "누구", "얼마", "아직", "지금", "방금"
     );
     /**
-     * 제목 바로 앞 어절이 이 중 하나면 제목이 아니라 조사·접속 조각이다.
+     * 제목 바로 앞 어절이 이 중 하나면 제목이 아니다.
+     * 조사·접속 조각과 지시·소유 대명사가 들어간다. "내 정산"의 "내"는 제목이 아니라 소유격이다.
      * 어절 단위로 정확히 비교한다. 부분 문자열로 보면 "이전모임" 같은 제목까지 걸린다.
      */
-    private static final List<String> TITLE_PARTICLE_TOKENS = List.of(
+    private static final List<String> TITLE_STOP_TOKENS = List.of(
             "중에", "중에서", "그중", "안에", "에는", "에서", "말고", "건데",
-            "부터", "까지", "동안", "이후", "이전", "대신"
+            "부터", "까지", "동안", "이후", "이전", "대신",
+            "내", "제", "우리", "그", "이", "저", "새", "다음", "지난"
     );
     private static final int MIN_TITLE_PREFIX = 1;
     private static final int MAX_TITLE_PREFIX = 20;
@@ -96,9 +113,12 @@ public class InquiryParser {
         }
         String spaceless = question.replaceAll("\\s+", "");
         String compact = spaceless.toLowerCase(Locale.ROOT);
+        boolean[] wordStarts = wordStarts(question, compact.length());
         InquiryPeriod period = periodOf(compact);
-        InquiryIntent intent = intentOf(compact);
-        String titleHint = usesTitleFilter(intent) ? titleHint(question, spaceless, compact) : null;
+        InquiryIntent intent = intentOf(compact, wordStarts);
+        String titleHint = usesTitleFilter(intent)
+                ? titleHint(spaceless, compact, wordStarts)
+                : null;
         return new ParsedInquiry(intent, period, titleHint);
     }
 
@@ -115,12 +135,12 @@ public class InquiryParser {
         return null;
     }
 
-    private InquiryIntent intentOf(String compact) {
+    private InquiryIntent intentOf(String compact, boolean[] wordStarts) {
         if (containsAny(compact, UNPAID_TO_ME)) {
             return InquiryIntent.RECEIVE_SETTLEMENTS;
         }
-        int sendAt = intentIndex(compact, SEND_STRONG, SEND_WEAK, SETTLEMENT_CONTEXT);
-        int receiveAt = intentIndex(compact, RECEIVE_STRONG, RECEIVE_WEAK, SETTLEMENT_CONTEXT);
+        int sendAt = intentIndex(compact, wordStarts, SEND_STRONG, SEND_WEAK, SETTLEMENT_CONTEXT);
+        int receiveAt = intentIndex(compact, wordStarts, RECEIVE_STRONG, RECEIVE_WEAK, SETTLEMENT_CONTEXT);
         if (containsAny(compact, DUE_KEYWORDS) && sendAt < 0 && receiveAt < 0) {
             return InquiryIntent.DUE_SETTLEMENTS;
         }
@@ -130,14 +150,22 @@ public class InquiryParser {
         if (receiveAt >= 0) {
             return InquiryIntent.RECEIVE_SETTLEMENTS;
         }
-        if (intentIndex(compact, EXPENSE_STRONG, EXPENSE_WEAK, EXPENSE_CONTEXT) >= 0) {
+        if (containsAny(compact, EXPENSE_STRONG)) {
             return InquiryIntent.EXPENSE_SUMMARY;
         }
-        if (intentIndex(compact, STATUS_STRONG, STATUS_WEAK, SETTLEMENT_CONTEXT) >= 0) {
+        if (containsAny(compact, STATUS_STRONG)) {
             return InquiryIntent.SETTLEMENT_STATUS;
         }
+        // 안내 키워드는 강한 의도에는 지지만, 약한 일상어에는 지지 않는다.
+        // "영수증 정산은 어떻게 처리해야 해?" 는 정산 상태가 아니라 안내 질문이다.
         if (containsAny(compact, GUIDE_KEYWORDS)) {
             return InquiryIntent.GUIDE;
+        }
+        if (hasContext(compact, wordStarts, EXPENSE_CONTEXT) && containsAny(compact, EXPENSE_WEAK)) {
+            return InquiryIntent.EXPENSE_SUMMARY;
+        }
+        if (hasContext(compact, wordStarts, SETTLEMENT_CONTEXT) && containsAny(compact, STATUS_WEAK)) {
+            return InquiryIntent.SETTLEMENT_STATUS;
         }
         return InquiryIntent.UNKNOWN;
     }
@@ -146,9 +174,10 @@ public class InquiryParser {
      * 강한 표현은 그대로 보고, 약한 표현은 정산 맥락 단어가 함께 있을 때만 본다.
      * 둘 다 있으면 먼저 나온 위치를 돌려준다. 보낼/받을 선후 판단이 이 위치를 쓴다.
      */
-    private int intentIndex(String compact, List<String> strong, List<String> weak, List<String> context) {
+    private int intentIndex(String compact, boolean[] wordStarts,
+                            List<String> strong, List<String> weak, List<String> context) {
         int strongAt = earliestIndex(compact, strong);
-        if (!containsAny(compact, context)) {
+        if (!hasContext(compact, wordStarts, context)) {
             return strongAt;
         }
         int weakAt = earliestIndex(compact, weak);
@@ -158,12 +187,42 @@ public class InquiryParser {
         return weakAt < 0 ? strongAt : Math.min(strongAt, weakAt);
     }
 
-    private String titleHint(String question, String spaceless, String compact) {
+    /** 맥락 단어는 어절 앞에서 시작하고 조사·어미로만 이어져야 한다. */
+    private boolean hasContext(String compact, boolean[] wordStarts, List<String> context) {
+        for (String term : context) {
+            String needle = compactPhrase(term);
+            int from = compact.indexOf(needle);
+            while (from >= 0) {
+                if (wordStarts[from] && endsWord(compact, wordStarts, from + needle.length())) {
+                    return true;
+                }
+                from = compact.indexOf(needle, from + 1);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 어절이 여기서 끝나거나, 남은 부분이 조사·어미 하나이면 참이다.
+     * 어절 끝의 문장부호는 세지 않는다. "금액은?" 의 남은 부분은 "은" 이다.
+     */
+    private boolean endsWord(String compact, boolean[] wordStarts, int end) {
+        if (end >= compact.length() || wordStarts[end]) {
+            return true;
+        }
+        int next = end;
+        while (next < compact.length() && !wordStarts[next] && isNameCharacter(compact.charAt(next))) {
+            next++;
+        }
+        String rest = compact.substring(end, next);
+        return rest.isEmpty() || CONTEXT_SUFFIXES.contains(rest);
+    }
+
+    private String titleHint(String spaceless, String compact, boolean[] wordStarts) {
         if (spaceless.length() != compact.length()) {
             return null;
         }
         boolean[] grammar = grammarMask(compact);
-        boolean[] wordStarts = wordStarts(question, compact.length());
         Matcher matcher = TITLE_SUFFIX.matcher(compact);
         while (matcher.find()) {
             String candidate = titleAt(spaceless, compact, grammar, wordStarts, matcher.start(), matcher.end());
@@ -192,7 +251,7 @@ public class InquiryParser {
         if (prefix.length() < MIN_TITLE_PREFIX
                 || !wordStarts[start]
                 || containsAny(prefix, TITLE_STOP_WORDS)
-                || TITLE_PARTICLE_TOKENS.contains(lastWord(compact, wordStarts, start, suffixStart))) {
+                || TITLE_STOP_TOKENS.contains(lastWord(compact, wordStarts, start, suffixStart))) {
             return null;
         }
         return spaceless.substring(start, suffixEnd);
@@ -209,19 +268,22 @@ public class InquiryParser {
         return compact.substring(last, end);
     }
 
-    /** 공백을 지운 문자열에서, 원문의 어절이 시작하는 위치를 표시한다. */
+    /**
+     * 공백을 지운 문자열에서, 원문의 어절이 시작하는 위치를 표시한다.
+     * 따옴표·괄호 같은 문장부호 다음도 어절 시작으로 본다. {@code "여행 모임"에서} 의 제목을 살린다.
+     */
     private boolean[] wordStarts(String question, int length) {
         boolean[] starts = new boolean[length];
-        boolean afterSpace = true;
+        boolean boundary = true;
         int index = 0;
         for (int i = 0; i < question.length() && index < length; i++) {
             char value = question.charAt(i);
             if (isRegexSpace(value)) {
-                afterSpace = true;
+                boundary = true;
                 continue;
             }
-            starts[index] = afterSpace;
-            afterSpace = false;
+            starts[index] = boundary;
+            boundary = !isNameCharacter(value);
             index++;
         }
         return starts;

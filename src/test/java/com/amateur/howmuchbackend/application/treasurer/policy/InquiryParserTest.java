@@ -109,7 +109,7 @@ class InquiryParserTest {
     void classifiesColloquialSendExpressions() {
         assertThat(parser.parse("내가 내야 할 돈 얼마야?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
         assertThat(parser.parse("아직 안 낸 정산 있어?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
-        assertThat(parser.parse("나 아직 안 냈어?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(parser.parse("나 아직 돈 안 냈어?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
         assertThat(parser.parse("친구한테 줘야 하는 돈 있어?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
         assertThat(parser.parse("내가 부담해야 할 금액은?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
     }
@@ -183,6 +183,13 @@ class InquiryParserTest {
     }
 
     @Test
+    void doesNotTreatPronounAsTitle() {
+        assertThat(parser.parse("내 정산 중에 뭐가 남았어?").titleHint()).isNull();
+        assertThat(parser.parse("우리 모임에서 받을 돈 있어?").titleHint()).isNull();
+        assertThat(parser.parse("이 정산 상태 알려줘").titleHint()).isNull();
+    }
+
+    @Test
     void extractsSingleCharacterTitle() {
         InquiryParser.ParsedInquiry parsed = parser.parse("봄 정산에서 받을 돈 있어?");
 
@@ -214,11 +221,28 @@ class InquiryParserTest {
         assertThat(parser.parse("언제 들어와?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("그 사람 언제 들어와?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("숙제 줘야 해?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("숙제 안 냈어?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+    }
+
+    @Test
+    void readsContextWordsAsWholeWords() {
+        assertThat(parser.parse("돈까스 남았어?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("돈까스 언제 들어와?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("돈 언제 들어와?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("금액이 얼마나 남았어?").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
+    }
+
+    @Test
+    void acceptsPunctuationAsTitleBoundary() {
+        assertThat(parser.parse("\"여행 모임\"에서 받을 돈 있어?").titleHint()).isEqualTo("여행모임");
+        assertThat(parser.parse("(여행 모임)에서 받을 돈 있어?").titleHint()).isEqualTo("여행모임");
     }
 
     @Test
     void keepsGuideIntentWhenOnlyEverydayVerbsCompete() {
         assertThat(parser.parse("영수증 OCR은 어떻게 처리해야 해?").intent()).isEqualTo(InquiryIntent.GUIDE);
         assertThat(parser.parse("영수증 남은 거 어떻게 해?").intent()).isEqualTo(InquiryIntent.GUIDE);
+        assertThat(parser.parse("영수증 정산은 어떻게 처리해야 해?").intent()).isEqualTo(InquiryIntent.GUIDE);
+        assertThat(parser.parse("이번 달 지출 영수증 보여줘").intent()).isEqualTo(InquiryIntent.EXPENSE_SUMMARY);
     }
 }
