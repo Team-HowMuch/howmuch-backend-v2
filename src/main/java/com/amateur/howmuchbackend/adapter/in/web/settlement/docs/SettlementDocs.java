@@ -13,7 +13,7 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.Settlem
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementDetailWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementParticipantWebResponse;
-import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementListPageWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementListItemWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementWebResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -89,10 +89,7 @@ public interface SettlementDocs {
                     + "completedAt은 종료 시각이며 미완료 정산은 null입니다. "
                     + "yearMonth(yyyy-MM)는 Asia/Seoul 기준 종료 월이며 생략하면 전체 기간입니다. "
                     + "기존 상태·그룹 조건과 함께 적용하므로 월별 완료 정산은 status=COMPLETED 또는 ALL로 조회하세요. "
-                    + "status 생략 시 IN_PROGRESS가 유지되어 yearMonth와 함께 지정하면 빈 목록입니다. "
-                    + "요청 시각·정산 ID 내림차순 커서 조회이며 size는 기본 20, 최대 50입니다. "
-                    + "data는 items·nextCursor·hasNext 객체입니다. 다음 조회는 같은 필터와 nextCursor를 전달하고 "
-                    + "필터 변경 시 cursor를 생략하세요. 마지막·빈 페이지는 nextCursor=null, hasNext=false입니다.",
+                    + "status 생략 시 IN_PROGRESS가 유지되어 yearMonth와 함께 지정하면 빈 목록입니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -103,14 +100,14 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "INVALID_ARGUMENT / INVALID_SETTLEMENT_CURSOR / INVALID_SETTLEMENT_PAGE_SIZE - 목록 필터, size 또는 cursor 값이 올바르지 않음"
+                    description = "INVALID_ARGUMENT - tab, status, groupId 또는 yearMonth 값이 올바르지 않음"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401",
                     description = "UNAUTHORIZED - 인증 필요"
             )
     })
-    ApiResponse<SettlementListPageWebResponse> getSettlements(
+    ApiResponse<List<SettlementListItemWebResponse>> getSettlements(
             @ParameterObject SettlementListWebRequest request
     );
 
