@@ -1,7 +1,7 @@
 # Feature Plan: AI 총무 질문 범위 개선 (관련성 판단과 의도 분류 분리)
 
-- Status: Draft
-- Last updated: 2026-09-09
+- Status: Completed
+- Last updated: 2026-09-10
 - Related issue: [#317](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/317) (선행), [#318](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/318), [#319](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/319), [#320](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/320)
 - Related ADR: N/A
 
@@ -19,13 +19,15 @@ AI 총무는 `InquiryParser`의 키워드 매칭이 `InquiryIntent.UNKNOWN`을 �
 
 ### Success criteria
 
-- [ ] 서비스 관련 질문이 세부 의도 분류 실패만으로 범위 안내를 받지 않는다.
-- [ ] 서비스와 무관한 질문은 기존과 동일하게 범위 안내를 받는다.
-- [ ] LLM 미사용(`TREASURER_LLM_PROVIDER=none`)에서도 규칙만으로 위 두 항목이 성립한다. 단, 규칙 판정 범위는 서비스 어휘를 포함한 질문이다.
-- [ ] `InquiryIntent` 값과 `POST /api/v2/treasurer/questions` 응답 필드가 변경되지 않는다.
-- [ ] 금액·건수는 계속 서버가 계산하고 LLM이 생성하지 않는다.
+- [x] 서비스 관련 질문이 세부 의도 분류 실패만으로 범위 안내를 받지 않는다.
+- [x] 서비스와 무관한 질문은 기존과 동일하게 범위 안내를 받는다.
+- [x] LLM 미사용(`TREASURER_LLM_PROVIDER=none`)에서도 규칙만으로 위 두 항목이 성립한다. 단, 규칙 판정 범위는 서비스 어휘를 포함한 질문이다.
+- [x] `InquiryIntent` 값과 `POST /api/v2/treasurer/questions` 응답 필드가 변경되지 않는다.
+- [x] 금액·건수는 계속 서버가 계산하고 LLM이 생성하지 않는다.
 
 ### Out of scope
+
+- LLM 보조 관련성 판정. 규칙이 판정하지 못한 질문을 LLM에 되묻는 경로는 만들지 않는다. 완료 조건이 전부 규칙만으로 성립하고, 호출자 없는 Port를 미리 만들지 않는다는 저장소 규칙을 따른다
 
 - 서비스 이용 안내 질문에 대한 실제 설명 답변 — #319
 - 자연어 표현 확장과 정산 제목 오추출 수정 — #318
@@ -98,7 +100,6 @@ Result -> Web Response DTO: TreasurerAnswerWebResponse.from() (변경 없음)
 
 | Port | Purpose | Caller | Expected Adapter |
 |---|---|---|---|
-| `ClassifyTreasurerQuestionPort` | 규칙이 판정하지 못한 질문의 서비스 관련성을 LLM에 묻는다. 미사용·실패는 `Optional.empty()` | `AskTreasurerService` | `TreasurerLlmAdapter` |
 | `GenerateTreasurerAnswerPort` | 기존. 답변 문장 생성 | `AskTreasurerService` | `TreasurerLlmAdapter` |
 | `LoadTreasurerSettlementsPort` | 기존. 변경 없음 | `TreasurerSettlementQuery` | `TreasurerSettlementPersistenceAdapter` |
 
@@ -151,8 +152,8 @@ Authentication: 기존 /api/** authenticated
 ### Technology and patterns
 
 - Constraint to solve: `TreasurerLlmProperties`의 기본 provider가 `none`이고 키가 없으면 `generate()`가 즉시 `Optional.empty()`를 반환한다. 분류를 LLM 단독에 두면 기본 환경에서 전부 실패한다.
-- Selected approach: 규칙 1차, 규칙이 판정하지 못한 경우에만 LLM 2차
-- Reason for selection: LLM 없이도 동작하고, 규칙이 놓친 표현은 LLM이 흡수한다
+- Selected approach: 규칙 판정만 구현한다. LLM 보조 판정은 이번 범위에서 제외한다
+- Reason for selection: 모든 완료 조건이 규칙만으로 성립한다. 아직 호출자가 없는 Port와 상태값을 미리 만들지 않는다
 - Alternatives considered: (1) LLM 단독 분류 — 기본 환경에서 동작하지 않음 (2) 키워드 목록만 확장 — 표현이 늘 때마다 같은 문제가 반복됨
 - Trade-offs and limits: LLM 미사용 환경에서는 서비스 어휘를 포함하지 않은 질문(`이번 달에 처리해야 하는 게 뭐야?`)이 여전히 범위 안내를 받는다. #318의 표현 확장으로 좁혀 나간다.
 
@@ -161,7 +162,7 @@ Authentication: 기존 /api/** authenticated
 | Area | Impact | Verified file or contract |
 |---|---|---|
 | API | 없음 | `TreasurerController`, `TreasurerAnswerWebResponse` |
-| Application | 분기 교체, Policy 신설, Port 신설 | `AskTreasurerService`, `InquiryScopePolicy`, `ClassifyTreasurerQuestionPort` |
+| Application | 분기 교체, Policy 신설 | `AskTreasurerService`, `InquiryScopePolicy`, `InquiryScope` |
 | Domain | 없음 | `InquiryIntent`, `PersonalSettlement` |
 | Persistence | 없음 | `TreasurerSettlementPersistenceAdapter` |
 | Redis | 없음 | - |
@@ -179,24 +180,24 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] Migration-only pull request to `develop` (`Required` / `N/A`) — **N/A** (스키마 변경 없음)
-- [ ] UseCase and Application Command/Result — **N/A** (기존 계약 유지)
-- [x] Required Output Ports — `ClassifyTreasurerQuestionPort`
-- [ ] Domain models and rules — **N/A** (`InquiryIntent` 변경하지 않음)
-- [ ] Application Policies — `InquiryScopePolicy`, `InquiryScope`
-- [ ] Application Service — `AskTreasurerService` 2단계 분기
-- [ ] Output Adapters — `TreasurerLlmAdapter`에 분류 호출 추가
-- [ ] Web Request/Response DTOs, Controllers, and Swagger — **N/A** (계약 변경 없음)
-- [ ] Infra configuration and Bean wiring — **N/A** (기존 Bean 재사용)
-- [ ] Documentation and verification results
+- [x] Migration-only pull request to `develop` (`Required` / `N/A`) — **N/A** (스키마 변경 없음)
+- [x] UseCase and Application Command/Result — **N/A** (기존 계약 유지)
+- [ ] Required Output Ports — **N/A**. 이번 범위는 규칙 판정만이라 새 Port가 필요 없다. LLM 보조 판정을 붙일 때 도입한다
+- [x] Domain models and rules — **N/A** (`InquiryIntent` 변경하지 않음)
+- [x] Application Policies — `InquiryScopePolicy`, `InquiryScope`
+- [x] Application Service — `AskTreasurerService` 2단계 분기
+- [x] Output Adapters — **N/A** (LLM 보조 판정을 넣지 않아 어댑터 변경 없음)
+- [x] Web Request/Response DTOs, Controllers, and Swagger — **N/A** (계약 변경 없음)
+- [x] Infra configuration and Bean wiring — **N/A** (기존 Bean 재사용)
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
 ```text
 docs(treasurer): AI 총무 질문 범위 개선 설계 수립
 feat(treasurer): 서비스 관련성 판단과 세부 의도 분류를 분리한다
-feat(treasurer): 규칙이 판정하지 못한 질문의 관련성을 LLM으로 보완한다
 test(treasurer): 서비스 관련 질문 차단 회귀를 검증한다
+docs(treasurer): 질문 범위 개선 검증 결과 기록
 ```
 
 ## 8. Verification
@@ -214,22 +215,28 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] Purpose의 사용자 결과를 검증했다.
-- [ ] 정상·실패·경계 흐름을 검증했다.
-- [ ] 문서와 실제 계약이 일치한다.
-- [ ] 수행하지 못한 검증과 사유를 기록했다.
+- [x] Purpose의 사용자 결과를 검증했다.
+- [x] 정상·실패·경계 흐름을 검증했다.
+- [x] 문서와 실제 계약이 일치한다.
+- [x] 수행하지 못한 검증과 사유를 기록했다.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
-| 설계 문서 | Pending | 본 문서 |
+| treasurer·inquiry 테스트 | 101개 통과, 실패 0, 건너뜀 0 | `compose.test.yml`(PostgreSQL 18 · Redis 8) + `scripts/test.sh`. `TREASURER_LLM_PROVIDER=none` |
+| 서비스 관련 질문 되묻기 | 통과 | `AskTreasurerServiceTest` 33건 (구어체·설명형 11개 포함) |
+| 서비스 무관 질문 범위 안내 | 통과 | `AskTreasurerServiceTest` 5개 질문, `InquiryScopePolicyTest` 18건 |
+| 관련성 판정 규칙 | 통과 | `InquiryScopePolicyTest` (오탐 회귀 `"공원이 어디야?"` 포함) |
+| 기존 분류 결과 유지 | 통과 | `InquiryParserTest` 11건 |
+| 응답 계약 무변경 | 통과 | `TreasurerControllerTest` 5건 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
-| 2026-09-09 | 코드 분석, 이슈 #317~#320 등록, 설계 문서 작성 | Policy와 Port 구현 | LLM 미사용 환경의 규칙 판정 범위 |
+| 2026-09-09 | 코드 분석, 이슈 #317~#320 등록, 설계 문서 작성 | Policy 구현 | LLM 미사용 환경의 규칙 판정 범위 |
+| 2026-09-10 | develop rebase, 재리뷰로 결함 3건 수정, 전체 검증 | PR 생성 | 부분 문자열 매칭 오탐은 #318에서 다룬다 |
 
 ## 10. Decision log
 
@@ -238,11 +245,13 @@ git status --short --untracked-files=all
 | 2026-09-09 | `InquiryIntent`를 확장하지 않는다 | 프론트엔드 응답 계약 고정 | 되묻기와 범위 안내가 같은 `UNKNOWN` 값을 쓴다. 검증은 `answer` 문구로 구분한다 |
 | 2026-09-09 | 관련성 판정은 규칙 1차, LLM 2차 | 기본 provider가 `none`이라 LLM 단독 의존이 불가능하다 | 규칙이 놓친 표현은 LLM 없이는 범위 안내를 받는다 |
 | 2026-09-09 | 기존 정산 조회·계산 경로를 그대로 재사용한다 | 정산 Business Logic이 이미 개인 기준으로 동작한다 | AI 총무 변경이 정산 도메인에 영향을 주지 않는다 |
+| 2026-09-10 | `InquiryScope`를 `RELATED`/`UNRELATED` 두 값으로 유지한다 | 세 번째 값 `UNCERTAIN`이 `UNRELATED`와 행동상 구분되지 않았다. 호출자 없는 상태를 미리 두지 않는다 | LLM 보조 판정을 붙일 때 필요한 상태를 그때 추가한다 |
+| 2026-09-10 | 금액 어휘 `원을`·`원이`를 제거한다 | 검증하는 테스트가 없고 `"공원이 어디야?"`를 서비스 관련으로 오인했다 | 금액만 적은 질문은 규칙으로 잡지 못한다. #318에서 다룬다 |
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- Completed on: 2026-09-10
+- Final behavior: 세부 의도 분류에 실패한 질문을 `InquiryScopePolicy`가 다시 판정한다. 서비스 어휘가 있으면 되묻는 응답을, 없으면 기존 범위 안내를 반환한다. `InquiryIntent` 값과 응답 필드는 변경하지 않았고, 정산 조회·금액 계산 경로도 그대로다.
+- Unverified items: 실제 앱에서의 응답 문구 확인. 서버 계약까지만 검증했다.
+- Remaining risks: 관련성 판정이 공백 제거 후 부분 문자열 검사라 `"돈까스"`처럼 서비스 어휘를 부분 포함한 문장을 관련으로 볼 수 있다. 최악의 결과는 범위 안내 대신 되묻기가 나가는 것이며 데이터 조회는 발생하지 않는다. 반대로 서비스 어휘가 전혀 없는 관련 질문(`"이번 달에 처리해야 하는 게 뭐야?"`)은 여전히 범위 안내를 받는다.
+- Follow-up work: 표현 인식을 의미 단위로 재구성하고 위 두 한계를 좁히는 작업은 #318. 서비스 안내 질문에 실제로 답하는 것은 #319. 회귀 검증 보강은 #320.
