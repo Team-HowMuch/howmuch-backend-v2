@@ -34,6 +34,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,6 +46,7 @@ import static org.mockito.Mockito.*;
 @SpringBootTest
 class LoginProfilePersistenceIntegrationTest {
     private static final LocalDateTime BEFORE = LocalDateTime.of(2026, 1, 1, 0, 0);
+    private static final LocalDate BIRTH_DATE = LocalDate.of(1995, 3, 14);
     private static final String PHONE = "01000000301";
     private static final String PIN = "246802";
     private static final byte[] PNG = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
@@ -73,9 +75,10 @@ class LoginProfilePersistenceIntegrationTest {
         oldAvatar = images.save(new ProfileImagePolicy().validate(PNG));
         String unique = UUID.randomUUID().toString().replace("-", "");
         userId = tx.execute(status -> users.save(User.register(
-                unique, "로그인 테스트", "old_" + unique.substring(0, 12), PHONE,
+                unique, "로그인 테스트", BIRTH_DATE, "old_" + unique.substring(0, 12), PHONE,
                 "synthetic-pin-hash", BEFORE, false
         ).changeProfile("old_" + unique.substring(0, 12), oldAvatar, BEFORE)).id());
+        assertThat(readUser().birthDate()).isEqualTo(BIRTH_DATE);
         var actor = mock(CurrentActorPort.class);
         when(actor.getCurrentActor()).thenReturn(new CurrentActor(userId));
         profiles = new UpdateMyProfileService(actor, users, users,

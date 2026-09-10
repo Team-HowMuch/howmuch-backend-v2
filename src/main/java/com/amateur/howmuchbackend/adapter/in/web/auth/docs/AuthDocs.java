@@ -26,7 +26,7 @@ public interface AuthDocs {
 
     @Operation(
             summary = "회원가입",
-            description = "SMS 인증 challenge로 회원가입을 완료하고 공개 ID를 자동 생성합니다. 가입 후 토큰은 발급하지 않습니다."
+            description = "SMS 인증 challenge로 생년월일을 포함한 회원가입을 완료하고 공개 ID를 자동 생성합니다. 가입 후 토큰은 발급하지 않습니다."
     )
     ApiResponse<Void> signUp(SignUpRequest request);
 

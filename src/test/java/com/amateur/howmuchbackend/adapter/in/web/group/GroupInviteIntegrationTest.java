@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -159,7 +160,7 @@ class GroupInviteIntegrationTest {
 
     private User user(String name) {
         String unique = UUID.randomUUID().toString().replace("-", "");
-        return users.save(User.register("invite-" + unique, name, "i" + unique.substring(0, 12),
+        return users.save(User.register("invite-" + unique, name, LocalDate.of(1995, 3, 14), "i" + unique.substring(0, 12),
                 "test-" + unique.substring(0, 12), "unused", NOW, false));
     }
 

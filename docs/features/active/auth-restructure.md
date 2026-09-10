@@ -1,7 +1,7 @@
 # Feature Plan: 인증 기능 개편
 
 - Status: Implemented - 정적 검증 완료, 런타임·운영 DDL 검증 대기
-- Last updated: 2026-08-15
+- Last updated: 2026-09-10
 - Related issue: N/A
 - Related ADR: N/A - 현재 결정은 인증 기능 내부 계약으로 기록하며, 다른 도메인까지 정책이 확장되면 별도 ADR을 작성한다.
 - Source specification:
@@ -20,7 +20,7 @@
 - 회원가입과 로그인의 Request, 실패 조건, 사용자 경험이 하나의 UseCase에 섞여 있다.
 - 공개 로그인 API가 없어 기존 사용자도 새 세션을 발급받으려면 매번 SMS 인증을 거쳐야 한다.
 - 명세의 회원가입 항목인 PIN 확인, 필수 약관 동의, 마케팅 동의를 서버에서 검증하지 않는다.
-- 현재 사용자 식별과 영속성은 `identityKey`, 생년월일, 성별을 필수로 요구하지만 새 명세에는 해당 입력이 없다.
+- 기존 사용자 식별과 영속성은 `identityKey`, 생년월일, 성별에 의존하지만, 개편 계약은 회원가입에서 `birthDate`를 필수로 받고 `gender`는 선택 프로필 정보로 유지한다.
 
 ### Why now
 
@@ -30,7 +30,9 @@
 
 - [ ] 사용자는 휴대폰 번호로 6자리 OTP를 받고 3분 안에 최대 5회까지 확인할 수 있다.
 - [ ] 인증번호 재전송은 휴대폰 번호별로 60초에 1회만 허용한다.
-- [ ] 신규 사용자는 SMS 인증 완료 후 이름, 6자리 PIN, PIN 확인, 필수 약관 동의를 제출하여 가입할 수 있다.
+- [ ] 신규 사용자는 SMS 인증 완료 후 이름, 생년월일(`yyyy-MM-dd`), 6자리 PIN, PIN 확인, 필수 약관 동의를 제출하여 가입할 수 있다.
+- [ ] `birthDate`가 누락되거나 유효하지 않은 회원가입 요청은 HTTP 400을 반환하고, OpenAPI에는 required `string`/`date`로 노출된다.
+- [ ] `SignUpRequest`와 `SignUpCommand`의 `toString()`에서 생년월일이 `birthDate=***`로 마스킹된다.
 - [ ] 이미 가입된 휴대폰 번호로 중복 가입할 수 없다.
 - [ ] 기존 사용자는 휴대폰 번호와 PIN으로 로그인하여 `accessToken`, `requestToken`을 발급받는다.
 - [ ] 로그인 성공 시 해당 사용자의 기존 Redis 세션을 새 세션으로 교체하여 한 기기에서만 로그인 상태를 유지한다.
@@ -51,7 +53,7 @@
 - 탈퇴, 정지, 장기 미사용 계정 상태 개편
 - 저장 항목이 정의되지 않은 별도 사용자 설정 Entity와 설정 API
 - Flyway 활성화
-- 새로운 Test Case 작성
+- 인증 개편 범위를 벗어난 새로운 Test Case 작성
 
 ## 2. Domain analysis
 
@@ -61,7 +63,7 @@
 - Reason a new domain is required, if applicable: N/A - SMS 확인, PIN 인증, JWT와 Redis 세션은 기존 인증 도메인의 책임이다.
 - Relationships to other domains:
   - `user`: 가입된 사용자와 PIN Hash, 휴대폰 번호, 프로필 기본값을 저장한다.
-  - `profile`: 생년월일과 성별이 더 이상 가입 필수 입력이 아니므로 조회 응답의 Nullable 계약을 함께 조정해야 한다.
+  - `profile`: 생년월일은 회원가입에서 필수로 받지만 기존 데이터 호환을 위해 조회 응답의 Nullable 계약을 유지하고, 성별은 선택 프로필 정보로 취급한다.
   - `common`: 기존 `ApiResponse`, `ApplicationException`, `StatusCode` 오류 형식을 유지한다.
 
 ### Ubiquitous language
@@ -131,7 +133,7 @@ Invalid states:
 
 ### Normal flow: 회원가입
 
-1. 사용자가 `challengeId`, 이름, PIN, PIN 확인, 약관 동의를 제출한다.
+1. 사용자가 `challengeId`, 이름, 생년월일(`yyyy-MM-dd`), PIN, PIN 확인, 약관 동의를 제출한다.
 2. 서버가 Challenge의 존재, 만료, 재사용 여부를 확인한다.
 3. 서버가 휴대폰 번호 중복, PIN 정책과 필수 약관 동의를 확인한다.
 4. 서버가 PIN을 Hash하고 사용자와 기본 프로필 값을 저장한다.
@@ -206,7 +208,7 @@ Request: ConfirmSmsVerificationRequest(phoneNumber, verificationRequestId, verif
 Response: SmsVerificationConfirmedResponse(challengeId, expiresAt)
 
 UseCase: SignUpUseCase.signUp
-Request: SignUpRequest(challengeId, name, pin, pinConfirmation, requiredTermsAgreed, marketingAgreed)
+Request: SignUpRequest(challengeId, name, birthDate, pin, pinConfirmation, requiredTermsAgreed, marketingAgreed)
 Response: void
 
 UseCase: LoginUseCase.login
@@ -280,6 +282,7 @@ Content-Type: application/json
 {
   "challengeId": "challenge-id",
   "name": "홍길동",
+  "birthDate": "1995-03-14",
   "pin": "135790",
   "pinConfirmation": "135790",
   "requiredTermsAgreed": true,
@@ -349,8 +352,9 @@ Authorization: Bearer <accessToken>
   - Unique Constraint 적용 전 기존 중복 번호를 조회하고 충돌을 해결한다.
   - `LoadUserPort.findByPhoneNumber`와 동일 목적의 JPA 조회를 추가한다.
   - `identity_key`는 기존 데이터 호환을 위해 유지하지만 새 로그인 식별에는 사용하지 않는다.
-  - 신규 가입에서 입력하지 않는 `birth_date`, `gender`는 Nullable로 변경한다.
-  - `MyProfileResult`와 `MyProfileWebResponse`에서 생년월일과 성별을 Nullable로 취급한다.
+  - 회원가입 API는 `birthDate`를 필수(`yyyy-MM-dd`)로 받고 `users.birth_date`에 저장한다.
+  - `users.birth_date`와 `users.gender`는 기존 데이터 호환을 위해 nullable 상태를 유지한다. 이 계약 변경을 위한 Flyway migration은 생성하지 않는다.
+  - `MyProfileResult`와 `MyProfileWebResponse`는 신규 사용자의 생년월일을 반환하고, 레거시 데이터의 생년월일·성별 `null`을 허용한다.
   - 필수 약관 동의 시각과 마케팅 동의 시각을 저장한다. 마케팅 철회 시각과 약관 버전은 해당 변경 UseCase가 생길 때 추가한다.
   - 로그아웃 감사 로그에 사용자 ID, 이벤트 종류, UTC 시각, Client IP, User-Agent를 저장한다.
   - 현재 인증 스키마는 Flyway V1 기준선으로 관리하며 이후 변경은 새 버전 마이그레이션으로 추가한다.
@@ -363,8 +367,6 @@ FROM users
 GROUP BY phone_number
 HAVING COUNT(*) > 1;
 
-ALTER TABLE users ALTER COLUMN birth_date DROP NOT NULL;
-ALTER TABLE users ALTER COLUMN gender DROP NOT NULL;
 ALTER TABLE users ADD COLUMN required_terms_agreed_at TIMESTAMP;
 ALTER TABLE users ADD COLUMN marketing_agreed_at TIMESTAMP;
 CREATE UNIQUE INDEX uk_users_phone_number ON users (phone_number);
@@ -379,15 +381,13 @@ CREATE TABLE auth_audit_logs (
 );
 ```
 
-Rollback DDL은 신규 사용자의 `birth_date`, `gender`를 먼저 보강하거나 해당 사용자를 별도 처리한 뒤 실행해야 한다.
+Rollback DDL은 감사 로그와 신규 제약 변경을 되돌리는 용도로만 사용하며, 기존 `birth_date`, `gender` nullable 상태는 변경하지 않는다.
 
 ```sql
 DROP TABLE auth_audit_logs;
 DROP INDEX uk_users_phone_number;
 ALTER TABLE users DROP COLUMN marketing_agreed_at;
 ALTER TABLE users DROP COLUMN required_terms_agreed_at;
-ALTER TABLE users ALTER COLUMN gender SET NOT NULL;
-ALTER TABLE users ALTER COLUMN birth_date SET NOT NULL;
 ```
 - Redis key, TTL, or serialization changes:
   - `auth:sms:otp:{phoneHash}` Key와 OTP 3분 TTL을 유지한다.
@@ -409,7 +409,7 @@ ALTER TABLE users ALTER COLUMN birth_date SET NOT NULL;
 - `IdentityPolicy`는 주민등록번호 파싱과 실명에 가까운 식별키 생성을 제거하고 휴대폰 번호 정규화와 HMAC 기반 `phoneHash`만 담당한다.
 - `SmsOtpState`와 `AuthChallenge`는 휴대폰 소유 확인에 필요한 정보만 보관한다.
 - `PinPolicy`가 PIN 길이, 숫자 구성, 금지 패턴과 최대 로그인 시도 횟수를 소유한다.
-- `User`는 이름, 휴대폰 번호, PIN Hash와 사용자 상태를 소유한다. 생년월일과 성별은 선택 프로필 정보로 전환한다.
+- `User`는 이름, 생년월일, 휴대폰 번호, PIN Hash와 사용자 상태를 소유한다. 생년월일은 회원가입에서 필수로 받고, 성별은 선택 프로필 정보로 유지한다.
 - 회원가입 Service는 Challenge 소비, 중복 확인, PIN 검증, 사용자 저장 순서를 조정한다.
 - 로그인 Service는 사용자 조회, PIN 검증, 마지막 로그인 갱신, 단일 세션 발급을 조정한다.
 - 로그아웃 Service는 세션을 먼저 삭제한 뒤 감사 로그 저장을 요청한다. 감사 로그 저장 실패로 이미 종료한 세션을 복원하지 않는다.
@@ -427,7 +427,7 @@ ALTER TABLE users ALTER COLUMN birth_date SET NOT NULL;
   - 다중 기기 Session Collection: 단일 기기 정책에 필요하지 않으므로 추가하지 않는다.
 - Trade-offs and limits:
   - 휴대폰 번호 변경과 재사용에 대응하는 복구 수단이 없다. PIN 재설정·번호 변경 기능을 제공하기 전에 별도 강한 인증 수단을 정의해야 한다.
-  - 생년월일과 성별이 없는 신규 사용자는 기존 프로필 응답에서 해당 값이 `null`이다.
+  - 신규 사용자는 회원가입 생년월일을 프로필 응답에서 받으며, 레거시 사용자의 생년월일과 성별은 `null`일 수 있다.
   - 새 로그인은 기존 기기의 세션을 즉시 무효화하지만 기기명, 최근 기기 목록, 새 기기 알림은 제공하지 않는다.
   - 로그인 5회 실패 잠금은 30분 후 자동 해제한다. SMS 재인증 기반 즉시 해제는 제공하지 않는다.
 
@@ -455,11 +455,11 @@ ALTER TABLE users ALTER COLUMN birth_date SET NOT NULL;
 | API | `/signup`, `/login` 추가, `/complete`, `/dev/login` 제거 | `AuthController`, `DevAuthController`, `AuthDocs`, Web DTOs |
 | Application | 회원가입·로그인 UseCase 분리, 기존 SMS·Token·Logout 재사용 | `CompleteAuthService`, `SignUpService`, `LoginService`, `AuthTokenService`, `LogoutService` |
 | Domain | 인증 Challenge를 휴대폰 기반으로 축소, PIN 금지 규칙 추가 | `AuthIdentity`, `AuthChallenge`, `SmsOtpState`, `User`, `PinPolicy` |
-| Persistence | 휴대폰 번호 조회·Unique Constraint, 생년월일·성별 Nullable, 동의·감사 로그 저장 | `UserJpaEntity`, `UserJpaRepository`, `UserPersistenceAdapter`, `UserMapper`, 신규 감사 로그 Adapter |
+| Persistence | 휴대폰 번호 조회·Unique Constraint, 회원가입 생년월일 저장, 기존 생년월일·성별 Nullable 유지, 동의·감사 로그 저장 | `UserJpaEntity`, `UserJpaRepository`, `UserPersistenceAdapter`, `UserMapper`, 신규 감사 로그 Adapter |
 | Redis | OTP/Challenge 직렬화 변경, 로그인 실패 제한 추가, 단일 세션 Key 유지 | `SmsVerificationRedisAdapter`, `AuthChallengeRedisAdapter`, `LoginAttemptRedisAdapter`, `AuthSessionRedisAdapter` |
 | Security | `/signup`, `/login` 공개 경로 추가, JWT+Redis 검증 유지 | `SecurityConfig`, `JwtAuthenticationFilter` |
 | Configuration | OTP 3분, 재전송 60초, 최대 시도 5회, 단일 세션과 Token 회전 유지 | `application.yaml`, Auth Properties와 Config |
-| Profile | 신규 사용자의 생년월일·성별 Nullable 응답 | `MyProfileResult`, `MyProfileWebResponse` |
+| Profile | 신규 사용자의 생년월일 반환과 레거시 생년월일·성별 Nullable 응답 | `MyProfileResult`, `MyProfileWebResponse` |
 | Documentation | 인증 경계와 기존 SOLAPI 문서의 Request 설명 갱신 필요 | `docs/architecture.md`, `docs/features/active/solapi-sms-adapter.md`, Swagger |
 
 Existing behavior that must remain unchanged:
@@ -486,7 +486,7 @@ Existing behavior that must remain unchanged:
 - [x] Domain models and rules
   - `AuthIdentity` 의존을 제거하고 OTP·Challenge를 휴대폰 번호 기반으로 축소한다.
   - `PinPolicy`에 명세의 금지 패턴을 추가한다.
-  - `User.register`를 새 가입 입력에 맞춘다.
+  - `User.register`에 필수 생년월일을 전달하고 저장한다.
 - [x] Application Service
   - `SignUpService`와 `LoginService`를 공개 UseCase 구현으로 변경한다.
   - `/complete`의 자동 분기와 Challenge 기반 기존 사용자 로그인을 제거한다.
@@ -499,14 +499,14 @@ Existing behavior that must remain unchanged:
 - [x] Web DTOs, Controllers, and Swagger
   - `/signup`, `/login` DTO와 Controller Method를 추가한다.
   - `/complete`, `/dev/login`을 제거한다.
-  - `SecurityConfig` 공개 경로와 Swagger 설명을 갱신한다.
+  - `SecurityConfig` 공개 경로와 Swagger 설명을 갱신하고 `birthDate` required/date 계약을 노출한다.
 - [x] Infra configuration and Bean wiring
   - 기존 설정을 재사용한다.
   - `PinProperties.lockDuration` 기본 설정을 30분으로 추가한다.
 - [x] Documentation and verification results
   - `docs/architecture.md`의 인증 흐름과 개인정보 규칙을 갱신한다.
   - 기존 SOLAPI Feature Plan의 SMS Request 설명을 새 계약에 맞춘다.
-  - 구현 후 이 문서의 결과와 남은 위험을 기록한다.
+  - 회원가입 생년월일 계약과 구현 검증 결과를 이 문서에 기록한다.
 
 ### Expected commit boundaries
 
@@ -519,6 +519,7 @@ feat(auth): 회원가입과 휴대폰 PIN 로그인 분리
 feat(auth): 사용자 휴대폰 식별 계약과 스키마 반영
 feat(auth): 단일 세션 로그아웃 감사 기록 추가
 docs(auth): 인증 API와 구현 결과 문서화
+docs(auth): 회원가입 생년월일 계약 문서 보완
 ```
 
 각 Commit은 사용하지 않는 Port만 남기지 않고 최소한 컴파일 가능한 상태로 끝낸다.
@@ -534,7 +535,7 @@ git diff --check
 git status --short --untracked-files=all
 ```
 
-새 Test Case는 작성하지 않는다. 기존 Test는 PostgreSQL, Redis와 필수 환경변수가 준비된 경우에만 실행한다.
+회원가입 생년월일 계약에 대한 단위·통합 Test Case를 포함해 관련 Test를 실행한다. PostgreSQL, Redis와 필수 환경변수가 필요한 Test는 해당 조건이 준비된 경우에만 실행한다.
 
 수동 검증 전제조건:
 
@@ -548,15 +549,15 @@ git status --short --untracked-files=all
 
 1. 올바른 번호로 OTP를 발송하고 6자리 코드, 3분 만료와 60초 재전송 제한을 확인한다.
 2. 잘못된 OTP 5회, 만료 OTP와 SMS 발송 실패 응답을 확인한다.
-3. SMS 인증 후 정상 PIN으로 신규 가입하고 같은 번호의 동시·반복 가입이 한 건만 성공하는지 확인한다.
-4. 금지 PIN과 PIN 확인 불일치, 필수 약관 미동의를 확인한다.
+3. SMS 인증 후 생년월일(`yyyy-MM-dd`)과 정상 PIN으로 신규 가입하고 `users.birth_date` 저장 및 같은 번호의 동시·반복 가입을 확인한다.
+4. 생년월일 누락·잘못된 날짜가 HTTP 400을 반환하고, 금지 PIN·PIN 확인 불일치·필수 약관 미동의를 확인한다.
 5. 가입된 전화번호와 PIN으로 로그인하고 두 Token과 `lastLoginAt` 갱신을 확인한다.
 6. 없는 번호와 잘못된 PIN이 같은 로그인 오류를 반환하는지 확인한다.
 7. 같은 사용자로 다시 로그인한 뒤 이전 Access Token과 Request Token이 모두 실패하는지 확인한다.
 8. Request Token 재발급 후 직전 Token 재사용이 실패하는지 확인한다.
 9. 로그아웃 후 Access Token과 Request Token이 모두 실패하는지 확인한다.
 10. 로그아웃 감사 로그에 사용자 ID, UTC 시각, Client IP, User-Agent만 저장되는지 확인한다.
-11. 신규 사용자의 프로필 조회에서 생년월일과 성별이 `null`이어도 정상 응답하는지 확인한다.
+11. 신규 사용자의 프로필 조회에서 저장한 생년월일이 반환되고, 레거시 사용자의 생년월일·성별 `null`도 정상 응답하는지 확인한다.
 12. 필수 약관 동의 시각과 마케팅 동의 여부·시각이 저장되는지 확인한다.
 13. 로그와 PostgreSQL·Redis 데이터에 평문 PIN, OTP, 전체 Token과 Secret이 없는지 확인한다.
 14. 정상 로그아웃 요청의 95%가 3초 안에 응답하는지 측정한다.
@@ -584,9 +585,10 @@ git status --short --untracked-files=all
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
-| 2026-08-15 | Notion 인증 명세와 현재 Controller, Service, Domain, JPA, Redis, JWT 흐름 대조 | 잠금 해제 정책과 운영 데이터 중복 여부 확인 후 구현 | 기존 SMS는 이름·주민등록번호를 검증하지 않으며 새 명세에는 생년월일·성별 입력이 없음 |
+| 2026-08-15 | Notion 인증 명세와 현재 Controller, Service, Domain, JPA, Redis, JWT 흐름 대조 | 잠금 해제 정책과 운영 데이터 중복 여부 확인 후 구현 | 기존 SMS는 이름·주민등록번호를 검증하지 않으며 초기 개편 초안에는 생년월일·성별 입력이 없었음 |
 | 2026-08-15 | SMS OTP + 전화번호/PIN 로그인 + 단일 기기 세션 개발 계약 작성 | Feature Plan 리뷰 | `/complete` 제거는 프론트엔드 동시 변경이 필요한 Breaking Change |
 | 2026-08-15 | SMS 입력 축소, 가입·로그인 분리, 30분 로그인 잠금, 단일 Redis 세션, 약관 시각, 로그아웃 감사 로그 구현 및 Java 컴파일 | 기존 테스트와 런타임 수동 검증, 운영 DDL 준비 | 운영 데이터 중복 번호와 `validate` Profile Schema는 별도 배포 작업 필요 |
+| 2026-09-10 | 회원가입 요청에 필수 `birthDate`와 `yyyy-MM-dd` 형식, 저장·400 검증 기준을 반영 | 프론트엔드 동시 배포와 런타임 수동 검증 | 기존 클라이언트가 `birthDate`를 누락하면 HTTP 400을 반환함 |
 
 ## 10. Decision log
 
@@ -607,7 +609,7 @@ git status --short --untracked-files=all
 ## 11. Completion record
 
 - Completed on: Pending - 런타임과 운영 DDL 검증 후 완료 처리
-- Final behavior: SMS 휴대폰 소유 인증 후 별도 가입, 휴대폰 번호와 PIN 로그인, 사용자당 Redis 단일 세션, 5회 실패 시 30분 잠금, 로그아웃 감사 로그
+- Final behavior: SMS 휴대폰 소유 인증 후 생년월일을 저장하는 별도 가입, 휴대폰 번호와 PIN 로그인, 사용자당 Redis 단일 세션, 5회 실패 시 30분 잠금, 로그아웃 감사 로그
 - Unverified items: 운영 휴대폰 번호 중복, 실제 SMS·PostgreSQL·Redis API 흐름, 운영 DDL
-- Remaining risks: 휴대폰 번호 변경·재사용 계정 복구 수단 부재, 프로필 생년월일·성별 Nullable 전환, 프론트엔드 Breaking Change
+- Remaining risks: 휴대폰 번호 변경·재사용 계정 복구 수단 부재, 레거시 프로필의 생년월일·성별 Nullable 유지, 필수 `birthDate`에 따른 프론트엔드 Breaking Change
 - Follow-up work: PIN 재설정, 휴대폰 번호 변경, 강한 본인확인 Provider와 약관 버전 이력은 별도 기능명세가 생길 때 계획한다.

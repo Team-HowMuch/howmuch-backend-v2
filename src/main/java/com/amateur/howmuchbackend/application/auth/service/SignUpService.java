@@ -59,6 +59,7 @@ public class SignUpService implements SignUpUseCase {
         User user = User.register(
                 identityPolicy.phoneHash(challenge.phoneNumber()),
                 normalizeName(command.name()),
+                command.birthDate(),
                 generateAvailablePublicId(),
                 challenge.phoneNumber(),
                 passwordEncoder.encode(command.pin()),
