@@ -85,7 +85,7 @@ Authentication: SMS challenge required; no token issued
 - [x] Request/Command `toString()` masking
 - [x] Existing unit and persistence regression tests
 - [x] Compile, focused tests, API/OpenAPI verification
-- [ ] Commit, push, and PR to `develop`
+- [x] Commit, push, and PR to `develop`
 
 ### Expected commit boundaries
 
@@ -111,7 +111,7 @@ Acceptance requires a successful signup with `"birthDate":"1995-03-14"`, a match
 | Related tests | Pass | `SignUpServiceTest`, `AuthRecordMaskingTest`, `AuthSignupContractIntegrationTest`, `LoginProfilePersistenceIntegrationTest`, `GroupInviteIntegrationTest` |
 | HTTP contract | Pass | Missing and invalid `birthDate` return HTTP 400 `INVALID_ARGUMENT` |
 | OpenAPI contract | Pass | `SignUpRequest.birthDate` is required `string/date` |
-| Formatting and worktree checks | Pass | `git diff --check`; implementation changes remain to be committed |
+| Formatting and worktree checks | Pass | `git diff --check`; commits `9a3492d`, `2930ff4`; PR #350 |
 
 ## 8. Completion record
 
