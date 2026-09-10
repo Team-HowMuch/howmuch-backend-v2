@@ -1,8 +1,11 @@
 package com.amateur.howmuchbackend.adapter.in.web.auth.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+
+import java.time.LocalDate;
 
 public record SignUpRequest(
         @NotBlank(message = "인증 challenge ID는 필수입니다.")
@@ -10,6 +13,8 @@ public record SignUpRequest(
         @NotBlank(message = "이름은 필수입니다.")
         @Size(max = 100, message = "이름은 100자 이하여야 합니다.")
         String name,
+        @NotNull(message = "생년월일은 필수입니다.")
+        LocalDate birthDate,
         @NotBlank(message = "PIN은 필수입니다.")
         @Pattern(regexp = "^\\d{6}$", message = "PIN은 6자리 숫자여야 합니다.")
         String pin,
@@ -23,6 +28,7 @@ public record SignUpRequest(
         return new com.amateur.howmuchbackend.application.port.in.auth.command.SignUpCommand(
                 challengeId,
                 name,
+                birthDate,
                 pin,
                 pinConfirmation,
                 requiredTermsAgreed,
@@ -32,7 +38,7 @@ public record SignUpRequest(
 
     @Override
     public String toString() {
-        return "SignUpRequest[challengeId=***, name=***, pin=***, pinConfirmation=***, requiredTermsAgreed=%s, marketingAgreed=%s]"
+        return "SignUpRequest[challengeId=***, name=***, birthDate=***, pin=***, pinConfirmation=***, requiredTermsAgreed=%s, marketingAgreed=%s]"
                 .formatted(requiredTermsAgreed, marketingAgreed);
     }
 }

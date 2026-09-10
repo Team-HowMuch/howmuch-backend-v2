@@ -28,6 +28,7 @@ public record User(
     public static User register(
             String identityKey,
             String name,
+            LocalDate birthDate,
             String publicId,
             String phoneNumber,
             String pinHash,
@@ -39,7 +40,7 @@ public record User(
                 identityKey,
                 name,
                 publicId,
-                null,
+                birthDate,
                 null,
                 phoneNumber,
                 pinHash,

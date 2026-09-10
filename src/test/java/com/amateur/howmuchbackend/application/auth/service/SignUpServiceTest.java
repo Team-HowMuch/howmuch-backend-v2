@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -86,6 +87,7 @@ class SignUpServiceTest {
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(saveUserPort).save(userCaptor.capture());
         assertThat(userCaptor.getValue().name()).isEqualTo("최수아");
+        assertThat(userCaptor.getValue().birthDate()).isEqualTo(LocalDate.of(1995, 3, 14));
         assertThat(userCaptor.getValue().publicId()).isEqualTo(AVAILABLE_PUBLIC_ID);
         assertThat(userCaptor.getValue().phoneNumber()).isEqualTo(PHONE_NUMBER);
         verify(publicIdPolicy, times(2)).generate();
@@ -119,6 +121,14 @@ class SignUpServiceTest {
     }
 
     private SignUpCommand command() {
-        return new SignUpCommand(CHALLENGE_ID, "최수아", "135790", "135790", true, false);
+        return new SignUpCommand(
+                CHALLENGE_ID,
+                "최수아",
+                LocalDate.of(1995, 3, 14),
+                "135790",
+                "135790",
+                true,
+                false
+        );
     }
 }

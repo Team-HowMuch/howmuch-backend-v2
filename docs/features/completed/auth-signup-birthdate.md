@@ -1,6 +1,6 @@
 # Feature Plan: 회원가입 생년월일 저장
 
-- Status: In progress
+- Status: Complete
 - Last updated: 2026-09-10
 - Related issue: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/349
 - Related ADR: N/A
@@ -17,9 +17,9 @@
 
 ### Success criteria
 
-- [ ] 유효한 `birthDate`가 회원가입 성공 후 `users.birth_date`에 저장된다.
-- [ ] 누락·잘못된 날짜는 HTTP 400으로 거부된다.
-- [ ] 인증 계약 로그에 생년월일 원문이 노출되지 않는다.
+- [x] 유효한 `birthDate`가 회원가입 성공 후 `users.birth_date`에 저장된다.
+- [x] 누락·잘못된 날짜는 HTTP 400으로 거부된다.
+- [x] 인증 계약 로그에 생년월일 원문이 노출되지 않는다.
 
 ### Out of scope
 
@@ -81,10 +81,10 @@ Authentication: SMS challenge required; no token issued
 
 - [x] Issue #349 and feature branch
 - [x] Feature Plan
-- [ ] `SignUpRequest`, `SignUpCommand`, `SignUpService`, `User.register()` contract wiring
-- [ ] Request/Command `toString()` masking
-- [ ] Existing unit and persistence regression tests
-- [ ] Compile, focused tests, API/OpenAPI verification
+- [x] `SignUpRequest`, `SignUpCommand`, `SignUpService`, `User.register()` contract wiring
+- [x] Request/Command `toString()` masking
+- [x] Existing unit and persistence regression tests
+- [x] Compile, focused tests, API/OpenAPI verification
 - [ ] Commit, push, and PR to `develop`
 
 ### Expected commit boundaries
@@ -102,3 +102,21 @@ git status --short --untracked-files=all
 ```
 
 Acceptance requires a successful signup with `"birthDate":"1995-03-14"`, a matching `users.birth_date` row, HTTP 400 for missing/invalid input, and OpenAPI required `string/date` output.
+
+### Results
+
+| Item | Result | Evidence |
+|---|---|---|
+| Java compilation | Pass | `./gradlew compileJava` |
+| Related tests | Pass | `SignUpServiceTest`, `AuthRecordMaskingTest`, `AuthSignupContractIntegrationTest`, `LoginProfilePersistenceIntegrationTest`, `GroupInviteIntegrationTest` |
+| HTTP contract | Pass | Missing and invalid `birthDate` return HTTP 400 `INVALID_ARGUMENT` |
+| OpenAPI contract | Pass | `SignUpRequest.birthDate` is required `string/date` |
+| Formatting and worktree checks | Pass | `git diff --check`; implementation changes remain to be committed |
+
+## 8. Completion record
+
+- Completed on: 2026-09-10
+- Final behavior: 회원가입 요청의 ISO `birthDate`가 `User`를 거쳐 `users.birth_date`에 저장되고 인증 계약 문자열에서는 마스킹된다.
+- Unverified items: 실제 운영 배포 및 실사용 클라이언트 동시 배포는 수행하지 않음
+- Remaining risks: 기존 클라이언트가 `birthDate` 없이 요청하면 400이므로 클라이언트 동시 배포 필요
+- Follow-up work: 없음

@@ -4,13 +4,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import tools.jackson.databind.ObjectMapper;
 import java.lang.reflect.RecordComponent;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AuthRecordMaskingTest {
-    private static final Set<String> SENSITIVE = Set.of("name", "phoneNumber", "pin", "pinConfirmation",
+    private static final Set<String> SENSITIVE = Set.of("name", "birthDate", "phoneNumber", "pin", "pinConfirmation",
             "verificationCode", "verificationRequestId", "challengeId", "accessToken", "requestToken",
             "clientIp", "userAgent");
     private final ObjectMapper mapper = new ObjectMapper();
@@ -105,6 +106,7 @@ class AuthRecordMaskingTest {
         for (int i = 0; i < fields.length; i++) {
             var field = fields[i];
             values[i] = field.getType() == boolean.class ? true
+                    : field.getType() == LocalDate.class ? LocalDate.of(1995, 3, 14)
                     : field.getType() == LocalDateTime.class ? LocalDateTime.of(2026, 9, 6, 1, 2, 3)
                     : nullSensitive && SENSITIVE.contains(field.getName()) ? null : "synthetic-" + field.getName();
         }
