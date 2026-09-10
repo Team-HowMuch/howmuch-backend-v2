@@ -74,7 +74,7 @@ public class SettlementPersistenceAdapter implements
                 userId, tab.name(), status.name(), groupId,
                 yearMonth == null ? null : monthStartUtc(yearMonth),
                 yearMonth == null ? null : monthStartUtc(yearMonth.plusMonths(1)),
-                cursorRequestedAt, cursorId, limit
+                cursorRequestedAt == null ? null : cursorRequestedAt.toInstant(ZoneOffset.UTC), cursorId, limit
         );
         if (projections.isEmpty()) {
             return List.of();

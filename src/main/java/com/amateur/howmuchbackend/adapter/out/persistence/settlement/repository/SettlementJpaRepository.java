@@ -22,60 +22,60 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                        COALESCE(link.created_at, settlement.created_at) AS requested_at
                   FROM settlements settlement
                   LEFT JOIN settlement_links link ON link.settlement_id = settlement.id
-             WHERE (
-                    (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
-                    OR (
-                        :tab = 'PAY'
-                        AND settlement.creator_id <> :userId
-                        AND EXISTS (
+                 WHERE (
+                        (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
+                        OR (
+                            :tab = 'PAY'
+                            AND settlement.creator_id <> :userId
+                            AND EXISTS (
+                                SELECT 1
+                                  FROM settlement_participants linked_participant
+                                 WHERE linked_participant.settlement_id = settlement.id
+                                   AND linked_participant.linked_user_id = :userId
+                            )
+                        )
+                    )
+                   AND settlement.status <> 'DRAFT'
+                   AND (
+                        CAST(:completedFrom AS timestamptz) IS NULL
+                        OR (
+                            settlement.status = 'COMPLETED'
+                            AND settlement.updated_at >= (CAST(:completedFrom AS timestamptz) AT TIME ZONE 'UTC')
+                            AND settlement.updated_at < (CAST(:completedBefore AS timestamptz) AT TIME ZONE 'UTC')
+                        )
+                    )
+                   AND (
+                        :status = 'ALL'
+                        OR (
+                            :status = 'IN_PROGRESS'
+                            AND settlement.status IN (
+                                'REQUESTED', 'AWAITING_DEPOSIT', 'SUSPENDED'
+                            )
+                        )
+                        OR settlement.status = :status
+                    )
+                   AND (
+                        :groupId IS NULL
+                        OR EXISTS (
                             SELECT 1
-                              FROM settlement_participants linked_participant
-                             WHERE linked_participant.settlement_id = settlement.id
-                               AND linked_participant.linked_user_id = :userId
+                              FROM settlement_participants group_participant
+                              JOIN groups filtered_group
+                                ON filtered_group.id = group_participant.source_group_id
+                               AND filtered_group.status = 'ACTIVE'
+                              JOIN group_members viewer_group_member
+                                ON viewer_group_member.group_id = filtered_group.id
+                               AND viewer_group_member.user_id = :userId
+                               AND viewer_group_member.status = 'ACTIVE'
+                             WHERE group_participant.settlement_id = settlement.id
+                               AND group_participant.source = 'GROUP_MEMBER'
+                               AND group_participant.source_group_id = :groupId
                         )
                     )
-                )
-               AND settlement.status <> 'DRAFT'
-               AND (
-                    CAST(:completedFrom AS timestamptz) IS NULL
-                    OR (
-                        settlement.status = 'COMPLETED'
-                        AND settlement.updated_at >= (CAST(:completedFrom AS timestamptz) AT TIME ZONE 'UTC')
-                        AND settlement.updated_at < (CAST(:completedBefore AS timestamptz) AT TIME ZONE 'UTC')
+                   AND (
+                        CAST(:cursorRequestedAt AS timestamptz) IS NULL
+                        OR (COALESCE(link.created_at, settlement.created_at), settlement.id)
+                           < (CAST(:cursorRequestedAt AS timestamptz) AT TIME ZONE 'UTC', CAST(:cursorId AS uuid))
                     )
-                )
-               AND (
-                    :status = 'ALL'
-                    OR (
-                        :status = 'IN_PROGRESS'
-                        AND settlement.status IN (
-                            'REQUESTED', 'AWAITING_DEPOSIT', 'SUSPENDED'
-                        )
-                    )
-                    OR settlement.status = :status
-                )
-               AND (
-                    :groupId IS NULL
-                    OR EXISTS (
-                        SELECT 1
-                          FROM settlement_participants group_participant
-                          JOIN groups filtered_group
-                            ON filtered_group.id = group_participant.source_group_id
-                           AND filtered_group.status = 'ACTIVE'
-                          JOIN group_members viewer_group_member
-                            ON viewer_group_member.group_id = filtered_group.id
-                           AND viewer_group_member.user_id = :userId
-                           AND viewer_group_member.status = 'ACTIVE'
-                         WHERE group_participant.settlement_id = settlement.id
-                           AND group_participant.source = 'GROUP_MEMBER'
-                           AND group_participant.source_group_id = :groupId
-                    )
-                )
-               AND (
-                    CAST(:cursorRequestedAt AS timestamp) IS NULL
-                    OR (COALESCE(link.created_at, settlement.created_at), settlement.id)
-                       < (CAST(:cursorRequestedAt AS timestamp), CAST(:cursorId AS uuid))
-                )
                  ORDER BY COALESCE(link.created_at, settlement.created_at) DESC, settlement.id DESC
                  LIMIT :limit
             )
@@ -149,7 +149,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
             @Param("groupId") Long groupId,
             @Param("completedFrom") Instant completedFrom,
             @Param("completedBefore") Instant completedBefore,
-            @Param("cursorRequestedAt") LocalDateTime cursorRequestedAt,
+            @Param("cursorRequestedAt") Instant cursorRequestedAt,
             @Param("cursorId") UUID cursorId,
             @Param("limit") int limit
     );
