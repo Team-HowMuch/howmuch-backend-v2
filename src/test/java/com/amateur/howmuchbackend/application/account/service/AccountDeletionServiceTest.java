@@ -51,23 +51,23 @@ class AccountDeletionServiceTest {
 
         service().delete(deleted.id());
 
-        verify(settlementUsagePort).detachIssuedByReceivingAccountId(deleted.id());
+        verify(settlementUsagePort).detachCompletedByReceivingAccountId(deleted.id());
         verify(deleteAccountPort).delete(deleted.id(), next.id());
     }
 
     @Test
-    @DisplayName("DRAFT 정산이 수령 계좌로 사용하면 아무것도 변경하지 않고 409로 거부한다")
-    void rejectsAccountUsedByDraftSettlement() {
+    @DisplayName("진행 중 정산이 수령 계좌로 사용하면 아무것도 변경하지 않고 409로 거부한다")
+    void rejectsAccountUsedByInProgressSettlement() {
         Account account = account(10L, true, 0);
         givenOwnedLockedAccount(account);
-        when(settlementUsagePort.existsDraftByReceivingAccountId(account.id())).thenReturn(true);
+        when(settlementUsagePort.existsInProgressByReceivingAccountId(account.id())).thenReturn(true);
 
         assertThatThrownBy(() -> service().delete(account.id()))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
-                                .isEqualTo(AccountStatusCode.ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT));
+                                .isEqualTo(AccountStatusCode.ACCOUNT_IN_USE_BY_SETTLEMENT));
 
-        verify(settlementUsagePort, never()).detachIssuedByReceivingAccountId(account.id());
+        verify(settlementUsagePort, never()).detachCompletedByReceivingAccountId(account.id());
         verifyNoInteractions(deleteAccountPort);
     }
 

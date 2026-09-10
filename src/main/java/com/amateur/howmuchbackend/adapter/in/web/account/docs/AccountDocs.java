@@ -46,7 +46,7 @@ public interface AccountDocs {
 
     @Operation(
             summary = "연결 계좌 삭제",
-            description = "활성 계좌를 로컬에서 삭제합니다. CODEF 기관 연결은 유지되며 DRAFT 정산이 수령 계좌로 사용 중이면 거부합니다.",
+            description = "활성 계좌를 로컬에서 삭제합니다. CODEF 기관 연결은 유지되며 진행 중인 정산이 수령 계좌로 사용 중이면 거부합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -54,7 +54,7 @@ public interface AccountDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "ACCOUNT_NOT_FOUND"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT"
+                    description = "ACCOUNT_IN_USE_BY_SETTLEMENT"
             )
     })
     ApiResponse<Void> deleteAccount(Long accountId);

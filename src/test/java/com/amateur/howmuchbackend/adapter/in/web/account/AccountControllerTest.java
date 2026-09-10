@@ -229,13 +229,13 @@ class AccountControllerTest {
     }
 
     @Test
-    @DisplayName("DRAFT 정산이 사용하는 계좌 삭제는 409 계약으로 반환한다")
-    void rejectsAccountUsedByDraftSettlement() throws Exception {
-        doThrow(ApplicationException.of(AccountStatusCode.ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT))
+    @DisplayName("진행 중 정산이 사용하는 계좌 삭제는 409 계약으로 반환한다")
+    void rejectsAccountUsedByInProgressSettlement() throws Exception {
+        doThrow(ApplicationException.of(AccountStatusCode.ACCOUNT_IN_USE_BY_SETTLEMENT))
                 .when(deleteAccountUseCase).delete(1L);
 
         mockMvc.perform(delete("/api/v2/accounts/1"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT"));
+                .andExpect(jsonPath("$.error.code").value("ACCOUNT_IN_USE_BY_SETTLEMENT"));
     }
 }

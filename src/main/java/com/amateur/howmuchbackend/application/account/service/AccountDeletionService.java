@@ -35,11 +35,11 @@ public class AccountDeletionService implements DeleteAccountUseCase {
         account = loadAccountPort.findActiveByIdAndUserIdForUpdate(accountId, actor.userId())
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
 
-        if (settlementUsagePort.existsDraftByReceivingAccountId(account.id())) {
-            throw ApplicationException.of(AccountStatusCode.ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT);
+        if (settlementUsagePort.existsInProgressByReceivingAccountId(account.id())) {
+            throw ApplicationException.of(AccountStatusCode.ACCOUNT_IN_USE_BY_SETTLEMENT);
         }
 
-        settlementUsagePort.detachIssuedByReceivingAccountId(account.id());
+        settlementUsagePort.detachCompletedByReceivingAccountId(account.id());
         deleteAccountPort.delete(account.id(), nextDefaultAccountId(account));
     }
 
