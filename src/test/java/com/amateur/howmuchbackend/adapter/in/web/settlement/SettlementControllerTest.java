@@ -298,8 +298,22 @@ class SettlementControllerTest {
     }
 
     @Test
+    void acceptsYearMonthRangeBoundaries() throws Exception {
+        for (String value : List.of("0001-01", "9999-12")) {
+            mockMvc.perform(get("/api/v2/settlements")
+                            .queryParam("yearMonth", value).queryParam("status", "COMPLETED"))
+                    .andExpect(status().isOk());
+            verify(getSettlementsUseCase).get(new GetSettlementsCommand(
+                    SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
+                    null, java.time.YearMonth.parse(value)));
+        }
+    }
+
+    @Test
     void rejectsInvalidYearMonth() throws Exception {
-        for (String value : List.of("2026-13", "2026-00", "2026-9", "2026-09-01", "invalid")) {
+        for (String value : List.of("2026-13", "2026-00", "2026-9", "2026-09-01", "invalid",
+                "+999999999-12", "+294277-01", "+10000-01", "-0001-01", "0000-01",
+                "+02026-09", "", " 2026-09", "2026-09 ")) {
             mockMvc.perform(get("/api/v2/settlements").queryParam("yearMonth", value))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));

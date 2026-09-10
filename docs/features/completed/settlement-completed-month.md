@@ -72,3 +72,14 @@ PostgreSQL·Redis 가용성을 먼저 확인하고 격리된 테스트 DB 및 sc
 - 1차 검증에서 테스트 import 누락 수정 후 native timestamp의 9시간 이동과 Swagger의 null 타입을 발견했다.
   기존 입금 후보 조회의 `AT TIME ZONE 'UTC'` + `Instant` 패턴을 재사용하여 응답과 경계를 명시적으로 매핑하고 재검증했다.
 - 문서의 저장 경로 참조 확인 및 `git diff --check` 통과.
+
+## PR 리뷰 반영 (2026-09-10)
+
+- 배포 변경 분리 지적은 PR HEAD `74fe6bc`에서 이미 해결되어 추가 변경하지 않는다.
+- 확장 연도 입력이 YearMonth 계산 또는 PostgreSQL 바인딩에서 500을 유발하는 지적을 수용한다.
+- Web Request는 문자열의 `yyyy-MM` 형식 및 0001~9999 연도를 검증한 뒤 Command의 YearMonth로 변환한다.
+- 생략 시 null과 기존 기본 필터를 유지한다. 빈 문자열·부호·확장 연도·0년은 400 INVALID_ARGUMENT로 거절한다.
+- 스키마·Application 계약 변경 및 Flyway migration: N/A.
+- 커밋 경계: `fix(settlement): 연월 입력 형식과 범위 검증`에 입력 검증·회귀 테스트·검증 결과를 함께 포함한다.
+- 검증: `compileJava` 및 관련 Java 48건·JavaScript 35건 통과. 확장 연도 등 잘못된 입력은 UseCase 호출 없이 400을 반환하고, 허용 양 끝은 실제 PostgreSQL에서 정상 조회됨을 확인했다.
+- `git diff --check` 통과. 전체 테스트 및 별도 실제 HTTP 요청은 이번 수정에서도 미실행.

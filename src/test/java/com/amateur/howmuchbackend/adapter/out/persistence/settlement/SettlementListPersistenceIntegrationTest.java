@@ -360,6 +360,15 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
+    void acceptedYearMonthExtremesCanBeQueried() {
+        for (YearMonth month : java.util.List.of(YearMonth.of(1, 1), YearMonth.of(9999, 12))) {
+            assertThat(settlementPersistenceAdapter.findAll(
+                    creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
+                    null, month)).isEmpty();
+        }
+    }
+
+    @Test
     void filtersCompletedMonthAtKoreanMonthBoundariesForBothTabs() {
         YearMonth month = YearMonth.of(2026, 9);
         LocalDateTime start = LocalDateTime.of(2026, 8, 31, 15, 0);
