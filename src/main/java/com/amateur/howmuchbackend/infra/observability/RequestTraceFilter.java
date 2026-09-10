@@ -5,13 +5,14 @@ import com.amateur.howmuchbackend.common.data.ErrorResponse;
 import com.amateur.howmuchbackend.common.exception.SafeExceptionLogger;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -22,18 +23,17 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 @RequiredArgsConstructor
 @Slf4j
 public class RequestTraceFilter extends OncePerRequestFilter {
-    public static final String HEADER = "X-Request-ID";
-    private static final String ID_ATTRIBUTE = RequestTraceFilter.class.getName() + ".id";
+    public static final String HEADER = "X-Trace-ID";
     private static final String RECORDED_ATTRIBUTE = RequestTraceFilter.class.getName() + ".recorded";
     private final ObjectMapper objectMapper;
     private final ObjectProvider<MeterRegistry> registries;
+    private final ObjectProvider<Tracer> tracers;
 
     @Override
     protected boolean shouldNotFilterAsyncDispatch() { return false; }
@@ -44,14 +44,7 @@ public class RequestTraceFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                   FilterChain filterChain) throws ServletException, IOException {
-        String requestId = (String) request.getAttribute(ID_ATTRIBUTE);
-        if (requestId == null) {
-            requestId = UUID.randomUUID().toString();
-            request.setAttribute(ID_ATTRIBUTE, requestId);
-        }
-        String previousId = MDC.get("requestId");
-        MDC.put("requestId", requestId);
-        response.setHeader(HEADER, requestId);
+        setTraceHeader(response);
         int failureStatus = 0;
         try {
             filterChain.doFilter(request, response);
@@ -74,23 +67,33 @@ public class RequestTraceFilter extends OncePerRequestFilter {
             SafeExceptionLogger.log(exception, 500);
             throw new IOException("Request I/O failed");
         } finally {
-            try {
-                if (!request.isAsyncStarted() && request.getAttribute(RECORDED_ATTRIBUTE) == null) {
-                    request.setAttribute(RECORDED_ATTRIBUTE, true);
-                    int status = failureStatus == 0 ? response.getStatus() : failureStatus;
-                    String area = area(request);
-                    registries.ifAvailable(registry -> registry.counter("howmuch.http.requests",
-                            "area", area, "status", status >= 100 && status <= 599
-                                    ? Integer.toString(status) : "other").increment());
-                    if (status >= 400) {
-                        log.atWarn().addKeyValue("event", "request_failed")
-                                .addKeyValue("status", status).addKeyValue("area", area).log("Request failed");
-                    }
+            if (!request.isAsyncStarted() && request.getAttribute(RECORDED_ATTRIBUTE) == null) {
+                request.setAttribute(RECORDED_ATTRIBUTE, true);
+                int status = failureStatus == 0 ? response.getStatus() : failureStatus;
+                String area = area(request);
+                registries.ifAvailable(registry -> registry.counter("howmuch.http.requests",
+                        "area", area, "status", status >= 100 && status <= 599
+                                ? Integer.toString(status) : "other").increment());
+                if (status >= 400) {
+                    log.atWarn().addKeyValue("event", "request_failed")
+                            .addKeyValue("status", status).addKeyValue("area", area).log("Request failed");
                 }
-            } finally {
-                if (previousId == null) MDC.remove("requestId");
-                else MDC.put("requestId", previousId);
             }
+        }
+    }
+
+    private void setTraceHeader(HttpServletResponse response) {
+        Tracer tracer = tracers.getIfAvailable();
+        if (tracer == null) {
+            return;
+        }
+        Span span = tracer.currentSpan();
+        if (span == null || span.isNoop() || span.context() == null) {
+            return;
+        }
+        String traceId = span.context().traceId();
+        if (traceId != null && !traceId.isBlank() && !traceId.matches("0+")) {
+            response.setHeader(HEADER, traceId);
         }
     }
 
