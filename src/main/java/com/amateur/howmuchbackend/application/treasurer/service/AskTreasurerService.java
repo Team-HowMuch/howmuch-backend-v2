@@ -278,7 +278,9 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 card.subtitle(),
                 card.direction(),
                 card.amount(),
-                card.marker()
+                card.marker(),
+                card.allocationType(),
+                card.status()
         );
     }
 

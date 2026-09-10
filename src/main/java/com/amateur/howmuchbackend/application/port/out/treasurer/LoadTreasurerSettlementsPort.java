@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.port.out.treasurer;
 
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
 
@@ -19,7 +20,8 @@ public interface LoadTreasurerSettlementsPort {
             Long amount,
             String counterpartName,
             int payerCount,
-            int completedPayerCount
+            int completedPayerCount,
+            SettlementAllocationType allocationType
     ) {
     }
 }

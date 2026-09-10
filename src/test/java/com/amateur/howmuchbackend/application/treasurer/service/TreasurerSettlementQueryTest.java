@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.treasurer.service;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.LoadTreasurerSettlementsPort;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,8 @@ class TreasurerSettlementQueryTest {
                         5_500L,
                         "요청자",
                         1,
-                        0
+                        0,
+                        SettlementAllocationType.ITEM_ALLOCATION
                 ),
                 new LoadTreasurerSettlementsPort.TreasurerSettlementRecord(
                         receiveId,
@@ -51,7 +53,8 @@ class TreasurerSettlementQueryTest {
                         6_000L,
                         "나",
                         1,
-                        0
+                        0,
+                        SettlementAllocationType.DUTCH_PAY
                 )
         ));
         TreasurerSettlementQuery query = new TreasurerSettlementQuery(currentActorPort, loadTreasurerSettlementsPort);
@@ -63,11 +66,13 @@ class TreasurerSettlementQueryTest {
                     assertThat(send.settlementId()).isEqualTo(payId);
                     assertThat(send.direction()).isEqualTo(SettlementDirection.SEND);
                     assertThat(send.amount()).isEqualTo(5_500L);
+                    assertThat(send.allocationType()).isEqualTo(SettlementAllocationType.ITEM_ALLOCATION);
                 },
                 receive -> {
                     assertThat(receive.settlementId()).isEqualTo(receiveId);
                     assertThat(receive.direction()).isEqualTo(SettlementDirection.RECEIVE);
                     assertThat(receive.amount()).isEqualTo(6_000L);
+                    assertThat(receive.allocationType()).isEqualTo(SettlementAllocationType.DUTCH_PAY);
                 }
         );
     }

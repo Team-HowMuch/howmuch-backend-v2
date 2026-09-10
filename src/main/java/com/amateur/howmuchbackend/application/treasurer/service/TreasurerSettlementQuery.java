@@ -31,7 +31,8 @@ public class TreasurerSettlementQuery {
                 record.amount(),
                 record.counterpartName(),
                 record.payerCount(),
-                record.completedPayerCount()
+                record.completedPayerCount(),
+                record.allocationType()
         );
     }
 }

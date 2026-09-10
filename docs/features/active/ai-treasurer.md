@@ -122,6 +122,7 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 - 평소 입력은 자유 대화(`POST /questions`)이고, 메뉴 칩·바로가기도 같은 질의 API로 처리한다.
 - 바로가기(보낼/받을/정산 상태)와 기간을 생략한 질의는 `이번 달 기준으로 조회했어요.`를 쓴다.
 - 리스트 카드 부제의 완료 인원은 입금(`settlement_deposits`)이 있는 참여자 수로 근사한다. 부분 입금은 완료로 센다.
+- 리스트 카드는 앱의 화면 이동 분기를 위해 `allocationType`과 `status`를 함께 내린다. 배분 방식을 정하기 전이면 `allocationType`은 null이다. 상세는 `treasurer-answer-item-navigation.md`(#341) 참고.
 - `이번 주`는 Asia/Seoul ISO 주이고, 기한 필드가 없어 `마감`은 요청일 + 7일이 해당 기간에 들어오는 미완료 정산으로 근사한다.
 - OCR 안내 키워드(`ocr`, `영수증`)는 보낼/받을/마감/지출/상태 의도가 없을 때만 GUIDE로 본다.
 - OCR 안내는 고정 문구만 반환하고 OCR 서버는 호출하지 않는다.

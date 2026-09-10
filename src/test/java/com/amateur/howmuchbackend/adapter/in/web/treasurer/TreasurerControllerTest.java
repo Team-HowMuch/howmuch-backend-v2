@@ -9,10 +9,14 @@ import com.amateur.howmuchbackend.application.port.in.treasurer.result.Treasurer
 import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerRecommendationsResult;
 import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerSummaryResult;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
+import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerActionType;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerView;
+import com.amateur.howmuchbackend.domain.treasurer.TreasurerCardMarker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -85,7 +90,17 @@ class TreasurerControllerTest {
                 TreasurerAnswerView.LIST,
                 "이번 달 기준으로 조회했어요. 보낼 정산은 1건, 총 45,000원이 남아 있어요.",
                 "누르면 해당되는 정산 상세로 이동해요!",
-                List.of(),
+                List.of(new TreasurerAnswerResult.Item(
+                        UUID.fromString("44444444-4444-4444-4444-444444444444"),
+                        "2026.08.10",
+                        "45,000원 내야 함",
+                        "요청자 요청 - 미납",
+                        SettlementDirection.SEND,
+                        45_000L,
+                        TreasurerCardMarker.NONE,
+                        SettlementAllocationType.ITEM_ALLOCATION,
+                        SettlementStatus.AWAITING_DEPOSIT
+                )),
                 null,
                 List.of(new TreasurerAnswerResult.Action(TreasurerAnswerActionType.SEND_LIST, "보낼 정산 확인하기")),
                 List.of()
@@ -99,7 +114,9 @@ class TreasurerControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.intent").value("SEND_SETTLEMENTS"))
-                .andExpect(jsonPath("$.data.actions[0].label").value("보낼 정산 확인하기"));
+                .andExpect(jsonPath("$.data.actions[0].label").value("보낼 정산 확인하기"))
+                .andExpect(jsonPath("$.data.items[0].allocationType").value("ITEM_ALLOCATION"))
+                .andExpect(jsonPath("$.data.items[0].status").value("AWAITING_DEPOSIT"));
     }
 
     @Test

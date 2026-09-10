@@ -38,7 +38,7 @@ public interface TreasurerDocs {
 
     @Operation(
             summary = "AI 정산·지출 질의",
-            description = "자유 대화와 바로가기·메뉴 칩을 같은 계약으로 처리합니다. view가 LIST이면 날짜·헤드라인 카드, SUMMARY이면 낼/받을/완료 요약 카드, TEXT이면 안내 문장입니다. 바로가기 질문 예: 보낼 정산, 받을 정산, 정산 상태.",
+            description = "자유 대화와 바로가기·메뉴 칩을 같은 계약으로 처리합니다. view가 LIST이면 날짜·헤드라인 카드, SUMMARY이면 낼/받을/완료 요약 카드, TEXT이면 안내 문장입니다. 바로가기 질문 예: 보낼 정산, 받을 정산, 정산 상태. items의 allocationType과 status는 카드를 눌렀을 때 이동할 화면을 앱이 정하는 값입니다. allocationType은 배분 방식을 정하기 전이면 null이고, status는 정산 목록 응답과 같은 값입니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({

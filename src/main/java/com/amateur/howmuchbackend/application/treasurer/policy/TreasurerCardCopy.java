@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.treasurer.policy;
 
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
 import com.amateur.howmuchbackend.domain.treasurer.PersonalSettlement;
 import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
@@ -64,7 +66,9 @@ public class TreasurerCardCopy {
                         "%s 요청 - 완료".formatted(requester),
                         SettlementDirection.SEND,
                         settlement.amountOrZero(),
-                        TreasurerCardMarker.NONE
+                        TreasurerCardMarker.NONE,
+                        settlement.allocationType(),
+                        settlement.status()
                 );
             }
             return new Card(
@@ -74,7 +78,9 @@ public class TreasurerCardCopy {
                     "%s 요청 - 미납".formatted(requester),
                     SettlementDirection.SEND,
                     settlement.amountOrZero(),
-                    settlement.isStale(now) ? TreasurerCardMarker.ATTENTION : TreasurerCardMarker.NONE
+                    settlement.isStale(now) ? TreasurerCardMarker.ATTENTION : TreasurerCardMarker.NONE,
+                    settlement.allocationType(),
+                    settlement.status()
             );
         }
         int payers = Math.max(settlement.payerCount(), 1);
@@ -85,7 +91,9 @@ public class TreasurerCardCopy {
                 "총 %d명 중 %d명 완료".formatted(payers, settlement.completedPayerCount()),
                 SettlementDirection.RECEIVE,
                 settlement.amountOrZero(),
-                TreasurerCardMarker.MORE
+                TreasurerCardMarker.MORE,
+                settlement.allocationType(),
+                settlement.status()
         );
     }
 
@@ -132,7 +140,9 @@ public class TreasurerCardCopy {
             String subtitle,
             SettlementDirection direction,
             long amount,
-            TreasurerCardMarker marker
+            TreasurerCardMarker marker,
+            SettlementAllocationType allocationType,
+            SettlementStatus status
     ) {
     }
 

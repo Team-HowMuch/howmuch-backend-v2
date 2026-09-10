@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.domain.treasurer;
 
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 
 import java.time.Duration;
@@ -16,7 +17,8 @@ public record PersonalSettlement(
         Long amount,
         String counterpartName,
         int payerCount,
-        int completedPayerCount
+        int completedPayerCount,
+        SettlementAllocationType allocationType
 ) {
     public static final Duration STALE_AFTER = Duration.ofDays(7);
 
@@ -29,7 +31,22 @@ public record PersonalSettlement(
             Long amount,
             String counterpartName
     ) {
-        this(settlementId, title, direction, status, requestedAt, amount, counterpartName, 0, 0);
+        this(settlementId, title, direction, status, requestedAt, amount, counterpartName, 0, 0, null);
+    }
+
+    public PersonalSettlement(
+            UUID settlementId,
+            String title,
+            SettlementDirection direction,
+            SettlementStatus status,
+            LocalDateTime requestedAt,
+            Long amount,
+            String counterpartName,
+            int payerCount,
+            int completedPayerCount
+    ) {
+        this(settlementId, title, direction, status, requestedAt, amount, counterpartName,
+                payerCount, completedPayerCount, null);
     }
 
     public boolean isOpen() {
