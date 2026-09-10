@@ -40,7 +40,7 @@ class SettlementOpenApiIntegrationTest {
         assertRequired(
                 document,
                 "SettlementListItemWebResponse",
-                "settlementId", "status", "requestedAt", "totalAmount", "participantCount",
+                "settlementId", "status", "requestedAt", "completedAt", "totalAmount", "participantCount",
                 "completedParticipantCount", "amountToPay", "requesterName", "groups"
         );
         assertRequired(
@@ -78,8 +78,17 @@ class SettlementOpenApiIntegrationTest {
         assertNullable(
                 document,
                 "SettlementListItemWebResponse",
-                "totalAmount", "participantCount", "completedParticipantCount", "amountToPay", "requesterName"
+                "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay", "requesterName"
         );
+        assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "completedAt");
+        List<JsonNode> parameters = new ArrayList<>();
+        document.path("paths").path("/api/v2/settlements").path("get").path("parameters")
+                .forEach(parameters::add);
+        assertThat(parameters).filteredOn(parameter -> "yearMonth".equals(parameter.path("name").stringValue()))
+                .singleElement().satisfies(parameter -> {
+                    assertThat(parameter.path("required").asBoolean()).isFalse();
+                    assertThat(parameter.path("schema").path("type").toString()).contains("string");
+                });
         assertNullable(document, "SettlementListGroupSummaryWebResponse", "groupImageUrl");
         assertNullable(
                 document,

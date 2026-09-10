@@ -26,6 +26,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -157,6 +158,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -196,12 +198,14 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
         var all = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.ALL,
+                null,
                 null
         );
 
@@ -221,6 +225,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -236,6 +241,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -264,6 +270,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -277,6 +284,7 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
+                null,
                 null
         );
 
@@ -292,6 +300,7 @@ class SettlementListPersistenceIntegrationTest {
                 payerId,
                 SettlementListTab.PAY,
                 SettlementListStatusFilter.AWAITING_DEPOSIT,
+                null,
                 null
         );
 
@@ -328,13 +337,15 @@ class SettlementListPersistenceIntegrationTest {
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                groupId
+                groupId,
+                null
         );
         var notMatching = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                unauthorizedGroupId
+                unauthorizedGroupId,
+                null
         );
 
         assertThat(matching).singleElement().satisfies(item -> {
@@ -346,6 +357,98 @@ class SettlementListPersistenceIntegrationTest {
             ));
         });
         assertThat(notMatching).isEmpty();
+    }
+
+    @Test
+    void acceptedYearMonthExtremesCanBeQueried() {
+        for (YearMonth month : java.util.List.of(YearMonth.of(1, 1), YearMonth.of(9999, 12))) {
+            assertThat(settlementPersistenceAdapter.findAll(
+                    creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
+                    null, month)).isEmpty();
+        }
+    }
+
+    @Test
+    void filtersCompletedMonthAtKoreanMonthBoundariesForBothTabs() {
+        YearMonth month = YearMonth.of(2026, 9);
+        LocalDateTime start = LocalDateTime.of(2026, 8, 31, 15, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 9, 30, 15, 0);
+        for (UUID id : java.util.List.of(receiveSettlementId, paySettlementId)) {
+            jdbcTemplate.update("UPDATE settlements SET status = 'COMPLETED', created_at = ?, updated_at = ? WHERE id = ?",
+                    start.minusDays(10), start, id);
+        }
+        for (LocalDateTime completedAt : java.util.List.of(start.minusNanos(1000), start,
+                end.minusNanos(1000), end)) {
+            jdbcTemplate.update("UPDATE settlements SET updated_at = ? WHERE id IN (?, ?)",
+                    completedAt, receiveSettlementId, paySettlementId);
+            var receive = settlementPersistenceAdapter.findAll(
+                    creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, month);
+            var pay = settlementPersistenceAdapter.findAll(
+                    payerId, SettlementListTab.PAY, SettlementListStatusFilter.COMPLETED, null, month);
+            boolean included = !completedAt.isBefore(start) && completedAt.isBefore(end);
+            if (included) {
+                assertThat(receive).singleElement().satisfies(item -> {
+                    assertThat(item.settlementId()).isEqualTo(receiveSettlementId);
+                    assertThat(item.completedAt()).isEqualTo(completedAt);
+                    // Existing requestedAt projection is outside this change; completedAt must use UTC.
+                });
+                assertThat(pay).singleElement().satisfies(item -> {
+                    assertThat(item.settlementId()).isEqualTo(paySettlementId);
+                    assertThat(item.completedAt()).isEqualTo(completedAt);
+                });
+            } else {
+                assertThat(receive).isEmpty();
+                assertThat(pay).isEmpty();
+            }
+        }
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> assertThat(item.completedAt()).isEqualTo(end));
+    }
+
+    @Test
+    void monthFilterExcludesUnfinishedStatesAndPreservesStatusIntersection() {
+        LocalDateTime completedAt = LocalDateTime.of(2026, 9, 10, 0, 0);
+        for (SettlementStatus state : SettlementStatus.values()) {
+            jdbcTemplate.update("UPDATE settlements SET status = ?, updated_at = ? WHERE id = ?",
+                    state.name(), completedAt, receiveSettlementId);
+            var filtered = settlementPersistenceAdapter.findAll(
+                    creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL,
+                    null, YearMonth.of(2026, 9));
+            assertThat(filtered).hasSize(state == SettlementStatus.COMPLETED ? 1 : 0);
+            var unfiltered = settlementPersistenceAdapter.findAll(
+                    creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null);
+            if (state != SettlementStatus.DRAFT) {
+                assertThat(unfiltered).singleElement().satisfies(item ->
+                        assertThat(item.completedAt()).isEqualTo(
+                                state == SettlementStatus.COMPLETED ? completedAt : null));
+            }
+        }
+        jdbcTemplate.update("UPDATE settlements SET status = 'COMPLETED' WHERE id = ?", receiveSettlementId);
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS,
+                null, YearMonth.of(2026, 9))).isEmpty();
+    }
+
+    @Test
+    void completedMonthFilterPreservesGroupAccess() {
+        Long groupId = insertGroup("월별 정산 그룹", creatorId);
+        insertGroupMember(groupId, creatorId, "ACTIVE");
+        jdbcTemplate.update("UPDATE settlement_participants SET source = 'GROUP_MEMBER', source_group_id = ? WHERE id = ?",
+                groupId, receivePayerParticipantId);
+        jdbcTemplate.update("UPDATE settlements SET status = 'COMPLETED', updated_at = ? WHERE id = ?",
+                LocalDateTime.of(2026, 12, 31, 15, 0), receiveSettlementId);
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
+                groupId, YearMonth.of(2027, 1))).hasSize(1);
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
+                groupId, YearMonth.of(2026, 12))).isEmpty();
+        jdbcTemplate.update("UPDATE group_members SET status = 'LEFT', left_at = ? WHERE group_id = ? AND user_id = ?",
+                CREATED_AT, groupId, creatorId);
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
+                groupId, YearMonth.of(2027, 1))).isEmpty();
     }
 
     private Long insertUser(String identityKey, String name) {

@@ -18,11 +18,15 @@ import os, sys
 from pathlib import Path
 args = sys.argv[1:]
 s = os.environ['SCENARIO']
+if args[:2] == ['compose', '-f']: args = ['compose'] + args[5:]
 with open('calls', 'a') as f: f.write(' '.join(args) + '\\n')
 if args[0] == 'login': sys.stdin.read()
 if args[:2] == ['compose', 'pull'] and s == 'pull': sys.exit(1)
 if args[:2] == ['compose', 'ps']:
     print('' if s == 'missing' else 'app-id')
+if args[:2] == ['image', 'inspect']: print('image-id')
+if args[0] == 'inspect' and '{{.Image}}' in args:
+    print('image-id'); sys.exit(0)
 if args[0] == 'inspect':
     if s == 'inspect': sys.exit(1)
     print(s if s in ['exited', 'restarting'] else 'running')
@@ -44,8 +48,10 @@ except subprocess.TimeoutExpired: sys.exit(124)
             # Compress only timing; execute the actual deployment control flow.
             script = script.replace('SECONDS + 180', 'SECONDS + 2').replace('sleep 2', 'sleep 0.05')
             env = dict(os.environ, PATH=f'{root}:' + os.environ['PATH'], APP_DIR=directory,
-                       GHCR_USERNAME='test-user', GHCR_PAT='secret-must-not-appear', SCENARIO=scenario)
+                       APP_IMAGE='ghcr.io/team-howmuch/howmuch-backend-v2@sha256:' + 'a' * 64,
+                       DEPLOY_SHA='commit', DEPLOY_RUN_ID='1', DEPLOY_RUN_ATTEMPT='1', GHCR_USERNAME='test-user', GHCR_PAT='secret-must-not-appear', SCENARIO=scenario)
             result = subprocess.run(['bash', '-c', script], env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(list(root.glob('.deploy-image.*')), [])
             calls = (root / 'calls').read_text()
             output = result.stdout + result.stderr
             self.assertNotIn('secret-must-not-appear', output + calls)
@@ -68,6 +74,7 @@ except subprocess.TimeoutExpired: sys.exit(124)
                 self.assertNotEqual(code, 0, output)
                 self.assertIn('Deployment failed:', output)
                 self.assertNotIn('Application ready:', output)
+                self.assertNotIn('Verified commit=', output)
                 self.assertNotIn('image prune', calls)
                 if scenario in ['never', 'exec']: self.assertIn('timed out', output)
 

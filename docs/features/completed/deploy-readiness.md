@@ -35,6 +35,14 @@ Python unittest로 실제 셸 스크립트를 mock Docker와 실행하여 정상
 
 ## 운영 조건과 한계
 
-서버에 Bash, GNU timeout, Docker Compose가 필요하며 Compose 서비스명은 `app`이어야 한다. SSH action은 checkout된 스크립트를 전송하므로 서버에 별도 스크립트 설치는 필요 없다. 컨테이너 내부 `MANAGEMENT_SERVER_PORT` 기본값은 9091이며 기본 관리 경로를 사용한다. 배포 실패 시 자동 롤백은 수행하지 않는다. timeout 진단에 추가로 최대 10초가 사용된다. 이미지 식별 보장은 #309에서 처리한다.
+서버에 Bash, GNU timeout, Docker Compose가 필요하며 Compose 서비스명은 `app`이어야 한다. SSH action은 checkout된 스크립트를 전송하므로 서버에 별도 스크립트 설치는 필요 없다. 컨테이너 내부 `MANAGEMENT_SERVER_PORT` 기본값은 9091이며 기본 관리 경로를 사용한다. 배포 실패 시 자동 롤백은 수행하지 않는다. timeout 진단에 추가로 최대 10초가 사용된다. 이미지 식별은 병합된 #309의 digest 고정·검증과 통합했다.
 
 병행 작업이 공유 checkout의 브랜치를 바꿔 첫 커밋 e658ef3이 다른 작업 브랜치에 기록되었다. #308은 별도 worktree에서 동일 변경을 e76e1e9로 적용했다. 다른 작업의 후속 변경은 수정하지 않았다.
+
+## develop 충돌 해결 (2026-09-10)
+
+- 최신 `origin/develop` 95f7864를 병합했다. SSH 환경변수의 `APP_IMAGE`, 배포 commit/run/attempt를 보존하고 인라인 digest 배포를 기존 readiness 스크립트에 통합했다.
+- 동일 Compose override로 pull/up/컨테이너 조회를 수행하고 실제 이미지 ID 확인 후 같은 컨테이너의 readiness를 검사한다. EXIT trap은 실패 진단과 override 삭제를 함께 처리한다.
+- 기존 digest 테스트를 `script_path`에서 실제 스크립트를 읽도록 수정했다. CI 테스트 단계는 두 회귀 파일을 함께 실행한다.
+- 병합 커밋 경계: `ci(deploy): develop 병합 충돌 해결 및 digest와 readiness 검증 통합`.
+- 검증: 컴파일, 셸 구문, YAML 파싱, digest 6건·readiness 2개 메서드(9개 시나리오), diff 및 문서 링크 검사. 실제 EC2 배포와 전체 Java 테스트는 이번 충돌 해결에서 수행하지 않는다.

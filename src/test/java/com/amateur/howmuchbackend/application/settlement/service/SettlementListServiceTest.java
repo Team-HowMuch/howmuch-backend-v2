@@ -41,6 +41,7 @@ class SettlementListServiceTest {
                 SETTLEMENT_ID,
                 SettlementStatus.AWAITING_DEPOSIT,
                 LocalDateTime.of(2026, 8, 13, 0, 0),
+                null,
                 600L,
                 SettlementAllocationType.DUTCH_PAY,
                 3,
@@ -55,26 +56,30 @@ class SettlementListServiceTest {
                 USER_ID,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                10L
+                10L,
+                null
         ))
                 .thenReturn(List.of(readModel));
 
         var result = service.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                10L
+                10L,
+                null
         ));
 
         verify(loadSettlementListPort).findAll(
                 USER_ID,
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
-                10L
+                10L,
+                null
         );
         assertThat(result).containsExactly(new SettlementListItemResult(
                 SETTLEMENT_ID,
                 SettlementStatus.AWAITING_DEPOSIT,
                 LocalDateTime.of(2026, 8, 13, 0, 0),
+                null,
                 600L,
                 SettlementAllocationType.DUTCH_PAY,
                 3,
@@ -88,5 +93,23 @@ class SettlementListServiceTest {
                         true
                 ))
         ));
+    }
+    @Test
+    void passesMonthAndCompletedTimestampThrough() {
+        var month = java.time.YearMonth.of(2026, 9);
+        var completedAt = LocalDateTime.of(2026, 9, 1, 0, 0);
+        var readModel = new SettlementListReadModel(
+                SETTLEMENT_ID, SettlementStatus.COMPLETED, completedAt.minusMonths(1), completedAt,
+                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 1, null, null, List.of());
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.COMPLETED, 10L, month)).thenReturn(List.of(readModel));
+        var service = new SettlementListService(currentActorPort, loadSettlementListPort);
+        assertThat(service.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED, 10L, month)))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.completedAt()).isEqualTo(completedAt);
+                    assertThat(item.requestedAt()).isEqualTo(completedAt.minusMonths(1));
+                });
     }
 }
