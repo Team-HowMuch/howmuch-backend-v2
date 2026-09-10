@@ -1,0 +1,17 @@
+services:
+  app:
+    environment:
+      MANAGEMENT_SERVER_ADDRESS: ${MANAGEMENT_SERVER_ADDRESS:-0.0.0.0}
+      MANAGEMENT_ALLOWED_CIDR: ${MANAGEMENT_ALLOWED_CIDR:-172.30.0.0/16}
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://alloy:4318/v1/traces}
+      LOG_FILE: /app/logs/howmuch-backend-v2.log
+    volumes:
+      - ${LOG_HOST_DIR:-./logs}:/app/logs
+    networks:
+      - observability
+
+networks:
+  observability:
+    external: true
+    name: ${OBSERVABILITY_NETWORK_NAME:-howmuch-observability}
