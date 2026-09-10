@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class InquiryParserTest {
+    private static final int MAX_TITLE_PREFIX = 20;
+
     private final InquiryParser parser = new InquiryParser();
 
     @Test
@@ -170,5 +172,53 @@ class InquiryParserTest {
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.GUIDE);
         assertThat(parsed.titleHint()).isNull();
+    }
+
+    @Test
+    void doesNotTreatParticleLeftoverAsTitle() {
+        assertThat(parser.parse("이번 주에는 정산 있어?").titleHint()).isNull();
+        assertThat(parser.parse("저번 주에 정산 있어?").titleHint()).isNull();
+        assertThat(parser.parse("이번 달 중에 정산 얼마 남았어?").titleHint()).isNull();
+        assertThat(parser.parse("새 멤버 들어올 건데 정산 어떻게 나눠?").titleHint()).isNull();
+    }
+
+    @Test
+    void extractsSingleCharacterTitle() {
+        InquiryParser.ParsedInquiry parsed = parser.parse("봄 정산에서 받을 돈 있어?");
+
+        assertThat(parsed.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parsed.titleHint()).isEqualTo("봄정산");
+    }
+
+    @Test
+    void limitsTitlePrefixLength() {
+        assertThat("가나다라마바사아자차카타파하거너더러머버".length()).isEqualTo(MAX_TITLE_PREFIX);
+        String twenty = "가나다라마바사아자차카타파하거너더러머버";
+        String longer = twenty + "서";
+
+        assertThat(parser.parse(twenty + " 정산에서 받을 돈 있어?").titleHint()).isEqualTo(twenty + "정산");
+        assertThat(parser.parse(longer + " 정산에서 받을 돈 있어?").titleHint()).isNull();
+    }
+
+    @Test
+    void readsUnpaidByOthersAsMoneyComingToMe() {
+        assertThat(parser.parse("회비 안 낸 사람 알려줘").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("나한테 안 보낸 사람 누구야?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("아직 안 낸 사람 누구야?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+    }
+
+    @Test
+    void requiresSettlementContextForEverydayWords() {
+        assertThat(parser.parse("밥 남았어?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("치킨 남은 거 있어?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("언제 들어와?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("그 사람 언제 들어와?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("숙제 줘야 해?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+    }
+
+    @Test
+    void keepsGuideIntentWhenOnlyEverydayVerbsCompete() {
+        assertThat(parser.parse("영수증 OCR은 어떻게 처리해야 해?").intent()).isEqualTo(InquiryIntent.GUIDE);
+        assertThat(parser.parse("영수증 남은 거 어떻게 해?").intent()).isEqualTo(InquiryIntent.GUIDE);
     }
 }
