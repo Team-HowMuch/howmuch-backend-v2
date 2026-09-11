@@ -174,7 +174,7 @@ class AccountTransactionPersistenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("거래 Key에 연결된 여러 정산을 생성자와 원본 계좌 범위에서 조회한다")
+    @DisplayName("거래 Key에 연결된 여러 정산을 원본 계좌 범위에서 조회한다")
     void loadsLinkedSettlementsForTransactions() {
         String transactionKey = "g".repeat(64);
         UUID olderSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001001");
@@ -219,7 +219,6 @@ class AccountTransactionPersistenceIntegrationTest {
         );
 
         var links = adapter.findLinkedSettlements(
-                userId,
                 accountId,
                 List.of(transactionKey, "h".repeat(64))
         );
@@ -234,7 +233,7 @@ class AccountTransactionPersistenceIntegrationTest {
                         tuple(newerSettlementId, "여행 정산", "COMPLETED"),
                         tuple(olderSettlementId, "점심 정산", "AWAITING_DEPOSIT")
                 );
-        assertThat(adapter.findLinkedSettlements(userId, accountId, List.of())).isEmpty();
+        assertThat(adapter.findLinkedSettlements(accountId, List.of())).isEmpty();
     }
 
     @Test

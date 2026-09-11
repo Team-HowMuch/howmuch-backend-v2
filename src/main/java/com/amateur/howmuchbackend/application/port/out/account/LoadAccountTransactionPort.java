@@ -17,7 +17,6 @@ public interface LoadAccountTransactionPort {
     List<Transaction> findByAccountIdAndYearMonth(Long accountId, YearMonth yearMonth);
 
     List<LinkedSettlement> findLinkedSettlements(
-            Long creatorId,
             Long accountId,
             List<String> externalTransactionKeys
     );
