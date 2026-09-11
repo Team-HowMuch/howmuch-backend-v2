@@ -256,7 +256,6 @@ class AccountQueryServiceTest {
         when(loadTransactionPort.findByAccountIdAndYearMonth(account.id(), AUGUST))
                 .thenReturn(List.of(unlinked, linked));
         when(loadTransactionPort.findLinkedSettlements(
-                USER_ID,
                 account.id(),
                 List.of(unlinked.externalTransactionKey(), linked.externalTransactionKey())
         )).thenReturn(List.of(

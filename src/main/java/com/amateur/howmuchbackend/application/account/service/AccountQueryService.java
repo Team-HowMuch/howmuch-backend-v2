@@ -119,7 +119,6 @@ public class AccountQueryService
         );
         Map<String, List<LoadAccountTransactionPort.LinkedSettlement>> settlementsByTransactionKey =
                         loadTransactionPort.findLinkedSettlements(
-                                account.userId(),
                                 account.id(),
                                 transactions.stream()
                                         .map(Transaction::externalTransactionKey)

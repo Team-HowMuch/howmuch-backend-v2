@@ -63,7 +63,6 @@ public class AccountTransactionPersistenceAdapter
     @Override
     @Transactional(readOnly = true)
     public List<LinkedSettlement> findLinkedSettlements(
-            Long creatorId,
             Long accountId,
             List<String> externalTransactionKeys
     ) {
@@ -71,7 +70,6 @@ public class AccountTransactionPersistenceAdapter
             return List.of();
         }
         return transactionRepository.findLinkedSettlements(
-                        creatorId,
                         accountId,
                         externalTransactionKeys
                 )
