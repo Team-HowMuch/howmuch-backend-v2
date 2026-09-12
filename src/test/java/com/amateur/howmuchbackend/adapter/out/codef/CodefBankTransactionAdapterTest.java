@@ -51,10 +51,18 @@ class CodefBankTransactionAdapterTest {
         IllegalStateException cause = new IllegalStateException("upstream failed");
 
         var failure = CodefFailureMapper.map(
-                "CF-99998", ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, cause);
+                "CF-99998", ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR, cause);
 
-        assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE);
+        assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR);
         assertThat(failure).hasCause(cause);
+    }
+
+    @Test
+    void classifiesMissingCodefFailureCodeAsInvalidResponse() {
+        var failure = CodefFailureMapper.map(
+                null, ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID, null);
+
+        assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
     }
 
     @ParameterizedTest

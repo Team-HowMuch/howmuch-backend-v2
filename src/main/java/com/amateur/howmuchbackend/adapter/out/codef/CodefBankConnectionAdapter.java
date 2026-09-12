@@ -93,7 +93,7 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
                 .anyMatch(item -> organization.equals(text(item, "organization")));
         String connectedId = firstText(text(data, "connectedId"), fallbackConnectedId);
         if (!registered || !StringUtils.hasText(connectedId)) {
-            throw ApplicationException.of(ExternalConnectionStatusCode.BANK_CONNECTION_FAILED);
+            throw ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
         }
         return new ConnectionResult(connectedId, text(response.path("result"), "code"));
     }
@@ -117,7 +117,7 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
             }
             ExternalConnectionStatusCode status = exception.status() >= 500
                     ? ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE
-                    : ExternalConnectionStatusCode.BANK_CONNECTION_FAILED;
+                    : ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID;
             failure = ApplicationException.of(status, exception);
             throw (ApplicationException) failure;
         } catch (RuntimeException exception) {
@@ -137,7 +137,7 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
             throw mapped(failure.code(), null);
         }
         if (!SUCCESS.equals(text(response.path("result"), "code"))) {
-            throw ApplicationException.of(ExternalConnectionStatusCode.BANK_CONNECTION_FAILED);
+            throw ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
         }
     }
 
@@ -153,7 +153,7 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
     }
 
     private ApplicationException mapped(String code, Throwable cause) {
-        return CodefFailureMapper.map(code, ExternalConnectionStatusCode.BANK_CONNECTION_FAILED, cause);
+        return CodefFailureMapper.map(code, ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR, cause);
     }
 
     private void addAccounts(Map<String, ExternalAccountCandidate> target, JsonNode source, AccountType type) {
