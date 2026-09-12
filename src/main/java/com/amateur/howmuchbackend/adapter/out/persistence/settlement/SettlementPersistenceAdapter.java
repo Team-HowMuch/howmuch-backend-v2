@@ -60,21 +60,17 @@ public class SettlementPersistenceAdapter implements
     }
 
     @Override
-    public List<SettlementListReadModel> findPage(
+    public List<SettlementListReadModel> findAll(
             Long userId,
             SettlementListTab tab,
             SettlementListStatusFilter status,
             Long groupId,
-            YearMonth yearMonth,
-            LocalDateTime cursorRequestedAt,
-            UUID cursorId,
-            int limit
+            YearMonth yearMonth
     ) {
-        var projections = settlementJpaRepository.findPageForUser(
+        var projections = settlementJpaRepository.findAllForUser(
                 userId, tab.name(), status.name(), groupId,
                 yearMonth == null ? null : monthStartUtc(yearMonth),
-                yearMonth == null ? null : monthStartUtc(yearMonth.plusMonths(1)),
-                cursorRequestedAt == null ? null : cursorRequestedAt.toInstant(ZoneOffset.UTC), cursorId, limit
+                yearMonth == null ? null : monthStartUtc(yearMonth.plusMonths(1))
         );
         if (projections.isEmpty()) {
             return List.of();
@@ -136,7 +132,7 @@ public class SettlementPersistenceAdapter implements
         return new SettlementListReadModel(
                 projection.getSettlementId(),
                 status,
-                LocalDateTime.ofInstant(projection.getRequestedAt(), ZoneOffset.UTC),
+                projection.getRequestedAt(),
                 projection.getCompletedAt() == null
                         ? null
                         : LocalDateTime.ofInstant(projection.getCompletedAt(), ZoneOffset.UTC),
@@ -158,12 +154,12 @@ public class SettlementPersistenceAdapter implements
     }
 
     @Override
-    public boolean existsDraftByReceivingAccountId(Long accountId) {
-        return settlementJpaRepository.existsByReceivingAccountIdAndStatus(accountId, SettlementStatus.DRAFT);
+    public boolean existsInProgressByReceivingAccountId(Long accountId) {
+        return settlementJpaRepository.existsByReceivingAccountIdAndStatusNot(accountId, SettlementStatus.COMPLETED);
     }
 
     @Override
-    public void detachIssuedByReceivingAccountId(Long accountId) {
-        settlementJpaRepository.detachIssuedByReceivingAccountId(accountId, SettlementStatus.DRAFT);
+    public void detachCompletedByReceivingAccountId(Long accountId) {
+        settlementJpaRepository.detachCompletedByReceivingAccountId(accountId, SettlementStatus.COMPLETED);
     }
 }

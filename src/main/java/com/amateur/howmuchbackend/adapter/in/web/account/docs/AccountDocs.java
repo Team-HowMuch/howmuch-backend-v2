@@ -39,14 +39,16 @@ public interface AccountDocs {
     @Operation(
             summary = "계좌 거래내역 조회",
             description = "요청 월의 저장된 거래를 최신순으로 반환하며 최초 조회 시 CODEF에서 적재합니다. "
-                    + "각 거래에는 현재 사용자가 생성한 연결 정산의 ID, 제목, 상태를 배열로 반환합니다.",
+                    + "각 거래에는 연결된 정산의 ID, 제목, 상태를 배열로 반환합니다. "
+                    + "결제 내역으로 가져온 지출, 수금 계좌에 대조된 입금, 참여자 납부로 확인된 송금이 연결 대상이며 "
+                    + "작성 중(DRAFT) 정산은 제외합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     ApiResponse<List<AccountTransactionWebResponse>> getAccountTransactions(Long accountId, YearMonth yearMonth);
 
     @Operation(
             summary = "연결 계좌 삭제",
-            description = "활성 계좌를 로컬에서 삭제합니다. CODEF 기관 연결은 유지되며 DRAFT 정산이 수령 계좌로 사용 중이면 거부합니다.",
+            description = "활성 계좌를 로컬에서 삭제합니다. CODEF 기관 연결은 유지되며 진행 중인 정산이 수령 계좌로 사용 중이면 거부합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -54,7 +56,7 @@ public interface AccountDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "ACCOUNT_NOT_FOUND"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT"
+                    description = "ACCOUNT_IN_USE_BY_SETTLEMENT"
             )
     })
     ApiResponse<Void> deleteAccount(Long accountId);

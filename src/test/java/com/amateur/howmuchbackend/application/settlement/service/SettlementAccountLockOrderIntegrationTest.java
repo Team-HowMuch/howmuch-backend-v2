@@ -110,7 +110,7 @@ class SettlementAccountLockOrderIntegrationTest {
                 Outcome outcome = runConcurrently(executor, settlementId, accountId);
 
                 boolean selectionWon = SUCCESS.equals(outcome.selection())
-                        && AccountStatusCode.ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT.getCode()
+                        && AccountStatusCode.ACCOUNT_IN_USE_BY_SETTLEMENT.getCode()
                         .equals(outcome.deletion());
                 boolean deletionWon = SUCCESS.equals(outcome.deletion())
                         && AccountStatusCode.ACCOUNT_NOT_FOUND.getCode()

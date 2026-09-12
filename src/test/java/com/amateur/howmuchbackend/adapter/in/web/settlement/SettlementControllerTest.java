@@ -29,7 +29,6 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
-import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListPageResult;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
@@ -236,7 +235,8 @@ class SettlementControllerTest {
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
                 10L,
-                null, null, null))).thenReturn(new SettlementListPageResult(List.of(new SettlementListItemResult(
+                null
+        ))).thenReturn(List.of(new SettlementListItemResult(
                 SETTLEMENT_ID,
                 SettlementStatus.AWAITING_DEPOSIT,
                 CREATED_AT,
@@ -249,7 +249,7 @@ class SettlementControllerTest {
                 null,
                 null,
                 List.of(new SettlementListItemResult.GroupSummary(10L, "여행 모임", true))
-        )), null, false));
+        )));
 
         mockMvc.perform(get("/api/v2/settlements")
                 .queryParam("tab", "RECEIVE")
@@ -257,20 +257,17 @@ class SettlementControllerTest {
                 .queryParam("groupId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.hasNext").value(false))
-                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.hasEntry(
-                        org.hamcrest.Matchers.equalTo("nextCursor"), org.hamcrest.Matchers.nullValue())))
-                .andExpect(jsonPath("$.data.items[0].settlementId").value(SETTLEMENT_ID.toString()))
-                .andExpect(jsonPath("$.data.items[0].status").value("AWAITING_DEPOSIT"))
-                .andExpect(jsonPath("$.data.items[0]").value(org.hamcrest.Matchers.hasEntry(
+                .andExpect(jsonPath("$.data[0].settlementId").value(SETTLEMENT_ID.toString()))
+                .andExpect(jsonPath("$.data[0].status").value("AWAITING_DEPOSIT"))
+                .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
                         org.hamcrest.Matchers.equalTo("completedAt"), org.hamcrest.Matchers.nullValue())))
-                .andExpect(jsonPath("$.data.items[0].totalAmount").value(600))
-                .andExpect(jsonPath("$.data.items[0].participantCount").value(3))
-                .andExpect(jsonPath("$.data.items[0].payableParticipantCount").value(2))
-                .andExpect(jsonPath("$.data.items[0].completedParticipantCount").value(0))
-                .andExpect(jsonPath("$.data.items[0].groups[0].groupId").value(10))
-                .andExpect(jsonPath("$.data.items[0].groups[0].groupName").value("여행 모임"))
-                .andExpect(jsonPath("$.data.items[0].groups[0].groupImageUrl")
+                .andExpect(jsonPath("$.data[0].totalAmount").value(600))
+                .andExpect(jsonPath("$.data[0].participantCount").value(3))
+                .andExpect(jsonPath("$.data[0].payableParticipantCount").value(2))
+                .andExpect(jsonPath("$.data[0].completedParticipantCount").value(0))
+                .andExpect(jsonPath("$.data[0].groups[0].groupId").value(10))
+                .andExpect(jsonPath("$.data[0].groups[0].groupName").value("여행 모임"))
+                .andExpect(jsonPath("$.data[0].groups[0].groupImageUrl")
                         .value("/api/v2/groups/10/image"));
     }
 
@@ -279,64 +276,36 @@ class SettlementControllerTest {
         var month = java.time.YearMonth.of(2026, 9);
         var completedAt = LocalDateTime.of(2026, 9, 1, 0, 0);
         when(getSettlementsUseCase.get(new GetSettlementsCommand(
-                SettlementListTab.PAY, SettlementListStatusFilter.COMPLETED, 10L, month, null, null)))
-                .thenReturn(new SettlementListPageResult(List.of(new SettlementListItemResult(
+                SettlementListTab.PAY, SettlementListStatusFilter.COMPLETED, 10L, month)))
+                .thenReturn(List.of(new SettlementListItemResult(
                         SETTLEMENT_ID, SettlementStatus.COMPLETED, CREATED_AT, completedAt,
                         null, SettlementAllocationType.DUTCH_PAY, null, null, null, 600L,
-                        "요청자", List.of())), null, false));
+                        "요청자", List.of())));
         mockMvc.perform(get("/api/v2/settlements")
                         .queryParam("tab", "PAY").queryParam("status", "COMPLETED")
                         .queryParam("groupId", "10").queryParam("yearMonth", "2026-09"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].completedAt").value("2026-09-01T00:00:00"));
-    }
-
-    @Test
-    void bindsPaginationAndReturnsNextPageMetadata() throws Exception {
-        when(getSettlementsUseCase.get(new GetSettlementsCommand(
-                null, null, null, null, "opaque-cursor", 50)))
-                .thenReturn(new SettlementListPageResult(List.of(), "next-cursor", true));
-        mockMvc.perform(get("/api/v2/settlements").queryParam("cursor", "opaque-cursor")
-                        .queryParam("size", "50"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items").isArray())
-                .andExpect(jsonPath("$.data.nextCursor").value("next-cursor"))
-                .andExpect(jsonPath("$.data.hasNext").value(true));
-    }
-
-    @Test
-    void rejectsInvalidPaginationParameters() throws Exception {
-        for (String size : List.of("-1", "0", "51", "2147483647", "2147483648", "text")) {
-            mockMvc.perform(get("/api/v2/settlements").queryParam("size", size))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
-        }
-        mockMvc.perform(get("/api/v2/settlements").queryParam("cursor", "x".repeat(257)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
-        verifyNoInteractions(getSettlementsUseCase);
+                .andExpect(jsonPath("$.data[0].completedAt").value("2026-09-01T00:00:00"));
     }
 
     @Test
     void preservesDefaultsWhenOnlyYearMonthIsProvided() throws Exception {
-        when(getSettlementsUseCase.get(any())).thenReturn(new SettlementListPageResult(List.of(), null, false));
         mockMvc.perform(get("/api/v2/settlements").queryParam("yearMonth", "2026-09"))
                 .andExpect(status().isOk());
         verify(getSettlementsUseCase).get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS,
-                null, java.time.YearMonth.of(2026, 9), null, null));
+                null, java.time.YearMonth.of(2026, 9)));
     }
 
     @Test
     void acceptsYearMonthRangeBoundaries() throws Exception {
-        when(getSettlementsUseCase.get(any())).thenReturn(new SettlementListPageResult(List.of(), null, false));
         for (String value : List.of("0001-01", "9999-12")) {
             mockMvc.perform(get("/api/v2/settlements")
                             .queryParam("yearMonth", value).queryParam("status", "COMPLETED"))
                     .andExpect(status().isOk());
             verify(getSettlementsUseCase).get(new GetSettlementsCommand(
                     SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
-                    null, java.time.YearMonth.parse(value), null, null));
+                    null, java.time.YearMonth.parse(value)));
         }
     }
 

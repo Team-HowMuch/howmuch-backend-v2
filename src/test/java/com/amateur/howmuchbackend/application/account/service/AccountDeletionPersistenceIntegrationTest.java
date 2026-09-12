@@ -5,13 +5,18 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.DeleteAccountUseCase;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountType;
+import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.infra.codef.config.CodefConfigurationFingerprint;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,6 +29,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest
@@ -88,7 +94,7 @@ class AccountDeletionPersistenceIntegrationTest {
                         INSERT INTO settlements (
                             id, creator_id, title, total_amount, receiving_account_id,
                             status, created_at, updated_at
-                        ) VALUES (?, ?, '삭제 계좌 정산', 10000, ?, 'REQUESTED', ?, ?)
+                        ) VALUES (?, ?, '삭제 계좌 정산', 10000, ?, 'COMPLETED', ?, ?)
                         """,
                 settlementId,
                 userId,
@@ -140,6 +146,25 @@ class AccountDeletionPersistenceIntegrationTest {
         assertThat(reconnected.id()).isNotEqualTo(deletedAccountId);
         assertThat(count("SELECT COUNT(*) FROM account_records WHERE id = ? AND deleted_at IS NULL",
                 reconnected.id())).isOne();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SettlementStatus.class, names = {"DRAFT", "REQUESTED", "AWAITING_DEPOSIT", "SUSPENDED"})
+    @DisplayName("진행 중 정산이 수령 계좌로 사용하면 계좌 삭제를 거부한다")
+    void rejectsAccountUsedByInProgressSettlement(SettlementStatus status) {
+        jdbcTemplate.update("UPDATE settlements SET status = ? WHERE id = ?", status.name(), settlementId);
+
+        assertThatThrownBy(() -> deleteAccountUseCase.delete(deletedAccountId))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(AccountStatusCode.ACCOUNT_IN_USE_BY_SETTLEMENT));
+
+        assertThat(count("SELECT COUNT(*) FROM accounts WHERE id = ?", deletedAccountId)).isOne();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT receiving_account_id FROM settlements WHERE id = ?",
+                Long.class,
+                settlementId
+        )).isEqualTo(deletedAccountId);
     }
 
     private Long insertAccount(String candidateKey, boolean isDefault, int displayOrder, LocalDateTime now) {

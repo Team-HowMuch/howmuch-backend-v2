@@ -106,6 +106,8 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        jdbcTemplate.update("DELETE FROM settlement_deposits WHERE source_account_id = ?", accountId);
+        jdbcTemplate.update("DELETE FROM settlement_payments WHERE payer_account_id = ?", accountId);
         jdbcTemplate.update("""
                 DELETE FROM settlement_expenses
                  WHERE settlement_id IN (SELECT id FROM settlements WHERE creator_id = ?)
@@ -174,7 +176,7 @@ class AccountTransactionPersistenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("거래 Key에 연결된 여러 정산을 생성자와 원본 계좌 범위에서 조회한다")
+    @DisplayName("거래 Key에 연결된 여러 정산을 원본 계좌 범위에서 조회한다")
     void loadsLinkedSettlementsForTransactions() {
         String transactionKey = "g".repeat(64);
         UUID olderSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001001");
@@ -219,7 +221,6 @@ class AccountTransactionPersistenceIntegrationTest {
         );
 
         var links = adapter.findLinkedSettlements(
-                userId,
                 accountId,
                 List.of(transactionKey, "h".repeat(64))
         );
@@ -234,7 +235,50 @@ class AccountTransactionPersistenceIntegrationTest {
                         tuple(newerSettlementId, "여행 정산", "COMPLETED"),
                         tuple(olderSettlementId, "점심 정산", "AWAITING_DEPOSIT")
                 );
-        assertThat(adapter.findLinkedSettlements(userId, accountId, List.of())).isEmpty();
+        assertThat(adapter.findLinkedSettlements(accountId, List.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("입금·납부 거래로 연결된 정산을 함께 조회하고 작성 중 정산은 제외한다")
+    void loadsSettlementsLinkedByDepositAndPayment() {
+        String incomeKey = "d".repeat(64);
+        String expenseKey = "e".repeat(64);
+        String draftKey = "f".repeat(64);
+        UUID receivedSettlementId = UUID.fromString("13000000-0000-4000-8000-000000002001");
+        UUID paidSettlementId = UUID.fromString("13000000-0000-4000-8000-000000002002");
+        UUID draftSettlementId = UUID.fromString("13000000-0000-4000-8000-000000002003");
+        LocalDateTime now = LocalDateTime.of(2026, 8, 22, 0, 0);
+        adapter.saveAllIgnoringDuplicates(List.of(
+                transaction(incomeKey, AccountTransactionType.INCOME, "6000", now),
+                transaction(expenseKey, AccountTransactionType.EXPENSE, "6000", now.plusHours(1)),
+                transaction(draftKey, AccountTransactionType.EXPENSE, "10000", now.plusHours(2))
+        ));
+        foreignUserId = insertUser("foreign-deposit-payer");
+        foreignAccountRecordId = insertAccountRecord(foreignUserId, "다른 사용자 수금 계좌");
+
+        insertSettlement(receivedSettlementId, "받을 정산", "COMPLETED", now);
+        UUID receivedShareId = insertParticipantShare(receivedSettlementId, foreignUserId, accountId);
+        insertDeposit(receivedSettlementId, receivedShareId, accountId, transactionId(incomeKey));
+
+        insertSettlement(paidSettlementId, foreignUserId, "낼 정산", "AWAITING_DEPOSIT", now.plusHours(1));
+        UUID paidShareId = insertParticipantShare(paidSettlementId, userId, foreignAccountRecordId);
+        insertPayment(paidSettlementId, paidShareId, accountId, transactionId(expenseKey));
+
+        insertSettlement(draftSettlementId, "작성 중 정산", "DRAFT", now.plusHours(2));
+        insertPaymentExpense(draftSettlementId, accountId, draftKey, now.plusHours(2));
+
+        var links = adapter.findLinkedSettlements(accountId, List.of(incomeKey, expenseKey, draftKey));
+
+        assertThat(links)
+                .extracting(
+                        link -> link.externalTransactionKey(),
+                        link -> link.settlementId(),
+                        link -> link.status().name()
+                )
+                .containsExactly(
+                        tuple(incomeKey, receivedSettlementId, "COMPLETED"),
+                        tuple(expenseKey, paidSettlementId, "AWAITING_DEPOSIT")
+                );
     }
 
     @Test
@@ -380,6 +424,85 @@ class AccountTransactionPersistenceIntegrationTest {
                 LocalDateTime.of(2026, 8, 23, 0, 0)
         );
         return id;
+    }
+
+    private Long transactionId(String transactionKey) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM account_transactions WHERE account_id = ? AND external_transaction_key = ?",
+                Long.class,
+                accountId,
+                transactionKey
+        );
+    }
+
+    private UUID insertParticipantShare(UUID settlementId, Long payerUserId, Long receivingAccountId) {
+        UUID participantId = UUID.randomUUID();
+        UUID shareId = UUID.randomUUID();
+        LocalDateTime now = LocalDateTime.of(2026, 8, 22, 0, 0);
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_participants (
+                            id, settlement_id, source, linked_user_id, phone_hash, display_name,
+                            display_order, created_at, updated_at
+                        ) VALUES (?, ?, 'REGISTERED_USER', ?, NULL, '참여자', 0, ?, ?)
+                        """,
+                participantId,
+                settlementId,
+                payerUserId,
+                now,
+                now
+        );
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_receiving_account_snapshots (
+                            settlement_id, source_account_id, organization, account_number_ciphertext,
+                            account_holder, created_at
+                        ) VALUES (?, ?, '0020', ?, '생성자', ?)
+                        """,
+                settlementId,
+                receivingAccountId,
+                cipher.encryptSettlementAccountNumber(settlementId, "1002123456789"),
+                now
+        );
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_shares (
+                            id, settlement_id, payer_participant_id, amount, created_at
+                        ) VALUES (?, ?, ?, 6000, ?)
+                        """,
+                shareId,
+                settlementId,
+                participantId,
+                now
+        );
+        return shareId;
+    }
+
+    private void insertDeposit(UUID settlementId, UUID shareId, Long sourceAccountId, Long transactionId) {
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_deposits (
+                            id, settlement_id, share_id, source_account_id, account_transaction_id, matched_at
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                UUID.randomUUID(),
+                settlementId,
+                shareId,
+                sourceAccountId,
+                transactionId,
+                LocalDateTime.of(2026, 8, 22, 1, 0)
+        );
+    }
+
+    private void insertPayment(UUID settlementId, UUID shareId, Long payerAccountId, Long transactionId) {
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_payments (
+                            id, settlement_id, share_id, payer_account_id, account_transaction_id, matched_at
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                UUID.randomUUID(),
+                settlementId,
+                shareId,
+                payerAccountId,
+                transactionId,
+                LocalDateTime.of(2026, 8, 22, 1, 0)
+        );
     }
 
     private void insertPaymentExpense(

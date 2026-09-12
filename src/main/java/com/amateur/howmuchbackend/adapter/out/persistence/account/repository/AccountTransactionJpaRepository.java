@@ -25,22 +25,43 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
     Optional<AccountTransactionJpaEntity> findByAccountIdAndId(Long accountId, Long transactionId);
 
     @Query(value = """
-            SELECT expense.source_reference AS "externalTransactionKey",
+            SELECT link.external_transaction_key AS "externalTransactionKey",
                    settlement.id AS "settlementId",
                    settlement.title AS title,
                    settlement.status AS status
-              FROM settlement_expenses expense
-              JOIN settlements settlement ON settlement.id = expense.settlement_id
-             WHERE settlement.creator_id = :creatorId
-               AND expense.source = 'PAYMENT_HISTORY'
-               AND expense.source_account_id = :accountId
-               AND expense.source_reference IN (:externalTransactionKeys)
-             ORDER BY expense.source_reference,
+              FROM (
+                    SELECT expense.source_reference AS external_transaction_key,
+                           expense.settlement_id
+                      FROM settlement_expenses expense
+                     WHERE expense.source = 'PAYMENT_HISTORY'
+                       AND expense.source_account_id = :accountId
+                       AND expense.source_reference IN (:externalTransactionKeys)
+                    UNION
+                    SELECT tx.external_transaction_key,
+                           deposit.settlement_id
+                      FROM settlement_deposits deposit
+                      JOIN account_transactions tx
+                        ON tx.id = deposit.account_transaction_id
+                       AND tx.account_id = deposit.source_account_id
+                     WHERE deposit.source_account_id = :accountId
+                       AND tx.external_transaction_key IN (:externalTransactionKeys)
+                    UNION
+                    SELECT tx.external_transaction_key,
+                           payment.settlement_id
+                      FROM settlement_payments payment
+                      JOIN account_transactions tx
+                        ON tx.id = payment.account_transaction_id
+                       AND tx.account_id = payment.payer_account_id
+                     WHERE payment.payer_account_id = :accountId
+                       AND tx.external_transaction_key IN (:externalTransactionKeys)
+                   ) link
+              JOIN settlements settlement ON settlement.id = link.settlement_id
+             WHERE settlement.status <> 'DRAFT'
+             ORDER BY link.external_transaction_key,
                       settlement.created_at DESC,
                       settlement.id DESC
             """, nativeQuery = true)
     List<LinkedSettlementProjection> findLinkedSettlements(
-            @Param("creatorId") Long creatorId,
             @Param("accountId") Long accountId,
             @Param("externalTransactionKeys") Collection<String> externalTransactionKeys
     );

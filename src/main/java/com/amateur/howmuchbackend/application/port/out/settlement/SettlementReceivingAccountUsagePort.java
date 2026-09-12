@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.application.port.out.settlement;
 
 public interface SettlementReceivingAccountUsagePort {
-    boolean existsDraftByReceivingAccountId(Long accountId);
+    boolean existsInProgressByReceivingAccountId(Long accountId);
 
-    void detachIssuedByReceivingAccountId(Long accountId);
+    void detachCompletedByReceivingAccountId(Long accountId);
 }

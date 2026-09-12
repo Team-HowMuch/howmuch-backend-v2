@@ -109,6 +109,7 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 ## 5. Design decisions
 
 - 의도 분류는 키워드 (`InquiryParser`). 금액·건수는 서버가 계산한다.
+- 의도 키워드는 강함과 약함으로 나뉜다. `남았`·`들어와`처럼 일상어로도 쓰이는 약한 표현은 정산·모임·돈 같은 맥락 단어가 질문에 함께 있을 때만 의도로 본다.
 - 세부 의도 분류에 실패하면 `InquiryScopePolicy`가 서비스 관련성을 다시 판정한다. 관련이면 되묻고 무관이면 범위를 안내한다. 응답 `intent`는 두 경우 모두 `UNKNOWN`이며 `answer` 문구로 구분한다. 상세는 `treasurer-question-scope.md`(#317) 참고.
 - `answer` 문장만 OpenAI(`gpt-4o-mini`) 또는 Gemini(`gemini-flash-latest`)가 생성한다. `TREASURER_LLM_PROVIDER=none` 이거나 키/호출 실패면 템플릿 문장을 쓴다.
 - 기존 `LoadSettlementListPort`는 title이 없어 treasurer 전용 조회를 둔다. 목록 HTTP 계약은 변경하지 않는다.
@@ -116,7 +117,8 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 - 받을 금액은 생성자 본인 share를 제외한 금액이다.
 - 보낼/받을 금액과 추천은 `REQUESTED`/`AWAITING_DEPOSIT`/`SUSPENDED`만 포함한다. `DRAFT`는 진행 중 건수에만 넣고 잔액·추천에서는 뺀다.
 - 지출 요약은 SEND 방향만 합산하고 `DRAFT`는 제외한다.
-- 기간과 제목이 함께 있으면 기간·질의 문법을 제거한 뒤 `○○모임`/`○○정산`만 제목으로 쓴다.
+- 제목은 `모임`/`정산` 접미사 앞을 문법 어휘 구간에 닿을 때까지 거슬러 올라가 뽑는다. 질문에서 문법을 잘라내지 않으므로 제목은 항상 원문의 연속 부분 문자열이다.
+- 제목 힌트는 보낼/받을/상태/지출/마감 의도에서만 쓴다. 안내·미분류 의도는 제목으로 거르지 않는다.
 - 보낼/받을 키워드가 한 질문에 같이 있으면 먼저 나온 쪽을 쓴다.
 - 추천 액션은 실제 실행 가능한 상태만 노출한다. `TRANSFER`와 `CHECK_DEPOSIT`은 `AWAITING_DEPOSIT`에서만 제공한다.
 - LLM이 서버 팩트·템플릿에 없는 숫자를 쓰면 `TreasurerAnswerFactCheck`가 템플릿 문장으로 되돌린다. Adapter는 생성 문장만 반환하고 금액 검증은 하지 않는다. `8월`처럼 날짜 접미 숫자는 허용한다.
