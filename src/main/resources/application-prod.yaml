@@ -4,6 +4,15 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
 
+management:
+  server:
+    address: ${MANAGEMENT_SERVER_ADDRESS:0.0.0.0}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://alloy:4318/v1/traces}
+
 howmuch:
   group:
     invite:

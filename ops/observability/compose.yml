@@ -1,0 +1,83 @@
+services:
+  alloy:
+    image: ${ALLOY_IMAGE:-grafana/alloy:latest}
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    networks:
+      - observability
+
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:latest}
+    command:
+      - -config.file=/etc/loki/config.yml
+    volumes:
+      - ./loki/config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    expose:
+      - "3100"
+    networks:
+      - observability
+
+  tempo:
+    image: ${TEMPO_IMAGE:-grafana/tempo:latest}
+    command:
+      - -config.file=/etc/tempo/config.yml
+    volumes:
+      - ./tempo/config.yml:/etc/tempo/config.yml:ro
+      - tempo_data:/var/tempo
+    expose:
+      - "3200"
+      - "4318"
+    networks:
+      - observability
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    expose:
+      - "9090"
+    networks:
+      - observability
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    depends_on:
+      - loki
+      - tempo
+      - prometheus
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?GRAFANA_ADMIN_USER must be set}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - observability
+
+networks:
+  observability:
+    external: true
+    name: ${OBSERVABILITY_NETWORK_NAME:-howmuch-observability}
+
+volumes:
+  alloy_data:
+  loki_data:
+  tempo_data:
+  prometheus_data:
+  grafana_data:

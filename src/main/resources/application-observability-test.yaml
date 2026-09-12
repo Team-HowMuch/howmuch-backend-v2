@@ -1,0 +1,15 @@
+spring:
+  config:
+    import: optional:classpath:application-local.yaml
+
+logging:
+  file:
+    name: ${java.io.tmpdir}/howmuch-backend-observability-test.log
+  structured:
+    format:
+      console: logstash
+      file: logstash
+
+management:
+  server:
+    address: 127.0.0.1

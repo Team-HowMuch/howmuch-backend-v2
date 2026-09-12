@@ -1,0 +1,71 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {"title": "Operations overview", "type": "link", "url": "/d/howmuch-operations"},
+    {"title": "CODEF operations", "type": "link", "url": "/d/howmuch-codef"}
+  ],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (area, status) (rate(howmuch_http_requests_total{area=~\"$area\"}[$__rate_interval]))", "legendFormat": "{{area}} {{status}}", "refId": "A"}],
+      "title": "Requests in selected area",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "tempo", "uid": "tempo"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"spanBar": {"type": "None"}},
+      "targets": [{"datasource": {"type": "tempo", "uid": "tempo"}, "limit": 20, "query": "{ resource.service.name = \"howmuch-backend-v2\" && span.area =~ \"$area\" }", "queryType": "traceql", "refId": "A", "tableType": "traces"}],
+      "title": "Recent traces by area",
+      "type": "traces"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 7},
+      "id": 3,
+      "options": {"dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
+      "targets": [{"expr": "{service=\"howmuch-backend-v2\"} | json | area=~\"$area\"", "refId": "A"}],
+      "title": "Application logs by area (traceId opens Tempo)",
+      "type": "logs"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 17},
+      "id": 4,
+      "options": {"dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
+      "targets": [{"expr": "{service=\"howmuch-backend-v2\"} | json | level=~\"WARN|ERROR\"", "refId": "A"}],
+      "title": "Warnings and errors",
+      "type": "logs"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 17},
+      "id": 5,
+      "options": {"footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "targets": [{"expr": "sum by (area, status) (increase(howmuch_http_requests_total{area=~\"$area\",status=~\"4..|5..\"}[$__range]))", "format": "table", "instant": true, "refId": "A"}],
+      "title": "Failure count in selected range",
+      "type": "table"
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": ["howmuch", "logs", "traces"],
+  "templating": {"list": [{"allValue": ".*", "current": {"selected": false, "text": "All", "value": "$__all"}, "hide": 0, "includeAll": true, "label": "Area", "multi": false, "name": "area", "options": [{"selected": true, "text": "All", "value": "$__all"}, {"selected": false, "text": "auth", "value": "auth"}, {"selected": false, "text": "account", "value": "account"}, {"selected": false, "text": "user", "value": "user"}, {"selected": false, "text": "group", "value": "group"}, {"selected": false, "text": "settlement", "value": "settlement"}, {"selected": false, "text": "notification", "value": "notification"}, {"selected": false, "text": "treasurer", "value": "treasurer"}, {"selected": false, "text": "admin", "value": "admin"}, {"selected": false, "text": "other", "value": "other"}], "query": "auth,account,user,group,settlement,notification,treasurer,admin,other", "skipUrlSync": false, "type": "custom"}]},
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "browser",
+  "title": "HowMuch Logs and Traces",
+  "uid": "howmuch-investigation",
+  "version": 1
+}

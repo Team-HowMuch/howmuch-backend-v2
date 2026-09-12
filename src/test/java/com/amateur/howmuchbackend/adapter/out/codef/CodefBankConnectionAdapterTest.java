@@ -21,6 +21,9 @@ class CodefBankConnectionAdapterTest {
     @Mock
     private CodefRsaEncryptor rsaEncryptor;
 
+    @Mock
+    private CodefObservability observability;
+
     @Test
     @DisplayName("DB 저장 범위를 넘는 계좌 잔액은 없는 값으로 처리한다")
     void ignoresBalanceOutsideStorageRange() throws Exception {
@@ -48,12 +51,17 @@ class CodefBankConnectionAdapterTest {
                         }
                         """)
         );
-        CodefBankConnectionAdapter adapter = new CodefBankConnectionAdapter(client, rsaEncryptor);
+        CodefBankConnectionAdapter adapter = new CodefBankConnectionAdapter(client, rsaEncryptor, observability);
 
         var result = adapter.findAccounts("CID-1", "0031", null);
 
         assertThat(result).hasSize(2);
         assertThat(result.getFirst().balance()).isEqualByComparingTo("1000000");
         assertThat(result.get(1).balance()).isNull();
+        org.mockito.Mockito.verify(observability).record(
+                org.mockito.ArgumentMatchers.eq("account_list"), org.mockito.ArgumentMatchers.eq("0031"),
+                org.mockito.ArgumentMatchers.eq("CF-00000"), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.anyLong()
+        );
     }
 }

@@ -47,7 +47,7 @@ public class SettlementReceivingAccountService implements
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
         settlement.ensureReceivingAccountEditable();
-        Map<String, BankCatalogResult> institutions = bankCatalog.getBanks().stream()
+        Map<String, BankCatalogResult> institutions = bankCatalog.getAllBanks().stream()
                 .collect(Collectors.toMap(BankCatalogResult::organization, Function.identity()));
         return loadAccountPort.findActiveByUserId(actor.userId()).stream()
                 .filter(Account::isActiveWonDemandDeposit)

@@ -40,4 +40,5 @@ out/
 
 # Local CODEF mock data
 tools/codef-mock/data/
+logs/
 .gstack/

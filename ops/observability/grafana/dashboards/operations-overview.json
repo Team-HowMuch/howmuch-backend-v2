@@ -1,0 +1,128 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {"title": "CODEF operations", "type": "link", "url": "/d/howmuch-codef"},
+    {"title": "Logs and traces", "type": "link", "url": "/d/howmuch-investigation"}
+  ],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "max(up{job=\"howmuch-backend-v2\",environment=~\"$environment\"})", "refId": "A"}],
+      "title": "Application up",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 5, "x": 4, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "sum(rate(howmuch_http_request_duration_seconds_count[$__rate_interval]))", "refId": "A"}],
+      "title": "Request rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"decimals": 2, "unit": "percentunit", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 5, "x": 9, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "sum(rate(howmuch_http_requests_total{status=~\"5..\"}[$__rate_interval])) / clamp_min(sum(rate(howmuch_http_requests_total[$__rate_interval])), 0.000001)", "refId": "A"}],
+      "title": "5xx ratio",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.5}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 5, "x": 14, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(howmuch_http_request_duration_seconds_bucket[$__rate_interval])))", "refId": "A"}],
+      "title": "API p95 latency",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 5, "x": 19, "y": 0},
+      "id": 5,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "max(process_cpu_usage)", "legendFormat": "process", "refId": "A"}],
+      "title": "Process CPU",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 4},
+      "id": 6,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "max(process_cpu_usage)", "legendFormat": "process", "refId": "A"},
+        {"expr": "max(system_cpu_usage)", "legendFormat": "system", "refId": "B"}
+      ],
+      "title": "CPU usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.75}, {"color": "red", "value": 0.9}]}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 4, "x": 8, "y": 4},
+      "id": 7,
+      "options": {"minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showThresholdLabels": false, "showThresholdMarkers": true},
+      "targets": [{"expr": "sum(jvm_memory_used_bytes{area=\"heap\"}) / clamp_min(sum(jvm_memory_max_bytes{area=\"heap\"}), 1)", "refId": "A"}],
+      "title": "JVM heap usage",
+      "type": "gauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "id": 8,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (area, status) (rate(howmuch_http_requests_total[$__rate_interval]))", "legendFormat": "{{area}} {{status}}", "refId": "A"}],
+      "title": "Request rate by area and status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "id": 9,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, area) (rate(howmuch_http_request_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "{{area}}", "refId": "A"}],
+      "title": "p95 latency by area",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "id": 10,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "max(hikaricp_connections_active)", "legendFormat": "active", "refId": "A"},
+        {"expr": "max(hikaricp_connections_pending)", "legendFormat": "pending", "refId": "B"},
+        {"expr": "max(hikaricp_connections_max)", "legendFormat": "max", "refId": "C"}
+      ],
+      "title": "Database connection pool",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["howmuch", "operations"],
+  "templating": {"list": [{"current": {"selected": false, "text": "prod", "value": "prod"}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "definition": "label_values(up{job=\"howmuch-backend-v2\"}, environment)", "hide": 0, "includeAll": true, "label": "Environment", "multi": true, "name": "environment", "options": [], "query": {"query": "label_values(up{job=\"howmuch-backend-v2\"}, environment)", "refId": "StandardVariableQuery"}, "refresh": 1, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"}]},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "HowMuch Operations Overview",
+  "uid": "howmuch-operations",
+  "version": 1
+}

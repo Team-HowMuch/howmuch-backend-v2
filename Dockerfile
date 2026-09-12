@@ -17,7 +17,8 @@ RUN apt-get update \
 
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin appuser \
     && mkdir -p /app/uploads/group-images \
-    && chown -R appuser:appuser /app/uploads
+    && mkdir -p /app/logs \
+    && chown -R appuser:appuser /app/uploads /app/logs
 
 WORKDIR /app
 COPY --from=build /app.jar /app/app.jar

@@ -404,7 +404,7 @@ class SettlementDetailServiceTest {
                         "생성자",
                         NOW
                 )));
-        lenient().when(bankCatalog.getBanks()).thenReturn(List.of(
+        lenient().when(bankCatalog.getAllBanks()).thenReturn(List.of(
                 new BankCatalogResult("0020", "NH농협", "https://cdn.example.com/nh.png")
         ));
     }
