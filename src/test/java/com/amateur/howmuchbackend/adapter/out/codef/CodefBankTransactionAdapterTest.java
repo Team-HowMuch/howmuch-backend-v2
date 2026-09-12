@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.codef;
 
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -63,6 +65,20 @@ class CodefBankTransactionAdapterTest {
                 null, ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID, null);
 
         assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
+    }
+
+    @Test
+    void preservesUpstreamStatusForCodeLessHttp5xx() throws Exception {
+        when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any()))
+                .thenThrow(new CodefClient.CodefHttpException(503, "", null));
+        when(client.decode("")).thenReturn(new ObjectMapper().readTree("{}"));
+
+        assertThatThrownBy(() -> new CodefBankTransactionAdapter(client, observability).fetch(
+                "CID-1", "0020", "1002123456789",
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE));
     }
 
     @ParameterizedTest

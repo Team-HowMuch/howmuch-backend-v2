@@ -73,7 +73,9 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
             return response;
         } catch (CodefClient.CodefHttpException exception) {
             resultCode = text(client.decode(exception.responseBody()).path("result"), "code");
-            failure = mapped(resultCode, exception);
+            failure = !StringUtils.hasText(resultCode) && exception.status() >= 500
+                    ? ApplicationException.of(ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, exception)
+                    : mapped(resultCode, exception);
             throw (ApplicationException) failure;
         } catch (RuntimeException exception) {
             failure = exception;
