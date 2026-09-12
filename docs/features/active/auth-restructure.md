@@ -1,8 +1,8 @@
 # Feature Plan: 인증 기능 개편
 
-- Status: Implemented - 정적 검증 완료, 런타임·운영 DDL 검증 대기
-- Last updated: 2026-09-10
-- Related issue: N/A
+- Status: Implemented - SMS 중복 번호 선검사 반영, 정적·집중 테스트 완료, 런타임·운영 DDL 검증 대기
+- Last updated: 2026-09-13
+- Related issue: [#364 가입된 번호로 SMS 인증 요청 시 미차단](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/364)
 - Related ADR: N/A - 현재 결정은 인증 기능 내부 계약으로 기록하며, 다른 도메인까지 정책이 확장되면 별도 ADR을 작성한다.
 - Source specification:
   - [AUTH-SMS-001 SMS 사용자 인증](https://app.notion.com/p/e5f6e559a650831a8a7d0140439d72af)
@@ -30,6 +30,7 @@
 
 - [ ] 사용자는 휴대폰 번호로 6자리 OTP를 받고 3분 안에 최대 5회까지 확인할 수 있다.
 - [ ] 인증번호 재전송은 휴대폰 번호별로 60초에 1회만 허용한다.
+- [x] 이미 가입된 휴대폰 번호의 `/sms/send` 요청은 SMS 발송 전에 `PHONE_NUMBER_ALREADY_REGISTERED` / HTTP 409로 거절하고 OTP Redis 예약을 만들지 않는다.
 - [ ] 신규 사용자는 SMS 인증 완료 후 이름, 생년월일(`yyyy-MM-dd`), 6자리 PIN, PIN 확인, 필수 약관 동의를 제출하여 가입할 수 있다.
 - [ ] `birthDate`가 누락되거나 유효하지 않은 회원가입 요청은 HTTP 400을 반환하고, OpenAPI에는 required `string`/`date`로 노출된다.
 - [ ] `SignUpRequest`와 `SignUpCommand`의 `toString()`에서 생년월일이 `birthDate=***`로 마스킹된다.
@@ -125,11 +126,12 @@ Invalid states:
 
 1. 사용자가 휴대폰 번호를 제출한다.
 2. 서버가 국내 휴대폰 번호를 하이픈 없는 형식으로 정규화한다.
-3. 서버가 휴대폰 번호별 재전송 제한을 확인하고 6자리 OTP를 생성한다.
-4. OTP Hash와 만료 시각을 Redis `auth:sms:otp:{phoneHash}`에 저장한다.
-5. 기존 `SmsSenderPort`가 Discord Mock 또는 SOLAPI로 OTP를 발송한다.
-6. 사용자가 `verificationRequestId`와 OTP를 제출한다.
-7. 서버가 OTP와 유효시간을 확인하고 회원가입용 `challengeId`를 반환한다.
+3. 서버가 기존 가입 사용자를 조회하고, 존재하면 `PHONE_NUMBER_ALREADY_REGISTERED` / `409`를 반환한다. 이 경우 OTP 예약과 SMS 발송을 수행하지 않는다.
+4. 미가입 번호에 대해서만 휴대폰 번호별 재전송 제한을 확인하고 6자리 OTP를 생성한다.
+5. OTP Hash와 만료 시각을 Redis `auth:sms:otp:{phoneHash}`에 저장한다.
+6. 기존 `SmsSenderPort`가 Discord Mock 또는 SOLAPI로 OTP를 발송한다.
+7. 사용자가 `verificationRequestId`와 OTP를 제출한다.
+8. 서버가 OTP와 유효시간을 확인하고 회원가입용 `challengeId`를 반환한다.
 
 ### Normal flow: 회원가입
 
@@ -176,7 +178,8 @@ Invalid states:
 | OTP 확인 실패 5회 | OTP 상태 삭제 후 `SMS_VERIFICATION_ATTEMPTS_EXCEEDED` / `429` |
 | SMS 발송 실패 | 저장한 OTP를 보상 삭제하고 `SMS_SEND_FAILED` / `502` |
 | Challenge 없음 또는 만료 | `AUTH_CHALLENGE_EXPIRED` / `400` |
-| 이미 가입된 휴대폰 번호 | `PHONE_NUMBER_ALREADY_REGISTERED` / `409` |
+| 이미 가입된 휴대폰 번호로 SMS 인증 요청 | `PHONE_NUMBER_ALREADY_REGISTERED` / `409` |
+| 이미 가입된 휴대폰 번호로 회원가입 요청 | `PHONE_NUMBER_ALREADY_REGISTERED` / `409` |
 | PIN 형식 또는 금지 패턴 | `INVALID_PIN_FORMAT` / `400` |
 | PIN 확인 불일치 | `PIN_CONFIRMATION_MISMATCH` / `400` |
 | 필수 약관 미동의 | `REQUIRED_TERMS_NOT_AGREED` / `400` |
@@ -256,6 +259,7 @@ Content-Type: application/json
 - Authentication: 불필요
 - Response: 기존 `SmsVerificationSentResponse` 유지
 - Rate limit: 정규화 휴대폰 번호별 60초에 1회
+- Existing user: `PHONE_NUMBER_ALREADY_REGISTERED` / `409`; OTP Redis 예약과 SMS 발송은 수행하지 않는다.
 
 #### SMS 인증번호 확인
 
@@ -354,6 +358,7 @@ Authorization: Bearer <accessToken>
   - `identity_key`는 기존 데이터 호환을 위해 유지하지만 새 로그인 식별에는 사용하지 않는다.
   - 회원가입 API는 `birthDate`를 필수(`yyyy-MM-dd`)로 받고 `users.birth_date`에 저장한다.
   - `users.birth_date`와 `users.gender`는 기존 데이터 호환을 위해 nullable 상태를 유지한다. 이 계약 변경을 위한 Flyway migration은 생성하지 않는다.
+  - 이번 SMS 선검사는 기존 `LoadUserPort.findByPhoneNumber`와 JPA 조회를 재사용하므로 Entity·Constraint·Schema 변경이 없다. 따라서 이 변경에는 Flyway migration을 생성하지 않는다.
   - `MyProfileResult`와 `MyProfileWebResponse`는 신규 사용자의 생년월일을 반환하고, 레거시 데이터의 생년월일·성별 `null`을 허용한다.
   - 필수 약관 동의 시각과 마케팅 동의 시각을 저장한다. 마케팅 철회 시각과 약관 버전은 해당 변경 UseCase가 생길 때 추가한다.
   - 로그아웃 감사 로그에 사용자 ID, 이벤트 종류, UTC 시각, Client IP, User-Agent를 저장한다.
@@ -410,6 +415,7 @@ ALTER TABLE users DROP COLUMN required_terms_agreed_at;
 - `SmsOtpState`와 `AuthChallenge`는 휴대폰 소유 확인에 필요한 정보만 보관한다.
 - `PinPolicy`가 PIN 길이, 숫자 구성, 금지 패턴과 최대 로그인 시도 횟수를 소유한다.
 - `User`는 이름, 생년월일, 휴대폰 번호, PIN Hash와 사용자 상태를 소유한다. 생년월일은 회원가입에서 필수로 받고, 성별은 선택 프로필 정보로 유지한다.
+- `SendSmsVerificationService`는 `LoadUserPort`로 가입 여부를 선검사하며, `SignUpService`의 중복 검사는 경합 대비를 위해 유지한다.
 - 회원가입 Service는 Challenge 소비, 중복 확인, PIN 검증, 사용자 저장 순서를 조정한다.
 - 로그인 Service는 사용자 조회, PIN 검증, 마지막 로그인 갱신, 단일 세션 발급을 조정한다.
 - 로그아웃 Service는 세션을 먼저 삭제한 뒤 감사 로그 저장을 요청한다. 감사 로그 저장 실패로 이미 종료한 세션을 복원하지 않는다.
@@ -435,7 +441,7 @@ ALTER TABLE users DROP COLUMN required_terms_agreed_at;
 
 - PIN과 OTP는 서로 다른 용도로 사용한다. OTP는 휴대폰 소유 확인, PIN은 계정 인증이다.
 - 전화번호 존재 여부를 추측할 수 없도록 로그인 실패는 `INVALID_LOGIN_CREDENTIALS` 하나로 통일한다.
-- 전화번호 중복 가입 오류는 회원가입 단계에서만 반환한다.
+- 전화번호 중복 오류는 SMS 인증번호 요청과 회원가입 요청에서 모두 `PHONE_NUMBER_ALREADY_REGISTERED` / `409`로 반환한다. 로그인 오류는 가입 여부 노출을 막기 위해 기존 통합 오류를 유지한다.
 - PIN 입력 실패 횟수, Request Token 재사용과 OTP 실패는 서버에서 제한한다. 클라이언트 제한만 신뢰하지 않는다.
 - JWT는 Redis 활성 세션과 함께 검증한다.
 - 로그에 OTP, PIN, 전체 JWT, Secret, 전체 휴대폰 번호를 기록하지 않는다.
@@ -452,8 +458,8 @@ ALTER TABLE users DROP COLUMN required_terms_agreed_at;
 
 | Area | Impact | Verified file or contract |
 |---|---|---|
-| API | `/signup`, `/login` 추가, `/complete`, `/dev/login` 제거 | `AuthController`, `DevAuthController`, `AuthDocs`, Web DTOs |
-| Application | 회원가입·로그인 UseCase 분리, 기존 SMS·Token·Logout 재사용 | `CompleteAuthService`, `SignUpService`, `LoginService`, `AuthTokenService`, `LogoutService` |
+| API | `/signup`, `/login` 추가, `/complete`, `/dev/login` 제거, `/sms/send`의 가입 번호 409 응답 추가 | `AuthController`, `DevAuthController`, `AuthDocs`, Web DTOs |
+| Application | 회원가입·로그인 UseCase 분리, SMS 발송 전 가입 여부 선검사, 기존 SMS·Token·Logout 재사용 | `SendSmsVerificationService`, `CompleteAuthService`, `SignUpService`, `LoginService`, `AuthTokenService`, `LogoutService` |
 | Domain | 인증 Challenge를 휴대폰 기반으로 축소, PIN 금지 규칙 추가 | `AuthIdentity`, `AuthChallenge`, `SmsOtpState`, `User`, `PinPolicy` |
 | Persistence | 휴대폰 번호 조회·Unique Constraint, 회원가입 생년월일 저장, 기존 생년월일·성별 Nullable 유지, 동의·감사 로그 저장 | `UserJpaEntity`, `UserJpaRepository`, `UserPersistenceAdapter`, `UserMapper`, 신규 감사 로그 Adapter |
 | Redis | OTP/Challenge 직렬화 변경, 로그인 실패 제한 추가, 단일 세션 Key 유지 | `SmsVerificationRedisAdapter`, `AuthChallengeRedisAdapter`, `LoginAttemptRedisAdapter`, `AuthSessionRedisAdapter` |
@@ -491,6 +497,7 @@ Existing behavior that must remain unchanged:
   - `SignUpService`와 `LoginService`를 공개 UseCase 구현으로 변경한다.
   - `/complete`의 자동 분기와 Challenge 기반 기존 사용자 로그인을 제거한다.
   - 로그인 실패 횟수를 Redis에서 원자 증가하고 5회 실패 시 30분 잠근다.
+  - `SendSmsVerificationService`는 정규화된 번호의 기존 가입 여부를 OTP 예약·SMS 발송보다 먼저 확인하고, 가입된 번호에는 `PHONE_NUMBER_ALREADY_REGISTERED`를 반환한다.
 - [x] Output Adapters
   - 휴대폰 번호 JPA 조회를 추가한다.
   - 사용자 Schema 제약, Nullable 필드와 약관 동의 필드를 반영한다.
@@ -520,6 +527,8 @@ feat(auth): 사용자 휴대폰 식별 계약과 스키마 반영
 feat(auth): 단일 세션 로그아웃 감사 기록 추가
 docs(auth): 인증 API와 구현 결과 문서화
 docs(auth): 회원가입 생년월일 계약 문서 보완
+fix(auth): 가입된 번호의 SMS 인증 요청 차단
+docs(auth): 가입된 번호 SMS 요청 계약 기록
 ```
 
 각 Commit은 사용하지 않는 Port만 남기지 않고 최소한 컴파일 가능한 상태로 끝낸다.
@@ -531,6 +540,8 @@ docs(auth): 회원가입 생년월일 계약 문서 보완
 ```bash
 ./gradlew compileJava
 ./gradlew test
+./gradlew clean test --tests 'com.amateur.howmuchbackend.application.auth.service.SendSmsVerificationServiceTest'
+./gradlew test --tests 'com.amateur.howmuchbackend.adapter.out.redis.SmsVerificationRedisIntegrationTest'
 git diff --check
 git status --short --untracked-files=all
 ```
@@ -547,25 +558,28 @@ git status --short --untracked-files=all
 
 ### Manual verification
 
-1. 올바른 번호로 OTP를 발송하고 6자리 코드, 3분 만료와 60초 재전송 제한을 확인한다.
-2. 잘못된 OTP 5회, 만료 OTP와 SMS 발송 실패 응답을 확인한다.
-3. SMS 인증 후 생년월일(`yyyy-MM-dd`)과 정상 PIN으로 신규 가입하고 `users.birth_date` 저장 및 같은 번호의 동시·반복 가입을 확인한다.
-4. 생년월일 누락·잘못된 날짜가 HTTP 400을 반환하고, 금지 PIN·PIN 확인 불일치·필수 약관 미동의를 확인한다.
-5. 가입된 전화번호와 PIN으로 로그인하고 두 Token과 `lastLoginAt` 갱신을 확인한다.
-6. 없는 번호와 잘못된 PIN이 같은 로그인 오류를 반환하는지 확인한다.
-7. 같은 사용자로 다시 로그인한 뒤 이전 Access Token과 Request Token이 모두 실패하는지 확인한다.
-8. Request Token 재발급 후 직전 Token 재사용이 실패하는지 확인한다.
-9. 로그아웃 후 Access Token과 Request Token이 모두 실패하는지 확인한다.
-10. 로그아웃 감사 로그에 사용자 ID, UTC 시각, Client IP, User-Agent만 저장되는지 확인한다.
-11. 신규 사용자의 프로필 조회에서 저장한 생년월일이 반환되고, 레거시 사용자의 생년월일·성별 `null`도 정상 응답하는지 확인한다.
-12. 필수 약관 동의 시각과 마케팅 동의 여부·시각이 저장되는지 확인한다.
-13. 로그와 PostgreSQL·Redis 데이터에 평문 PIN, OTP, 전체 Token과 Secret이 없는지 확인한다.
-14. 정상 로그아웃 요청의 95%가 3초 안에 응답하는지 측정한다.
+1. 가입된 번호로 `/api/v2/auth/sms/send`를 요청해 HTTP 409와 `PHONE_NUMBER_ALREADY_REGISTERED`를 받고 SMS가 발송되지 않는지 확인한다.
+2. 같은 요청에서 `auth:sms:otp:{phoneHash}`와 쿨다운 Key가 생성되지 않는지 확인한다.
+3. 올바른 미가입 번호로 OTP를 발송하고 6자리 코드, 3분 만료와 60초 재전송 제한을 확인한다.
+4. 잘못된 OTP 5회, 만료 OTP와 SMS 발송 실패 응답을 확인한다.
+5. SMS 인증 후 생년월일(`yyyy-MM-dd`)과 정상 PIN으로 신규 가입하고 `users.birth_date` 저장 및 같은 번호의 동시·반복 가입을 확인한다.
+6. 생년월일 누락·잘못된 날짜가 HTTP 400을 반환하고, 금지 PIN·PIN 확인 불일치·필수 약관 미동의를 확인한다.
+7. 가입된 전화번호와 PIN으로 로그인하고 두 Token과 `lastLoginAt` 갱신을 확인한다.
+8. 없는 번호와 잘못된 PIN이 같은 로그인 오류를 반환하는지 확인한다.
+9. 같은 사용자로 다시 로그인한 뒤 이전 Access Token과 Request Token이 모두 실패하는지 확인한다.
+10. Request Token 재발급 후 직전 Token 재사용이 실패하는지 확인한다.
+11. 로그아웃 후 Access Token과 Request Token이 모두 실패하는지 확인한다.
+12. 로그아웃 감사 로그에 사용자 ID, UTC 시각, Client IP, User-Agent만 저장되는지 확인한다.
+13. 신규 사용자의 프로필 조회에서 저장한 생년월일이 반환되고, 레거시 사용자의 생년월일·성별 `null`도 정상 응답하는지 확인한다.
+14. 필수 약관 동의 시각과 마케팅 동의 여부·시각이 저장되는지 확인한다.
+15. 로그와 PostgreSQL·Redis 데이터에 평문 PIN, OTP, 전체 Token과 Secret이 없는지 확인한다.
+16. 정상 로그아웃 요청의 95%가 3초 안에 응답하는지 측정한다.
 
 ### Completion criteria
 
 - [ ] Purpose의 모든 사용자 결과를 검증했다.
 - [ ] 정상, 실패, 만료, 중복, 동시성 흐름을 검증했다.
+- [ ] 가입된 번호의 `/sms/send`가 SMS 발송 전에 409로 차단되고 OTP·쿨다운 Key를 만들지 않는지 검증했다.
 - [ ] 새 로그인으로 이전 단일 기기 세션이 무효화되는지 검증했다.
 - [ ] 데이터베이스 Unique Constraint와 Rollback DDL을 검증했다.
 - [ ] Swagger와 저장소 문서가 실제 API 계약과 일치한다.
@@ -577,6 +591,8 @@ git status --short --untracked-files=all
 |---|---|---|
 | Feature Plan 작성 | Complete | `docs/features/active/auth-restructure.md` |
 | Java Compile | Complete | `./gradlew compileJava` 성공 |
+| 가입 번호 SMS 선검사 단위 테스트 | Complete | `./gradlew clean test --tests '*SendSmsVerificationServiceTest'` 성공 |
+| 가입 번호 SMS Redis 통합 테스트 | Complete | `./gradlew test --tests '*SmsVerificationRedisIntegrationTest'` 성공 |
 | Existing Tests | Pending | PostgreSQL·Redis 선행 조건 확인 후 실행 |
 | Manual API verification | Pending | 구현 및 실행 환경 준비 후 수행 |
 | Production data migration | Pending | 중복 번호 조회와 DDL 검토 필요 |
@@ -589,6 +605,7 @@ git status --short --untracked-files=all
 | 2026-08-15 | SMS OTP + 전화번호/PIN 로그인 + 단일 기기 세션 개발 계약 작성 | Feature Plan 리뷰 | `/complete` 제거는 프론트엔드 동시 변경이 필요한 Breaking Change |
 | 2026-08-15 | SMS 입력 축소, 가입·로그인 분리, 30분 로그인 잠금, 단일 Redis 세션, 약관 시각, 로그아웃 감사 로그 구현 및 Java 컴파일 | 기존 테스트와 런타임 수동 검증, 운영 DDL 준비 | 운영 데이터 중복 번호와 `validate` Profile Schema는 별도 배포 작업 필요 |
 | 2026-09-10 | 회원가입 요청에 필수 `birthDate`와 `yyyy-MM-dd` 형식, 저장·400 검증 기준을 반영 | 프론트엔드 동시 배포와 런타임 수동 검증 | 기존 클라이언트가 `birthDate`를 누락하면 HTTP 400을 반환함 |
+| 2026-09-13 | 가입된 번호의 `/sms/send` 선검사와 409 오류 계약, OTP·SMS 미호출 회귀 테스트를 반영 | PostgreSQL이 연결된 환경에서 실제 HTTP 409와 SMS 미발송을 확인 | `LoadUserPort` 재사용으로 Schema·Flyway 변경 없음 |
 
 ## 10. Decision log
 
@@ -605,11 +622,12 @@ git status --short --untracked-files=all
 | 2026-08-15 | 별도 사용자 설정 Entity는 만들지 않는다. | 기능명세에 설정 저장 항목과 사용처가 정의되어 있지 않다. | 구체적인 설정 기능이 생기면 별도 Feature로 추가한다. |
 | 2026-08-15 | 로그아웃 감사 로그는 세션 삭제 후 기록한다. | 감사 기록 실패 때문에 보안상 필요한 세션 종료를 되돌리지 않는다. | 감사 로그 저장 실패는 운영 로그로 남기고 로그아웃 결과는 성공으로 유지한다. |
 | 2026-08-15 | 로그인 5회 실패 시 휴대폰 식별자를 30분 잠근다. | 영구 잠금을 피하면서 기능명세의 서버 측 시도 제한을 제공한다. | Redis TTL 만료 후 자동 해제되며 즉시 해제 API는 제공하지 않는다. |
+| 2026-09-13 | 가입된 휴대폰 번호는 `/sms/send` 단계에서 `PHONE_NUMBER_ALREADY_REGISTERED` / `409`로 차단한다. | 불필요한 SMS 비용과 회원가입 후반의 늦은 중복 오류를 없애며, 기존 `LoadUserPort`를 재사용할 수 있다. | `SignUpService`의 동일 검사는 경합 대비를 위해 유지하고, DB·Flyway 변경은 추가하지 않는다. |
 
 ## 11. Completion record
 
 - Completed on: Pending - 런타임과 운영 DDL 검증 후 완료 처리
-- Final behavior: SMS 휴대폰 소유 인증 후 생년월일을 저장하는 별도 가입, 휴대폰 번호와 PIN 로그인, 사용자당 Redis 단일 세션, 5회 실패 시 30분 잠금, 로그아웃 감사 로그
+- Final behavior: 가입된 번호의 SMS 요청 선차단, SMS 휴대폰 소유 인증 후 생년월일을 저장하는 별도 가입, 휴대폰 번호와 PIN 로그인, 사용자당 Redis 단일 세션, 5회 실패 시 30분 잠금, 로그아웃 감사 로그
 - Unverified items: 운영 휴대폰 번호 중복, 실제 SMS·PostgreSQL·Redis API 흐름, 운영 DDL
 - Remaining risks: 휴대폰 번호 변경·재사용 계정 복구 수단 부재, 레거시 프로필의 생년월일·성별 Nullable 유지, 필수 `birthDate`에 따른 프론트엔드 Breaking Change
 - Follow-up work: PIN 재설정, 휴대폰 번호 변경, 강한 본인확인 Provider와 약관 버전 이력은 별도 기능명세가 생길 때 계획한다.
