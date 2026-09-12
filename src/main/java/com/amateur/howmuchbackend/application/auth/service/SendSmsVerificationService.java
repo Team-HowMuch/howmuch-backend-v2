@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
 import com.amateur.howmuchbackend.application.auth.policy.SmsVerificationPolicy;
 import com.amateur.howmuchbackend.application.port.out.auth.SmsSenderPort;
 import com.amateur.howmuchbackend.application.port.out.auth.SmsVerificationStorePort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.in.auth.SendSmsVerificationUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.command.SendSmsVerificationCommand;
 import com.amateur.howmuchbackend.application.port.in.auth.result.SmsVerificationSentResult;
@@ -33,11 +34,15 @@ public class SendSmsVerificationService implements SendSmsVerificationUseCase {
     private final SmsVerificationPolicy smsVerificationPolicy;
     private final SmsVerificationStorePort smsVerificationStorePort;
     private final SmsSenderPort smsSenderPort;
+    private final LoadUserPort loadUserPort;
 
     @Override
     @Transactional
     public SmsVerificationSentResult send(SendSmsVerificationCommand command) {
         String phoneNumber = identityPolicy.normalizePhoneNumber(command.phoneNumber());
+        if (loadUserPort.findByPhoneNumber(phoneNumber).isPresent()) {
+            throw ApplicationException.of(AuthStatusCode.PHONE_NUMBER_ALREADY_REGISTERED);
+        }
         String phoneHash = identityPolicy.phoneHash(phoneNumber);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 

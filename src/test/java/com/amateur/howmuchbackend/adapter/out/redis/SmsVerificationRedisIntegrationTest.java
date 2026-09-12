@@ -8,9 +8,11 @@ import com.amateur.howmuchbackend.application.port.in.auth.command.ConfirmSmsVer
 import com.amateur.howmuchbackend.application.port.in.auth.command.SendSmsVerificationCommand;
 import com.amateur.howmuchbackend.application.port.in.auth.result.SmsVerificationConfirmedResult;
 import com.amateur.howmuchbackend.application.port.out.auth.SmsSenderPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.auth.verification.SmsOtpState;
+import com.amateur.howmuchbackend.domain.user.User;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -45,6 +48,7 @@ import static org.mockito.Mockito.*;
 class SmsVerificationRedisIntegrationTest {
     private final ObjectMapper mapper = JsonMapper.builder().findAndAddModules().build();
     private final IdentityPolicy identity = new IdentityPolicy(UUID.randomUUID().toString());
+    private final LoadUserPort loadUserPort = mock(LoadUserPort.class);
     private final SmsVerificationPolicy policy = new SmsVerificationPolicy(
             Duration.ofMinutes(3), Duration.ofMinutes(30), Duration.ofSeconds(60), 5);
     private final List<String> challengeKeys = new ArrayList<>();
@@ -213,7 +217,7 @@ class SmsVerificationRedisIntegrationTest {
                 initial.codeHash(), 0, now().minusSeconds(1), now().plusMinutes(3)), Duration.ofMinutes(3));
         assertThat(succeed(adapter)).isEqualTo(VERIFIED);
         SmsSenderPort sender = mock(SmsSenderPort.class);
-        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender, loadUserPort);
         var sent = service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
         assertThat(sent.verificationRequestId()).isNotEqualTo(initial.verificationRequestId());
         SmsOtpState replacement = storedState().orElseThrow();
@@ -222,6 +226,24 @@ class SmsVerificationRedisIntegrationTest {
         assertThat(replacement.attemptCount()).isZero();
         verify(sender).send(eq(initial.phoneNumber()), anyString());
         assertThat(succeed(adapter)).isEqualTo(CODE_MISMATCH);
+    }
+
+    @Test
+    void registeredPhoneIsRejectedBeforeRedisReservation() {
+        redis.delete(key);
+        redis.delete(cooldownKey());
+        when(loadUserPort.findByPhoneNumber(initial.phoneNumber())).thenReturn(Optional.of(mock(User.class)));
+        SmsSenderPort sender = mock(SmsSenderPort.class);
+        SendSmsVerificationService service = new SendSmsVerificationService(
+                identity, policy, adapter, sender, loadUserPort);
+
+        assertThatThrownBy(() -> service.send(new SendSmsVerificationCommand(initial.phoneNumber())))
+                .isInstanceOfSatisfying(ApplicationException.class,
+                        error -> assertThat(error.getStatusCode())
+                                .isEqualTo(AuthStatusCode.PHONE_NUMBER_ALREADY_REGISTERED));
+        verifyNoInteractions(sender);
+        assertThat(redis.hasKey(key)).isFalse();
+        assertThat(redis.hasKey(cooldownKey())).isFalse();
     }
 
     @Test
@@ -305,7 +327,7 @@ class SmsVerificationRedisIntegrationTest {
         List<String> codes = new ArrayList<>();
         doAnswer(call -> { codes.add(call.getArgument(1)); return null; })
                 .when(sender).send(anyString(), anyString());
-        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender, loadUserPort);
         AuthChallengeRedisAdapter challenges = new AuthChallengeRedisAdapter(redis, mapper);
         ConfirmSmsVerificationService confirm = new ConfirmSmsVerificationService(identity, policy, adapter, challenges);
         var first = service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
@@ -338,7 +360,7 @@ class SmsVerificationRedisIntegrationTest {
         SmsVerificationPolicy shortOtp = new SmsVerificationPolicy(
                 Duration.ofMillis(30), policy.challengeTtl(), Duration.ofSeconds(60), 5);
         SmsSenderPort sender = mock(SmsSenderPort.class);
-        SendSmsVerificationService service = new SendSmsVerificationService(identity, shortOtp, adapter, sender);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, shortOtp, adapter, sender, loadUserPort);
         service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
         TimeUnit.MILLISECONDS.sleep(60);
         assertThat(redis.hasKey(key)).isFalse();
@@ -358,7 +380,7 @@ class SmsVerificationRedisIntegrationTest {
                     5, now().minusSeconds(1), now().plusMinutes(3)), Duration.ofMinutes(3));
         }
         SmsSenderPort sender = mock(SmsSenderPort.class);
-        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, synchronizedReads(8), sender);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, synchronizedReads(8), sender, loadUserPort);
         Callable<Object> send = () -> {
             try { return service.send(new SendSmsVerificationCommand(initial.phoneNumber())); }
             catch (ApplicationException error) { return error.getStatusCode(); }
@@ -378,7 +400,7 @@ class SmsVerificationRedisIntegrationTest {
         SmsSenderPort sender = mock(SmsSenderPort.class);
         RuntimeException failure = new IllegalStateException("synthetic delivery failure");
         doThrow(failure).when(sender).send(anyString(), anyString());
-        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender, loadUserPort);
         assertThatThrownBy(() -> service.send(new SendSmsVerificationCommand(initial.phoneNumber())))
                 .isSameAs(failure);
         assertThat(redis.hasKey(key)).isFalse();
@@ -404,14 +426,14 @@ class SmsVerificationRedisIntegrationTest {
             }
             throw new IllegalStateException("synthetic delayed delivery failure");
         };
-        SendSmsVerificationService delayed = new SendSmsVerificationService(identity, policy, adapter, delayedSender);
+        SendSmsVerificationService delayed = new SendSmsVerificationService(identity, policy, adapter, delayedSender, loadUserPort);
         try (var executor = Executors.newSingleThreadExecutor()) {
             var pending = executor.submit(() -> delayed.send(new SendSmsVerificationCommand(initial.phoneNumber())));
             try {
                 assertThat(sending.await(5, TimeUnit.SECONDS)).isTrue();
                 elapseCooldown();
                 SendSmsVerificationService next = new SendSmsVerificationService(
-                        identity, policy, adapter, mock(SmsSenderPort.class));
+                        identity, policy, adapter, mock(SmsSenderPort.class), loadUserPort);
                 var replacement = next.send(new SendSmsVerificationCommand(initial.phoneNumber()));
                 release.countDown();
                 assertThatThrownBy(() -> pending.get(5, TimeUnit.SECONDS))
@@ -454,7 +476,7 @@ class SmsVerificationRedisIntegrationTest {
         SmsVerificationPolicy shortCooldown = new SmsVerificationPolicy(
                 policy.otpTtl(), policy.challengeTtl(), Duration.ofMillis(80), 5);
         SendSmsVerificationService service = new SendSmsVerificationService(
-                identity, shortCooldown, adapter, mock(SmsSenderPort.class));
+                identity, shortCooldown, adapter, mock(SmsSenderPort.class), loadUserPort);
         var first = service.send(new SendSmsVerificationCommand(initial.phoneNumber()));
         TimeUnit.MILLISECONDS.sleep(120);
         assertThat(redis.hasKey(cooldownKey())).isFalse();
@@ -475,7 +497,7 @@ class SmsVerificationRedisIntegrationTest {
     void corruptLegacyStateDoesNotTriggerDelivery() {
         redis.opsForValue().set(key, "invalid-json", policy.otpTtl());
         SmsSenderPort sender = mock(SmsSenderPort.class);
-        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender, loadUserPort);
         assertThatThrownBy(() -> service.send(new SendSmsVerificationCommand(initial.phoneNumber())))
                 .isInstanceOf(RuntimeException.class);
         verifyNoInteractions(sender);
@@ -509,7 +531,7 @@ class SmsVerificationRedisIntegrationTest {
     private void assertCooldown() {
         assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isPositive().isLessThanOrEqualTo(180000);
         SmsSenderPort sender = mock(SmsSenderPort.class);
-        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender);
+        SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender, loadUserPort);
         assertThatThrownBy(() -> service.send(new SendSmsVerificationCommand(initial.phoneNumber())))
                 .isInstanceOfSatisfying(ApplicationException.class,
                         error -> assertThat(error.getStatusCode()).isEqualTo(AuthStatusCode.SMS_RESEND_TOO_SOON));
