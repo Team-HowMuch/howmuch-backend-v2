@@ -1,8 +1,8 @@
 # Feature Plan: OTel 기반 관측성 구조 전환
 
-- Status: In progress
-- Last updated: 2026-09-10
-- Related issue: Pending
+- Status: Implemented
+- Last updated: 2026-09-13
+- Related issue: #358
 - Related ADR: -
 
 ## 1. 목적
@@ -15,17 +15,17 @@
 
 ### 성공 기준
 
-- [ ] 활성 server span의 trace ID가 `X-Trace-ID`와 JSON 로그에 연결된다.
-- [ ] 외부 입력 trace context와 외부 호출 전파 헤더를 신뢰하지 않는다.
-- [ ] HTTP/RestClient/JDBC/Redis/Outbox 관측과 민감정보 제거 정책이 동작한다.
-- [ ] local plain console, dev/prod/test JSON console, 모든 profile의 JSON file 저장이 유지된다.
-- [ ] 기존 custom meter와 `http.server.requests` 비활성 정책을 유지한다.
-- [ ] 복사 가능한 Alloy/Loki/Tempo/Prometheus/Grafana Compose가 같은 private network에서 동작한다.
-- [ ] 관리 listener가 local loopback 또는 허용된 private CIDR에서만 접근된다.
+- [x] 활성 server span의 trace ID가 `X-Trace-ID`와 JSON 로그에 연결된다.
+- [x] 외부 입력 trace context와 외부 호출 전파 헤더를 신뢰하지 않는다.
+- [x] HTTP/RestClient/JDBC/Redis/Outbox 관측과 민감정보 제거 정책이 동작한다.
+- [x] local plain console, dev/prod/test JSON console, 모든 profile의 JSON file 저장이 유지된다.
+- [x] 기존 custom meter와 `http.server.requests` 비활성 정책을 유지한다.
+- [x] 복사 가능한 Alloy/Loki/Tempo/Prometheus/Grafana Compose가 같은 private network에서 동작한다.
+- [x] 관리 listener가 local loopback 또는 허용된 private CIDR에서만 접근된다.
 
 ### 제외
 
-Flyway migration, DB schema 변경, 별도 latency histogram, alert rule, Kafka/outbox cross-boundary
+Flyway migration, DB schema 변경, alert rule, Kafka/outbox cross-boundary
 trace link, 실제 EC2 server-owned Compose·방화벽 변경은 제외한다.
 
 ## 2. 현재 코드 기준 분석
@@ -89,7 +89,7 @@ trace link, 실제 EC2 server-owned Compose·방화벽 변경은 제외한다.
 5. [x] HTTP/Outbox 관측 회귀 테스트 보강
 6. [x] 운영 템플릿과 현재 운영 문서 추가
 7. [x] compile/test/static configuration 검증 및 결과 기록
-8. [ ] push 후 `develop` 대상 PR 생성
+8. [x] push 후 `develop` 대상 PR #359 생성
 
 ## 6. 검증 계획
 

@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.common.data.ErrorResponse;
 import com.amateur.howmuchbackend.common.exception.SafeExceptionLogger;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import jakarta.servlet.FilterChain;
@@ -19,10 +20,12 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.slf4j.MDC;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -44,7 +47,12 @@ public class RequestTraceFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                   FilterChain filterChain) throws ServletException, IOException {
+        String area = area(request);
+        String previousArea = MDC.get("area");
+        MDC.put("area", area);
+        tagTrace(area);
         setTraceHeader(response);
+        long startedAt = System.nanoTime();
         int failureStatus = 0;
         try {
             filterChain.doFilter(request, response);
@@ -70,16 +78,32 @@ public class RequestTraceFilter extends OncePerRequestFilter {
             if (!request.isAsyncStarted() && request.getAttribute(RECORDED_ATTRIBUTE) == null) {
                 request.setAttribute(RECORDED_ATTRIBUTE, true);
                 int status = failureStatus == 0 ? response.getStatus() : failureStatus;
-                String area = area(request);
-                registries.ifAvailable(registry -> registry.counter("howmuch.http.requests",
-                        "area", area, "status", status >= 100 && status <= 599
-                                ? Integer.toString(status) : "other").increment());
+                String statusTag = status >= 100 && status <= 599 ? Integer.toString(status) : "other";
+                registries.ifAvailable(registry -> recordRequest(registry, area, statusTag, startedAt));
                 if (status >= 400) {
                     log.atWarn().addKeyValue("event", "request_failed")
-                            .addKeyValue("status", status).addKeyValue("area", area).log("Request failed");
+                            .addKeyValue("status", status).log("Request failed");
                 }
             }
+            if (previousArea == null) MDC.remove("area");
+            else MDC.put("area", previousArea);
         }
+    }
+
+    private void recordRequest(MeterRegistry registry, String area, String status, long startedAt) {
+        registry.counter("howmuch.http.requests", "area", area, "status", status).increment();
+        Timer.builder("howmuch.http.request.duration")
+                .description("Completed HTTP request duration")
+                .tags("area", area, "status", status)
+                .publishPercentileHistogram()
+                .register(registry)
+                .record(System.nanoTime() - startedAt, TimeUnit.NANOSECONDS);
+    }
+
+    private void tagTrace(String area) {
+        Tracer tracer = tracers.getIfAvailable();
+        Span span = tracer == null ? null : tracer.currentSpan();
+        if (span != null && !span.isNoop()) span.tag("area", area);
     }
 
     private void setTraceHeader(HttpServletResponse response) {
@@ -100,8 +124,14 @@ public class RequestTraceFilter extends OncePerRequestFilter {
     private String area(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         if (path.startsWith("/api/v2/auth/")) return "auth";
+        if (path.startsWith("/api/v2/accounts")) return "account";
+        if (path.startsWith("/api/v2/user")) return "user";
+        if (path.startsWith("/api/v2/groups") || path.startsWith("/api/v2/group-invites")) return "group";
         if (path.startsWith("/api/v2/settlements/") || path.equals("/api/v2/settlements")
                 || path.startsWith("/api/v2/settlement-links/")) return "settlement";
+        if (path.startsWith("/api/v2/notifications")) return "notification";
+        if (path.startsWith("/api/v2/treasurer")) return "treasurer";
+        if (path.startsWith("/api/v2/admin")) return "admin";
         return "other";
     }
 }

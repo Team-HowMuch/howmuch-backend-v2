@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -42,13 +43,14 @@ class RequestObservabilityTest {
     };
     private RequestTraceFilter filter;
     private Tracer tracer;
+    private Span span;
 
     @BeforeEach
     void setUp() {
         var factory = new StaticListableBeanFactory();
         factory.addBean("registry", registry);
         tracer = mock(Tracer.class);
-        Span span = mock(Span.class);
+        span = mock(Span.class);
         TraceContext context = mock(TraceContext.class);
         when(tracer.currentSpan()).thenReturn(span);
         when(span.isNoop()).thenReturn(false);
@@ -95,6 +97,9 @@ class RequestObservabilityTest {
         filter.doFilter(request("/api/v2/auth/login"), second, (req, res) -> {});
         assertThat(second.getHeader(RequestTraceFilter.HEADER)).isEqualTo(TRACE_ID);
         assertThat(count("auth", "200")).isEqualTo(2);
+        assertThat(registry.get("howmuch.http.request.duration").tags("area", "auth", "status", "200")
+                .timer().count()).isEqualTo(2);
+        org.mockito.Mockito.verify(span, org.mockito.Mockito.atLeastOnce()).tag("area", "auth");
     }
 
     @Test
@@ -103,6 +108,23 @@ class RequestObservabilityTest {
         var response = new MockHttpServletResponse();
         filter.doFilter(request("/api/v2/auth/login"), response, (req, res) -> {});
         assertThat(response.getHeader(RequestTraceFilter.HEADER)).isNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "/api/v2/accounts, account",
+            "/api/v2/user/me, user",
+            "/api/v2/groups/1, group",
+            "/api/v2/group-invites/abc, group",
+            "/api/v2/notifications, notification",
+            "/api/v2/treasurer/questions, treasurer",
+            "/api/v2/admin/common-codes, admin"
+    })
+    void classifiesOperationalAreas(String path, String area) throws Exception {
+        filter.doFilter(request(path), new MockHttpServletResponse(), (req, res) -> {});
+
+        assertThat(count(area, "200")).isEqualTo(1);
+        org.mockito.Mockito.verify(span).tag("area", area);
     }
 
     @ParameterizedTest

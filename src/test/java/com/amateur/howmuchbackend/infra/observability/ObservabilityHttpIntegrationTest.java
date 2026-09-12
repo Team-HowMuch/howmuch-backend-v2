@@ -55,11 +55,11 @@ class ObservabilityHttpIntegrationTest {
 
     @Test
     void realSecurityRejectionIsCorrelatedAndCounted(CapturedOutput output) throws Exception {
-        double before = count("other", "401");
+        double before = count("user", "401");
         var response = get(port, "/api/v2/user/me");
         assertThat(response.statusCode()).isEqualTo(401);
         assertCorrelated(response, output);
-        assertThat(count("other", "401")).isEqualTo(before + 1);
+        assertThat(count("user", "401")).isEqualTo(before + 1);
         assertThat(output.getAll()).doesNotContain(SECRET);
     }
 
