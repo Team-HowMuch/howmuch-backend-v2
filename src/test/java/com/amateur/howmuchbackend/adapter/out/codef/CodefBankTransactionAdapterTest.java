@@ -67,10 +67,15 @@ class CodefBankTransactionAdapterTest {
         assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
     }
 
-    @Test
-    void preservesUpstreamStatusForCodeLessHttp5xx() throws Exception {
+    @ParameterizedTest
+    @CsvSource({
+            "503, CODEF_UPSTREAM_UNAVAILABLE",
+            "400, CODEF_RESPONSE_INVALID"
+    })
+    void classifiesCodeLessHttpResponsesByTransportStatus(int httpStatus, ExternalConnectionStatusCode expected)
+            throws Exception {
         when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any()))
-                .thenThrow(new CodefClient.CodefHttpException(503, "", null));
+                .thenThrow(new CodefClient.CodefHttpException(httpStatus, "", null));
         when(client.decode("")).thenReturn(new ObjectMapper().readTree("{}"));
 
         assertThatThrownBy(() -> new CodefBankTransactionAdapter(client, observability).fetch(
@@ -78,7 +83,7 @@ class CodefBankTransactionAdapterTest {
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
-                                .isEqualTo(ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE));
+                                .isEqualTo(expected));
     }
 
     @ParameterizedTest
