@@ -3,7 +3,6 @@ package com.amateur.howmuchbackend.adapter.out.codef;
 import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
-import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -33,6 +32,7 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final CodefClient client;
+    private final CodefObservability observability;
 
     @Override
     public List<BankTransaction> fetch(
@@ -51,7 +51,7 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         payload.put("orderBy", "1");
         payload.put("inquiryType", "1");
 
-        JsonNode response = post(payload);
+        JsonNode response = post(organization, payload);
         List<BankTransaction> transactions = new ArrayList<>();
         for (JsonNode item : values(data(response).path("resTrHistoryList"))) {
             BankTransaction transaction = transaction(item);
@@ -62,14 +62,24 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         return List.copyOf(transactions);
     }
 
-    private JsonNode post(Map<String, Object> payload) {
+    private JsonNode post(String organization, Map<String, Object> payload) {
+        long startedAt = observability.start();
+        String resultCode = null;
+        Throwable failure = null;
         try {
             JsonNode response = client.post(TRANSACTION_LIST_PATH, payload);
+            resultCode = text(response.path("result"), "code");
             ensureSuccess(response);
             return response;
         } catch (CodefClient.CodefHttpException exception) {
-            String code = text(client.decode(exception.responseBody()).path("result"), "code");
-            throw mapped(code, exception);
+            resultCode = text(client.decode(exception.responseBody()).path("result"), "code");
+            failure = mapped(resultCode, exception);
+            throw (ApplicationException) failure;
+        } catch (RuntimeException exception) {
+            failure = exception;
+            throw exception;
+        } finally {
+            observability.record("transaction_list", organization, resultCode, failure, startedAt);
         }
     }
 
@@ -84,12 +94,7 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
     }
 
     private ApplicationException mapped(String code, Throwable cause) {
-        var status = switch (code == null ? "" : code) {
-            case "CF-03002", "CF-12001" -> ExternalConnectionStatusCode.CODEF_ADDITIONAL_AUTH_REQUIRED;
-            case "CF-04000" -> AccountStatusCode.ACCOUNT_TRANSACTION_NOT_SUPPORTED;
-            default -> ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE;
-        };
-        return cause == null ? ApplicationException.of(status) : ApplicationException.of(status, cause);
+        return CodefFailureMapper.map(code, ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, cause);
     }
 
     private BankTransaction transaction(JsonNode item) {

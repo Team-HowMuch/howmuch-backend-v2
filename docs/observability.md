@@ -45,7 +45,8 @@ Loki label은 낮은 카디널리티의 `service`, `environment`만 사용한다
   업무 요청의 성공/실패를 바꾸지 않도록 한다.
 - 기존 `howmuch.http.requests`, `howmuch.settlement.outbox.events`,
   `howmuch.settlement.outbox.poll.failures` meter를 유지한다.
-- `http.server.requests`는 비활성화한다. 별도 latency histogram, alert rule, Kafka/outbox
+- `howmuch.http.request.duration`과 `howmuch.codef.requests` histogram으로 API 및 CODEF p95 latency를
+  계산한다. `http.server.requests`는 중복 집계를 피하려고 비활성화한다. Alert rule과 Kafka/outbox
   cross-boundary trace link는 현재 범위가 아니다.
 
 Management endpoint는 `/actuator/health`, `/actuator/metrics`, `/actuator/prometheus`만 연다.
@@ -88,11 +89,15 @@ Grafana anonymous access는 끄고 admin 계정은 환경변수로 주입한다.
 | Meter | Tags | Meaning |
 |---|---|---|
 | `howmuch.http.requests` | `area`, `status` | 완료된 servlet 요청 수 |
+| `howmuch.http.request.duration` | `area`, `status` | 완료된 servlet 요청 시간 |
+| `howmuch.codef.requests` | `api`, `organization`, `outcome` | CODEF API 결과와 요청 시간 |
 | `howmuch.settlement.outbox.events` | `outcome` | 기존 BatchResult 처리 결과 |
 | `howmuch.settlement.outbox.poll.failures` | 없음 | Outbox polling 예외 수 |
 
 ```promql
 sum by (area, status) (rate(howmuch_http_requests_total{status=~"4..|5.."}[5m]))
+histogram_quantile(0.95, sum by (le, area) (rate(howmuch_http_request_duration_seconds_bucket[5m])))
+sum by (api, organization, outcome) (rate(howmuch_codef_requests_seconds_count[5m]))
 sum by (outcome) (rate(howmuch_settlement_outbox_events_total{outcome=~"retried|failed|ownership_lost"}[5m]))
 ```
 

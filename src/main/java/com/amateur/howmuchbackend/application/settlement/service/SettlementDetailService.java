@@ -141,7 +141,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                     .orElseThrow(() -> ApplicationException.of(
                             SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND
                     ));
-            BankCatalogResult institution = bankCatalog.getBanks().stream()
+            BankCatalogResult institution = bankCatalog.getAllBanks().stream()
                     .filter(bank -> bank.organization().equals(snapshot.organization()))
                     .findFirst()
                     .orElse(null);

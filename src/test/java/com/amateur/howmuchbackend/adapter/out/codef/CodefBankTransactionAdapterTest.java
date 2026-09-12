@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.codef;
 
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
+import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,6 +28,35 @@ class CodefBankTransactionAdapterTest {
     @Mock
     private CodefClient client;
 
+    @Mock
+    private CodefObservability observability;
+
+    @ParameterizedTest
+    @CsvSource({
+            "CF-12801, BANK_CREDENTIAL_INVALID",
+            "CF-12834, BANK_CREDENTIAL_LOCKED",
+            "CF-03002, CODEF_ADDITIONAL_AUTH_REQUIRED",
+            "CF-12001, CODEF_USER_ACTION_TIMEOUT",
+            "CF-00023, CODEF_RATE_LIMITED",
+            "CF-09999, CODEF_UPSTREAM_UNAVAILABLE",
+            "CF-04000, BANK_CONNECTION_FAILED"
+    })
+    void mapsOfficialFailureCodes(String code, ExternalConnectionStatusCode expected) {
+        assertThat(CodefFailureMapper.map(code, ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, null)
+                .getStatusCode()).isEqualTo(expected);
+    }
+
+    @Test
+    void preservesFallbackAndCauseForUnknownFailureCode() {
+        IllegalStateException cause = new IllegalStateException("upstream failed");
+
+        var failure = CodefFailureMapper.map(
+                "CF-99998", ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, cause);
+
+        assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE);
+        assertThat(failure).hasCause(cause);
+    }
+
     @ParameterizedTest
     @CsvSource({
             "20260905,091619,2026-09-05T00:16:19",
@@ -47,7 +77,7 @@ class CodefBankTransactionAdapterTest {
         ));
         when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any())).thenReturn(response);
         LocalDate queryDate = LocalDate.parse(date, java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
-        var transactions = new CodefBankTransactionAdapter(client)
+        var transactions = new CodefBankTransactionAdapter(client, observability)
                 .fetch("CID-1", "0020", "1002123456789", queryDate, queryDate);
 
         assertThat(transactions).singleElement().satisfies(transaction -> {
@@ -94,7 +124,7 @@ class CodefBankTransactionAdapterTest {
                         }
                         """)
         );
-        CodefBankTransactionAdapter adapter = new CodefBankTransactionAdapter(client);
+        CodefBankTransactionAdapter adapter = new CodefBankTransactionAdapter(client, observability);
 
         var result = adapter.fetch(
                 "CID-1", "0020", "1002123456789",
@@ -124,5 +154,10 @@ class CodefBankTransactionAdapterTest {
             assertThat(transaction.type()).isEqualTo(AccountTransactionType.INCOME);
             assertThat(transaction.afterBalance()).isEqualByComparingTo("-5000");
         });
+        verify(observability).record(
+                org.mockito.ArgumentMatchers.eq("transaction_list"), org.mockito.ArgumentMatchers.eq("0020"),
+                org.mockito.ArgumentMatchers.eq("CF-00000"), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.anyLong()
+        );
     }
 }

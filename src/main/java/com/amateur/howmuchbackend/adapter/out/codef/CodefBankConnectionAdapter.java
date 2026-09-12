@@ -28,10 +28,12 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
 
     private final CodefClient client;
     private final CodefRsaEncryptor rsaEncryptor;
+    private final CodefObservability observability;
 
     @Override
     public ConnectionResult create(BankRegistration registration) {
-        JsonNode response = post(ACCOUNT_CREATE_PATH, Map.of("accountList", List.of(accountPayload(registration))));
+        JsonNode response = post(ACCOUNT_CREATE_PATH, "account_create", registration.organization(),
+                Map.of("accountList", List.of(accountPayload(registration))));
         return connectionResult(response, registration.organization(), null);
     }
 
@@ -46,7 +48,8 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
     }
 
     private ConnectionResult change(String path, String connectedId, BankRegistration registration) {
-        JsonNode response = post(path, Map.of(
+        String api = ACCOUNT_ADD_PATH.equals(path) ? "account_add" : "account_update";
+        JsonNode response = post(path, api, registration.organization(), Map.of(
                 "connectedId", connectedId,
                 "accountList", List.of(accountPayload(registration))
         ));
@@ -64,7 +67,7 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
         payload.put("connectedId", connectedId);
         putIfPresent(payload, "birthDate", birthDate);
 
-        JsonNode data = data(post(ACCOUNT_LIST_PATH, payload));
+        JsonNode data = data(post(ACCOUNT_LIST_PATH, "account_list", organization, payload));
         Map<String, ExternalAccountCandidate> accounts = new LinkedHashMap<>();
         addAccounts(accounts, data.path("resDepositTrust"), AccountType.DEPOSIT_TRUST);
         addAccounts(accounts, data.path("resForeignCurrency"), AccountType.FOREIGN_CURRENCY);
@@ -95,20 +98,33 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
         return new ConnectionResult(connectedId, text(response.path("result"), "code"));
     }
 
-    private JsonNode post(String path, Object payload) {
+    private JsonNode post(String path, String api, String organization, Object payload) {
+        long startedAt = observability.start();
+        String resultCode = null;
+        Throwable failure = null;
         try {
             JsonNode response = client.post(path, payload);
+            CodefFailure codefFailure = failure(response);
+            resultCode = codefFailure == null ? text(response.path("result"), "code") : codefFailure.code();
             ensureSuccess(response);
             return response;
         } catch (CodefClient.CodefHttpException exception) {
-            CodefFailure failure = failure(client.decode(exception.responseBody()));
-            if (failure != null) {
-                throw mapped(failure.code(), exception);
+            CodefFailure codefFailure = failure(client.decode(exception.responseBody()));
+            if (codefFailure != null) {
+                resultCode = codefFailure.code();
+                failure = mapped(resultCode, exception);
+                throw (ApplicationException) failure;
             }
             ExternalConnectionStatusCode status = exception.status() >= 500
                     ? ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE
                     : ExternalConnectionStatusCode.BANK_CONNECTION_FAILED;
-            throw ApplicationException.of(status, exception);
+            failure = ApplicationException.of(status, exception);
+            throw (ApplicationException) failure;
+        } catch (RuntimeException exception) {
+            failure = exception;
+            throw exception;
+        } finally {
+            observability.record(api, organization, resultCode, failure, startedAt);
         }
     }
 
@@ -137,13 +153,7 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
     }
 
     private ApplicationException mapped(String code, Throwable cause) {
-        ExternalConnectionStatusCode status = switch (code) {
-            case "CF-12801", "CF-12834" -> ExternalConnectionStatusCode.BANK_CREDENTIAL_INVALID;
-            case "CF-03002", "CF-12001" -> ExternalConnectionStatusCode.CODEF_ADDITIONAL_AUTH_REQUIRED;
-            case "CF-09999", "CF-12203" -> ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE;
-            default -> ExternalConnectionStatusCode.BANK_CONNECTION_FAILED;
-        };
-        return cause == null ? ApplicationException.of(status) : ApplicationException.of(status, cause);
+        return CodefFailureMapper.map(code, ExternalConnectionStatusCode.BANK_CONNECTION_FAILED, cause);
     }
 
     private void addAccounts(Map<String, ExternalAccountCandidate> target, JsonNode source, AccountType type) {

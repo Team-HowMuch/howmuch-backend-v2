@@ -84,7 +84,7 @@ class AccountQueryServiceTest {
         when(loadAccountPort.findActiveByUserId(USER_ID)).thenReturn(List.of(second, otherBank, first));
         when(loadTransactionPort.findLastUsedAtByAccountIds(anyList()))
                 .thenReturn(Map.of(second.id(), recent));
-        when(bankCatalog.getBanks()).thenReturn(List.of(
+        when(bankCatalog.getAllBanks()).thenReturn(List.of(
                 new BankCatalogResult("0020", "우리은행", "woori.png"),
                 new BankCatalogResult("0004", "국민은행", "kb.png")
         ));
@@ -110,7 +110,7 @@ class AccountQueryServiceTest {
         );
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
         when(loadTransactionPort.findSummary(account.id(), AUGUST)).thenReturn(Optional.of(summary));
-        when(bankCatalog.getBanks()).thenReturn(List.of(
+        when(bankCatalog.getAllBanks()).thenReturn(List.of(
                 new BankCatalogResult("0020", "우리은행", "woori.png")
         ));
 
@@ -145,7 +145,7 @@ class AccountQueryServiceTest {
                         new BigDecimal("1250000")
                 )));
         when(loadTransactionPort.calculateSummary(account.id(), AUGUST)).thenReturn(calculated);
-        when(bankCatalog.getBanks()).thenReturn(List.of(
+        when(bankCatalog.getAllBanks()).thenReturn(List.of(
                 new BankCatalogResult("0020", "우리은행", "woori.png")
         ));
 
@@ -174,7 +174,7 @@ class AccountQueryServiceTest {
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
         when(loadTransactionPort.findSummary(account.id(), currentMonth)).thenReturn(Optional.of(summary));
         when(refreshStorePort.isFresh(account.id(), currentMonth)).thenReturn(true);
-        when(bankCatalog.getBanks()).thenReturn(List.of(
+        when(bankCatalog.getAllBanks()).thenReturn(List.of(
                 new BankCatalogResult("0020", "우리은행", "woori.png")
         ));
 
@@ -212,7 +212,7 @@ class AccountQueryServiceTest {
                 new BigDecimal("1000000")
         )));
         when(loadTransactionPort.calculateSummary(account.id(), currentMonth)).thenReturn(summary);
-        when(bankCatalog.getBanks()).thenReturn(List.of(
+        when(bankCatalog.getAllBanks()).thenReturn(List.of(
                 new BankCatalogResult("0020", "우리은행", "woori.png")
         ));
 

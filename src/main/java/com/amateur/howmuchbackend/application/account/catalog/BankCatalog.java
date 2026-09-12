@@ -12,24 +12,36 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class BankCatalog implements GetBankCatalogUseCase {
     private static final String GROUP_CODE = "BANK";
+    private static final Set<String> ID_PASSWORD_BANKS = Set.of(
+            "0003", "0004", "0011", "0020", "0037",
+            "0039", "0045", "0071", "0081", "0088"
+    );
 
     private final LoadCommonCodePort loadCommonCodePort;
 
     @Override
     public List<BankCatalogResult> getBanks() {
+        return getAllBanks().stream()
+                .filter(bank -> ID_PASSWORD_BANKS.contains(bank.organization()))
+                .toList();
+    }
+
+    public List<BankCatalogResult> getAllBanks() {
         return loadCommonCodePort.findActiveByGroupCode(GROUP_CODE).stream()
                 .map(bank -> new BankCatalogResult(bank.code(), bank.name(), bank.attr1()))
                 .toList();
     }
 
     public void validate(String organization) {
-        if (!loadCommonCodePort.existsActiveByGroupCodeAndCode(GROUP_CODE, organization)) {
+        if (!ID_PASSWORD_BANKS.contains(organization)
+                || !loadCommonCodePort.existsActiveByGroupCodeAndCode(GROUP_CODE, organization)) {
             throw ApplicationException.of(ExternalConnectionStatusCode.BANK_NOT_SUPPORTED);
         }
     }

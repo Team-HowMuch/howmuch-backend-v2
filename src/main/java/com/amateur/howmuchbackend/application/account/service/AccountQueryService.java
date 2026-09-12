@@ -227,7 +227,7 @@ public class AccountQueryService
     }
 
     private Map<String, BankCatalogResult> institutions() {
-        return bankCatalog.getBanks().stream().collect(Collectors.toMap(
+        return bankCatalog.getAllBanks().stream().collect(Collectors.toMap(
                 BankCatalogResult::organization,
                 Function.identity()
         ));
