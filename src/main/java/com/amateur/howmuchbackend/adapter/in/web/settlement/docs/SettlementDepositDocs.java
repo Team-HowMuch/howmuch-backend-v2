@@ -41,6 +41,10 @@ public interface SettlementDepositDocs {
                     description = "SETTLEMENT_DEPOSIT_RECONCILIATION_NOT_AVAILABLE - 대조 불가 상태"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "502",
+                    description = "CODEF_UNMAPPED_ERROR 또는 CODEF_RESPONSE_INVALID - CODEF 응답 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "503",
                     description = "CODEF_UPSTREAM_UNAVAILABLE - CODEF 조회 실패"
             )

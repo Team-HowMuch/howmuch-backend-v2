@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.codef;
 
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -51,10 +53,37 @@ class CodefBankTransactionAdapterTest {
         IllegalStateException cause = new IllegalStateException("upstream failed");
 
         var failure = CodefFailureMapper.map(
-                "CF-99998", ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, cause);
+                "CF-99998", ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR, cause);
 
-        assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE);
+        assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR);
         assertThat(failure).hasCause(cause);
+    }
+
+    @Test
+    void classifiesMissingCodefFailureCodeAsInvalidResponse() {
+        var failure = CodefFailureMapper.map(
+                null, ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID, null);
+
+        assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "503, CODEF_UPSTREAM_UNAVAILABLE",
+            "400, CODEF_RESPONSE_INVALID"
+    })
+    void classifiesCodeLessHttpResponsesByTransportStatus(int httpStatus, ExternalConnectionStatusCode expected)
+            throws Exception {
+        when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any()))
+                .thenThrow(new CodefClient.CodefHttpException(httpStatus, "", null));
+        when(client.decode("")).thenReturn(new ObjectMapper().readTree("{}"));
+
+        assertThatThrownBy(() -> new CodefBankTransactionAdapter(client, observability).fetch(
+                "CID-1", "0020", "1002123456789",
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(expected));
     }
 
     @ParameterizedTest

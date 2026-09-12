@@ -73,7 +73,9 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
             return response;
         } catch (CodefClient.CodefHttpException exception) {
             resultCode = text(client.decode(exception.responseBody()).path("result"), "code");
-            failure = mapped(resultCode, exception);
+            failure = !StringUtils.hasText(resultCode) && exception.status() >= 500
+                    ? ApplicationException.of(ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, exception)
+                    : mapped(resultCode, exception);
             throw (ApplicationException) failure;
         } catch (RuntimeException exception) {
             failure = exception;
@@ -94,7 +96,12 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
     }
 
     private ApplicationException mapped(String code, Throwable cause) {
-        return CodefFailureMapper.map(code, ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, cause);
+        if (!StringUtils.hasText(code)) {
+            return cause == null
+                    ? ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID)
+                    : ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID, cause);
+        }
+        return CodefFailureMapper.map(code, ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR, cause);
     }
 
     private BankTransaction transaction(JsonNode item) {

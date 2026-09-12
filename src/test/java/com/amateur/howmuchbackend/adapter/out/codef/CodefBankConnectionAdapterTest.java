@@ -1,5 +1,8 @@
 package com.amateur.howmuchbackend.adapter.out.codef;
 
+import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -8,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -23,6 +27,38 @@ class CodefBankConnectionAdapterTest {
 
     @Mock
     private CodefObservability observability;
+
+    @Test
+    @DisplayName("공식 매핑에 없는 CODEF 오류는 미분류 외부 오류로 구분한다")
+    void mapsUnknownCodefFailureSeparately() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        when(rsaEncryptor.encrypt("password")).thenReturn("encrypted-password");
+        when(client.post(eq("/v1/account/create"), any())).thenReturn(objectMapper.readTree("""
+                {"result": {"code": "CF-99998", "message": "알 수 없는 실패"}, "data": {"errorList": []}}
+                """));
+        CodefBankConnectionAdapter adapter = new CodefBankConnectionAdapter(client, rsaEncryptor, observability);
+
+        assertThatThrownBy(() -> adapter.create(
+                new BankConnectionPort.BankRegistration("0020", "login", "password", null)))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR));
+    }
+
+    @Test
+    @DisplayName("성공 응답에 연결 식별자가 없으면 응답 계약 오류로 구분한다")
+    void rejectsIncompleteSuccessResponse() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        when(rsaEncryptor.encrypt("password")).thenReturn("encrypted-password");
+        when(client.post(eq("/v1/account/create"), any())).thenReturn(objectMapper.readTree("""
+                {"result": {"code": "CF-00000"}, "data": {"successList": []}}
+                """));
+        CodefBankConnectionAdapter adapter = new CodefBankConnectionAdapter(client, rsaEncryptor, observability);
+
+        assertThatThrownBy(() -> adapter.create(
+                new BankConnectionPort.BankRegistration("0020", "login", "password", null)))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID));
+    }
 
     @Test
     @DisplayName("DB 저장 범위를 넘는 계좌 잔액은 없는 값으로 처리한다")

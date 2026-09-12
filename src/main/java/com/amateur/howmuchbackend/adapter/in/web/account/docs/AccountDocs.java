@@ -44,6 +44,16 @@ public interface AccountDocs {
                     + "작성 중(DRAFT) 정산은 제외합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "502",
+                    description = "CODEF_UNMAPPED_ERROR 또는 CODEF_RESPONSE_INVALID - CODEF 응답 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "503",
+                    description = "CODEF_UPSTREAM_UNAVAILABLE - CODEF 조회 실패"
+            )
+    })
     ApiResponse<List<AccountTransactionWebResponse>> getAccountTransactions(Long accountId, YearMonth yearMonth);
 
     @Operation(
@@ -130,6 +140,16 @@ public interface AccountDocs {
             description = "은행 ID/PW를 CODEF에 연결하고 마스킹된 계좌 후보를 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "502",
+                    description = "CODEF_UNMAPPED_ERROR 또는 CODEF_RESPONSE_INVALID - CODEF 응답 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "503",
+                    description = "CODEF_UPSTREAM_UNAVAILABLE - CODEF 조회 실패"
+            )
+    })
     ApiResponse<BankConnectionWebResponse> connectBank(ConnectBankWebRequest request);
 
     @Operation(
@@ -137,5 +157,15 @@ public interface AccountDocs {
             description = "은행 후보를 다시 조회해 선택 Key를 검증한 뒤 Account로 저장합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "502",
+                    description = "CODEF_UNMAPPED_ERROR 또는 CODEF_RESPONSE_INVALID - CODEF 응답 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "503",
+                    description = "CODEF_UPSTREAM_UNAVAILABLE - CODEF 조회 실패"
+            )
+    })
     ApiResponse<LinkedAccountsWebResponse> linkAccounts(LinkBankAccountsWebRequest request);
 }
