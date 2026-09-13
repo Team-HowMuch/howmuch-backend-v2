@@ -32,9 +32,12 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -53,6 +56,10 @@ import static org.mockito.Mockito.when;
 class AccountQueryServiceTest {
     private static final Long USER_ID = 1L;
     private static final YearMonth AUGUST = YearMonth.of(2026, 8);
+    private static final YearMonth SEPTEMBER = YearMonth.of(2026, 9);
+    private static final LocalDate TODAY = LocalDate.of(2026, 9, 13);
+    private static final Clock CLOCK = Clock.fixed(
+            Instant.parse("2026-09-13T03:00:00Z"), ZoneOffset.UTC);
 
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadAccountPort loadAccountPort;
@@ -69,7 +76,7 @@ class AccountQueryServiceTest {
     void setUp() {
         service = new AccountQueryService(
                 currentActorPort, loadAccountPort, loadTransactionPort, saveTransactionPort, refreshStorePort,
-                connectionStorePort, bankTransactionPort, bankCatalog
+                connectionStorePort, bankTransactionPort, bankCatalog, CLOCK
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
     }
@@ -165,7 +172,7 @@ class AccountQueryServiceTest {
     @Test
     @DisplayName("현재 월 refresh marker가 유효하면 CODEF를 호출하지 않는다")
     void returnsCurrentMonthSummaryWhenRefreshMarkerIsFresh() {
-        YearMonth currentMonth = YearMonth.now(ZoneId.of("Asia/Seoul"));
+        YearMonth currentMonth = SEPTEMBER;
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
                 10L, account.id(), currentMonth, new BigDecimal("12500.0000"), 1,
@@ -187,7 +194,7 @@ class AccountQueryServiceTest {
     @Test
     @DisplayName("현재 월 refresh marker가 만료되면 CODEF를 다시 조회한다")
     void refreshesCurrentMonthWhenRefreshMarkerIsExpired() {
-        YearMonth currentMonth = YearMonth.now(ZoneId.of("Asia/Seoul"));
+        YearMonth currentMonth = SEPTEMBER;
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
                 10L, account.id(), currentMonth, new BigDecimal("12500.0000"), 1,
@@ -203,7 +210,7 @@ class AccountQueryServiceTest {
                 .thenReturn(Optional.of(account));
         when(bankTransactionPort.fetch(
                 "CID-1", "0020", account.externalAccountKey(),
-                currentMonth.atDay(1), currentMonth.atEndOfMonth()
+                currentMonth.atDay(1), TODAY
         )).thenReturn(List.of(new BankTransactionPort.BankTransaction(
                 AccountTransactionType.EXPENSE,
                 new BigDecimal("12500"),
@@ -223,7 +230,7 @@ class AccountQueryServiceTest {
 
             verify(bankTransactionPort).fetch(
                     "CID-1", "0020", account.externalAccountKey(),
-                    currentMonth.atDay(1), currentMonth.atEndOfMonth()
+                    currentMonth.atDay(1), TODAY
             );
             verify(refreshStorePort, never()).markFresh(
                     account.id(), currentMonth, java.time.Duration.ofMinutes(1)
@@ -319,7 +326,7 @@ class AccountQueryServiceTest {
     void rejectsFutureMonth() {
         Account account = account(1L, "0020", true, 0);
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
-        YearMonth future = YearMonth.now(ZoneId.of("Asia/Seoul")).plusMonths(1);
+        YearMonth future = SEPTEMBER.plusMonths(1);
 
         assertThatThrownBy(() -> service.getAccountDetail(account.id(), future))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->

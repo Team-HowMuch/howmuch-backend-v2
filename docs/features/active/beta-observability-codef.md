@@ -51,7 +51,7 @@
 |---|---|---|---|
 | 계정 생성/추가/수정 | `/v1/account/create`, `/add`, `/update` | ID, RSA password, 기관, 생년월일 | 기관 허용 목록 선검증 |
 | 보유계좌 | `/v1/kr/bank/p/account/account-list` | 기관, `connectedId`, 생년월일 | 대구 추가 입력 미지원으로 기관 제외 |
-| 수시입출 거래 | `/v1/kr/bank/p/account/transaction-list` | 기관, 계좌, 기간, 생년월일 | SC 계좌비밀번호 미지원으로 기관 제외 |
+| 수시입출 거래 | `/v1/kr/bank/p/account/transaction-list` | 기관, 계좌, 기간, 생년월일 | 현재 월은 서울 기준 오늘까지만 조회하고, SC 계좌비밀번호 미지원으로 기관 제외 |
 
 오류 매핑은 `CF-12801` 자격증명 오류, `CF-12834` 계정 잠금, `CF-03002` 추가인증,
 `CF-12001` 사용자 입력 만료, `CF-00022/CF-00023` 요청 한도, 통신·엔진 오류를 구분한다.
