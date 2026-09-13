@@ -15,6 +15,7 @@ import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
@@ -169,7 +170,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         settlement,
                         loadSettlementExpensePort.findAllBySettlementId(settlementId)
                 ),
-                summary(settlement.status(), allPayments),
+                summary(settlement, allPayments),
                 reminderNextAvailableAt(settlement, viewerRole, allPayments),
                 visiblePayments
         );
@@ -258,13 +259,18 @@ public class SettlementDetailService implements GetSettlementUseCase {
     }
 
     private SettlementDetailResult.PaymentSummary summary(
-            SettlementStatus settlementStatus,
+            Settlement settlement,
             List<SettlementDetailResult.ParticipantPayment> payments
     ) {
-        long expectedAmount = payments.stream()
+        long shareExpectedAmount = payments.stream()
                 .filter(payment -> payment.expectedAmount() != null)
                 .mapToLong(SettlementDetailResult.ParticipantPayment::expectedAmount)
                 .reduce(0L, Math::addExact);
+        long expectedAmount = settlement.allocationType()
+                == SettlementAllocationType.ITEM_ALLOCATION
+                && settlement.status() == SettlementStatus.REQUESTED
+                ? settlement.totalAmount()
+                : shareExpectedAmount;
         long confirmedAmount = payments.stream()
                 .filter(payment -> payment.expectedAmount() != null)
                 .mapToLong(payment -> Math.min(
@@ -277,7 +283,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         == SettlementDetailResult.PaymentStatus.PAID)
                 .count());
         int progressPercent = expectedAmount == 0
-                ? settlementStatus == SettlementStatus.COMPLETED ? 100 : 0
+                ? settlement.status() == SettlementStatus.COMPLETED ? 100 : 0
                 : BigInteger.valueOf(confirmedAmount)
                         .multiply(BigInteger.valueOf(100))
                         .divide(BigInteger.valueOf(expectedAmount))
