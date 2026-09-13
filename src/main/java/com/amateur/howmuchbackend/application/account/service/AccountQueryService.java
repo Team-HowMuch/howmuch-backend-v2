@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.account.service;
 
 import com.amateur.howmuchbackend.application.account.AccountTransactionKey;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.account.policy.AccountTransactionDisplayNormalizer;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountDetailUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransactionsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountsUseCase;
@@ -59,6 +60,7 @@ public class AccountQueryService
     private final ExternalConnectionStorePort connectionStorePort;
     private final BankTransactionPort bankTransactionPort;
     private final BankCatalog bankCatalog;
+    private final AccountTransactionDisplayNormalizer transactionDisplayNormalizer;
     private final Clock clock;
 
     @Override
@@ -135,6 +137,9 @@ public class AccountQueryService
         return transactions.stream()
                 .map(transaction -> AccountTransactionResult.from(
                         transaction,
+                        transactionDisplayNormalizer.normalize(
+                                account.organization(), transaction.description(), transaction.type()
+                        ),
                         settlementsByTransactionKey
                                 .getOrDefault(
                                         transaction.externalTransactionKey(),
