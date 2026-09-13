@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.account.service;
 
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.account.policy.AccountTransactionDisplayNormalizer;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
@@ -76,7 +77,8 @@ class AccountQueryServiceTest {
     void setUp() {
         service = new AccountQueryService(
                 currentActorPort, loadAccountPort, loadTransactionPort, saveTransactionPort, refreshStorePort,
-                connectionStorePort, bankTransactionPort, bankCatalog, CLOCK
+                connectionStorePort, bankTransactionPort, bankCatalog,
+                new AccountTransactionDisplayNormalizer(), CLOCK
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
     }
@@ -284,6 +286,9 @@ class AccountQueryServiceTest {
 
         assertThat(result).hasSize(2);
         assertThat(result.getFirst().settlements()).isEmpty();
+        assertThat(result.getFirst().display().title()).isEqualTo("테스트");
+        assertThat(result.getFirst().display().kind())
+                .isEqualTo(com.amateur.howmuchbackend.application.port.in.account.result.AccountTransactionResult.Display.Kind.OTHER);
         assertThat(result.getLast().settlements())
                 .extracting(settlement -> settlement.settlementId())
                 .containsExactly(firstSettlementId, secondSettlementId);
