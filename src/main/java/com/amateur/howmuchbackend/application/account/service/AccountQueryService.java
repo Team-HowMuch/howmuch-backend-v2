@@ -31,7 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -57,6 +59,7 @@ public class AccountQueryService
     private final ExternalConnectionStorePort connectionStorePort;
     private final BankTransactionPort bankTransactionPort;
     private final BankCatalog bankCatalog;
+    private final Clock clock;
 
     @Override
     public List<AccountSummaryResult> getAccounts(GetAccountsQuery query) {
@@ -88,8 +91,9 @@ public class AccountQueryService
     @Transactional
     public AccountDetailResult getAccountDetail(Long accountId, YearMonth requestedYearMonth) {
         Account account = ownedAccount(accountId);
-        YearMonth yearMonth = yearMonth(requestedYearMonth);
-        AccountMonthlySummary summary = summary(account, yearMonth);
+        LocalDate today = today();
+        YearMonth yearMonth = yearMonth(requestedYearMonth, today);
+        AccountMonthlySummary summary = summary(account, yearMonth, today);
         BankCatalogResult institution = institutions().get(account.organization());
         return new AccountDetailResult(
                 account.id(),
@@ -111,8 +115,9 @@ public class AccountQueryService
     @Transactional
     public List<AccountTransactionResult> getAccountTransactions(Long accountId, YearMonth requestedYearMonth) {
         Account account = ownedAccount(accountId);
-        YearMonth yearMonth = yearMonth(requestedYearMonth);
-        summary(account, yearMonth);
+        LocalDate today = today();
+        YearMonth yearMonth = yearMonth(requestedYearMonth, today);
+        summary(account, yearMonth, today);
         List<Transaction> transactions = loadTransactionPort.findByAccountIdAndYearMonth(
                 account.id(),
                 yearMonth
@@ -151,15 +156,15 @@ public class AccountQueryService
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
     }
 
-    private AccountMonthlySummary summary(Account account, YearMonth yearMonth) {
-        YearMonth currentMonth = YearMonth.now(SEOUL);
+    private AccountMonthlySummary summary(Account account, YearMonth yearMonth, LocalDate today) {
+        YearMonth currentMonth = YearMonth.from(today);
         var existing = loadTransactionPort.findSummary(account.id(), yearMonth);
         if (existing.isPresent()
                 && (!yearMonth.equals(currentMonth) || refreshStorePort.isFresh(account.id(), yearMonth))) {
             return existing.get();
         }
         boolean refreshMarkerRequired = yearMonth.equals(currentMonth);
-        AccountMonthlySummary refreshed = refreshSummary(account, yearMonth);
+        AccountMonthlySummary refreshed = refreshSummary(account, yearMonth, today);
         if (refreshMarkerRequired) {
             markRefreshFreshAfterCommit(account.id(), yearMonth);
         }
@@ -179,7 +184,7 @@ public class AccountQueryService
         });
     }
 
-    private AccountMonthlySummary refreshSummary(Account account, YearMonth yearMonth) {
+    private AccountMonthlySummary refreshSummary(Account account, YearMonth yearMonth, LocalDate today) {
         if (account.productCode() != null && !DEMAND_DEPOSIT.equals(account.productCode())) {
             throw ApplicationException.of(AccountStatusCode.ACCOUNT_TRANSACTION_NOT_SUPPORTED);
         }
@@ -193,12 +198,15 @@ public class AccountQueryService
                         account.id(), account.userId()
                 )
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
+        LocalDate endDate = yearMonth.equals(YearMonth.from(today))
+                ? today
+                : yearMonth.atEndOfMonth();
         List<Transaction> transactions = bankTransactionPort.fetch(
                         connection.connectedId(),
                         activeAccount.organization(),
                         activeAccount.externalAccountKey(),
                         yearMonth.atDay(1),
-                        yearMonth.atEndOfMonth()
+                        endDate
                 ).stream()
                 .map(transaction -> new Transaction(
                         null,
@@ -217,13 +225,17 @@ public class AccountQueryService
         return loadTransactionPort.findSummary(activeAccount.id(), yearMonth).orElse(calculated);
     }
 
-    private YearMonth yearMonth(YearMonth requested) {
-        YearMonth current = YearMonth.now(SEOUL);
+    private YearMonth yearMonth(YearMonth requested, LocalDate today) {
+        YearMonth current = YearMonth.from(today);
         YearMonth result = requested == null ? current : requested;
         if (result.isAfter(current)) {
             throw ApplicationException.of(AccountStatusCode.INVALID_ACCOUNT_QUERY);
         }
         return result;
+    }
+
+    private LocalDate today() {
+        return LocalDate.now(clock.withZone(SEOUL));
     }
 
     private Map<String, BankCatalogResult> institutions() {
