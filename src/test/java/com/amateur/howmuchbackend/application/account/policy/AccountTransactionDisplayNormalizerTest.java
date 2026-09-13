@@ -25,6 +25,17 @@ class AccountTransactionDisplayNormalizerTest {
     }
 
     @Test
+    @DisplayName("인식된 NH 체크 방식 토큰만 있어도 일반 가맹점을 카드로 분류한다")
+    void classifiesNhCheckMethodAsCard() {
+        var display = normalizer.normalize(
+                "0011", "NH체크 이마트 농협 723110", AccountTransactionType.EXPENSE
+        );
+
+        assertThat(display.title()).isEqualTo("이마트");
+        assertThat(display.kind()).isEqualTo(AccountTransactionResult.Display.Kind.CARD);
+    }
+
+    @Test
     @DisplayName("입금 설명에서 상대방 이름과 이체 유형을 추출한다")
     void normalizesTransferDescription() {
         var display = normalizer.normalize(

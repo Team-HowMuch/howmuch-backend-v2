@@ -64,13 +64,18 @@ public class AccountTransactionDisplayNormalizer {
         if (containsAny(description, List.of("ATM", "현금", "CD기"))) {
             return AccountTransactionResult.Display.Kind.ATM;
         }
-        if (containsAny(description, List.of("체크카드", "신용카드", "카드", "페이", "결제"))) {
+        if (containsCardMethod(description)
+                || containsAny(description, List.of("체크카드", "신용카드", "카드", "페이", "결제"))) {
             return AccountTransactionResult.Display.Kind.CARD;
         }
         if (containsAny(description, List.of("이체", "송금", "입금", "출금"))) {
             return AccountTransactionResult.Display.Kind.TRANSFER;
         }
         return AccountTransactionResult.Display.Kind.OTHER;
+    }
+
+    private boolean containsCardMethod(String description) {
+        return Arrays.stream(description.split(" ")).anyMatch(this::isCardMethod);
     }
 
     private boolean containsAny(String value, List<String> candidates) {
@@ -83,6 +88,10 @@ public class AccountTransactionDisplayNormalizer {
 
     private boolean isBankMethod(String token) {
         return token.matches("(?i)^(NH|IBK|KB|KEB|KDB|SC|MG)(체크|신용|카드)?$");
+    }
+
+    private boolean isCardMethod(String token) {
+        return token.matches("(?i)^(NH|IBK|KB|KEB|KDB|SC|MG)(체크|신용|카드)$");
     }
 
     private boolean isNumericAccount(String token) {
