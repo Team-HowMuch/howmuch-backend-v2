@@ -16,14 +16,16 @@ public record AccountTransactionWebResponse(
         LocalDateTime transactedAt,
         String description,
         BigDecimal afterBalance,
-        List<SettlementSummaryWebResponse> settlements
+        List<SettlementSummaryWebResponse> settlements,
+        DisplayWebResponse display
 ) {
     public static AccountTransactionWebResponse from(AccountTransactionResult result) {
         return new AccountTransactionWebResponse(
                 result.id(), result.type(), result.amount(), result.transactedAt(), result.description(),
                 result.afterBalance(), result.settlements().stream()
                         .map(SettlementSummaryWebResponse::from)
-                        .toList()
+                        .toList(),
+                DisplayWebResponse.from(result.display())
         );
     }
 
@@ -40,6 +42,23 @@ public record AccountTransactionWebResponse(
                     result.title(),
                     result.status()
             );
+        }
+    }
+
+    public record DisplayWebResponse(String title, Kind kind) {
+        private static DisplayWebResponse from(AccountTransactionResult.Display result) {
+            if (result == null || result.kind() == null) {
+                return result == null ? null : new DisplayWebResponse(result.title(), null);
+            }
+            return new DisplayWebResponse(result.title(), Kind.valueOf(result.kind().name()));
+        }
+
+        public enum Kind {
+            TRANSFER,
+            CARD,
+            ATM,
+            FEE,
+            OTHER
         }
     }
 }

@@ -145,7 +145,9 @@ class AccountControllerTest {
                         .value(settlementId.toString()))
                 .andExpect(jsonPath("$.data[0].settlements[0].title").value("점심 정산"))
                 .andExpect(jsonPath("$.data[0].settlements[0].status")
-                        .value("AWAITING_DEPOSIT"));
+                        .value("AWAITING_DEPOSIT"))
+                .andExpect(jsonPath("$.data[0].display.title").value("식당"))
+                .andExpect(jsonPath("$.data[0].display.kind").value("OTHER"));
     }
 
     @Test
