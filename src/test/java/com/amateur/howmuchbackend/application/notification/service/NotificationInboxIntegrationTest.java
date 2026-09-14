@@ -183,6 +183,24 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
+    void requestedItemAllocationReminderPersistsSelectionMessageWithoutShare() {
+        jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
+        jdbc.update("UPDATE settlements SET allocation_type='ITEM_ALLOCATION', status='REQUESTED' WHERE id=?", settlement);
+
+        writer.manual(settlement, participant, creator);
+
+        assertThat(shareReader.findBySettlementIdAndPayerParticipantId(settlement, participant)).isEmpty();
+        assertThat(notifications.findPage(recipient, null, null, 10))
+                .filteredOn(n -> n.type() == com.amateur.howmuchbackend.domain.notification.NotificationType.SETTLEMENT_REMINDER)
+                .extracting(UserNotification::allocationType, UserNotification::message)
+                .containsExactly(tuple(
+                        SettlementAllocationType.ITEM_ALLOCATION,
+                        "알림 테스트님이 정산 품목 선택을 기다리고 있어요"
+                ));
+        assertThat(cooldown.findRemainingCooldown(settlement, participant)).isPresent();
+    }
+
+    @Test
     void automaticMessageStartsAtExactly24HoursFromShare() {
         recorder.record(request()); // Request was created 25 hours ago.
         replaceShareCreatedAt(NOW.minusHours(24).plusSeconds(1));
