@@ -1,6 +1,6 @@
 # 이미지 캐시 버전
 
-- Status: In Progress
+- Status: Completed
 - Last updated: 2026-09-14
 - Related issue: [#383](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/383)
 - Related ADR: N/A
@@ -17,10 +17,10 @@
 
 ### Success criteria
 
-- [ ] 프로필·그룹 이미지가 있는 모든 API 응답 URL에 파일 식별자 기반 `v` 쿼리가 포함된다.
-- [ ] 같은 저장 파일은 같은 URL을 유지하고 파일이 교체되면 URL이 바뀐다.
-- [ ] 이미지 바이트 응답은 인증된 사용자 전용 캐시에서 1일간 재사용할 수 있다.
-- [ ] 이미지가 없을 때 기존처럼 URL을 `null`로 반환한다.
+- [x] 프로필·그룹 이미지가 있는 모든 API 응답 URL에 파일 식별자 기반 `v` 쿼리가 포함된다.
+- [x] 같은 저장 파일은 같은 URL을 유지하고 파일이 교체되면 URL이 바뀐다.
+- [x] 이미지 바이트 응답은 인증된 사용자 전용 캐시에서 1일간 재사용할 수 있다.
+- [x] 이미지가 없을 때 기존처럼 URL을 `null`로 반환한다.
 
 ### Out of scope
 
@@ -159,15 +159,15 @@ Existing behavior that must remain unchanged:
 ## 7. Implementation plan
 
 - [x] Migration-only pull request to `develop` (`N/A`: 기존 파일명 컬럼 사용)
-- [ ] UseCase and Application Command/Result (`UseCase`·`Command` 변경 없음, Result 변경)
-- [ ] Required Output Ports (`N/A`: 새 외부 대화 없음)
-- [ ] Domain models and rules (`N/A`: 도메인 변경 없음)
-- [ ] Application Policies (`N/A`: Policy 대상 규칙 없음)
-- [ ] Application Service
-- [ ] Output Adapters
-- [ ] Web Request/Response DTOs, Controllers, and Swagger
-- [ ] Infra configuration and Bean wiring (`N/A`)
-- [ ] Documentation and verification results
+- [x] UseCase and Application Command/Result (`UseCase`·`Command` 변경 없음, Result 변경)
+- [x] Required Output Ports (`N/A`: 새 외부 대화 없음)
+- [x] Domain models and rules (`N/A`: 도메인 변경 없음)
+- [x] Application Policies (`N/A`: Policy 대상 규칙 없음)
+- [x] Application Service
+- [x] Output Adapters
+- [x] Web Request/Response DTOs, Controllers, and Swagger
+- [x] Infra configuration and Bean wiring (`N/A`)
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -194,24 +194,27 @@ PostgreSQL·Redis가 필요한 전체 테스트는 실행 전 환경을 확인�
 
 ### Completion criteria
 
-- [ ] Verified the user outcome defined under Purpose.
-- [ ] Verified normal, failure, and boundary flows.
-- [ ] Confirmed documentation and Swagger match the actual contract.
-- [ ] Recorded verification that could not be performed and why.
+- [x] Verified the user outcome defined under Purpose.
+- [x] Verified normal, failure, and boundary flows.
+- [x] Confirmed documentation and Swagger match the actual contract.
+- [x] Recorded verification that could not be performed and why.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
-| Java compile | Pending | `./gradlew compileJava` |
-| Focused tests | Pending | Controller·Application focused tests |
-| Repository checks | Pending | `git diff --check`, `git status` |
+| Java compile | Passed | `./gradlew compileJava --console=plain` |
+| Focused tests | Passed | Controller·Application 123건 |
+| JavaScript tests | Passed | `node --test src/test/js/*.test.cjs` 35건 |
+| Persistence integration | Not run | Docker daemon이 실행 중이 아니어서 PostgreSQL·Redis 기반 전체 테스트 미실행 |
+| Repository checks | Passed | `git diff --check`, `git status --short --untracked-files=all` |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-09-14 | 이슈·현재 코드·DB 컬럼 분석, 마이그레이션 불필요 결정 | Result와 Web 응답에 버전 전파 | `/me/avatar` 공유 캐시 방지 필요 |
+| 2026-09-14 | 파일명 SHA-256 버전, 버전 URL, private 1일 캐시와 회귀 테스트 구현 | PR 생성 | Docker 미실행으로 Persistence 통합 테스트 미실행 |
 
 ## 10. Decision log
 
@@ -222,8 +225,8 @@ PostgreSQL·Redis가 필요한 전체 테스트는 실행 전 환경을 확인�
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- Completed on: 2026-09-14
+- Final behavior: 프로필·그룹 이미지 URL은 저장 파일명 SHA-256을 `v`로 포함하고 이미지 바이트 응답은 `private, max-age=86400`을 반환한다.
+- Unverified items: Docker daemon이 없어 PostgreSQL·Redis 기반 전체 테스트와 `SettlementListPersistenceIntegrationTest`는 실행하지 못했다. 테스트 소스 컴파일은 통과했다.
+- Remaining risks: 현재 이미지 교체가 항상 새 저장 파일명을 만든다는 기존 저장 Adapter 계약에 의존한다.
+- Follow-up work: 프론트엔드의 `dataUpdatedAt`, `bumpGroupImageVersion` 우회 제거는 별도 프론트 이슈 범위다.
