@@ -33,6 +33,19 @@ public interface GroupMemberJpaRepository extends JpaRepository<GroupMemberJpaEn
             GroupMemberStatus status
     );
 
+    @Query(value = """
+            SELECT member.*
+              FROM group_members member
+              JOIN groups target_group ON target_group.id = member.group_id
+             WHERE member.user_id = :userId
+               AND member.status = :status
+               AND target_group.status = 'ACTIVE'
+            """, nativeQuery = true)
+    List<GroupMemberJpaEntity> findAllByUserIdAndStatusAndActiveGroup(
+            @Param("userId") Long userId,
+            @Param("status") String status
+    );
+
     long countByGroupIdAndStatus(Long groupId, GroupMemberStatus status);
 
     @Query(value = """

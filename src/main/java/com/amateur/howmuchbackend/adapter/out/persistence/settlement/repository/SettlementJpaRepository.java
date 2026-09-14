@@ -227,6 +227,24 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
     @Query("select settlement from SettlementJpaEntity settlement where settlement.id = :settlementId")
     Optional<SettlementJpaEntity> findByIdForUpdate(@Param("settlementId") UUID settlementId);
 
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                  FROM settlements settlement
+                 WHERE settlement.status <> 'COMPLETED'
+                   AND (
+                        settlement.creator_id = :userId
+                        OR EXISTS (
+                            SELECT 1
+                              FROM settlement_participants participant
+                             WHERE participant.settlement_id = settlement.id
+                               AND participant.linked_user_id = :userId
+                        )
+                   )
+            )
+            """, nativeQuery = true)
+    boolean existsByUserIdAndStatusNotCompleted(@Param("userId") Long userId);
+
     interface SettlementListProjection {
         UUID getSettlementId();
 
