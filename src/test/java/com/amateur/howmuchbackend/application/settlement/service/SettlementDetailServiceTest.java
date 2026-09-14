@@ -22,6 +22,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemAllocationFraction;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
@@ -163,6 +164,8 @@ class SettlementDetailServiceTest {
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
         when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of());
+        when(itemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
+                .thenReturn(List.of());
         givenReceivingAccount();
         LocalDateTime nextAvailableAt = NOW.plusMinutes(30);
         when(cooldownReader.findLatestNextAvailableAt(
@@ -186,6 +189,29 @@ class SettlementDetailServiceTest {
                         SettlementDetailResult.PaymentStatus.NOT_READY
                 )
         );
+    }
+
+    @Test
+    @DisplayName("Share가 없어도 품목 선택을 제출한 참여자는 독촉 쿨다운 복원 대상에서 제외한다")
+    void excludesSubmittedParticipantWithoutShareFromReminderCooldown() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+        when(itemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of(
+                SettlementItemSubmission.submit(SETTLEMENT_ID, PAYER_PARTICIPANT_ID, NOW)
+        ));
+        givenReceivingAccount();
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.reminderNextAvailableAt()).isNull();
+        org.mockito.Mockito.verify(cooldownReader)
+                .findLatestNextAvailableAt(SETTLEMENT_ID, List.of());
     }
 
     @Test

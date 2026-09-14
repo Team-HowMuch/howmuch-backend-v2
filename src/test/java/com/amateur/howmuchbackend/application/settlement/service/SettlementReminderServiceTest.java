@@ -7,6 +7,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReminderCooldownPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -14,6 +15,7 @@ import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
@@ -64,6 +66,7 @@ class SettlementReminderServiceTest {
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
+    @Mock private SettlementItemAllocationStorePort itemAllocationStorePort;
     @Mock private LoadSettlementDepositSummaryPort loadSettlementDepositSummaryPort;
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementReminderCooldownPort cooldownPort;
@@ -77,8 +80,9 @@ class SettlementReminderServiceTest {
     void setUp() {
         var policy = new SettlementReminderPolicy();
         writer = new SettlementReminderWriter(loadSettlementPort, loadSettlementParticipantPort,
-                loadSettlementSharePort, loadSettlementDepositSummaryPort, loadUserPort, cooldownPort,
-                recorder, policy, Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC), automaticTargets);
+                loadSettlementSharePort, itemAllocationStorePort, loadSettlementDepositSummaryPort,
+                loadUserPort, cooldownPort, recorder, policy,
+                Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC), automaticTargets);
         service = new SettlementReminderService(currentActorPort, loadSettlementPort,
                 loadSettlementParticipantPort, writer, policy, cooldownReader);
         TransactionSynchronizationManager.initSynchronization();
@@ -125,6 +129,20 @@ class SettlementReminderServiceTest {
         givenRequestedTargetWithoutShare();
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(share()));
+
+        assertStatus(SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID,
+                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID));
+
+        verifyNoInteractions(cooldownPort, recorder);
+    }
+
+    @Test
+    void refusesRequestedParticipantWhoSubmittedWithoutCreatingShare() {
+        givenRequestedTargetWithoutShare();
+        when(itemAllocationStorePort.findSubmission(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(SettlementItemSubmission.submit(
+                        SETTLEMENT_ID, PARTICIPANT_ID, NOW
+                )));
 
         assertStatus(SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID,
                 () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID));
@@ -287,6 +305,8 @@ class SettlementReminderServiceTest {
         when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(participant()));
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.empty());
+        lenient().when(itemAllocationStorePort.findSubmission(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.empty());
         lenient().when(loadUserPort.findById(PAYER_ID)).thenReturn(Optional.of(user()));
     }
