@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
+import com.amateur.howmuchbackend.adapter.in.web.common.ImageWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.docs.SettlementDocs;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.AddSettlementParticipantWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.RenameSettlementParticipantWebRequest;
@@ -35,7 +36,6 @@ import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlemen
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -188,10 +188,7 @@ public class SettlementController implements SettlementDocs {
                 settlementId,
                 publicId
         );
-        return ResponseEntity.ok()
-                .cacheControl(CacheControl.noStore())
-                .contentType(MediaType.parseMediaType(image.contentType()))
-                .body(image.content());
+        return ImageWebResponse.ok(image.contentType(), image.content());
     }
 
     @Override
@@ -228,10 +225,7 @@ public class SettlementController implements SettlementDocs {
             @PathVariable UUID participantId
     ) {
         ProfileImage image = getSettlementParticipantAvatarUseCase.get(settlementId, participantId);
-        return ResponseEntity.ok()
-                .cacheControl(CacheControl.noStore())
-                .contentType(MediaType.parseMediaType(image.contentType()))
-                .body(image.content());
+        return ImageWebResponse.ok(image.contentType(), image.content());
     }
 
     @Override

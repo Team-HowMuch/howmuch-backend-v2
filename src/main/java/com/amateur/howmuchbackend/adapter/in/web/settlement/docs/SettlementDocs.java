@@ -55,7 +55,7 @@ public interface SettlementDocs {
     @Operation(
             summary = "정산 상세 조회",
             description = "정산 생성자는 전체 납부 현황을, 연결 참여자는 자신의 납부 행을 조회합니다. "
-                    + "참여자의 프로필 이미지 경로 avatarUrl을 반환하며 사진이 없거나 비회원이면 null입니다. "
+                    + "참여자의 avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없거나 비회원이면 null입니다. "
                     + "실제 입금 확인액, 미납액, 진행률과 참여자별 납부 상태를 반환하며 "
                     + "내부 사용자 ID, 연락처와 계좌번호는 노출하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
@@ -84,6 +84,7 @@ public interface SettlementDocs {
     @Operation(
             summary = "정산 목록 조회",
             description = "현재 로그인 사용자가 생성했거나 등록 참여자로 연결된 정산을 탭·상태별로 조회합니다. "
+                    + "groups.groupImageUrl은 이미지 파일 버전 v 쿼리를 포함하며 이미지가 없으면 null입니다. "
                     + "응답의 status는 실제 정산 상태이며, 화면에서 진행중·완료 그룹으로 매핑할 수 있습니다. "
                     + "금액과 인원은 문장이 아닌 숫자 필드로 반환합니다. "
                     + "completedAt은 종료 시각이며 미완료 정산은 null입니다. "
@@ -292,7 +293,8 @@ public interface SettlementDocs {
     @Operation(
             summary = "정산 참여자 목록 조회",
             description = "현재 로그인한 생성자가 정산에 저장된 참여자를 표시 순서대로 조회합니다. "
-                    + "회원 참여자는 publicId를 포함하며 내부 사용자 ID와 연락처 식별자는 반환하지 않습니다.",
+                    + "회원 참여자의 avatarUrl은 이미지 파일 버전 v 쿼리를 포함합니다. "
+                    + "내부 사용자 ID와 연락처 식별자는 반환하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -322,6 +324,7 @@ public interface SettlementDocs {
             summary = "정산 참여자 공개 ID 후보 검색",
             description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 활성 회원을 publicId prefix로 검색합니다. "
                     + "이미 정산에 포함된 회원은 제외하고 publicId 오름차순으로 최대 20명을 반환합니다. "
+                    + "avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없으면 null입니다. "
                     + "내부 사용자 ID와 저장 파일명은 반환하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
@@ -360,7 +363,8 @@ public interface SettlementDocs {
     @Operation(
             summary = "정산 참여자 공개 ID 후보 아바타 조회",
             description = "현재 로그인한 생성자가 DRAFT 정산의 미추가 활성 회원 후보 아바타를 조회합니다. "
-                    + "후보가 아니거나 아바타가 없으면 404를 반환합니다.",
+                    + "후보가 아니거나 아바타가 없으면 404를 반환합니다. "
+                    + "응답은 private 캐시에서 1일간 재사용할 수 있습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -404,6 +408,7 @@ public interface SettlementDocs {
             description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 주소록 연락처를 활성 회원과 일괄 매칭합니다. "
                     + "같은 정규화 전화번호는 첫 항목만 반환하고 기존 참여 여부를 함께 제공합니다. "
                     + "사용자별 분당 10회, 24시간당 연락처 2,000개까지 조회할 수 있습니다. "
+                    + "avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없으면 null입니다. "
                     + "원본 전화번호와 HMAC, 내부 사용자 ID, 아바타 저장 파일명은 저장하거나 응답하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
@@ -448,6 +453,7 @@ public interface SettlementDocs {
             summary = "정산 그룹 구성원 후보 조회",
             description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 그룹의 활성 구성원을 조회합니다. "
                     + "생성자도 해당 그룹의 활성 구성원이어야 하며 이미 정산에 포함된 회원은 제외합니다. "
+                    + "avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없으면 null입니다. "
                     + "그룹 정보가 연결되지 않은 환경에서는 빈 목록을 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
@@ -486,7 +492,8 @@ public interface SettlementDocs {
     @Operation(
             summary = "정산 참여자 아바타 조회",
             description = "현재 로그인한 생성자가 회원 참여자의 아바타 이미지를 조회합니다. "
-                    + "비회원 연락처이거나 등록된 아바타가 없으면 PROFILE_IMAGE_NOT_FOUND를 반환합니다.",
+                    + "비회원 연락처이거나 등록된 아바타가 없으면 PROFILE_IMAGE_NOT_FOUND를 반환합니다. "
+                    + "응답은 private 캐시에서 1일간 재사용할 수 있습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({

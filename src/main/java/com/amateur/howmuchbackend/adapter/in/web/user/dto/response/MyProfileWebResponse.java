@@ -30,7 +30,9 @@ public record MyProfileWebResponse(
                 response.birthDate(),
                 response.gender(),
                 response.phoneNumber(),
-                response.hasAvatar() ? AVATAR_URL : null,
+                response.avatarVersion() == null
+                        ? null
+                        : AVATAR_URL + "?v=" + response.avatarVersion(),
                 response.phoneVerified(),
                 response.role(),
                 response.lastLoginAt(),

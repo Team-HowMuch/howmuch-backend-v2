@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -359,7 +360,9 @@ class SettlementDetailServiceTest {
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
-        assertThat(result.participants().getFirst().hasAvatar()).isTrue();
+        assertThat(result.participants().getFirst().avatarVersion()).isEqualTo(
+                ImageCacheVersion.fromNullableFileName("payer.png")
+        );
         assertThat(result.paymentSummary()).isEqualTo(
                 new SettlementDetailResult.PaymentSummary(1_400, 0, 1_400, 0, 2, 2, 0)
         );
@@ -497,7 +500,7 @@ class SettlementDetailServiceTest {
     }
 
     @Test
-    @DisplayName("표시 대상 사용자를 일괄 조회해 사진 보유 여부를 반환한다")
+    @DisplayName("표시 대상 사용자를 일괄 조회해 파일명 기반 사진 버전을 반환한다")
     void returnsAvatarPresenceForLinkedUsersOnly() {
         givenSettlement(CREATOR_ID);
         User payer = mock(User.class);
@@ -508,8 +511,11 @@ class SettlementDetailServiceTest {
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
         assertThat(result.participants()).extracting(
-                SettlementDetailResult.ParticipantPayment::hasAvatar
-        ).containsExactly(true, false);
+                SettlementDetailResult.ParticipantPayment::avatarVersion
+        ).containsExactly(
+                ImageCacheVersion.fromNullableFileName("payer.png"),
+                null
+        );
         org.mockito.Mockito.verify(loadUserPort).findAllByIds(java.util.Set.of(PAYER_ID));
         org.mockito.Mockito.verifyNoMoreInteractions(loadUserPort);
     }
@@ -524,7 +530,7 @@ class SettlementDetailServiceTest {
 
         for (int attempt = 0; attempt < 2; attempt++) {
             assertThat(service.get(SETTLEMENT_ID).participants())
-                    .allSatisfy(payment -> assertThat(payment.hasAvatar()).isFalse());
+                    .allSatisfy(payment -> assertThat(payment.avatarVersion()).isNull());
         }
     }
 
@@ -546,7 +552,9 @@ class SettlementDetailServiceTest {
         when(loadUserPort.findAllByIds(java.util.Set.of(PAYER_ID))).thenReturn(List.of(payer));
 
         assertThat(service.get(SETTLEMENT_ID).participants()).singleElement()
-                .satisfies(payment -> assertThat(payment.hasAvatar()).isTrue());
+                .satisfies(payment -> assertThat(payment.avatarVersion()).isEqualTo(
+                        ImageCacheVersion.fromNullableFileName("payer.png")
+                ));
         org.mockito.Mockito.verify(loadUserPort).findAllByIds(java.util.Set.of(PAYER_ID));
         org.mockito.Mockito.verifyNoMoreInteractions(loadUserPort);
     }

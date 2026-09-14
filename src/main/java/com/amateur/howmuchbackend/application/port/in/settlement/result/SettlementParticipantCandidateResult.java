@@ -1,17 +1,18 @@
 package com.amateur.howmuchbackend.application.port.in.settlement.result;
 
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.domain.user.User;
 
 public record SettlementParticipantCandidateResult(
         String publicId,
         String displayName,
-        boolean hasAvatar
+        String avatarVersion
 ) {
     public static SettlementParticipantCandidateResult from(User user) {
         return new SettlementParticipantCandidateResult(
                 user.publicId(),
                 user.name(),
-                user.avatarFileName() != null
+                ImageCacheVersion.fromNullableFileName(user.avatarFileName())
         );
     }
 }

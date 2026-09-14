@@ -353,7 +353,7 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(item.groups()).containsExactly(new SettlementListReadModel.GroupSummary(
                     groupId,
                     "목록 필터 그룹",
-                    false
+                    null
             ));
         });
         assertThat(notMatching).isEmpty();

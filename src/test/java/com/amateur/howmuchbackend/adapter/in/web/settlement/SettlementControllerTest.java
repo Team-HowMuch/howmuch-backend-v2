@@ -71,6 +71,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 @DisplayName("정산 Web API 계약")
 class SettlementControllerTest {
+    private static final String IMAGE_VERSION = "image-version";
     private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
     private static final UUID PARTICIPANT_ID = UUID.fromString("09ac164a-35d6-4549-bff4-b7b4c375d2aa");
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 21, 9, 0);
@@ -221,7 +222,11 @@ class SettlementControllerTest {
                         .value("2026-08-21T09:00:00"))
                 .andExpect(jsonPath("$.data.participants[0].linked").value(true))
                 .andExpect(jsonPath("$.data.participants[0].avatarUrl").value(
-                        "/api/v2/settlements/%s/participants/%s/avatar".formatted(SETTLEMENT_ID, PARTICIPANT_ID)
+                        "/api/v2/settlements/%s/participants/%s/avatar?v=%s".formatted(
+                                SETTLEMENT_ID,
+                                PARTICIPANT_ID,
+                                IMAGE_VERSION
+                        )
                 ))
                 .andExpect(jsonPath("$.data.participants[0].paymentStatus").value("PARTIALLY_PAID"))
                 .andExpect(jsonPath("$.data.creatorId").doesNotExist())
@@ -248,7 +253,11 @@ class SettlementControllerTest {
                 0,
                 null,
                 null,
-                List.of(new SettlementListItemResult.GroupSummary(10L, "여행 모임", true))
+                List.of(new SettlementListItemResult.GroupSummary(
+                        10L,
+                        "여행 모임",
+                        IMAGE_VERSION
+                ))
         )));
 
         mockMvc.perform(get("/api/v2/settlements")
@@ -268,7 +277,7 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0].groups[0].groupId").value(10))
                 .andExpect(jsonPath("$.data[0].groups[0].groupName").value("여행 모임"))
                 .andExpect(jsonPath("$.data[0].groups[0].groupImageUrl")
-                        .value("/api/v2/groups/10/image"));
+                        .value("/api/v2/groups/10/image?v=" + IMAGE_VERSION));
     }
 
     @Test
@@ -503,7 +512,7 @@ class SettlementControllerTest {
                         "sua.choi",
                         "최수아",
                         0,
-                        true
+                        IMAGE_VERSION
                 ),
                 new SettlementParticipantListItemResult(
                         UUID.fromString("f2878f10-77cc-4e85-94a5-343b414f69d7"),
@@ -511,7 +520,7 @@ class SettlementControllerTest {
                         null,
                         "비회원 연락처",
                         1,
-                        false
+                        null
                 )
         ));
 
@@ -522,9 +531,10 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0].publicId").value("sua.choi"))
                 .andExpect(jsonPath("$.data[0].displayOrder").value(0))
                 .andExpect(jsonPath("$.data[0].avatarUrl").value(
-                        "/api/v2/settlements/%s/participants/%s/avatar".formatted(
+                        "/api/v2/settlements/%s/participants/%s/avatar?v=%s".formatted(
                                 SETTLEMENT_ID,
-                                PARTICIPANT_ID
+                                PARTICIPANT_ID,
+                                IMAGE_VERSION
                         )
                 ))
                 .andExpect(jsonPath("$.data[0].linkedUserId").doesNotExist())
@@ -546,6 +556,7 @@ class SettlementControllerTest {
                         PARTICIPANT_ID
                 ))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "max-age=86400, private"))
                 .andExpect(content().contentType("image/png"))
                 .andExpect(content().bytes(imageContent));
     }
@@ -571,8 +582,10 @@ class SettlementControllerTest {
     void searchesSettlementParticipantCandidates() throws Exception {
         when(searchSettlementParticipantUseCase.searchByPublicId(eq(SETTLEMENT_ID), any()))
                 .thenReturn(List.of(
-                        new SettlementParticipantCandidateResult("sua.alpha", "최수아", true),
-                        new SettlementParticipantCandidateResult("sua.beta", "후보", false)
+                        new SettlementParticipantCandidateResult(
+                                "sua.alpha", "최수아", IMAGE_VERSION
+                        ),
+                        new SettlementParticipantCandidateResult("sua.beta", "후보", null)
                 ));
 
         mockMvc.perform(get(
@@ -584,8 +597,8 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0].publicId").value("sua.alpha"))
                 .andExpect(jsonPath("$.data[0].displayName").value("최수아"))
                 .andExpect(jsonPath("$.data[0].avatarUrl").value(
-                        "/api/v2/settlements/%s/participant-candidates/users/sua.alpha/avatar"
-                                .formatted(SETTLEMENT_ID)
+                        "/api/v2/settlements/%s/participant-candidates/users/sua.alpha/avatar?v=%s"
+                                .formatted(SETTLEMENT_ID, IMAGE_VERSION)
                 ))
                 .andExpect(jsonPath("$.data[0].userId").doesNotExist())
                 .andExpect(jsonPath("$.data[0].avatarFileName").doesNotExist())
@@ -597,7 +610,9 @@ class SettlementControllerTest {
     void getsSettlementGroupParticipantCandidates() throws Exception {
         when(getSettlementGroupParticipantCandidatesUseCase.get(SETTLEMENT_ID, 10L))
                 .thenReturn(List.of(
-                        new SettlementParticipantCandidateResult("group.member", "그룹 회원", true)
+                        new SettlementParticipantCandidateResult(
+                                "group.member", "그룹 회원", IMAGE_VERSION
+                        )
                 ));
 
         mockMvc.perform(get(
@@ -610,8 +625,8 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0].publicId").value("group.member"))
                 .andExpect(jsonPath("$.data[0].displayName").value("그룹 회원"))
                 .andExpect(jsonPath("$.data[0].avatarUrl").value(
-                        "/api/v2/settlements/%s/participant-candidates/users/group.member/avatar"
-                                .formatted(SETTLEMENT_ID)
+                        "/api/v2/settlements/%s/participant-candidates/users/group.member/avatar?v=%s"
+                                .formatted(SETTLEMENT_ID, IMAGE_VERSION)
                 ))
                 .andExpect(jsonPath("$.data[0].userId").doesNotExist());
     }
@@ -701,6 +716,7 @@ class SettlementControllerTest {
                         "sua.alpha"
                 ))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "max-age=86400, private"))
                 .andExpect(content().contentType("image/png"))
                 .andExpect(content().bytes(imageContent));
     }
@@ -715,7 +731,7 @@ class SettlementControllerTest {
                         true,
                         "contact.member",
                         "서비스 회원",
-                        true,
+                        IMAGE_VERSION,
                         false
                 ),
                 new SettlementContactCandidateResult(
@@ -724,7 +740,7 @@ class SettlementControllerTest {
                         false,
                         null,
                         null,
-                        false,
+                        null,
                         true
                 )
         ));
@@ -757,8 +773,8 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0].publicId").value("contact.member"))
                 .andExpect(jsonPath("$.data[0].memberDisplayName").value("서비스 회원"))
                 .andExpect(jsonPath("$.data[0].avatarUrl").value(
-                        "/api/v2/settlements/%s/participant-candidates/users/contact.member/avatar"
-                                .formatted(SETTLEMENT_ID)
+                        "/api/v2/settlements/%s/participant-candidates/users/contact.member/avatar?v=%s"
+                                .formatted(SETTLEMENT_ID, IMAGE_VERSION)
                 ))
                 .andExpect(jsonPath("$.data[0].phoneNumber").doesNotExist())
                 .andExpect(jsonPath("$.data[0].phoneHash").doesNotExist())
@@ -890,7 +906,8 @@ class SettlementControllerTest {
         );
         mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.participants[0].avatarUrl").value("/api/v2/user/me/avatar"));
+                .andExpect(jsonPath("$.data.participants[0].avatarUrl")
+                        .value("/api/v2/user/me/avatar?v=" + IMAGE_VERSION));
     }
 
     @Test
@@ -910,7 +927,10 @@ class SettlementControllerTest {
         return detailResult(SettlementDetailResult.ViewerRole.CREATOR, true);
     }
 
-    private SettlementDetailResult detailResult(SettlementDetailResult.ViewerRole viewerRole, boolean hasAvatar) {
+    private SettlementDetailResult detailResult(
+            SettlementDetailResult.ViewerRole viewerRole,
+            boolean hasAvatar
+    ) {
         return new SettlementDetailResult(
                 SETTLEMENT_ID,
                 "회식 정산",
@@ -937,7 +957,7 @@ class SettlementControllerTest {
                         8_000L,
                         4_000,
                         SettlementDetailResult.PaymentStatus.PARTIALLY_PAID,
-                        hasAvatar
+                        hasAvatar ? IMAGE_VERSION : null
                 ))
         );
     }

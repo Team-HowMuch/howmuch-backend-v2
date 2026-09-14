@@ -16,12 +16,13 @@ public record SettlementParticipantCandidateWebResponse(
         return new SettlementParticipantCandidateWebResponse(
                 result.publicId(),
                 result.displayName(),
-                result.hasAvatar()
-                        ? "/api/v2/settlements/%s/participant-candidates/users/%s/avatar".formatted(
+                result.avatarVersion() == null
+                        ? null
+                        : "/api/v2/settlements/%s/participant-candidates/users/%s/avatar?v=%s".formatted(
                                 settlementId,
-                                result.publicId()
+                                result.publicId(),
+                                result.avatarVersion()
                         )
-                        : null
         );
     }
 }

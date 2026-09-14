@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.port.in.user.result;
 
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.domain.user.Gender;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.UserRole;
@@ -14,7 +15,7 @@ public record MyProfileResult(
         LocalDate birthDate,
         Gender gender,
         String phoneNumber,
-        boolean hasAvatar,
+        String avatarVersion,
         boolean phoneVerified,
         UserRole role,
         LocalDateTime lastLoginAt,
@@ -28,7 +29,7 @@ public record MyProfileResult(
                 user.birthDate(),
                 user.gender(),
                 user.phoneNumber(),
-                user.avatarFileName() != null,
+                ImageCacheVersion.fromNullableFileName(user.avatarFileName()),
                 user.phoneVerified(),
                 user.role(),
                 user.lastLoginAt(),

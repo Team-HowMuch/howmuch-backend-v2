@@ -20,12 +20,13 @@ public record GroupMemberWebResponse(
                 result.name(),
                 result.role(),
                 result.joinedAt(),
-                result.hasAvatar()
-                        ? "/api/v2/groups/%s/members/%s/avatar".formatted(
+                result.avatarVersion() == null
+                        ? null
+                        : "/api/v2/groups/%s/members/%s/avatar?v=%s".formatted(
                                 groupId,
-                                result.memberId()
+                                result.memberId(),
+                                result.avatarVersion()
                         )
-                        : null
         );
     }
 }

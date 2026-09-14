@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.adapter.out.persistence.common.PostgresLockTimeoutConfigurer;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.SettlementMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
@@ -88,7 +89,9 @@ public class SettlementPersistenceAdapter implements
                                         projection -> new SettlementListReadModel.GroupSummary(
                                                 projection.getGroupId(),
                                                 projection.getGroupName(),
-                                                projection.getImageFileName() != null
+                                                ImageCacheVersion.fromNullableFileName(
+                                                        projection.getImageFileName()
+                                                )
                                         ),
                                         Collectors.toList()
                                 )

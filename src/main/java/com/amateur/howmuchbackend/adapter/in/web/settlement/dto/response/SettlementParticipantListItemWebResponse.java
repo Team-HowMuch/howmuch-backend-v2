@@ -23,12 +23,13 @@ public record SettlementParticipantListItemWebResponse(
                 result.publicId(),
                 result.displayName(),
                 result.displayOrder(),
-                result.hasAvatar()
-                        ? "/api/v2/settlements/%s/participants/%s/avatar".formatted(
+                result.avatarVersion() == null
+                        ? null
+                        : "/api/v2/settlements/%s/participants/%s/avatar?v=%s".formatted(
                                 settlementId,
-                                result.participantId()
+                                result.participantId(),
+                                result.avatarVersion()
                         )
-                        : null
         );
     }
 }

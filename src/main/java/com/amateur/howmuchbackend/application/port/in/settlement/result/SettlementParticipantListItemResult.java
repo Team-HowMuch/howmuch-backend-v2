@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.port.in.settlement.result;
 
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -12,7 +13,7 @@ public record SettlementParticipantListItemResult(
         String publicId,
         String displayName,
         int displayOrder,
-        boolean hasAvatar
+        String avatarVersion
 ) {
     public static SettlementParticipantListItemResult of(
             SettlementParticipant participant,
@@ -24,7 +25,9 @@ public record SettlementParticipantListItemResult(
                 linkedUser == null ? null : linkedUser.publicId(),
                 participant.displayName(),
                 participant.displayOrder(),
-                linkedUser != null && linkedUser.avatarFileName() != null
+                linkedUser == null
+                        ? null
+                        : ImageCacheVersion.fromNullableFileName(linkedUser.avatarFileName())
         );
     }
 }

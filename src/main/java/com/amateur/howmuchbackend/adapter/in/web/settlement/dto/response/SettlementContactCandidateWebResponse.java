@@ -23,12 +23,13 @@ public record SettlementContactCandidateWebResponse(
                 result.member(),
                 result.publicId(),
                 result.memberDisplayName(),
-                result.hasAvatar()
-                        ? "/api/v2/settlements/%s/participant-candidates/users/%s/avatar".formatted(
+                result.avatarVersion() == null
+                        ? null
+                        : "/api/v2/settlements/%s/participant-candidates/users/%s/avatar?v=%s".formatted(
                                 settlementId,
-                                result.publicId()
-                        )
-                        : null,
+                                result.publicId(),
+                                result.avatarVersion()
+                        ),
                 result.alreadyParticipant()
         );
     }

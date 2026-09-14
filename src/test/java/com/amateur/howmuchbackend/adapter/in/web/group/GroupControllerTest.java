@@ -59,6 +59,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 @DisplayName("그룹 Controller")
 class GroupControllerTest {
+    private static final String IMAGE_VERSION = "image-version";
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 25, 6, 0);
 
     @Mock private CreateGroupUseCase createGroupUseCase;
@@ -119,13 +120,21 @@ class GroupControllerTest {
     @DisplayName("내 그룹 목록을 응답 DTO로 변환한다")
     void getsMyGroups() throws Exception {
         when(getMyGroupsUseCase.getMyGroups()).thenReturn(List.of(
-                new GroupSummaryResult(20L, "최근 그룹", "/api/v2/groups/20/image", 4, List.of("그룹장", "동명이인", "동명이인")),
+                new GroupSummaryResult(
+                        20L,
+                        "최근 그룹",
+                        "/api/v2/groups/20/image?v=" + IMAGE_VERSION,
+                        4,
+                        List.of("그룹장", "동명이인", "동명이인")
+                ),
                 new GroupSummaryResult(10L, "이전 그룹", null, 1, List.of())
         ));
 
         mockMvc.perform(get("/api/v2/groups"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].groupId").value(20))
+                .andExpect(jsonPath("$.data[0].imageUrl")
+                        .value("/api/v2/groups/20/image?v=" + IMAGE_VERSION))
                 .andExpect(jsonPath("$.data[1].imageUrl").isEmpty())
                 .andExpect(jsonPath("$.data[0].memberCount").value(4))
                 .andExpect(jsonPath("$.data[0].memberNames.length()").value(3))
@@ -163,14 +172,14 @@ class GroupControllerTest {
     }
 
     @Test
-    @DisplayName("그룹 이미지를 no-store와 실제 content type으로 반환한다")
+    @DisplayName("그룹 이미지를 private 1일 캐시와 실제 content type으로 반환한다")
     void getsGroupImage() throws Exception {
         when(getGroupImageUseCase.getImage(10L))
                 .thenReturn(new GroupImage("image/webp", new byte[]{1, 2, 3}));
 
         mockMvc.perform(get("/api/v2/groups/{groupId}/image", 10L))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Cache-Control", "max-age=86400, private"))
                 .andExpect(content().contentType("image/webp"))
                 .andExpect(content().bytes(new byte[]{1, 2, 3}));
     }
@@ -230,7 +239,7 @@ class GroupControllerTest {
                 .andExpect(jsonPath("$.data[0].publicId").value("sua.test"))
                 .andExpect(jsonPath("$.data[0].role").value("MEMBER"))
                 .andExpect(jsonPath("$.data[0].avatarUrl")
-                        .value("/api/v2/groups/10/members/20/avatar"));
+                        .value("/api/v2/groups/10/members/20/avatar?v=" + IMAGE_VERSION));
     }
 
     @Test
@@ -242,7 +251,7 @@ class GroupControllerTest {
                 "최수아",
                 GroupMemberRole.MEMBER,
                 LocalDateTime.of(2026, 8, 25, 6, 0),
-                false
+                null
         )));
 
         mockMvc.perform(get("/api/v2/groups/{groupId}/members", 10L))
@@ -251,14 +260,14 @@ class GroupControllerTest {
     }
 
     @Test
-    @DisplayName("그룹 멤버 아바타를 no-store와 실제 content type으로 반환한다")
+    @DisplayName("그룹 멤버 아바타를 private 1일 캐시와 실제 content type으로 반환한다")
     void getsGroupMemberAvatar() throws Exception {
         when(getGroupMemberAvatarUseCase.getMemberAvatar(10L, 20L))
                 .thenReturn(new ProfileImage("image/png", new byte[]{4, 5, 6}));
 
         mockMvc.perform(get("/api/v2/groups/{groupId}/members/{memberId}/avatar", 10L, 20L))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Cache-Control", "max-age=86400, private"))
                 .andExpect(content().contentType("image/png"))
                 .andExpect(content().bytes(new byte[]{4, 5, 6}));
     }
@@ -343,7 +352,7 @@ class GroupControllerTest {
                 "최수아",
                 GroupMemberRole.MEMBER,
                 LocalDateTime.of(2026, 8, 25, 6, 0),
-                true
+                IMAGE_VERSION
         );
     }
 }

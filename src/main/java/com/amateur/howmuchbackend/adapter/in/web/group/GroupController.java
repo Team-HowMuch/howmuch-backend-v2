@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.web.group;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
+import com.amateur.howmuchbackend.adapter.in.web.common.ImageWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.group.docs.GroupDocs;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.CreateGroupWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.group.dto.request.AddGroupMemberWebRequest;
@@ -27,7 +28,6 @@ import com.amateur.howmuchbackend.application.port.in.group.LeaveGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.RemoveGroupMemberUseCase;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
-import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -90,10 +90,7 @@ public class GroupController implements GroupDocs {
     @GetMapping("/{groupId}/image")
     public ResponseEntity<byte[]> getGroupImage(@PathVariable Long groupId) {
         GroupImage image = getGroupImageUseCase.getImage(groupId);
-        return ResponseEntity.ok()
-                .cacheControl(CacheControl.noStore())
-                .contentType(MediaType.parseMediaType(image.contentType()))
-                .body(image.content());
+        return ImageWebResponse.ok(image.contentType(), image.content());
     }
 
     @Override
@@ -140,10 +137,7 @@ public class GroupController implements GroupDocs {
             @PathVariable Long memberId
     ) {
         ProfileImage image = getGroupMemberAvatarUseCase.getMemberAvatar(groupId, memberId);
-        return ResponseEntity.ok()
-                .cacheControl(CacheControl.noStore())
-                .contentType(MediaType.parseMediaType(image.contentType()))
-                .body(image.content());
+        return ImageWebResponse.ok(image.contentType(), image.content());
     }
 
     @Override

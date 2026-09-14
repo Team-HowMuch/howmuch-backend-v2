@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementUseCase;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -106,12 +107,14 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 .map(SettlementParticipant::linkedUserId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Set<Long> usersWithAvatar = visibleUserIds.isEmpty()
-                ? Set.of()
+        Map<Long, String> avatarVersionsByUserId = visibleUserIds.isEmpty()
+                ? Map.of()
                 : loadUserPort.findAllByIds(visibleUserIds).stream()
                         .filter(user -> user.avatarFileName() != null)
-                        .map(User::id)
-                        .collect(Collectors.toSet());
+                        .collect(Collectors.toMap(
+                                User::id,
+                                user -> ImageCacheVersion.fromNullableFileName(user.avatarFileName())
+                        ));
 
         List<SettlementDetailResult.ParticipantPayment> allPayments = participants.stream()
                 .filter(participant -> !participant.isLinkedTo(settlement.creatorId()))
@@ -120,8 +123,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         participant,
                         shareByParticipantId.get(participant.id()),
                         confirmedByShareId,
-                        participant.linkedUserId() != null
-                                && usersWithAvatar.contains(participant.linkedUserId())
+                        participant.linkedUserId() == null
+                                ? null
+                                : avatarVersionsByUserId.get(participant.linkedUserId())
                 ))
                 .toList();
         UUID viewerParticipantId = viewerRole == SettlementDetailResult.ViewerRole.PARTICIPANT
@@ -257,7 +261,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
             SettlementParticipant participant,
             SettlementShare share,
             Map<UUID, Long> confirmedByShareId,
-            boolean hasAvatar
+            String avatarVersion
     ) {
         if (share == null) {
             return new SettlementDetailResult.ParticipantPayment(
@@ -267,7 +271,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                     null,
                     0,
                     SettlementDetailResult.PaymentStatus.NOT_READY,
-                    hasAvatar
+                    avatarVersion
             );
         }
         long confirmedAmount = confirmedByShareId.getOrDefault(share.id(), 0L);
@@ -283,7 +287,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 share.amount(),
                 confirmedAmount,
                 status,
-                hasAvatar
+                avatarVersion
         );
     }
 
