@@ -165,6 +165,7 @@ class ImageCleanupTransactionTest {
         var user = mock(User.class);
         when(actor.getCurrentActor()).thenReturn(new CurrentActor(1L));
         when(load.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(user.active()).thenReturn(true);
         when(user.publicId()).thenReturn("current.id");
         when(user.avatarFileName()).thenReturn(OLD);
         when(user.changeProfile(any(), any(), any())).thenReturn(user);
