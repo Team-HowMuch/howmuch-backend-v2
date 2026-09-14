@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.domain.user.User;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Component
 public class ConservativeUserDeletionPolicy implements UserDeletionPolicy {
@@ -20,7 +21,7 @@ public class ConservativeUserDeletionPolicy implements UserDeletionPolicy {
 
     @Override
     public User anonymize(User user, String pinHash, LocalDateTime now) {
-        String suffix = Long.toHexString(user.id());
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         return user.deactivateForDeletion(
                 "deleted-" + suffix,
                 "del_" + suffix,

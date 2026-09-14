@@ -77,7 +77,7 @@
 
 - 동시 탈퇴는 `findByIdForUpdate`로 같은 사용자 행을 직렬화하고, 활성 그룹을 ID 오름차순으로 잠근 뒤 멤버 행을 다시 `FOR UPDATE`로 읽어 OWNER 여부를 재평가한다. 성공 직후 세션을 삭제하므로 기존 액세스 토큰의 재호출은 인증 단계에서 거부되고, 서비스가 다시 호출되는 경계에서는 `USER_NOT_FOUND`가 된다.
 - 탈퇴 직전에 JWT 인증을 통과한 요청도 사용자 행 잠금 획득 후 `User::active`를 재확인한다. 프로필·푸시 등록·계좌/계좌 설정·그룹 생성/가입·정산 생성 및 계좌 삭제/은행 연동은 비활성 사용자이면 외부 저장·생성 작업을 시작하지 않는다. 사용자 잠금은 탈퇴 흐름과 같은 순서로 먼저 획득해 커밋 이후의 stale write를 차단한다.
-- 같은 전화번호 재가입은 탈퇴 시 unique 필드를 `deleted-<id>`/`deleted:<id>`/`del_<id>`로 치환해 즉시 허용한다.
+- 같은 전화번호 재가입은 탈퇴 시 unique 필드를 예측 불가능한 난수 suffix가 포함된 `deleted-<random>`/`d-<random>`/`del_<random>`으로 치환해 즉시 허용한다. public ID는 20자 제약에 맞춘 64비트 난수 suffix로 활성 사용자의 선점·충돌 가능성을 낮춘다.
 - 프로필 이미지 파일 삭제는 DB 커밋 후 수행하며 실패해도 이미 익명화된 사용자 레코드를 되돌리지 않는다.
 
 ## 4. Contracts
@@ -177,6 +177,7 @@ Existing behavior that must remain unchanged:
 - [x] Application Policies
 - [x] Application Service
 - [x] 탈퇴 경합 시 stale write 활성 상태 재검증
+- [x] 익명화 public ID의 예측 가능 충돌 제거
 - [x] Output Adapters
 - [x] Web Request/Response DTOs, Controllers, and Swagger
 - [x] Infra configuration and Bean wiring (`N/A`)
