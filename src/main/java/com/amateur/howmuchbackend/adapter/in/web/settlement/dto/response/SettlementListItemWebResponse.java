@@ -74,13 +74,15 @@ public record SettlementListItemWebResponse(
             @Schema(nullable = true)
             String groupImageUrl
     ) {
-        private static final String IMAGE_URL = "/api/v2/groups/%d/image";
+        private static final String IMAGE_URL = "/api/v2/groups/%d/image?v=%s";
 
         private static GroupSummary from(SettlementListItemResult.GroupSummary result) {
             return new GroupSummary(
                     result.groupId(),
                     result.groupName(),
-                    result.hasImage() ? IMAGE_URL.formatted(result.groupId()) : null
+                    result.imageVersion() == null
+                            ? null
+                            : IMAGE_URL.formatted(result.groupId(), result.imageVersion())
             );
         }
     }

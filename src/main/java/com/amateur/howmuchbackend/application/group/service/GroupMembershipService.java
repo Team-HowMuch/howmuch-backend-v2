@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.group.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.group.policy.GroupInviteCodePolicy;
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.port.in.group.AddGroupMemberUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupMemberAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.GetGroupMembersUseCase;
@@ -172,7 +173,7 @@ public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembers
                 user.name(),
                 member.role(),
                 member.joinedAt(),
-                user.avatarFileName() != null
+                ImageCacheVersion.fromNullableFileName(user.avatarFileName())
         );
     }
 }

@@ -135,11 +135,13 @@ public record SettlementDetailWebResponse(
                     result.expectedAmount(),
                     result.confirmedAmount(),
                     result.paymentStatus(),
-                    !result.hasAvatar() ? null
+                    result.avatarVersion() == null ? null
                             : viewerRole == SettlementDetailResult.ViewerRole.PARTICIPANT
-                                    ? "/api/v2/user/me/avatar"
-                                    : "/api/v2/settlements/%s/participants/%s/avatar".formatted(
-                                            settlementId, result.participantId()
+                                    ? "/api/v2/user/me/avatar?v=" + result.avatarVersion()
+                                    : "/api/v2/settlements/%s/participants/%s/avatar?v=%s".formatted(
+                                            settlementId,
+                                            result.participantId(),
+                                            result.avatarVersion()
                                     )
             );
         }

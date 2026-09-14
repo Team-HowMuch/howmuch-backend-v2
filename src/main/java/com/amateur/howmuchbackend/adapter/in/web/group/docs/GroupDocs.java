@@ -46,6 +46,7 @@ public interface GroupDocs {
     @Operation(
             summary = "내 그룹 목록 조회",
             description = "현재 사용자의 활성 그룹 전체를 최근 가입 순으로 조회합니다. "
+                    + "imageUrl은 이미지 파일 버전 v 쿼리를 포함하며 이미지가 없으면 null입니다. "
                     + "memberCount는 본인을 포함한 활성 사용자·활성 멤버십의 전체 수이며 탈퇴·강퇴·비활성 사용자는 제외합니다. "
                     + "memberNames는 요청자 본인을 먼저 제외한 뒤 그룹장 우선, 가입 시각·멤버 ID 오름차순으로 최대 3개를 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
@@ -54,7 +55,8 @@ public interface GroupDocs {
 
     @Operation(
             summary = "그룹 상세 조회",
-            description = "활성 멤버가 그룹 정보, 인원수와 초대 정보를 조회합니다.",
+            description = "활성 멤버가 그룹 정보, 인원수와 초대 정보를 조회합니다. "
+                    + "imageUrl은 이미지 파일 버전 v 쿼리를 포함하며 이미지가 없으면 null입니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -76,7 +78,8 @@ public interface GroupDocs {
 
     @Operation(
             summary = "그룹 이미지 조회",
-            description = "활성 멤버가 등록된 그룹 이미지를 조회합니다.",
+            description = "활성 멤버가 등록된 그룹 이미지를 조회합니다. "
+                    + "응답은 private 캐시에서 1일간 재사용할 수 있습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -172,7 +175,8 @@ public interface GroupDocs {
     @Operation(
             summary = "그룹 멤버 목록 조회",
             description = "활성 멤버가 그룹의 활성 구성원 전체를 조회합니다. "
-                    + "프로필 사진이 있는 멤버는 avatarUrl이 채워지고, 없으면 null입니다.",
+                    + "프로필 사진이 있는 멤버의 avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며, "
+                    + "사진이 없으면 null입니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -194,7 +198,8 @@ public interface GroupDocs {
 
     @Operation(
             summary = "그룹 멤버 프로필 사진 조회",
-            description = "활성 멤버가 같은 그룹 구성원의 프로필 사진을 조회합니다.",
+            description = "활성 멤버가 같은 그룹 구성원의 프로필 사진을 조회합니다. "
+                    + "응답은 private 캐시에서 1일간 재사용할 수 있습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({

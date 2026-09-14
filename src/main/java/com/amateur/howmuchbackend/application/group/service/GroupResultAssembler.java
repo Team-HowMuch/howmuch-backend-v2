@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.group.service;
 
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupDetailResult;
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupSummaryResult;
 import com.amateur.howmuchbackend.application.port.out.group.GroupInviteLinkPort;
@@ -40,6 +41,9 @@ public class GroupResultAssembler {
     }
 
     private String imageUrl(Long groupId, String imageFileName) {
-        return imageFileName == null ? null : GROUP_IMAGE_PATH_PREFIX + groupId + "/image";
+        String imageVersion = ImageCacheVersion.fromNullableFileName(imageFileName);
+        return imageVersion == null
+                ? null
+                : GROUP_IMAGE_PATH_PREFIX + groupId + "/image?v=" + imageVersion;
     }
 }

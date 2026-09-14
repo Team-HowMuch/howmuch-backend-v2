@@ -24,7 +24,7 @@ public record SettlementListItemResult(
     public record GroupSummary(
             Long groupId,
             String groupName,
-            boolean hasImage
+            String imageVersion
     ) {
     }
 }

@@ -10,6 +10,6 @@ public record GroupMemberResult(
         String name,
         GroupMemberRole role,
         LocalDateTime joinedAt,
-        boolean hasAvatar
+        String avatarVersion
 ) {
 }

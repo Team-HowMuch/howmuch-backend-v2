@@ -16,14 +16,16 @@ import org.springframework.http.ResponseEntity;
 public interface UserDocs {
     @Operation(
             summary = "내 정보 조회",
-            description = "현재 로그인한 사용자의 정보를 조회합니다.",
+            description = "현재 로그인한 사용자의 정보를 조회합니다. "
+                    + "avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없으면 null입니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     ApiResponse<MyProfileWebResponse> getMyProfile();
 
     @Operation(
             summary = "내 아바타 조회",
-            description = "현재 로그인한 사용자의 등록된 아바타 이미지를 조회합니다.",
+            description = "현재 로그인한 사용자의 등록된 아바타 이미지를 조회합니다. "
+                    + "응답은 private 캐시에서 1일간 재사용할 수 있습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @io.swagger.v3.oas.annotations.responses.ApiResponse(

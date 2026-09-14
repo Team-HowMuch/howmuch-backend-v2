@@ -61,7 +61,7 @@ public record SettlementDetailResult(
             Long expectedAmount,
             long confirmedAmount,
             PaymentStatus paymentStatus,
-            boolean hasAvatar
+            String avatarVersion
     ) {
     }
 }

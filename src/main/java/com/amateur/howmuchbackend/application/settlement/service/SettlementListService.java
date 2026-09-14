@@ -38,7 +38,7 @@ public class SettlementListService implements GetSettlementsUseCase {
                                 .map(group -> new SettlementListItemResult.GroupSummary(
                                         group.groupId(),
                                         group.groupName(),
-                                        group.hasImage()
+                                        group.imageVersion()
                                 ))
                                 .toList()
                 ))

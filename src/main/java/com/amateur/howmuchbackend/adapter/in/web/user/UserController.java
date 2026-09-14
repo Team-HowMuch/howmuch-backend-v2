@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.web.user;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
+import com.amateur.howmuchbackend.adapter.in.web.common.ImageWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.user.docs.UserDocs;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.RegisterPushTargetWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.UpdateMyProfileRequest;
@@ -12,7 +13,6 @@ import com.amateur.howmuchbackend.application.port.in.user.UpdateMyProfileUseCas
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -41,10 +41,7 @@ public class UserController implements UserDocs {
     @GetMapping("/me/avatar")
     public ResponseEntity<byte[]> getMyProfileImage() {
         ProfileImage image = getMyProfileImageUseCase.getMyProfileImage();
-        return ResponseEntity.ok()
-                .cacheControl(CacheControl.noStore())
-                .contentType(MediaType.parseMediaType(image.contentType()))
-                .body(image.content());
+        return ImageWebResponse.ok(image.contentType(), image.content());
     }
 
     @PatchMapping(value = "/me/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

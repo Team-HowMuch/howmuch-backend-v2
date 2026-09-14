@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.port.in.settlement.result;
 
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.domain.user.User;
 
 public record SettlementContactCandidateResult(
@@ -8,7 +9,7 @@ public record SettlementContactCandidateResult(
         boolean member,
         String publicId,
         String memberDisplayName,
-        boolean hasAvatar,
+        String avatarVersion,
         boolean alreadyParticipant
 ) {
     public static SettlementContactCandidateResult of(
@@ -23,9 +24,11 @@ public record SettlementContactCandidateResult(
                 matchedUser != null,
                 matchedUser == null ? null : matchedUser.publicId(),
                 matchedUser == null ? null : matchedUser.name(),
-                matchedUser != null
-                        && matchedUser.avatarFileName() != null
-                        && !alreadyParticipant,
+                matchedUser == null
+                        || matchedUser.avatarFileName() == null
+                        || alreadyParticipant
+                        ? null
+                        : ImageCacheVersion.fromNullableFileName(matchedUser.avatarFileName()),
                 alreadyParticipant
         );
     }
