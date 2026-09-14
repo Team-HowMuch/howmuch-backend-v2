@@ -4,11 +4,13 @@ import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.common.ImageWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.user.docs.UserDocs;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.RegisterPushTargetWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.DeleteMyAccountWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.UpdateMyProfileRequest;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.response.MyProfileWebResponse;
 import com.amateur.howmuchbackend.application.port.in.user.GetMyProfileImageUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.GetMyProfileUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.ManageMyPushTargetUseCase;
+import com.amateur.howmuchbackend.application.port.in.user.DeleteMyAccountUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.UpdateMyProfileUseCase;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import jakarta.validation.Valid;
@@ -32,6 +34,7 @@ public class UserController implements UserDocs {
     private final GetMyProfileImageUseCase getMyProfileImageUseCase;
     private final UpdateMyProfileUseCase updateMyProfileUseCase;
     private final ManageMyPushTargetUseCase manageMyPushTargetUseCase;
+    private final DeleteMyAccountUseCase deleteMyAccountUseCase;
 
     @GetMapping("/me")
     public ApiResponse<MyProfileWebResponse> getMyProfile() {
@@ -62,6 +65,14 @@ public class UserController implements UserDocs {
     @DeleteMapping("/me/push-target")
     public ApiResponse<Void> clearPushTarget() {
         manageMyPushTargetUseCase.clear();
+        return ApiResponse.success();
+    }
+
+    @DeleteMapping("/me")
+    public ApiResponse<Void> deleteMyAccount(
+            @Valid @RequestBody DeleteMyAccountWebRequest request
+    ) {
+        deleteMyAccountUseCase.delete(request.toCommand());
         return ApiResponse.success();
     }
 }

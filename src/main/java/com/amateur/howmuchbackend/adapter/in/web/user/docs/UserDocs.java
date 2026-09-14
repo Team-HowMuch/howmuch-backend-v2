@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.user.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.RegisterPushTargetWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.DeleteMyAccountWebRequest;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.request.UpdateMyProfileRequest;
 import com.amateur.howmuchbackend.adapter.in.web.user.dto.response.MyProfileWebResponse;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -107,4 +108,36 @@ public interface UserDocs {
             )
     })
     ApiResponse<Void> clearPushTarget();
+
+    @Operation(
+            summary = "회원 탈퇴",
+            description = "현재 계정의 PIN을 재확인한 뒤 계정을 비활성화하고 식별 정보를 익명화합니다. "
+                    + "미완료 정산이 있거나 그룹 OWNER인 경우 탈퇴할 수 없습니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "회원 탈퇴 성공",
+                    useReturnTypeSchema = true
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_PIN_FORMAT - PIN 형식 오류"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "USER_DELETION_PIN_MISMATCH - 탈퇴 PIN 불일치"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "USER_NOT_FOUND - 사용자를 찾을 수 없음"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "USER_DELETION_GROUP_OWNER_TRANSFER_REQUIRED 또는 "
+                            + "USER_DELETION_BLOCKED_BY_SETTLEMENT - 탈퇴 차단"
+            )
+    })
+    ApiResponse<Void> deleteMyAccount(DeleteMyAccountWebRequest request);
 }
