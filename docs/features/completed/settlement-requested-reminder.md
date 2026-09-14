@@ -17,9 +17,9 @@
 
 ### Success criteria
 
-- [x] 생성자가 `REQUESTED` 품목별 정산에서 Share가 없는 연결 회원 참여자에게 수동 독촉할 수 있다.
+- [x] 생성자가 `REQUESTED` 품목별 정산에서 제출 기록이 없는 연결 회원 참여자에게 수동 독촉할 수 있다.
 - [x] 품목 미선택 독촉은 `<요청자>님이 정산 품목 선택을 기다리고 있어요` 문구를 저장한다.
-- [x] 이미 품목을 제출해 Share가 생긴 참여자는 `REQUESTED` 수동 독촉 대상에서 제외한다.
+- [x] 이미 품목을 제출한 참여자는 Share 생성 여부와 관계없이 `REQUESTED` 수동 독촉 대상에서 제외한다.
 - [x] 기존 `AWAITING_DEPOSIT` 미납 독촉 문구·쿨다운과 자동 독촉 동작을 유지한다.
 
 ### Out of scope
@@ -41,7 +41,7 @@
 
 | Term | Meaning | Code representation |
 |---|---|---|
-| 품목 선택 대기 | 품목별 정산 요청 후 참여자가 제출하지 않아 Share가 없는 상태 | `SettlementStatus.REQUESTED` + `SettlementShare == null` |
+| 품목 선택 대기 | 품목별 정산 요청 후 참여자가 아직 제출하지 않은 상태 | `SettlementStatus.REQUESTED` + `SettlementItemSubmission` 없음 |
 | 입금 대기 | Share가 확정됐고 확인 입금액이 0원인 상태 | `SettlementStatus.AWAITING_DEPOSIT` + confirmed amount `0` |
 | 수동 독촉 | 생성자가 단건 또는 일괄 API로 요청하는 독촉 | `SettlementReminderWriter.manual` |
 | 자동 독촉 | Share 확정 24시간 뒤 서버가 생성하는 독촉 | `SettlementReminderWriter.automatic` |
@@ -56,26 +56,26 @@
 
 - State transitions: 독촉은 정산·참여자·Share 상태를 변경하지 않는다.
 - Rules that must always hold: 생성자만 요청할 수 있고, 대상은 생성자가 아닌 활성 연결 회원이어야 하며 성공 독촉 뒤 30분 쿨다운을 적용한다.
-- Invalid states: `REQUESTED`에서 Share가 이미 있는 참여자, `AWAITING_DEPOSIT`에서 Share가 없거나 입금액이 확인된 참여자, 그 밖의 정산 상태.
+- Invalid states: `REQUESTED`에서 제출 기록이 있거나 Share가 이미 있는 참여자, `AWAITING_DEPOSIT`에서 Share가 없거나 입금액이 확인된 참여자, 그 밖의 정산 상태.
 
 ## 3. Scenarios
 
 ### Normal flow
 
-1. 품목별 정산이 `REQUESTED`이고 대상 참여자는 아직 품목을 제출하지 않아 Share가 없다.
+1. 품목별 정산이 `REQUESTED`이고 대상 참여자는 아직 품목을 제출하지 않았다.
 2. 생성자가 기존 단건 또는 일괄 독촉 API를 호출한다.
 3. 서버가 권한·상태·대상·쿨다운을 검증하고 요청자 이름을 포함한 품목 선택 안내를 알림함과 Outbox에 저장한다.
 4. 기존 응답으로 독촉 시각·다음 가능 시각 또는 생성 건수를 반환한다.
 
 ### Failure flow
 
-- `REQUESTED`에서 Share가 이미 있음: `SETTLEMENT_REMINDER_TARGET_NOT_UNPAID`.
+- `REQUESTED`에서 제출 기록 또는 Share가 이미 있음: `SETTLEMENT_REMINDER_TARGET_NOT_UNPAID`.
 - 허용 상태가 아님: `SETTLEMENT_REMINDER_NOT_AVAILABLE`.
 - 미연결·생성자 참여자 또는 비활성 회원: 기존 오류·일괄 건너뛰기 계약을 유지한다.
 
 ### Boundary conditions
 
-- 일괄 독촉은 품목 미선택 참여자만 생성 건수에 포함하며, 이미 선택한 참여자는 건너뛴다.
+- 일괄 독촉은 품목 미제출 참여자만 생성 건수에 포함하며, 0원으로 제출해 Share가 없는 참여자도 건너뛴다.
 - 수동 독촉 쿨다운은 상태와 관계없이 기존 `settlement:reminder:{settlementId}:{participantId}` 예약을 공유한다.
 - 자동 독촉은 `REQUESTED`라도 Share가 있는 기존 대상과 경과 시간 문구를 유지한다.
 
@@ -98,13 +98,14 @@ Result -> Web Response DTO: 기존 SettlementBulkReminderWebResponse.from(result
 | Port | Purpose | Caller | Expected Adapter |
 |---|---|---|---|
 | 기존 settlement/user Load Ports | 정산·참여자·Share·회원 조회 | `SettlementReminderWriter` | 기존 Persistence Adapters |
+| 기존 `SettlementItemAllocationStorePort` | 참여자 품목 선택 제출 여부 조회 | `SettlementReminderWriter`, `SettlementDetailService` | 기존 Persistence Adapter |
 | 기존 `SettlementReminderCooldownPort` | 참여자별 30분 예약 | `SettlementReminderWriter` | 기존 Redis Adapter |
 | 기존 알림 저장 경계 | 알림함과 Outbox 원자 저장 | `NotificationRecorder` | 기존 Persistence Adapters |
 
 ### Application Policy
 
 - Decision owned by the Policy: 상태별 수동 독촉 허용과 대상의 Share·입금 조건.
-- Facts loaded by the Service and passed to the Policy: 정산, 참여자, Share 존재 여부, 확인 입금액.
+- Facts loaded by the Service and passed to the Policy: 정산, 참여자, 품목 선택 제출 여부, Share 존재 여부, 확인 입금액.
 - Why the rule is not an Entity-local invariant: 정산·참여자·Share·입금처럼 여러 외부 조회 결과를 조합한다.
 - Future inputs deliberately not implemented yet: 품목 미선택 자동 독촉 시각과 횟수.
 
@@ -133,15 +134,15 @@ Errors: 기존 코드 유지, 허용 상태와 오류 설명만 현행화
 
 - Rules and their locations: 수동 상태·대상 판정은 `SettlementReminderPolicy`, 알림 문구 조립은 `SettlementReminderWriter`가 담당한다.
 - Behavior owned by Domain: 기존 정산 상태와 Share 의미를 재사용하며 Domain 모델은 변경하지 않는다.
-- Decisions owned by Application Policy: 수동 독촉은 `REQUESTED + Share 없음` 또는 `AWAITING_DEPOSIT + Share 있음 + 확인 입금 0원`만 허용한다.
+- Decisions owned by Application Policy: 수동 독촉은 `REQUESTED + 제출 기록 없음 + Share 없음` 또는 `AWAITING_DEPOSIT + Share 있음 + 확인 입금 0원`만 허용한다.
 - Flow orchestrated by Application: 조회, Policy 검증, 활성 회원 확인, 쿨다운 예약, 알림 저장, 응답 조립.
 
 ### Technology and patterns
 
-- Constraint to solve: 수동과 자동 독촉이 현재 같은 대상 검증을 사용하지만 `REQUESTED`에서 대상 의미가 서로 다르다.
-- Selected approach: 수동 대상 검증과 기존 Share 기반 자동 대상 검증을 명시적으로 분리한다.
+- Constraint to solve: 수동과 자동 독촉이 현재 같은 대상 검증을 사용하지만 `REQUESTED`에서 대상 의미가 서로 다르며, 0원으로 제출하면 Share가 생기지 않는다.
+- Selected approach: 수동 대상 검증과 기존 Share 기반 자동 대상 검증을 명시적으로 분리하고, 기존 `SettlementItemSubmission`을 수동 미제출 판정의 기준으로 사용한다.
 - Reason for selection: 수동은 미선택자, 자동은 Share 확정자를 대상으로 하면서 기존 자동 독촉을 회귀 없이 보존한다.
-- Alternatives considered: 공통 검증을 단순 완화하면 자동 독촉이 Share 없는 대상을 처리하며 NPE가 발생하거나, 이미 선택한 참여자에게 잘못된 품목 선택 문구를 보낼 수 있다.
+- Alternatives considered: Share 존재 여부만 사용하면 0원 제출 완료자를 미제출자로 오판한다. 공통 검증을 단순 완화하면 자동 독촉이 Share 없는 대상을 처리하며 NPE가 발생할 수 있다.
 - Trade-offs and limits: 기존 오류 코드 이름과 HTTP 상태는 호환성을 위해 유지하고 메시지만 두 단계에 맞게 넓힌다.
 
 ## 6. Impact surface
@@ -149,7 +150,7 @@ Errors: 기존 코드 유지, 허용 상태와 오류 설명만 현행화
 | Area | Impact | Verified file or contract |
 |---|---|---|
 | API | 경로·응답 무변경, Swagger 허용 상태 설명 수정 | `SettlementReminderDocs` |
-| Application | 수동 상태·대상 검증, 문구 분기, 상세 쿨다운 복원 | `SettlementReminderPolicy`, `SettlementReminderWriter`, `SettlementDetailService` |
+| Application | 제출 기록 기반 수동 대상 검증, 문구 분기, 상세 쿨다운 복원 | `SettlementReminderPolicy`, `SettlementReminderWriter`, `SettlementDetailService` |
 | Domain | 오류 메시지 설명 현행화 | `SettlementStatusCode` |
 | Persistence | 변경 없음 | 기존 Load Ports·알림 저장 |
 | Redis | 변경 없음 | 기존 30분 cooldown |
@@ -185,6 +186,9 @@ test(settlement): 품목 선택 대기 독촉 회귀 검증
 feat(settlement): 품목 선택 독촉 쿨다운 상세 복원
 test(settlement): 품목 선택 독촉 쿨다운 복원 검증
 docs(settlement): 품목 선택 대기 독촉 완료 기록
+fix(settlement): 제출 완료 참여자 독촉 대상 제외
+test(settlement): 제출 완료자 독촉 제외 검증
+docs(settlement): 제출 기록 기반 독촉 대상 완료 기록 보정
 ```
 
 ## 8. Verification
@@ -227,8 +231,9 @@ git status --short --untracked-files=all
 |---|---|---|
 | 설계 및 migration gate | Pass | 스키마·Redis·응답 변경 없음 확인 |
 | 컴파일 | Pass | `./gradlew compileJava` |
-| 관련 단위·통합 테스트 | Pass | Java 106건, JavaScript 35건, 실패·건너뜀 0 |
-| 품목 미선택 알림 저장 | Pass | 실제 PostgreSQL에서 Share 없는 `REQUESTED` 알림 문구·배분 유형·Redis 쿨다운 확인 |
+| 관련 단위·통합 테스트 | Pass | Java 112건, JavaScript 35건, 실패·건너뜀 0 |
+| 품목 미선택 알림 저장 | Pass | 실제 PostgreSQL에서 제출·Share 없는 `REQUESTED` 알림 문구·배분 유형·Redis 쿨다운 확인 |
+| 제출 완료자 제외 | Pass | Share 없는 0원 제출 완료자가 단건 독촉과 상세 쿨다운 후보에서 제외됨 |
 | 기존 자동 독촉 회귀 | Pass | `REQUESTED`에서 Share가 있는 자동 독촉은 기존 24시간 문구 유지 |
 | 상세 쿨다운 복원 | Pass | `REQUESTED`의 연결 `NOT_READY` 참여자만 Redis TTL 후보로 조회 |
 | 정적 검사 | Pass | `git diff --check`, 변경 문서 경로와 Git 상태 확인 |
@@ -239,19 +244,20 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-09-14 | 호출 흐름·기존 PR·상태별 Share 생성 시점 분석, migration 불필요 결정 | Policy와 Writer 구현 | 수동과 자동의 `REQUESTED` 대상 의미가 달라 검증 분리 필요 |
 | 2026-09-14 | 수동 대상 검증·문구 분리, 단건·일괄·DB 저장 회귀 검증 | 상세 쿨다운 복원 확인 | 상세 조회가 기존 `AWAITING_DEPOSIT`만 후보로 계산하는 누락 발견 |
-| 2026-09-14 | `REQUESTED + NOT_READY` 상세 쿨다운 복원과 관련 Java 106건·JavaScript 35건 검증 | PR 리뷰 | 실제 Firebase 기기 수신은 외부 자격 증명 없이 미검증 |
+| 2026-09-14 | `REQUESTED + NOT_READY` 상세 쿨다운 복원과 관련 Java 106건·JavaScript 35건 검증 | 제출 모델 재검토 | Share 없이 0원 제출 가능한 경계 발견 |
+| 2026-09-14 | 최신 `origin/develop`에 재배치하고 기존 제출 Port로 0원 제출 완료자를 제외해 관련 Java 112건·JavaScript 35건 재검증 | PR 리뷰 | 실제 Firebase 기기 수신은 외부 자격 증명 없이 미검증 |
 
 ## 10. Decision log
 
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
-| 2026-09-14 | `REQUESTED + Share 없음`을 수동 품목 선택 독촉 대상으로 정의 | Share는 해당 참여자의 품목 제출 뒤 생성됨 | 별도 제출 조회 Port 없이 기존 사실로 정확히 판별 |
+| 2026-09-14 | `REQUESTED + 제출 기록 없음 + Share 없음`을 수동 품목 선택 독촉 대상으로 정의 | 0원 제출은 Share를 만들지 않으므로 기존 `SettlementItemSubmission`이 정확한 완료 사실임 | 기존 Port를 재사용하며 별도 조회 계약은 만들지 않음 |
 | 2026-09-14 | 자동 독촉 대상 검증은 기존 Share 기반 규칙을 유지 | 자동 독촉은 확정 Share의 24시간 경과를 기준으로 함 | 수동 검증과 무조건 공유하면 기존 자동 동작이 깨짐 |
 
 ## 11. Completion record
 
 - Completed on: 2026-09-14
-- Final behavior: 생성자는 `REQUESTED` 품목별 정산에서 Share가 없는 활성 연결 참여자에게 단건·일괄 수동 독촉을 보낼 수 있다. 알림은 요청자 이름과 품목 선택 안내를 저장하고 기존 30분 쿨다운을 응답과 상세 재조회에서 복원한다. `AWAITING_DEPOSIT` 수동 독촉과 Share 기반 자동 독촉은 기존 동작을 유지한다.
+- Final behavior: 생성자는 `REQUESTED` 품목별 정산에서 제출 기록과 Share가 없는 활성 연결 참여자에게 단건·일괄 수동 독촉을 보낼 수 있다. 알림은 요청자 이름과 품목 선택 안내를 저장하고 기존 30분 쿨다운을 응답과 상세 재조회에서 복원한다. 0원 제출 완료자는 제외하며 `AWAITING_DEPOSIT` 수동 독촉과 Share 기반 자동 독촉은 기존 동작을 유지한다.
 - Unverified items: 실제 Firebase 자격 증명과 기기를 이용한 푸시 수신·클라이언트 이동은 실행하지 않았다. 서버 알림함·Outbox 저장과 Firebase Adapter 단위 계약까지 검증했다.
 - Remaining risks: 없음.
 - Follow-up work: 품목 미선택 자동 독촉이 필요하면 Share 생성 시각 대신 제출 대기 시작 시각과 중복 정책을 별도 이슈에서 정의한다.
