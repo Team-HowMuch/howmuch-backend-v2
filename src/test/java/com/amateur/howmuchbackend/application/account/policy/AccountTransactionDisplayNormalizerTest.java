@@ -46,6 +46,40 @@ class AccountTransactionDisplayNormalizerTest {
         assertThat(display.kind()).isEqualTo(AccountTransactionResult.Display.Kind.TRANSFER);
     }
 
+    @Test
+    @DisplayName("농협은 분리된 거래기록사항 필드를 제목으로 우선 사용한다")
+    void prefersNhDescriptionField() {
+        var display = normalizer.normalize(
+                "0011",
+                "실시간이체 [상대방명](카카오 농협 [계좌식별자]",
+                AccountTransactionType.EXPENSE,
+                "거래기록사항",
+                "실시간이체",
+                "[상대방명](카카오",
+                "농협 [계좌식별자]"
+        );
+
+        assertThat(display.title()).isEqualTo("[상대방명](카카오");
+        assertThat(display.kind()).isEqualTo(AccountTransactionResult.Display.Kind.TRANSFER);
+    }
+
+    @Test
+    @DisplayName("대구은행은 분리된 비고 필드를 제목으로 우선 사용한다")
+    void prefersDgbMemoField() {
+        var display = normalizer.normalize(
+                "0031",
+                "이체 [가맹점명] 대구은행",
+                AccountTransactionType.EXPENSE,
+                null,
+                "이체",
+                "[가맹점명]",
+                "대구은행"
+        );
+
+        assertThat(display.title()).isEqualTo("[가맹점명]");
+        assertThat(display.kind()).isEqualTo(AccountTransactionResult.Display.Kind.TRANSFER);
+    }
+
     @ParameterizedTest
     @CsvSource({
             "0020, ATM 출금 우리은행 1234, ATM",
