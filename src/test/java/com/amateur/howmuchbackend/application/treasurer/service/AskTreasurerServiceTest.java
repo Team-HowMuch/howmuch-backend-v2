@@ -259,6 +259,84 @@ class AskTreasurerServiceTest {
     }
 
     @Test
+    void doesNotNarrowByGenericWordLeftAfterStrippingSuffix() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "제주도 여행 모임",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        99_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("모임 정산 얼마 보내야 해?"));
+
+        // "모임 정산"은 모임 이름이 아니라 일반어다. 뗀 형태 "모임"으로 좁히면
+        // 회식 정산이 빠진 채 99,000원이라고 단정하게 된다.
+        assertThat(result.items()).hasSize(2);
+        assertThat(result.answer()).contains("111,000원");
+        assertThat(result.scope()).doesNotContain("'모임'");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void doesNotLetLlmPhraseStatusAnswerWhenTitleWasDropped() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임 정산 상태 알려줘"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
+        assertThat(result.scope()).contains("찾지 못해");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void doesNotLetLlmPhraseDueAnswerWhenTitleWasDropped() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 25, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 주 여행 모임 마감 알려줘"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.DUE_SETTLEMENTS);
+        assertThat(result.scope()).contains("찾지 못해");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
     void keepsAnswerTruthfulWhenUserHasNoSettlementAtAll() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         AskTreasurerService service = service();
