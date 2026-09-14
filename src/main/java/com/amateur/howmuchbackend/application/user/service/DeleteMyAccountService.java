@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.application.port.in.user.DeleteMyAccountUseCas
 import com.amateur.howmuchbackend.application.port.in.user.command.DeleteMyAccountCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadUserSettlementStatePort;
@@ -16,7 +17,9 @@ import com.amateur.howmuchbackend.application.port.out.user.UserPushTargetStoreP
 import com.amateur.howmuchbackend.application.user.policy.UserDeletionPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
+import com.amateur.howmuchbackend.domain.group.Group;
 import com.amateur.howmuchbackend.domain.group.GroupMember;
+import com.amateur.howmuchbackend.domain.group.GroupStatus;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +40,7 @@ public class DeleteMyAccountService implements DeleteMyAccountUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadUserPort loadUserPort;
     private final SaveUserPort saveUserPort;
+    private final LoadGroupPort loadGroupPort;
     private final LoadGroupMemberPort loadGroupMemberPort;
     private final SaveGroupMemberPort saveGroupMemberPort;
     private final LoadUserSettlementStatePort loadUserSettlementStatePort;
@@ -60,7 +64,7 @@ public class DeleteMyAccountService implements DeleteMyAccountUseCase {
             throw ApplicationException.of(UserStatusCode.USER_DELETION_PIN_MISMATCH);
         }
 
-        var activeMembers = loadGroupMemberPort.findActiveByUserId(user.id());
+        var activeMembers = lockActiveGroupMembers(user.id());
         UserDeletionPolicy.Decision decision = userDeletionPolicy.evaluate(
                 new UserDeletionPolicy.Facts(
                         activeMembers.stream().anyMatch(GroupMember::isOwner),
@@ -86,6 +90,21 @@ public class DeleteMyAccountService implements DeleteMyAccountUseCase {
         userPushTargetStorePort.clear(user.id(), now);
         authSessionPort.deleteByUserId(user.id());
         scheduleAvatarCleanup(previousAvatarFileName);
+    }
+
+    private java.util.List<GroupMember> lockActiveGroupMembers(Long userId) {
+        var candidateMembers = loadGroupMemberPort.findActiveByUserId(userId);
+        return candidateMembers.stream()
+                .map(GroupMember::groupId)
+                .distinct()
+                .sorted()
+                .map(groupId -> loadGroupPort.findByIdForUpdate(groupId)
+                        .filter(group -> group.status() == GroupStatus.ACTIVE)
+                        .flatMap(group -> loadGroupMemberPort.findByGroupIdAndUserIdForUpdate(groupId, userId))
+                        .filter(GroupMember::isActive)
+                        .orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 
     private void validatePin(String pin) {
