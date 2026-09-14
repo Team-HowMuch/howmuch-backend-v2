@@ -197,6 +197,58 @@ class AskTreasurerServiceTest {
     }
 
     @Test
+    void answersFromAllSettlementsWhenTitleMatchesNothing() {
+        UUID dinnerId = UUID.fromString("22222222-2222-2222-2222-222222222233");
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        dinnerId,
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        when(generateTreasurerAnswerPort.generate(any()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
+                        .fallbackAnswer()));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(result.items()).extracting(item -> item.settlementId()).containsExactly(dinnerId);
+        assertThat(result.scope()).contains("찾지 못해");
+        assertThat(result.answer()).doesNotContain("보낼 정산은 없어요");
+    }
+
+    @Test
+    void keepsTitleFilterWhenTitleExistsOutsideRequestedPeriod() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "여행 모임",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 7, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        when(generateTreasurerAnswerPort.generate(any()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
+                        .fallbackAnswer()));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.scope()).contains("여행모임").contains("찾았어요");
+        assertThat(result.scope()).doesNotContain("찾지 못해");
+    }
+
+    @Test
     void excludesDraftFromReceiveAnswers() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
