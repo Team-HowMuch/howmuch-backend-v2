@@ -1,6 +1,6 @@
 # Feature Plan: 품목 선택 대기 정산 독촉
 
-- Status: Draft
+- Status: Completed
 - Last updated: 2026-09-14
 - Related issue: [#374](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/374)
 - Related ADR: N/A
@@ -17,10 +17,10 @@
 
 ### Success criteria
 
-- [ ] 생성자가 `REQUESTED` 품목별 정산에서 Share가 없는 연결 회원 참여자에게 수동 독촉할 수 있다.
-- [ ] 품목 미선택 독촉은 `<요청자>님이 정산 품목 선택을 기다리고 있어요` 문구를 저장한다.
-- [ ] 이미 품목을 제출해 Share가 생긴 참여자는 `REQUESTED` 수동 독촉 대상에서 제외한다.
-- [ ] 기존 `AWAITING_DEPOSIT` 미납 독촉 문구·쿨다운과 자동 독촉 동작을 유지한다.
+- [x] 생성자가 `REQUESTED` 품목별 정산에서 Share가 없는 연결 회원 참여자에게 수동 독촉할 수 있다.
+- [x] 품목 미선택 독촉은 `<요청자>님이 정산 품목 선택을 기다리고 있어요` 문구를 저장한다.
+- [x] 이미 품목을 제출해 Share가 생긴 참여자는 `REQUESTED` 수동 독촉 대상에서 제외한다.
+- [x] 기존 `AWAITING_DEPOSIT` 미납 독촉 문구·쿨다운과 자동 독촉 동작을 유지한다.
 
 ### Out of scope
 
@@ -149,7 +149,7 @@ Errors: 기존 코드 유지, 허용 상태와 오류 설명만 현행화
 | Area | Impact | Verified file or contract |
 |---|---|---|
 | API | 경로·응답 무변경, Swagger 허용 상태 설명 수정 | `SettlementReminderDocs` |
-| Application | 수동 상태·대상 검증과 문구 분기 | `SettlementReminderPolicy`, `SettlementReminderWriter` |
+| Application | 수동 상태·대상 검증, 문구 분기, 상세 쿨다운 복원 | `SettlementReminderPolicy`, `SettlementReminderWriter`, `SettlementDetailService` |
 | Domain | 오류 메시지 설명 현행화 | `SettlementStatusCode` |
 | Persistence | 변경 없음 | 기존 Load Ports·알림 저장 |
 | Redis | 변경 없음 | 기존 30분 cooldown |
@@ -169,12 +169,12 @@ Existing behavior that must remain unchanged:
 - [x] UseCase and Application Command/Result (`N/A`: 기존 계약 재사용)
 - [x] Required Output Ports (`N/A`: 기존 Port 재사용)
 - [x] Domain models and rules (`N/A`: 모델 변경 없음)
-- [ ] Application Policies
-- [ ] Application Service
+- [x] Application Policies
+- [x] Application Service
 - [x] Output Adapters (`N/A`: 기존 Adapter 재사용)
-- [ ] Web Request/Response DTOs, Controllers, and Swagger (`DTO/Controller N/A`, Swagger 설명 수정)
+- [x] Web Request/Response DTOs, Controllers, and Swagger (`DTO/Controller N/A`, Swagger 설명 수정)
 - [x] Infra configuration and Bean wiring (`N/A`: 변경 없음)
-- [ ] Documentation and verification results
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -182,6 +182,8 @@ Existing behavior that must remain unchanged:
 docs(settlement): 품목 선택 대기 독촉 설계 기록
 feat(settlement): 품목 선택 대기 참여자 독촉 허용
 test(settlement): 품목 선택 대기 독촉 회귀 검증
+feat(settlement): 품목 선택 독촉 쿨다운 상세 복원
+test(settlement): 품목 선택 독촉 쿨다운 복원 검증
 docs(settlement): 품목 선택 대기 독촉 완료 기록
 ```
 
@@ -191,7 +193,21 @@ docs(settlement): 품목 선택 대기 독촉 완료 기록
 
 ```bash
 ./gradlew compileJava
-./gradlew test --tests '*SettlementReminderServiceTest' --tests '*NotificationInboxIntegrationTest'
+DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test \
+  DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test \
+  REDIS_HOST=127.0.0.1 REDIS_PORT=16379 \
+  bash scripts/test.sh test \
+  --tests '*SettlementReminder*' \
+  --tests '*NotificationInboxIntegrationTest' \
+  --tests '*SettlementNotificationOutboxWorkerTest' \
+  --tests '*FirebaseSettlementPushSenderAdapterTest'
+DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test \
+  DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test \
+  REDIS_HOST=127.0.0.1 REDIS_PORT=16379 \
+  bash scripts/test.sh test \
+  --tests '*SettlementOpenApiIntegrationTest' \
+  --tests '*SettlementControllerTest'
+./gradlew test --tests '*SettlementDetailServiceTest'
 git diff --check
 git status --short --untracked-files=all
 ```
@@ -200,25 +216,30 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] Verified the user outcome defined under Purpose.
-- [ ] Verified normal, failure, and boundary flows.
-- [ ] Confirmed documentation and Swagger match the actual contract.
-- [ ] Recorded verification that could not be performed and why.
+- [x] Verified the user outcome defined under Purpose.
+- [x] Verified normal, failure, and boundary flows.
+- [x] Confirmed documentation and Swagger match the actual contract.
+- [x] Recorded verification that could not be performed and why.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
 | 설계 및 migration gate | Pass | 스키마·Redis·응답 변경 없음 확인 |
-| 컴파일 | Pending |  |
-| 관련 단위·통합 테스트 | Pending |  |
-| 정적 검사 | Pending |  |
+| 컴파일 | Pass | `./gradlew compileJava` |
+| 관련 단위·통합 테스트 | Pass | Java 106건, JavaScript 35건, 실패·건너뜀 0 |
+| 품목 미선택 알림 저장 | Pass | 실제 PostgreSQL에서 Share 없는 `REQUESTED` 알림 문구·배분 유형·Redis 쿨다운 확인 |
+| 기존 자동 독촉 회귀 | Pass | `REQUESTED`에서 Share가 있는 자동 독촉은 기존 24시간 문구 유지 |
+| 상세 쿨다운 복원 | Pass | `REQUESTED`의 연결 `NOT_READY` 참여자만 Redis TTL 후보로 조회 |
+| 정적 검사 | Pass | `git diff --check`, 변경 문서 경로와 Git 상태 확인 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-09-14 | 호출 흐름·기존 PR·상태별 Share 생성 시점 분석, migration 불필요 결정 | Policy와 Writer 구현 | 수동과 자동의 `REQUESTED` 대상 의미가 달라 검증 분리 필요 |
+| 2026-09-14 | 수동 대상 검증·문구 분리, 단건·일괄·DB 저장 회귀 검증 | 상세 쿨다운 복원 확인 | 상세 조회가 기존 `AWAITING_DEPOSIT`만 후보로 계산하는 누락 발견 |
+| 2026-09-14 | `REQUESTED + NOT_READY` 상세 쿨다운 복원과 관련 Java 106건·JavaScript 35건 검증 | PR 리뷰 | 실제 Firebase 기기 수신은 외부 자격 증명 없이 미검증 |
 
 ## 10. Decision log
 
@@ -229,8 +250,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- Completed on: 2026-09-14
+- Final behavior: 생성자는 `REQUESTED` 품목별 정산에서 Share가 없는 활성 연결 참여자에게 단건·일괄 수동 독촉을 보낼 수 있다. 알림은 요청자 이름과 품목 선택 안내를 저장하고 기존 30분 쿨다운을 응답과 상세 재조회에서 복원한다. `AWAITING_DEPOSIT` 수동 독촉과 Share 기반 자동 독촉은 기존 동작을 유지한다.
+- Unverified items: 실제 Firebase 자격 증명과 기기를 이용한 푸시 수신·클라이언트 이동은 실행하지 않았다. 서버 알림함·Outbox 저장과 Firebase Adapter 단위 계약까지 검증했다.
+- Remaining risks: 없음.
+- Follow-up work: 품목 미선택 자동 독촉이 필요하면 Share 생성 시각 대신 제출 대기 시작 시각과 중복 정책을 별도 이슈에서 정의한다.
