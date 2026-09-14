@@ -95,7 +95,7 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
     public LinkedAccountsResult link(LinkBankAccountsCommand command) {
         bankCatalog.validate(command.organization());
         CurrentActor actor = currentActorPort.getCurrentActor();
-        User user = loadUser(actor.userId());
+        User user = loadUserForUpdate(actor.userId());
         connectionStorePort.validateStorageConfiguration();
         ExternalConnection connection = connectionStorePort.findActiveByIdAndUserId(
                         command.connectionId(), actor.userId()
@@ -153,13 +153,9 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
         return new LinkedAccountsResult(linked);
     }
 
-    private User loadUser(Long userId) {
-        return loadUserPort.findById(userId)
-                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
-    }
-
     private User loadUserForUpdate(Long userId) {
         return loadUserPort.findByIdForUpdate(userId)
+                .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
     }
 

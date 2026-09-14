@@ -101,7 +101,7 @@ class SettlementServiceTest {
     @DisplayName("요청 본문으로 생성자를 위조할 수 없도록 현재 로그인 사용자를 생성자로 사용한다")
     void createsSettlementForCurrentActor() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator()));
+        when(loadUserPort.findByIdForUpdate(CREATOR_ID)).thenReturn(Optional.of(creator()));
         when(saveSettlementPort.save(any(Settlement.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(saveSettlementParticipantPort.save(any(SettlementParticipant.class)))
@@ -128,7 +128,7 @@ class SettlementServiceTest {
     @DisplayName("현재 사용자를 찾을 수 없으면 참여자 없는 정산을 만들지 않는다")
     void rejectsCreationForMissingCurrentUser() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.empty());
+        when(loadUserPort.findByIdForUpdate(CREATOR_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> settlementService.create(
                 new CreateSettlementCommand("회식 정산", 10_000)

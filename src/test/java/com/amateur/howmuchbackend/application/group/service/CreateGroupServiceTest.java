@@ -66,7 +66,7 @@ class CreateGroupServiceTest {
                 new GroupResultAssembler(groupInviteLinkPort)
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
-        when(loadUserPort.findById(USER_ID)).thenReturn(Optional.of(user()));
+        when(loadUserPort.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user()));
         when(groupInviteCodePolicy.generate()).thenReturn("AB12CD34");
         when(loadGroupPort.existsByInviteCode("AB12CD34")).thenReturn(false);
         when(saveGroupPort.save(any(Group.class)))

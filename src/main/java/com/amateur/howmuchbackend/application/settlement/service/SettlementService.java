@@ -55,7 +55,8 @@ public class SettlementService implements
     @Transactional
     public SettlementResult create(CreateSettlementCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
-        User creator = loadUserPort.findById(actor.userId())
+        User creator = loadUserPort.findByIdForUpdate(actor.userId())
+                .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         Settlement settlement = Settlement.draft(

@@ -76,6 +76,7 @@
 ### Boundary conditions
 
 - 동시 탈퇴는 `findByIdForUpdate`로 같은 사용자 행을 직렬화하고, 활성 그룹을 ID 오름차순으로 잠근 뒤 멤버 행을 다시 `FOR UPDATE`로 읽어 OWNER 여부를 재평가한다. 성공 직후 세션을 삭제하므로 기존 액세스 토큰의 재호출은 인증 단계에서 거부되고, 서비스가 다시 호출되는 경계에서는 `USER_NOT_FOUND`가 된다.
+- 탈퇴 직전에 JWT 인증을 통과한 요청도 사용자 행 잠금 획득 후 `User::active`를 재확인한다. 프로필·푸시 등록·계좌/계좌 설정·그룹 생성/가입·정산 생성 및 계좌 삭제/은행 연동은 비활성 사용자이면 외부 저장·생성 작업을 시작하지 않는다. 사용자 잠금은 탈퇴 흐름과 같은 순서로 먼저 획득해 커밋 이후의 stale write를 차단한다.
 - 같은 전화번호 재가입은 탈퇴 시 unique 필드를 `deleted-<id>`/`deleted:<id>`/`del_<id>`로 치환해 즉시 허용한다.
 - 프로필 이미지 파일 삭제는 DB 커밋 후 수행하며 실패해도 이미 익명화된 사용자 레코드를 되돌리지 않는다.
 
@@ -175,6 +176,7 @@ Existing behavior that must remain unchanged:
 - [x] Domain models and rules
 - [x] Application Policies
 - [x] Application Service
+- [x] 탈퇴 경합 시 stale write 활성 상태 재검증
 - [x] Output Adapters
 - [x] Web Request/Response DTOs, Controllers, and Swagger
 - [x] Infra configuration and Bean wiring (`N/A`)
@@ -186,6 +188,7 @@ Existing behavior that must remain unchanged:
 docs(user): 회원 탈퇴 보존·파기 정책 기록
 feat(user): 회원 탈퇴 API 추가
 test(user): 회원 탈퇴 차단·익명화 검증 추가
+fix(user): 탈퇴 후 진행 요청의 활성 상태 재검증
 ```
 
 ## 8. Verification
@@ -217,6 +220,7 @@ git status --short --untracked-files=all
 | 테스트 소스 컴파일 | Pass | `./gradlew compileTestJava` (`BUILD SUCCESSFUL`) |
 | 기존 사용자 Web 계약 테스트 | Pass | `./gradlew test --tests 'com.amateur.howmuchbackend.adapter.in.web.user.UserControllerTest'` |
 | 신규 탈퇴 단위 테스트 | Not added | 현재 레포 지침의 신규 테스트 생성 금지에 따름 |
+| 탈퇴 후 stale write 회귀 범위 | Pass | 관련 프로필·푸시·그룹·정산·계좌 서비스 테스트 실행 (`BUILD SUCCESSFUL`) |
 | 전체 테스트 | Not run | PostgreSQL/Redis 전제와 현재 작업 범위상 미실행 |
 | 정적 검사 | Pass | `git diff --check` |
 

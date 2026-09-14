@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.user.service;
 
 import com.amateur.howmuchbackend.application.port.in.user.ManageMyPushTargetUseCase;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.UserPushTargetStorePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
@@ -18,6 +19,7 @@ import java.time.ZoneOffset;
 @RequiredArgsConstructor
 public class ManageMyPushTargetService implements ManageMyPushTargetUseCase {
     private final CurrentActorPort currentActorPort;
+    private final LoadUserPort loadUserPort;
     private final UserPushTargetStorePort pushTargetStorePort;
 
     @Override
@@ -31,6 +33,9 @@ public class ManageMyPushTargetService implements ManageMyPushTargetUseCase {
             );
         }
         Long userId = currentActorPort.getCurrentActor().userId();
+        loadUserPort.findByIdForUpdate(userId)
+                .filter(User::active)
+                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
         if (!pushTargetStorePort.claim(
                 userId,
                 normalized,

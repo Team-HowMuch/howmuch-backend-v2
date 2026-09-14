@@ -7,10 +7,12 @@ import com.amateur.howmuchbackend.application.port.in.account.command.UpdateAcco
 import com.amateur.howmuchbackend.application.port.out.account.AccountPreferenceStorePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountType;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -30,8 +32,10 @@ class AccountPreferenceServiceTest {
     private static final Long USER_ID = 1L;
 
     @Mock private CurrentActorPort currentActorPort;
+    @Mock private LoadUserPort loadUserPort;
     @Mock private LoadAccountPort loadAccountPort;
     @Mock private AccountPreferenceStorePort accountPreferenceStorePort;
+    @Mock private User user;
 
     @Test
     void setsOwnedActiveAccountAsDefault() {
@@ -167,12 +171,15 @@ class AccountPreferenceServiceTest {
 
     private void givenAccounts(Account... accounts) {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(user.active()).thenReturn(true);
+        when(loadUserPort.findByIdForUpdate(USER_ID)).thenReturn(java.util.Optional.of(user));
         when(loadAccountPort.findActiveByUserIdForUpdate(USER_ID)).thenReturn(List.of(accounts));
     }
 
     private AccountPreferenceService service() {
         return new AccountPreferenceService(
                 currentActorPort,
+                loadUserPort,
                 loadAccountPort,
                 accountPreferenceStorePort,
                 new AccountDisplayOrderPolicy()

@@ -6,11 +6,13 @@ import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReceivingAccountUsagePort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountType;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
+import com.amateur.howmuchbackend.domain.user.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,10 +37,12 @@ class AccountDeletionServiceTest {
     private static final Long CONNECTION_ID = 7L;
 
     @Mock private CurrentActorPort currentActorPort;
+    @Mock private LoadUserPort loadUserPort;
     @Mock private LoadAccountPort loadAccountPort;
     @Mock private DeleteAccountPort deleteAccountPort;
     @Mock private ExternalConnectionStorePort connectionStorePort;
     @Mock private SettlementReceivingAccountUsagePort settlementUsagePort;
+    @Mock private User user;
 
     @Test
     @DisplayName("기본 계좌를 삭제하면 정산 참조를 분리하고 다음 계좌를 기본으로 승격한다")
@@ -75,6 +79,8 @@ class AccountDeletionServiceTest {
     @DisplayName("타인 또는 삭제된 계좌는 연결 잠금 전에 404로 거부한다")
     void rejectsUnknownAccount() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(user.active()).thenReturn(true);
+        when(loadUserPort.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
         when(loadAccountPort.findActiveByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service().delete(99L))
@@ -98,6 +104,8 @@ class AccountDeletionServiceTest {
 
     private void givenOwnedLockedAccount(Account account) {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(user.active()).thenReturn(true);
+        when(loadUserPort.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
         when(connectionStorePort.findActiveByIdAndUserId(CONNECTION_ID, USER_ID))
                 .thenReturn(Optional.of(new ExternalConnection(CONNECTION_ID, USER_ID, "CID-1")));
@@ -108,6 +116,7 @@ class AccountDeletionServiceTest {
     private AccountDeletionService service() {
         return new AccountDeletionService(
                 currentActorPort,
+                loadUserPort,
                 loadAccountPort,
                 deleteAccountPort,
                 connectionStorePort,
