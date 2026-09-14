@@ -1,6 +1,6 @@
 # Feature Plan: 품목 정산 선택 대기 중 미수금 계산
 
-- Status: In progress
+- Status: Completed
 - Last updated: 2026-09-14
 - Related issue: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/373
 - Related ADR: N/A
@@ -21,12 +21,12 @@
 
 ### Success criteria
 
-- [ ] `ITEM_ALLOCATION` 정산이 `REQUESTED`이면 Share가 없어도 `expectedAmount`와
+- [x] `ITEM_ALLOCATION` 정산이 `REQUESTED`이면 Share가 없어도 `expectedAmount`와
   `unpaidAmount`가 정산 총액을 기준으로 계산된다.
-- [ ] 일부 Share의 입금이 확인된 경우 `unpaidAmount`는 정산 총액에서 확인 입금액을 뺀 값이다.
-- [ ] Share가 없는 참여자 행은 금액을 추측하지 않고 `expectedAmount = null`,
+- [x] 일부 Share의 입금이 확인된 경우 `unpaidAmount`는 정산 총액에서 확인 입금액을 뺀 값이다.
+- [x] Share가 없는 참여자 행은 금액을 추측하지 않고 `expectedAmount = null`,
   `paymentStatus = NOT_READY`를 유지한다.
-- [ ] 더치페이와 품목 선택 종료 후의 요약은 기존처럼 납부 대상 Share 합계를 기준으로 계산한다.
+- [x] 더치페이와 품목 선택 종료 후의 요약은 기존처럼 납부 대상 Share 합계를 기준으로 계산한다.
 
 ### Out of scope
 
@@ -182,11 +182,11 @@ Existing behavior that must remain unchanged:
 - [x] Required Output Ports (`N/A` — 기존 Port 재사용)
 - [x] Domain models and rules (`N/A` — 변경 없음)
 - [x] Application Policies (`N/A`)
-- [ ] Application Service
+- [x] Application Service
 - [x] Output Adapters (`N/A`)
 - [x] Web Request/Response DTOs, Controllers, and Swagger (`N/A` — 구조 변경 없음)
 - [x] Infra configuration and Bean wiring (`N/A`)
-- [ ] Documentation and verification results
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -203,34 +203,48 @@ docs(settlement): 품목 정산 미수금 수정 결과 기록
 ```bash
 ./gradlew test --tests 'com.amateur.howmuchbackend.application.settlement.service.SettlementDetailServiceTest'
 ./gradlew compileJava
+DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test \
+DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test \
+REDIS_HOST=127.0.0.1 REDIS_PORT=16379 bash scripts/test.sh
 git diff --check
 git status --short --untracked-files=all
 ```
 
 ### Completion criteria
 
-- [ ] Share가 전혀 없는 `REQUESTED` 품목 정산의 총 미수금을 검증한다.
-- [ ] 일부 Share·입금만 있는 `REQUESTED` 품목 정산의 총 미수금을 검증한다.
-- [ ] 참여자별 미확정 금액과 기존 더치페이 계산이 유지되는지 검증한다.
-- [ ] 문서와 실제 계산이 일치하는지 확인한다.
+- [x] Share가 전혀 없는 `REQUESTED` 품목 정산의 총 미수금을 검증한다.
+- [x] 일부 Share·입금만 있는 `REQUESTED` 품목 정산의 총 미수금을 검증한다.
+- [x] 참여자별 미확정 금액과 기존 더치페이 계산이 유지되는지 검증한다.
+- [x] 문서와 실제 계산이 일치하는지 확인한다.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
 | 변경 전 집중 테스트 | Passed | 기존 `SettlementDetailServiceTest` |
-| 변경 후 집중 테스트 | Pending |  |
-| 컴파일 | Pending |  |
-| 저장소 검사 | Pending |  |
+| 변경 후 집중 테스트 | Passed | `SettlementDetailServiceTest` |
+| 전체 회귀 테스트 | Passed | Java 1,138건, JavaScript 35건, 실패 0 |
+| 컴파일 | Passed | `./gradlew compileJava --console=plain` |
+| 저장소 검사 | Passed | `git diff --check`, `git status --short --untracked-files=all` |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-09-14 | 이슈와 상세 계산 흐름 분석, Flyway 불필요 확인 | 회귀 테스트와 계산 수정 | 참여자별 미확정 금액은 계속 nullable이어야 한다. |
+| 2026-09-14 | 계산 수정, 집중·전체 회귀 검증 완료 | PR 게시 | API 구조·DB·외부 연동 변경 없음 |
 
 ## 10. Decision log
 
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
 | 2026-09-14 | 선택 대기 중인 품목 정산만 총액을 요약 분모로 사용 | Share 합계가 아직 전체 금액을 표현할 수 없다 | 다른 상태·배분 유형은 기존 Share 합계를 유지 |
+
+## 11. Completion record
+
+- Completed on: 2026-09-14
+- Final behavior: `REQUESTED` 품목 정산 상세는 미확정 참여자 몫을 누락하지 않고 정산 총액에서
+  확인 입금액을 뺀 미수금을 반환한다. 참여자별 미확정 금액은 계속 nullable로 반환한다.
+- Unverified items: 없음
+- Remaining risks: 없음
+- Follow-up work: 앱은 `NOT_READY` 또는 nullable `expectedAmount`를 "선택 안 함"으로 표시할 수 있다.
