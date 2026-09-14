@@ -153,6 +153,42 @@ class SettlementDetailServiceTest {
     }
 
     @Test
+    @DisplayName("품목 선택 대기 상세는 Share가 없는 연결 참여자의 다음 독촉 가능 시각을 반환한다")
+    void restoresItemSelectionReminderCooldownForCreator() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+        givenReceivingAccount();
+        LocalDateTime nextAvailableAt = NOW.plusMinutes(30);
+        when(cooldownReader.findLatestNextAvailableAt(
+                eq(SETTLEMENT_ID),
+                eq(List.of(PAYER_PARTICIPANT_ID))
+        )).thenReturn(Optional.of(nextAvailableAt));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.reminderNextAvailableAt()).isEqualTo(nextAvailableAt);
+        assertThat(result.participants()).extracting(
+                SettlementDetailResult.ParticipantPayment::participantId,
+                SettlementDetailResult.ParticipantPayment::paymentStatus
+        ).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(
+                        PAYER_PARTICIPANT_ID,
+                        SettlementDetailResult.PaymentStatus.NOT_READY
+                ),
+                org.assertj.core.groups.Tuple.tuple(
+                        CONTACT_PARTICIPANT_ID,
+                        SettlementDetailResult.PaymentStatus.NOT_READY
+                )
+        );
+    }
+
+    @Test
     @DisplayName("단일 영수증 정산의 총액과 상호명과 결제일을 반환한다")
     void returnsReceiptPaymentInfo() {
         LocalDateTime paidAt = LocalDateTime.of(2026, 8, 25, 19, 30);
