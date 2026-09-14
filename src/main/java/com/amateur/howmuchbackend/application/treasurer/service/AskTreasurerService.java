@@ -59,13 +59,15 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         InquiryPeriod parsedPeriod = parsed.period();
         InquiryPeriod period = parsedPeriod == null ? InquiryPeriod.THIS_MONTH : parsedPeriod;
         Instant now = clock.instant();
-        List<PersonalSettlement> mine = treasurerSettlementQuery.loadMine().stream()
-                .filter(settlement -> matchesTitle(settlement, parsed.titleHint()))
+        List<PersonalSettlement> all = treasurerSettlementQuery.loadMine();
+        String titleHint = verifiedTitleHint(all, parsed.titleHint());
+        List<PersonalSettlement> mine = all.stream()
+                .filter(settlement -> matchesTitle(settlement, titleHint))
                 .toList();
         List<PersonalSettlement> filtered = mine.stream()
                 .filter(settlement -> inRequestedPeriod(settlement, period, now))
                 .toList();
-        String scope = scopeLabel(period, parsed.titleHint());
+        String scope = scopeLabel(period, titleHint, parsed.titleHint());
 
         return switch (parsed.intent()) {
             case SEND_SETTLEMENTS -> answerList(
@@ -356,15 +358,36 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         return title.toLowerCase(Locale.ROOT).contains(titleHint.toLowerCase(Locale.ROOT));
     }
 
-    private String scopeLabel(InquiryPeriod period, String titleHint) {
+    /**
+     * 질문에서 뽑은 제목이 사용자의 정산 중 하나라도 맞을 때만 필터로 쓴다.
+     *
+     * <p>맞는 정산이 없는데 그대로 거르면 결과가 0건이 되고 "그 정산은 없어요" 라는 단정이
+     * 나간다. 실제로는 그 이름의 정산만 없고 다른 정산은 있을 수 있다. 돈에 대한 단정이라
+     * 이름으로 좁히려던 의도를 버리고 전체에서 답한다.
+     *
+     * <p>기간은 보지 않는다. 이름은 맞고 기간만 다른 질문은 기존대로 기간으로 걸러야 한다.
+     */
+    private String verifiedTitleHint(List<PersonalSettlement> all, String titleHint) {
+        if (titleHint == null) {
+            return null;
+        }
+        boolean anyMatch = all.stream().anyMatch(settlement -> matchesTitle(settlement, titleHint));
+        return anyMatch ? titleHint : null;
+    }
+
+    private String scopeLabel(InquiryPeriod period, String appliedTitleHint, String parsedTitleHint) {
         String periodLabel = switch (period) {
             case LAST_MONTH -> "지난달 기준으로 조회했어요.";
             case THIS_WEEK -> "이번 주 기준으로 조회했어요.";
             case THIS_MONTH -> "이번 달 기준으로 조회했어요.";
         };
-        if (titleHint == null) {
-            return periodLabel;
+        if (appliedTitleHint != null) {
+            return periodLabel + " '%s'이(가) 포함된 정산을 찾았어요.".formatted(appliedTitleHint);
         }
-        return periodLabel + " '%s'이(가) 포함된 정산을 찾았어요.".formatted(titleHint);
+        if (parsedTitleHint != null) {
+            return periodLabel + " '%s'이(가) 포함된 정산을 찾지 못해 전체에서 조회했어요."
+                    .formatted(parsedTitleHint);
+        }
+        return periodLabel;
     }
 }
