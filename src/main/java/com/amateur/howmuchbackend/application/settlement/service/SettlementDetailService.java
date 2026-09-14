@@ -123,7 +123,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         participant,
                         shareByParticipantId.get(participant.id()),
                         confirmedByShareId,
-                        avatarVersionsByUserId.get(participant.linkedUserId())
+                        participant.linkedUserId() == null
+                                ? null
+                                : avatarVersionsByUserId.get(participant.linkedUserId())
                 ))
                 .toList();
         UUID viewerParticipantId = viewerRole == SettlementDetailResult.ViewerRole.PARTICIPANT
