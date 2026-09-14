@@ -5,8 +5,11 @@ import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.notification.*;
 import com.amateur.howmuchbackend.application.port.out.settlement.*;
 import com.amateur.howmuchbackend.application.settlement.service.*;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.notification.UserNotification;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
+import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -44,6 +47,7 @@ class NotificationInboxIntegrationTest {
     @Autowired SettlementReminderWriter writer;
     @Autowired LoadSettlementSharePort shareReader;
     @Autowired SaveSettlementSharePort shareStore;
+    @Autowired SettlementItemAllocationStorePort itemAllocations;
     @Autowired SettlementNotificationOutboxWorker worker;
     @Autowired SettlementReminderCooldownPort cooldown;
     @Autowired JdbcTemplate jdbc;
@@ -180,6 +184,40 @@ class NotificationInboxIntegrationTest {
         assertThat(saved).filteredOn(n -> n.type() == com.amateur.howmuchbackend.domain.notification.NotificationType.SETTLEMENT_REMINDER)
                 .extracting(UserNotification::message)
                 .containsExactly("정산을 요청받은지 " + hours + "시간이나 지났어요");
+    }
+
+    @Test
+    void requestedItemAllocationReminderPersistsSelectionMessageWithoutShare() {
+        jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
+        jdbc.update("UPDATE settlements SET allocation_type='ITEM_ALLOCATION', status='REQUESTED' WHERE id=?", settlement);
+
+        writer.manual(settlement, participant, creator);
+
+        assertThat(shareReader.findBySettlementIdAndPayerParticipantId(settlement, participant)).isEmpty();
+        assertThat(notifications.findPage(recipient, null, null, 10))
+                .filteredOn(n -> n.type() == com.amateur.howmuchbackend.domain.notification.NotificationType.SETTLEMENT_REMINDER)
+                .extracting(UserNotification::allocationType, UserNotification::message)
+                .containsExactly(tuple(
+                        SettlementAllocationType.ITEM_ALLOCATION,
+                        "알림 테스트님이 정산 품목 선택을 기다리고 있어요"
+                ));
+        assertThat(cooldown.findRemainingCooldown(settlement, participant)).isPresent();
+    }
+
+    @Test
+    void requestedItemAllocationReminderExcludesSubmittedParticipantWithoutShare() {
+        jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
+        jdbc.update("UPDATE settlements SET allocation_type='ITEM_ALLOCATION', status='REQUESTED' WHERE id=?", settlement);
+        itemAllocations.saveSubmission(SettlementItemSubmission.submit(
+                settlement, participant, NOW.minusMinutes(1)
+        ));
+
+        assertThatThrownBy(() -> writer.manual(settlement, participant, creator))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID));
+        assertThat(notifications.countUnread(recipient)).isZero();
+        assertThat(cooldown.findRemainingCooldown(settlement, participant)).isEmpty();
     }
 
     @Test

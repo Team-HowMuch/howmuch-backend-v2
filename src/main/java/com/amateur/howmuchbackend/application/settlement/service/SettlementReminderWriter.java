@@ -29,6 +29,7 @@ public class SettlementReminderWriter {
     private final LoadSettlementPort settlements;
     private final LoadSettlementParticipantPort participants;
     private final LoadSettlementSharePort shares;
+    private final SettlementItemAllocationStorePort itemAllocations;
     private final LoadSettlementDepositSummaryPort deposits;
     private final LoadUserPort users;
     private final SettlementReminderCooldownPort cooldown;
@@ -42,10 +43,9 @@ public class SettlementReminderWriter {
         Settlement settlement = settlements.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
         policy.validateManual(settlement, actorId);
-        Target target = loadTarget(settlement, participantId);
+        Target target = loadTarget(settlement, participantId, ReminderKind.MANUAL);
         LocalDateTime now = LocalDateTime.now(clock);
-        store(settlement, target, "MANUAL_REMINDER:" + UUID.randomUUID(),
-                reminderMessage(target.share(), now), now);
+        store(settlement, target, ReminderKind.MANUAL, "MANUAL_REMINDER:" + UUID.randomUUID(), now);
         return new SettlementReminderResult(now, now.plus(SettlementReminderPolicy.COOLDOWN));
     }
 
@@ -53,7 +53,7 @@ public class SettlementReminderWriter {
     public boolean automatic(SettlementAutomaticReminderTargetPort.Target candidate) {
         var settlement = settlements.findByIdForUpdate(candidate.settlementId()).orElse(null);
         if (settlement == null) return false;
-        Target target = loadTarget(settlement, candidate.participantId());
+        Target target = loadTarget(settlement, candidate.participantId(), ReminderKind.AUTOMATIC);
         LocalDateTime now = LocalDateTime.now(clock);
         if (!target.share().id().equals(candidate.shareId())
                 || !target.recipient().id().equals(candidate.recipientUserId())
@@ -62,16 +62,20 @@ public class SettlementReminderWriter {
                 || automaticTargets.hasAutomaticReminder(target.share().id(), target.recipient().id())) {
             return false;
         }
-        return store(settlement, target, "AUTO_REMINDER:" + target.share().id(),
-                reminderMessage(target.share(), now), now);
+        return store(settlement, target, ReminderKind.AUTOMATIC,
+                "AUTO_REMINDER:" + target.share().id(), now);
     }
 
-    private String reminderMessage(SettlementShare share, LocalDateTime now) {
+    private String reminderMessage(Settlement settlement, SettlementShare share,
+            ReminderKind kind, String requester, LocalDateTime now) {
+        if (kind == ReminderKind.MANUAL && settlement.status() == SettlementStatus.REQUESTED) {
+            return requester + "님이 정산 품목 선택을 기다리고 있어요";
+        }
         long hours = Duration.between(share.createdAt(), now).toHours();
         return "정산을 요청받은지 " + hours + "시간이나 지났어요";
     }
 
-    private Target loadTarget(Settlement settlement, UUID participantId) {
+    private Target loadTarget(Settlement settlement, UUID participantId, ReminderKind kind) {
         SettlementParticipant participant = participants.findBySettlementIdAndId(settlement.id(), participantId)
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND));
         SettlementShare share = shares.findBySettlementIdAndPayerParticipantId(settlement.id(), participantId)
@@ -79,14 +83,24 @@ public class SettlementReminderWriter {
         long confirmed = share == null ? 0 : deposits.findConfirmedShareAmountsBySettlementId(settlement.id())
                 .stream().filter(amount -> amount.shareId().equals(share.id()))
                 .mapToLong(LoadSettlementDepositSummaryPort.ConfirmedShareAmount::amount).sum();
-        policy.validateTarget(settlement, participant, share, confirmed);
+        if (kind == ReminderKind.MANUAL) {
+            boolean itemSelectionSubmitted = settlement.status() == SettlementStatus.REQUESTED
+                    && itemAllocations.findSubmission(settlement.id(), participantId).isPresent();
+            policy.validateManualTarget(
+                    settlement, participant, share, confirmed, itemSelectionSubmitted
+            );
+        } else {
+            policy.validateAutomaticTarget(settlement, participant, share, confirmed);
+        }
         User recipient = users.findById(participant.linkedUserId()).filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
         return new Target(participant, share, recipient);
     }
 
-    private boolean store(Settlement settlement, Target target, String key, String message, LocalDateTime now) {
+    private boolean store(Settlement settlement, Target target, ReminderKind kind,
+            String key, LocalDateTime now) {
         String requester = users.findById(settlement.creatorId()).map(User::name).orElse("정산 요청자");
+        String message = reminderMessage(settlement, target.share(), kind, requester, now);
         String reservation = UUID.randomUUID().toString();
         if (!cooldown.reserve(settlement.id(), target.participant().id(), reservation, SettlementReminderPolicy.COOLDOWN)) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_REMINDER_COOLDOWN_ACTIVE);
@@ -116,6 +130,8 @@ public class SettlementReminderWriter {
                     settlementId, participantId, exception.getClass().getSimpleName());
         }
     }
+
+    private enum ReminderKind { MANUAL, AUTOMATIC }
 
     private record Target(SettlementParticipant participant, SettlementShare share, User recipient) {}
 }

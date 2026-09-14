@@ -7,12 +7,15 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReminderCooldownPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
@@ -63,6 +66,7 @@ class SettlementReminderServiceTest {
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
+    @Mock private SettlementItemAllocationStorePort itemAllocationStorePort;
     @Mock private LoadSettlementDepositSummaryPort loadSettlementDepositSummaryPort;
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementReminderCooldownPort cooldownPort;
@@ -76,8 +80,9 @@ class SettlementReminderServiceTest {
     void setUp() {
         var policy = new SettlementReminderPolicy();
         writer = new SettlementReminderWriter(loadSettlementPort, loadSettlementParticipantPort,
-                loadSettlementSharePort, loadSettlementDepositSummaryPort, loadUserPort, cooldownPort,
-                recorder, policy, Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC), automaticTargets);
+                loadSettlementSharePort, itemAllocationStorePort, loadSettlementDepositSummaryPort,
+                loadUserPort, cooldownPort, recorder, policy,
+                Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC), automaticTargets);
         service = new SettlementReminderService(currentActorPort, loadSettlementPort,
                 loadSettlementParticipantPort, writer, policy, cooldownReader);
         TransactionSynchronizationManager.initSynchronization();
@@ -100,6 +105,56 @@ class SettlementReminderServiceTest {
         assertThat(captured.getValue().recipientUserId()).isEqualTo(PAYER_ID);
         complete(TransactionSynchronization.STATUS_COMMITTED);
         verify(cooldownPort, never()).release(any(), any(), any());
+    }
+
+    @Test
+    void storesItemSelectionReminderForRequestedParticipantWithoutShare() {
+        givenRequestedTargetWithoutShare();
+        when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator()));
+        when(cooldownPort.reserve(any(), any(), anyString(), eq(Duration.ofMinutes(30)))).thenReturn(true);
+        when(recorder.record(any())).thenReturn(true);
+
+        var result = service.remind(SETTLEMENT_ID, PARTICIPANT_ID);
+
+        assertThat(result.nextAvailableAt()).isEqualTo(NOW.plusMinutes(30));
+        var captured = ArgumentCaptor.forClass(com.amateur.howmuchbackend.domain.notification.UserNotification.class);
+        verify(recorder).record(captured.capture());
+        assertThat(captured.getValue().allocationType()).isEqualTo(SettlementAllocationType.ITEM_ALLOCATION);
+        assertThat(captured.getValue().message()).isEqualTo("생성자님이 정산 품목 선택을 기다리고 있어요");
+        verifyNoInteractions(loadSettlementDepositSummaryPort);
+    }
+
+    @Test
+    void remindsRequestedParticipantWithPreservedShareAfterResume() {
+        givenRequestedTargetWithoutShare();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(share()));
+        when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator()));
+        when(cooldownPort.reserve(any(), any(), anyString(), eq(Duration.ofMinutes(30)))).thenReturn(true);
+        when(recorder.record(any())).thenReturn(true);
+
+        var result = service.remind(SETTLEMENT_ID, PARTICIPANT_ID);
+
+        assertThat(result.nextAvailableAt()).isEqualTo(NOW.plusMinutes(30));
+        var captured = ArgumentCaptor.forClass(com.amateur.howmuchbackend.domain.notification.UserNotification.class);
+        verify(recorder).record(captured.capture());
+        assertThat(captured.getValue().message()).isEqualTo("생성자님이 정산 품목 선택을 기다리고 있어요");
+    }
+
+    @Test
+    void refusesRequestedParticipantWhoSubmittedEvenWithPreservedShare() {
+        givenRequestedTargetWithoutShare();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(share()));
+        when(itemAllocationStorePort.findSubmission(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(SettlementItemSubmission.submit(
+                        SETTLEMENT_ID, PARTICIPANT_ID, NOW
+                )));
+
+        assertStatus(SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID,
+                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID));
+
+        verifyNoInteractions(cooldownPort, recorder);
     }
 
     @Test
@@ -165,6 +220,20 @@ class SettlementReminderServiceTest {
         verify(cooldownReader).findLatestNextAvailableAt(SETTLEMENT_ID, List.of(PARTICIPANT_ID));
     }
 
+    @Test
+    void bulkRemindsRequestedParticipantsWithoutShare() {
+        givenRequestedTargetWithoutShare();
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(requestedSettlement()));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(participant()));
+        when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
+        when(recorder.record(any())).thenReturn(true);
+
+        assertThat(service.remindAll(SETTLEMENT_ID).sentCount()).isEqualTo(1);
+
+        verify(cooldownReader).findLatestNextAvailableAt(SETTLEMENT_ID, List.of(PARTICIPANT_ID));
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(longs = {-1, 0, 1})
     void automaticThresholdIsInclusive(long secondsAfterDeadline) {
@@ -201,6 +270,25 @@ class SettlementReminderServiceTest {
         verifyNoInteractions(recorder, cooldownPort);
     }
 
+    @Test
+    void automaticRequestedReminderKeepsShareElapsedMessage() {
+        givenTarget();
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(requestedSettlement()));
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(new SettlementShare(
+                        SHARE_ID, SETTLEMENT_ID, PARTICIPANT_ID, 1_000, NOW.minusHours(25))));
+        when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator()));
+        when(automaticTargets.hasRequestNotification(SETTLEMENT_ID, PAYER_ID)).thenReturn(true);
+        when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
+        when(recorder.record(any())).thenReturn(true);
+
+        assertThat(writer.automatic(candidate())).isTrue();
+
+        var captured = ArgumentCaptor.forClass(com.amateur.howmuchbackend.domain.notification.UserNotification.class);
+        verify(recorder).record(captured.capture());
+        assertThat(captured.getValue().message()).isEqualTo("정산을 요청받은지 25시간이나 지났어요");
+    }
+
     private void givenOldShare() {
         givenTarget();
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
@@ -219,6 +307,16 @@ class SettlementReminderServiceTest {
                 .thenReturn(Optional.of(share()));
         lenient().when(loadUserPort.findById(PAYER_ID)).thenReturn(Optional.of(user()));
     }
+    private void givenRequestedTargetWithoutShare() {
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(requestedSettlement()));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(participant()));
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.empty());
+        lenient().when(itemAllocationStorePort.findSubmission(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.empty());
+        lenient().when(loadUserPort.findById(PAYER_ID)).thenReturn(Optional.of(user()));
+    }
     private void complete(int status) {
         TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCompletion(status));
     }
@@ -233,6 +331,19 @@ class SettlementReminderServiceTest {
                 "회식 정산",
                 1_000,
                 SettlementStatus.AWAITING_DEPOSIT,
+                NOW,
+                NOW
+        );
+    }
+
+    private Settlement requestedSettlement() {
+        return new Settlement(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                "회식 정산",
+                1_000,
+                SettlementAllocationType.ITEM_ALLOCATION,
+                SettlementStatus.REQUESTED,
                 NOW,
                 NOW
         );
@@ -281,6 +392,29 @@ class SettlementReminderServiceTest {
                 null,
                 null,
                 "01012345678",
+                "encoded-pin",
+                null,
+                null,
+                true,
+                UserRole.USER,
+                true,
+                null,
+                NOW,
+                null,
+                NOW,
+                NOW
+        );
+    }
+
+    private User creator() {
+        return new User(
+                CREATOR_ID,
+                "creator-identity-key",
+                "생성자",
+                "creator.id",
+                null,
+                null,
+                "01087654321",
                 "encoded-pin",
                 null,
                 null,
