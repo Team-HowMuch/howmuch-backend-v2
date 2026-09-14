@@ -45,7 +45,7 @@ public class SettlementReminderWriter {
         policy.validateManual(settlement, actorId);
         Target target = loadTarget(settlement, participantId, ReminderKind.MANUAL);
         LocalDateTime now = LocalDateTime.now(clock);
-        store(settlement, target, "MANUAL_REMINDER:" + UUID.randomUUID(), now);
+        store(settlement, target, ReminderKind.MANUAL, "MANUAL_REMINDER:" + UUID.randomUUID(), now);
         return new SettlementReminderResult(now, now.plus(SettlementReminderPolicy.COOLDOWN));
     }
 
@@ -62,11 +62,13 @@ public class SettlementReminderWriter {
                 || automaticTargets.hasAutomaticReminder(target.share().id(), target.recipient().id())) {
             return false;
         }
-        return store(settlement, target, "AUTO_REMINDER:" + target.share().id(), now);
+        return store(settlement, target, ReminderKind.AUTOMATIC,
+                "AUTO_REMINDER:" + target.share().id(), now);
     }
 
-    private String reminderMessage(SettlementShare share, String requester, LocalDateTime now) {
-        if (share == null) {
+    private String reminderMessage(Settlement settlement, SettlementShare share,
+            ReminderKind kind, String requester, LocalDateTime now) {
+        if (kind == ReminderKind.MANUAL && settlement.status() == SettlementStatus.REQUESTED) {
             return requester + "님이 정산 품목 선택을 기다리고 있어요";
         }
         long hours = Duration.between(share.createdAt(), now).toHours();
@@ -95,9 +97,10 @@ public class SettlementReminderWriter {
         return new Target(participant, share, recipient);
     }
 
-    private boolean store(Settlement settlement, Target target, String key, LocalDateTime now) {
+    private boolean store(Settlement settlement, Target target, ReminderKind kind,
+            String key, LocalDateTime now) {
         String requester = users.findById(settlement.creatorId()).map(User::name).orElse("정산 요청자");
-        String message = reminderMessage(target.share(), requester, now);
+        String message = reminderMessage(settlement, target.share(), kind, requester, now);
         String reservation = UUID.randomUUID().toString();
         if (!cooldown.reserve(settlement.id(), target.participant().id(), reservation, SettlementReminderPolicy.COOLDOWN)) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_REMINDER_COOLDOWN_ACTIVE);

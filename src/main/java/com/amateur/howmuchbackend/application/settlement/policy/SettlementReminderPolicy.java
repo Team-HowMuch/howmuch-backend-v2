@@ -34,7 +34,7 @@ public class SettlementReminderPolicy {
             SettlementShare share, long confirmedAmount, boolean itemSelectionSubmitted) {
         validateLinkedTarget(settlement, participant);
         if (settlement.status() == SettlementStatus.REQUESTED) {
-            if (itemSelectionSubmitted || share != null) {
+            if (itemSelectionSubmitted) {
                 throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID);
             }
             return;

@@ -223,8 +223,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
             Set<UUID> submittedParticipantIds
     ) {
         return status == SettlementStatus.REQUESTED
-                ? payment.paymentStatus() == SettlementDetailResult.PaymentStatus.NOT_READY
-                        && !submittedParticipantIds.contains(payment.participantId())
+                ? !submittedParticipantIds.contains(payment.participantId())
                 : payment.paymentStatus() == SettlementDetailResult.PaymentStatus.UNPAID;
     }
 
