@@ -7,15 +7,21 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementItemAllocationPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemAllocationFraction;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
@@ -53,6 +59,9 @@ class SettlementDetailServiceTest {
     private static final UUID CONTACT_PARTICIPANT_ID = UUID.fromString("f2878f10-77cc-4e85-94a5-343b414f69d7");
     private static final UUID PAYER_SHARE_ID = UUID.fromString("063338bb-bc17-471a-b917-723f37788857");
     private static final UUID CONTACT_SHARE_ID = UUID.fromString("7819caf2-710a-4f80-9d5d-8abe7fbf20a9");
+    private static final UUID EXPENSE_ID = UUID.fromString("eaaac071-e994-496f-9588-aa96d0e2a12c");
+    private static final UUID CREATOR_ITEM_ID = UUID.fromString("ad5773c9-e649-49c7-95c0-fc90d3dbaec1");
+    private static final UUID PAYER_ITEM_ID = UUID.fromString("4a539ff2-ee38-4f98-9d11-cb57d13e44b2");
     private static final Long CREATOR_ID = 1L;
     private static final Long PAYER_ID = 2L;
     private static final Long OTHER_USER_ID = 3L;
@@ -61,8 +70,10 @@ class SettlementDetailServiceTest {
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementExpensePort loadSettlementExpensePort;
+    @Mock private LoadSettlementItemPort loadSettlementItemPort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
+    @Mock private SettlementItemAllocationStorePort itemAllocationStorePort;
     @Mock private LoadSettlementReceivingAccountSnapshotPort loadReceivingAccountSnapshotPort;
     @Mock private LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     @Mock private LoadUserPort loadUserPort;
@@ -70,20 +81,25 @@ class SettlementDetailServiceTest {
     @Mock private BankCatalog bankCatalog;
 
     private SettlementDetailService service;
+    private SettlementItemAllocationPolicy itemAllocationPolicy;
 
     @BeforeEach
     void setUp() {
+        itemAllocationPolicy = new SettlementItemAllocationPolicy();
         service = new SettlementDetailService(
                 currentActorPort,
                 loadSettlementPort,
                 loadSettlementExpensePort,
+                loadSettlementItemPort,
                 loadSettlementParticipantPort,
                 loadSettlementSharePort,
+                itemAllocationStorePort,
                 loadReceivingAccountSnapshotPort,
                 loadDepositSummaryPort,
                 loadUserPort,
                 cooldownReader,
-                bankCatalog
+                bankCatalog,
+                itemAllocationPolicy
         );
     }
 
@@ -295,6 +311,37 @@ class SettlementDetailServiceTest {
     }
 
     @Test
+    @DisplayName("선택 대기 중인 품목 정산은 생성자가 고른 몫을 미수금에서 제외한다")
+    void excludesCreatorItemAllocationFromRequestedTotal() {
+        givenRequestedItemSettlement(List.of(), List.of());
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                item(CREATOR_ITEM_ID, "생성자 품목", 400, 0),
+                item(PAYER_ITEM_ID, "참여자 품목", 1_000, 1)
+        ));
+        when(itemAllocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of(
+                SettlementItemSelection.create(
+                        SETTLEMENT_ID,
+                        CREATOR_ITEM_ID,
+                        CREATOR_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.ONE,
+                        1,
+                        NOW
+                )
+        ));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.paymentSummary()).isEqualTo(
+                new SettlementDetailResult.PaymentSummary(1_000, 0, 1_000, 0, 2, 2, 0)
+        );
+        assertThat(result.participants()).allSatisfy(payment -> {
+            assertThat(payment.expectedAmount()).isNull();
+            assertThat(payment.paymentStatus())
+                    .isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
+        });
+    }
+
+    @Test
     @DisplayName("품목 선택이 끝나면 기존처럼 납부 대상 Share 합계를 기준으로 계산한다")
     void usesPayableShareTotalAfterItemSelection() {
         givenSettlement(CREATOR_ID);
@@ -452,6 +499,8 @@ class SettlementDetailServiceTest {
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(shares);
         when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
                 .thenReturn(confirmedAmounts);
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
+        when(itemAllocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of());
         givenReceivingAccount();
     }
 
@@ -507,6 +556,25 @@ class SettlementDetailServiceTest {
                 SettlementAllocationType.ITEM_ALLOCATION,
                 10L,
                 status,
+                NOW,
+                NOW
+        );
+    }
+
+    private SettlementItem item(
+            UUID itemId,
+            String name,
+            long amount,
+            int displayOrder
+    ) {
+        return new SettlementItem(
+                itemId,
+                SETTLEMENT_ID,
+                EXPENSE_ID,
+                name,
+                1,
+                amount,
+                displayOrder,
                 NOW,
                 NOW
         );
