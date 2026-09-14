@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Component
 public class SettlementDepositMatchingPolicy {
@@ -41,19 +42,35 @@ public class SettlementDepositMatchingPolicy {
         List<UUID> matches = payableShares.stream()
                 .filter(share -> !transaction.transactedAt().isBefore(share.snapshotCreatedAt()))
                 .filter(share -> share.remainingAmount() >= amount)
-                .filter(share -> matchesName(share.payerName(), fullName, nameBeforeDeposit))
+                .filter(share -> matchesName(share.payerName(), description, fullName, nameBeforeDeposit))
                 .map(PayableShare::shareId)
                 .limit(2)
                 .toList();
         return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
     }
 
-    private boolean matchesName(String payerName, String fullName, String nameBeforeDeposit) {
+    private boolean matchesName(
+            String payerName,
+            String description,
+            String fullName,
+            String nameBeforeDeposit
+    ) {
         if (payerName == null) {
             return false;
         }
         String name = normalize(payerName).replace(" ", "");
-        return !name.isEmpty() && (name.equals(fullName) || name.equals(nameBeforeDeposit));
+        return !name.isEmpty()
+                && (name.equals(fullName)
+                || name.equals(nameBeforeDeposit)
+                || containsWholeName(description, name));
+    }
+
+    private boolean containsWholeName(String description, String name) {
+        return Pattern.compile("(?<![\\p{L}\\p{N}])"
+                        + Pattern.quote(name)
+                        + "(?![\\p{L}\\p{N}])")
+                .matcher(description)
+                .find();
     }
 
     private String normalize(String value) {
