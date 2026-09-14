@@ -53,6 +53,8 @@ class SettlementDepositMatchingPolicyTest {
     @ParameterizedTest
     @CsvSource({
             "민선영, 폰토스뱅크 민선영 토스뱅크 계좌",
+            "Alice Kim, 은행 Alice Kim 계좌",
+            "Alice Kim, 은행 AliceKim 계좌",
             "민선영, 입금 민선영",
             "민선영, 민선영 입금 완료",
             "민선영, 민선영 입금 입금",

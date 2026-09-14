@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -58,16 +59,21 @@ public class SettlementDepositMatchingPolicy {
         if (payerName == null) {
             return false;
         }
-        String name = normalize(payerName).replace(" ", "");
+        String normalizedName = normalize(payerName);
+        String name = normalizedName.replace(" ", "");
         return !name.isEmpty()
                 && (name.equals(fullName)
                 || name.equals(nameBeforeDeposit)
-                || containsWholeName(description, name));
+                || containsWholeName(description, normalizedName));
     }
 
-    private boolean containsWholeName(String description, String name) {
+    private boolean containsWholeName(String description, String normalizedName) {
+        StringJoiner namePattern = new StringJoiner("\\s*");
+        for (String namePart : normalizedName.split(" ")) {
+            namePattern.add(Pattern.quote(namePart));
+        }
         return Pattern.compile("(?<![\\p{L}\\p{N}])"
-                        + Pattern.quote(name)
+                        + namePattern
                         + "(?![\\p{L}\\p{N}])")
                 .matcher(description)
                 .find();
