@@ -210,6 +210,42 @@ class AskTreasurerServiceTest {
                         "요청자"
                 )
         ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(result.items()).extracting(item -> item.settlementId()).containsExactly(dinnerId);
+        assertThat(result.scope()).contains("여행모임").contains("찾지 못해");
+        assertThat(result.answer()).doesNotContain("보낼 정산은 없어요");
+        // 질문은 없는 모임을 지목했는데 답변 재료는 다른 정산 금액이다.
+        // LLM 이 그 금액을 그 모임 것으로 써도 FactCheck 는 숫자만 보므로 못 막는다.
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void narrowsByTitleWithoutGenericSuffix() {
+        UUID travelId = UUID.fromString("22222222-2222-2222-2222-222222222244");
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        travelId,
+                        "여행",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        40_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
         when(generateTreasurerAnswerPort.generate(any()))
                 .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
                         .fallbackAnswer()));
@@ -217,10 +253,22 @@ class AskTreasurerServiceTest {
 
         var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
 
-        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
-        assertThat(result.items()).extracting(item -> item.settlementId()).containsExactly(dinnerId);
-        assertThat(result.scope()).contains("찾지 못해");
-        assertThat(result.answer()).doesNotContain("보낼 정산은 없어요");
+        assertThat(result.items()).extracting(item -> item.settlementId()).containsExactly(travelId);
+        assertThat(result.scope()).contains("'여행'").doesNotContain("찾지 못해");
+        assertThat(result.answer()).contains("40,000원").doesNotContain("52,000원");
+    }
+
+    @Test
+    void keepsAnswerTruthfulWhenUserHasNoSettlementAtAll() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.answer()).contains("보낼 정산은 없어요");
+        assertThat(result.scope()).contains("여행모임").contains("찾지 못해");
+        verifyNoInteractions(generateTreasurerAnswerPort);
     }
 
     @Test
@@ -244,8 +292,9 @@ class AskTreasurerServiceTest {
         var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
 
         assertThat(result.items()).isEmpty();
-        assertThat(result.scope()).contains("여행모임").contains("찾았어요");
+        assertThat(result.scope()).contains("여행모임").contains("좁혀서 조회했어요");
         assertThat(result.scope()).doesNotContain("찾지 못해");
+        assertThat(result.answer()).doesNotContain("찾았어요");
     }
 
     @Test

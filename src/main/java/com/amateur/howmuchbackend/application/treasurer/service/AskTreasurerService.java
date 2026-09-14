@@ -61,6 +61,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         Instant now = clock.instant();
         List<PersonalSettlement> all = treasurerSettlementQuery.loadMine();
         String titleHint = verifiedTitleHint(all, parsed.titleHint());
+        boolean titleDropped = parsed.titleHint() != null && titleHint == null;
         List<PersonalSettlement> mine = all.stream()
                 .filter(settlement -> matchesTitle(settlement, titleHint))
                 .toList();
@@ -79,7 +80,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     "보낼 정산",
                     true,
                     now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.SEND_LIST, "보낼 정산 확인하기")
+                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.SEND_LIST, "보낼 정산 확인하기"),
+                    titleDropped
             );
             case RECEIVE_SETTLEMENTS -> answerList(
                     question,
@@ -90,7 +92,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     "받을 정산",
                     true,
                     now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.RECEIVE_LIST, "받을 정산 확인하기")
+                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.RECEIVE_LIST, "받을 정산 확인하기"),
+                    titleDropped
             );
             case DUE_SETTLEMENTS -> answerList(
                     question,
@@ -104,9 +107,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     "마감이 필요한 정산",
                     false,
                     now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.STATUS_LIST, "정산 상태 확인하기")
+                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.STATUS_LIST, "정산 상태 확인하기"),
+                    titleDropped
             );
-            case SETTLEMENT_STATUS -> answerStatus(question, period, scope, filtered);
+            case SETTLEMENT_STATUS -> answerStatus(question, period, scope, filtered, titleDropped);
             case EXPENSE_SUMMARY -> answerList(
                     question,
                     parsed.intent(),
@@ -116,7 +120,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     "지출·정산",
                     false,
                     now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.EXPENSE_LIST, "지출 내역 보기")
+                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.EXPENSE_LIST, "지출 내역 보기"),
+                    titleDropped
             );
             case GUIDE, UNKNOWN -> throw new IllegalStateException("이미 처리됨");
         };
@@ -161,7 +166,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             String label,
             boolean remainingCopy,
             Instant now,
-            TreasurerAnswerResult.Action action
+            TreasurerAnswerResult.Action action,
+            boolean deterministicOnly
     ) {
         long total = items.stream().mapToLong(PersonalSettlement::amountOrZero).sum();
         String fallback = items.isEmpty()
@@ -178,7 +184,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 period,
                 scope,
                 TreasurerAnswerView.LIST,
-                phrasedAnswer(question, intent, scope, fallback, total, items.size(), factsOf(cards)),
+                phrasedAnswer(question, intent, scope, fallback, total, items.size(), factsOf(cards), deterministicOnly),
                 items.isEmpty() ? null : listFooter(items.size()),
                 cards,
                 null,
@@ -191,7 +197,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             String question,
             InquiryPeriod period,
             String scope,
-            List<PersonalSettlement> items
+            List<PersonalSettlement> items,
+            boolean deterministicOnly
     ) {
         int sendCount = Math.toIntExact(items.stream()
                 .filter(PersonalSettlement::isSend)
@@ -239,7 +246,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                                 new TreasurerAnswerDraft.Item("내가 낼 돈", "SEND", sendAmount),
                                 new TreasurerAnswerDraft.Item("내가 받을 돈", "RECEIVE", receiveAmount),
                                 new TreasurerAnswerDraft.Item("완료된 정산", "COMPLETED", completedCount)
-                        )
+                        ),
+                        deterministicOnly
                 ),
                 null,
                 List.of(),
@@ -256,7 +264,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             String fallback,
             long totalAmount,
             int itemCount,
-            List<TreasurerAnswerDraft.Item> items
+            List<TreasurerAnswerDraft.Item> items,
+            boolean deterministicOnly
     ) {
         TreasurerAnswerDraft draft = new TreasurerAnswerDraft(
                 question,
@@ -267,6 +276,9 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 itemCount,
                 items
         );
+        if (deterministicOnly) {
+            return draft.fallbackAnswer();
+        }
         return generateTreasurerAnswerPort.generate(draft)
                 .filter(text -> treasurerAnswerFactCheck.accepts(text, draft))
                 .orElse(draft.fallbackAnswer());
@@ -371,8 +383,20 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         if (titleHint == null) {
             return null;
         }
-        boolean anyMatch = all.stream().anyMatch(settlement -> matchesTitle(settlement, titleHint));
-        return anyMatch ? titleHint : null;
+        if (matchesAnyTitle(all, titleHint)) {
+            return titleHint;
+        }
+        // 힌트는 "모임"·"정산" 접미사를 포함한다. 정산 이름이 그 말을 빼고 "여행"이면
+        // 제목이 힌트를 포함하지 못해 맞는 정산을 놓친다. 뗀 형태로 한 번 더 본다.
+        String withoutSuffix = titleHint.replaceFirst("(모임|정산)$", "");
+        if (!withoutSuffix.isBlank() && matchesAnyTitle(all, withoutSuffix)) {
+            return withoutSuffix;
+        }
+        return null;
+    }
+
+    private boolean matchesAnyTitle(List<PersonalSettlement> all, String titleHint) {
+        return all.stream().anyMatch(settlement -> matchesTitle(settlement, titleHint));
     }
 
     private String scopeLabel(InquiryPeriod period, String appliedTitleHint, String parsedTitleHint) {
@@ -382,7 +406,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             case THIS_MONTH -> "이번 달 기준으로 조회했어요.";
         };
         if (appliedTitleHint != null) {
-            return periodLabel + " '%s'이(가) 포함된 정산을 찾았어요.".formatted(appliedTitleHint);
+            return periodLabel + " '%s' 기준으로 좁혀서 조회했어요.".formatted(appliedTitleHint);
         }
         if (parsedTitleHint != null) {
             return periodLabel + " '%s'이(가) 포함된 정산을 찾지 못해 전체에서 조회했어요."
