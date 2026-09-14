@@ -9,7 +9,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.StringJoiner;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Component
 public class SettlementDepositMatchingPolicy {
@@ -41,19 +43,40 @@ public class SettlementDepositMatchingPolicy {
         List<UUID> matches = payableShares.stream()
                 .filter(share -> !transaction.transactedAt().isBefore(share.snapshotCreatedAt()))
                 .filter(share -> share.remainingAmount() >= amount)
-                .filter(share -> matchesName(share.payerName(), fullName, nameBeforeDeposit))
+                .filter(share -> matchesName(share.payerName(), description, fullName, nameBeforeDeposit))
                 .map(PayableShare::shareId)
                 .limit(2)
                 .toList();
         return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
     }
 
-    private boolean matchesName(String payerName, String fullName, String nameBeforeDeposit) {
+    private boolean matchesName(
+            String payerName,
+            String description,
+            String fullName,
+            String nameBeforeDeposit
+    ) {
         if (payerName == null) {
             return false;
         }
-        String name = normalize(payerName).replace(" ", "");
-        return !name.isEmpty() && (name.equals(fullName) || name.equals(nameBeforeDeposit));
+        String normalizedName = normalize(payerName);
+        String name = normalizedName.replace(" ", "");
+        return !name.isEmpty()
+                && (name.equals(fullName)
+                || name.equals(nameBeforeDeposit)
+                || containsWholeName(description, normalizedName));
+    }
+
+    private boolean containsWholeName(String description, String normalizedName) {
+        StringJoiner namePattern = new StringJoiner("\\s*");
+        for (String namePart : normalizedName.split(" ")) {
+            namePattern.add(Pattern.quote(namePart));
+        }
+        return Pattern.compile("(?<![\\p{L}\\p{N}])"
+                        + namePattern
+                        + "(?![\\p{L}\\p{N}])")
+                .matcher(description)
+                .find();
     }
 
     private String normalize(String value) {

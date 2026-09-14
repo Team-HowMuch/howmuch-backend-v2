@@ -50,6 +50,25 @@ class SettlementDepositMatchingPolicyTest {
         assertThat(policy.match(transaction("민선영 입금", "6000"), shares)).contains(SHARE_ID);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "민선영, 폰토스뱅크 민선영 토스뱅크 계좌",
+            "Alice Kim, 은행 Alice Kim 계좌",
+            "Alice Kim, 은행 AliceKim 계좌",
+            "민선영, 입금 민선영",
+            "민선영, 민선영 입금 완료",
+            "민선영, 민선영 입금 입금",
+            "민선영, 민선영(입금)",
+            "민선영, 민선영 최수아 입금",
+            "민선영, 민선영/최수아"
+    })
+    @DisplayName("거래 설명에 전체 입금자명이 포함되면 연결한다")
+    void matchesFullNameIncludedInDescription(String name, String description) {
+        assertThat(policy.match(transaction(description, "6000"), List.of(
+                payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
+        ))).contains(SHARE_ID);
+    }
+
     @Test
     @DisplayName("거래 발생 후 시작된 정산 Share는 매칭 후보에서 제외한다")
     void excludesSettlementStartedAfterTransaction() {
@@ -83,17 +102,11 @@ class SettlementDepositMatchingPolicyTest {
             "민선, 민선영 입금",
             "선영, 민 선 영 입금",
             "민선영, 민선영입금",
-            "민선영, 입금 민선영",
-            "민선영, 민선영 입금 완료",
-            "민선영, 민선영 입금 입금",
-            "민선영, 민선영(입금)",
-            "민선영, 민선영 최수아 입금",
-            "민선영, 민선영/최수아",
             "민선영, 민선영2 입금",
             "Ann, Joanne 입금"
     })
-    @DisplayName("부분 이름이나 허용하지 않은 표시 표현만으로 연결하지 않는다")
-    void rejectsPartialNamesAndUnapprovedDescriptions(String name, String description) {
+    @DisplayName("부분 이름이나 문자·숫자에 붙은 이름으로 연결하지 않는다")
+    void rejectsPartialNamesAndAttachedNames(String name, String description) {
         assertThat(policy.match(transaction(description, "6000"), List.of(
                 payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).isEmpty();
