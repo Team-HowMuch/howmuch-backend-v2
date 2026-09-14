@@ -29,6 +29,7 @@ public class SettlementReminderWriter {
     private final LoadSettlementPort settlements;
     private final LoadSettlementParticipantPort participants;
     private final LoadSettlementSharePort shares;
+    private final SettlementItemAllocationStorePort itemAllocations;
     private final LoadSettlementDepositSummaryPort deposits;
     private final LoadUserPort users;
     private final SettlementReminderCooldownPort cooldown;
@@ -81,7 +82,11 @@ public class SettlementReminderWriter {
                 .stream().filter(amount -> amount.shareId().equals(share.id()))
                 .mapToLong(LoadSettlementDepositSummaryPort.ConfirmedShareAmount::amount).sum();
         if (kind == ReminderKind.MANUAL) {
-            policy.validateManualTarget(settlement, participant, share, confirmed);
+            boolean itemSelectionSubmitted = settlement.status() == SettlementStatus.REQUESTED
+                    && itemAllocations.findSubmission(settlement.id(), participantId).isPresent();
+            policy.validateManualTarget(
+                    settlement, participant, share, confirmed, itemSelectionSubmitted
+            );
         } else {
             policy.validateAutomaticTarget(settlement, participant, share, confirmed);
         }

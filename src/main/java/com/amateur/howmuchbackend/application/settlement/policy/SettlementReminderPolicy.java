@@ -31,10 +31,10 @@ public class SettlementReminderPolicy {
     }
 
     public void validateManualTarget(Settlement settlement, SettlementParticipant participant,
-            SettlementShare share, long confirmedAmount) {
+            SettlementShare share, long confirmedAmount, boolean itemSelectionSubmitted) {
         validateLinkedTarget(settlement, participant);
         if (settlement.status() == SettlementStatus.REQUESTED) {
-            if (share != null) {
+            if (itemSelectionSubmitted || share != null) {
                 throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID);
             }
             return;

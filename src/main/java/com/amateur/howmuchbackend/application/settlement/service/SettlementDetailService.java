@@ -139,6 +139,12 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         : allPayments.stream()
                                 .filter(payment -> payment.participantId().equals(viewerParticipantId))
                                 .toList();
+        Set<UUID> submittedParticipantIds = viewerRole == SettlementDetailResult.ViewerRole.CREATOR
+                && settlement.status() == SettlementStatus.REQUESTED
+                ? itemAllocationStorePort.findAllSubmissions(settlementId).stream()
+                        .map(submission -> submission.participantId())
+                        .collect(Collectors.toSet())
+                : Set.of();
 
         String bankName = null;
         String accountNumber = null;
@@ -179,7 +185,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         loadSettlementExpensePort.findAllBySettlementId(settlementId)
                 ),
                 summary(settlement, creatorParticipant, allPayments),
-                reminderNextAvailableAt(settlement, viewerRole, allPayments),
+                reminderNextAvailableAt(
+                        settlement, viewerRole, allPayments, submittedParticipantIds
+                ),
                 visiblePayments
         );
     }
@@ -187,7 +195,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
     private LocalDateTime reminderNextAvailableAt(
             Settlement settlement,
             SettlementDetailResult.ViewerRole viewerRole,
-            List<SettlementDetailResult.ParticipantPayment> payments
+            List<SettlementDetailResult.ParticipantPayment> payments,
+            Set<UUID> submittedParticipantIds
     ) {
         if (viewerRole != SettlementDetailResult.ViewerRole.CREATOR
                 || (settlement.status() != SettlementStatus.REQUESTED
@@ -197,7 +206,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
 
         List<UUID> reminderCandidateIds = payments.stream()
                 .filter(SettlementDetailResult.ParticipantPayment::linked)
-                .filter(payment -> isReminderCandidate(settlement.status(), payment))
+                .filter(payment -> isReminderCandidate(
+                        settlement.status(), payment, submittedParticipantIds
+                ))
                 .map(SettlementDetailResult.ParticipantPayment::participantId)
                 .toList();
         return cooldownReader.findLatestNextAvailableAt(
@@ -208,10 +219,12 @@ public class SettlementDetailService implements GetSettlementUseCase {
 
     private boolean isReminderCandidate(
             SettlementStatus status,
-            SettlementDetailResult.ParticipantPayment payment
+            SettlementDetailResult.ParticipantPayment payment,
+            Set<UUID> submittedParticipantIds
     ) {
         return status == SettlementStatus.REQUESTED
                 ? payment.paymentStatus() == SettlementDetailResult.PaymentStatus.NOT_READY
+                        && !submittedParticipantIds.contains(payment.participantId())
                 : payment.paymentStatus() == SettlementDetailResult.PaymentStatus.UNPAID;
     }
 
