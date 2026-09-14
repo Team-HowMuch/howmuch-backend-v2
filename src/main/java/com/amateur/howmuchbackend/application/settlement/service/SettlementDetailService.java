@@ -190,20 +190,29 @@ public class SettlementDetailService implements GetSettlementUseCase {
             List<SettlementDetailResult.ParticipantPayment> payments
     ) {
         if (viewerRole != SettlementDetailResult.ViewerRole.CREATOR
-                || settlement.status() != SettlementStatus.AWAITING_DEPOSIT) {
+                || (settlement.status() != SettlementStatus.REQUESTED
+                && settlement.status() != SettlementStatus.AWAITING_DEPOSIT)) {
             return null;
         }
 
         List<UUID> reminderCandidateIds = payments.stream()
                 .filter(SettlementDetailResult.ParticipantPayment::linked)
-                .filter(payment -> payment.paymentStatus()
-                        == SettlementDetailResult.PaymentStatus.UNPAID)
+                .filter(payment -> isReminderCandidate(settlement.status(), payment))
                 .map(SettlementDetailResult.ParticipantPayment::participantId)
                 .toList();
         return cooldownReader.findLatestNextAvailableAt(
                 settlement.id(),
                 reminderCandidateIds
         ).orElse(null);
+    }
+
+    private boolean isReminderCandidate(
+            SettlementStatus status,
+            SettlementDetailResult.ParticipantPayment payment
+    ) {
+        return status == SettlementStatus.REQUESTED
+                ? payment.paymentStatus() == SettlementDetailResult.PaymentStatus.NOT_READY
+                : payment.paymentStatus() == SettlementDetailResult.PaymentStatus.UNPAID;
     }
 
     private SettlementDetailResult.PaymentInfo paymentInfo(
