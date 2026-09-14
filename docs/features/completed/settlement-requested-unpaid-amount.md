@@ -22,8 +22,8 @@
 ### Success criteria
 
 - [x] `ITEM_ALLOCATION` 정산이 `REQUESTED`이면 Share가 없어도 `expectedAmount`와
-  `unpaidAmount`가 정산 총액을 기준으로 계산된다.
-- [x] 일부 Share의 입금이 확인된 경우 `unpaidAmount`는 정산 총액에서 확인 입금액을 뺀 값이다.
+  `unpaidAmount`가 정산 총액에서 생성자의 확정 품목 금액을 제외한 값을 기준으로 계산된다.
+- [x] 일부 Share의 입금이 확인된 경우 `unpaidAmount`는 이 기준 금액에서 확인 입금액을 뺀 값이다.
 - [x] Share가 없는 참여자 행은 금액을 추측하지 않고 `expectedAmount = null`,
   `paymentStatus = NOT_READY`를 유지한다.
 - [x] 더치페이와 품목 선택 종료 후의 요약은 기존처럼 납부 대상 Share 합계를 기준으로 계산한다.
@@ -75,6 +75,9 @@
    `unpaidAmount = 15,800`을 반환한다.
 4. 아직 Share가 없는 참여자 행은 `NOT_READY`와 nullable 금액을 반환한다.
 
+생성자가 요청 전에 15,800원 중 4,000원 품목을 자기 몫으로 확정했다면 같은 조회는
+`expectedAmount = 11,800`, `unpaidAmount = 11,800`을 반환한다.
+
 ### Failure flow
 
 - Condition: 없음. 기존 조회 권한·정산 없음 오류를 그대로 사용한다.
@@ -82,7 +85,8 @@
 
 ### Boundary conditions
 
-- 일부 참여자의 Share와 확인 입금이 이미 있어도 `REQUESTED`이면 정산 총액을 분모로 삼는다.
+- 일부 참여자의 Share와 확인 입금이 이미 있어도 `REQUESTED`이면 정산 총액에서 생성자의
+  확정 품목 금액을 제외한 값을 분모로 삼는다.
 - 확인 입금액은 Share 금액까지만 인정하고 진행률은 기존처럼 100을 넘지 않는다.
 - `AWAITING_DEPOSIT`, `SUSPENDED`, `COMPLETED`에서는 확정된 납부 대상 Share 합계를 사용한다.
 
@@ -102,16 +106,18 @@ Result -> Web Response DTO: SettlementDetailWebResponse.from(result) (변경 없
 
 | Port | Purpose | Caller | Expected Adapter |
 |---|---|---|---|
-| 기존 Port 재사용 | 정산·참여자·Share·확인 입금 조회 | `SettlementDetailService` | 기존 Adapter |
+| 기존 정산 조회 Port | 정산·참여자·Share·확인 입금 조회 | `SettlementDetailService` | 기존 Adapter |
+| `LoadSettlementItemPort` | 생성자 품목 금액 계산을 위한 품목 조회 | `SettlementDetailService` | `SettlementItemPersistenceAdapter` |
+| `SettlementItemAllocationStorePort` | 생성자 품목 선택 조회 | `SettlementDetailService` | `SettlementItemAllocationPersistenceAdapter` |
 
 새 Output Port와 외부 대화는 추가하지 않는다.
 
 ### Application Policy
 
-- Decision owned by the Policy: N/A
-- Facts loaded by the Service and passed to the Policy: N/A
-- Why the rule is not an Entity-local invariant: 상세 응답을 조합하는 조회 계산이므로
-  `SettlementDetailService`가 소유한다.
+- Decision owned by the Policy: 품목과 선택으로 참여자 개인 금액 계산
+- Facts loaded by the Service and passed to the Policy: 정산 품목, 전체 품목 선택, 생성자 참여자 ID
+- Why the rule is not an Entity-local invariant: 여러 품목과 선택을 함께 계산하므로 기존
+  `SettlementItemAllocationPolicy.calculatePersonalAmount`를 재사용한다.
 - Future inputs deliberately not implemented yet: N/A
 
 ### Web API
@@ -140,18 +146,21 @@ Authentication: required
 
 - Rules and their locations: `SettlementDetailService.summary`
 - Behavior owned by Domain: 변경 없음
-- Decisions owned by Application Policy: 변경 없음
-- Flow orchestrated by Application: 품목 정산의 선택 대기 여부를 판단하고 요약 분모를 선택한다.
+- Decisions owned by Application Policy: 생성자가 선택한 품목의 개인 금액 계산
+- Flow orchestrated by Application: 품목 정산의 선택 대기 여부를 판단하고, 품목·선택을 조회해
+  생성자 금액을 계산한 뒤 요약 분모에서 제외한다.
 
 ### Technology and patterns
 
 - Constraint to solve: 확정 전에는 참여자별 Share 합계만으로 전체 미수금을 알 수 없다.
 - Selected approach: `ITEM_ALLOCATION`이면서 `REQUESTED`인 동안 `expectedAmount`를
-  `Settlement.totalAmount`로 사용하고, 다른 상태·배분 유형은 기존 Share 합계를 사용한다.
+  `Settlement.totalAmount - creatorItemAmount`로 사용하고, 다른 상태·배분 유형은 기존
+  Share 합계를 사용한다.
 - Reason for selection: 이슈의 결제 총액 기준 요구를 충족하면서 참여자별 미확정 금액을
   임의 배분하지 않고 기존 응답 계약을 유지한다.
 - Alternatives considered:
   - 미확정 금액을 참여자별로 나눔: 실제 선택 전에는 알 수 없어 잘못된 금액을 만든다.
+  - 정산 총액을 그대로 사용: 생성자가 요청 전에 고른 자기 몫까지 받을 금액에 포함된다.
   - 모든 상태에서 정산 총액 사용: 생성자 본인 몫까지 받을 금액에 포함되어 기존 계산을 깨뜨린다.
 - Trade-offs and limits: 선택 대기 중 요약은 전체 미수금을 보여주지만, 미확정 금액이 어느
   참여자의 몫인지는 참여자 행으로 표현하지 않는다.
@@ -161,7 +170,7 @@ Authentication: required
 | Area | Impact | Verified file or contract |
 |---|---|---|
 | API | 필드 구조 변경 없이 선택 대기 중 요약 값 보정 | `SettlementDetailResult.PaymentSummary` |
-| Application | 상태·배분 유형에 따른 요약 분모 선택 | `SettlementDetailService` |
+| Application | 상태·배분 유형과 생성자 선택 금액에 따른 요약 분모 선택 | `SettlementDetailService`, `SettlementItemAllocationPolicy` |
 | Domain | 없음 | 기존 `Settlement` 값 사용 |
 | Persistence | 없음 | 기존 조회 Port 재사용 |
 | Redis | 없음 | N/A |
@@ -181,7 +190,7 @@ Existing behavior that must remain unchanged:
 - [x] UseCase and Application Command/Result (`N/A` — 계약 변경 없음)
 - [x] Required Output Ports (`N/A` — 기존 Port 재사용)
 - [x] Domain models and rules (`N/A` — 변경 없음)
-- [x] Application Policies (`N/A`)
+- [x] Application Policies (`SettlementItemAllocationPolicy` 재사용)
 - [x] Application Service
 - [x] Output Adapters (`N/A`)
 - [x] Web Request/Response DTOs, Controllers, and Swagger (`N/A` — 구조 변경 없음)
@@ -194,6 +203,8 @@ Existing behavior that must remain unchanged:
 docs(settlement): 품목 정산 미수금 계산 수정 계획 작성
 fix(settlement): 품목 선택 대기 중 미수금을 총액 기준으로 계산
 docs(settlement): 품목 정산 미수금 수정 결과 기록
+fix(settlement): 요청 중 생성자 품목 몫을 미수금에서 제외
+docs(settlement): 생성자 품목 몫 제외 검증 기록
 ```
 
 ## 8. Verification
@@ -214,6 +225,7 @@ git status --short --untracked-files=all
 
 - [x] Share가 전혀 없는 `REQUESTED` 품목 정산의 총 미수금을 검증한다.
 - [x] 일부 Share·입금만 있는 `REQUESTED` 품목 정산의 총 미수금을 검증한다.
+- [x] 생성자가 요청 전에 품목을 선택한 경우 그 금액이 미수금에서 제외되는지 검증한다.
 - [x] 참여자별 미확정 금액과 기존 더치페이 계산이 유지되는지 검증한다.
 - [x] 문서와 실제 계산이 일치하는지 확인한다.
 
@@ -223,7 +235,8 @@ git status --short --untracked-files=all
 |---|---|---|
 | 변경 전 집중 테스트 | Passed | 기존 `SettlementDetailServiceTest` |
 | 변경 후 집중 테스트 | Passed | `SettlementDetailServiceTest` |
-| 전체 회귀 테스트 | Passed | Java 1,138건, JavaScript 35건, 실패 0 |
+| 리뷰 반영 집중 테스트 | Passed | 생성자 400원 선택 시 1,400원 중 1,000원만 미수금으로 계산 |
+| 전체 회귀 테스트 | Passed | Java 1,139건, JavaScript 35건, 실패 0 |
 | 컴파일 | Passed | `./gradlew compileJava --console=plain` |
 | 저장소 검사 | Passed | `git diff --check`, `git status --short --untracked-files=all` |
 
@@ -233,18 +246,21 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-09-14 | 이슈와 상세 계산 흐름 분석, Flyway 불필요 확인 | 회귀 테스트와 계산 수정 | 참여자별 미확정 금액은 계속 nullable이어야 한다. |
 | 2026-09-14 | 계산 수정, 집중·전체 회귀 검증 완료 | PR 게시 | API 구조·DB·외부 연동 변경 없음 |
+| 2026-09-14 | PR 리뷰에 따라 생성자 사전 선택 금액 제외, 회귀 테스트 추가 | 전체 회귀 검증과 푸시 | DRAFT 제출은 생성자 Share를 만들지 않으므로 선택 데이터로 계산해야 한다. |
 
 ## 10. Decision log
 
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
 | 2026-09-14 | 선택 대기 중인 품목 정산만 총액을 요약 분모로 사용 | Share 합계가 아직 전체 금액을 표현할 수 없다 | 다른 상태·배분 유형은 기존 Share 합계를 유지 |
+| 2026-09-14 | 선택 대기 요약에서 생성자 선택 금액을 제외 | 생성자는 돈을 받는 주체라 자기 품목 금액은 미수금이 아니다 | 기존 품목 금액 Policy를 재사용해 새 계산 규칙을 만들지 않음 |
 
 ## 11. Completion record
 
 - Completed on: 2026-09-14
-- Final behavior: `REQUESTED` 품목 정산 상세는 미확정 참여자 몫을 누락하지 않고 정산 총액에서
-  확인 입금액을 뺀 미수금을 반환한다. 참여자별 미확정 금액은 계속 nullable로 반환한다.
+- Final behavior: `REQUESTED` 품목 정산 상세는 미확정 참여자 몫을 누락하지 않되, 정산 총액에서
+  생성자가 선택한 자기 몫과 확인 입금액을 뺀 미수금을 반환한다. 참여자별 미확정 금액은 계속
+  nullable로 반환한다.
 - Unverified items: 없음
 - Remaining risks: 없음
 - Follow-up work: 앱은 `NOT_READY` 또는 nullable `expectedAmount`를 "선택 안 함"으로 표시할 수 있다.
