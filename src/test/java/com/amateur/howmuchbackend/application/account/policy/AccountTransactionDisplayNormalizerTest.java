@@ -80,6 +80,22 @@ class AccountTransactionDisplayNormalizerTest {
         assertThat(display.kind()).isEqualTo(AccountTransactionResult.Display.Kind.TRANSFER);
     }
 
+    @Test
+    @DisplayName("검증되지 않은 은행은 합쳐진 설명에서 제목을 추출한다")
+    void fallsBackToJoinedDescriptionForOtherBanks() {
+        var display = normalizer.normalize(
+                "0020",
+                "편의점 생활비 우리은행 1234",
+                AccountTransactionType.EXPENSE,
+                "편의점",
+                "생활비",
+                null,
+                null
+        );
+
+        assertThat(display.title()).isEqualTo("편의점 생활비");
+    }
+
     @ParameterizedTest
     @CsvSource({
             "0020, ATM 출금 우리은행 1234, ATM",

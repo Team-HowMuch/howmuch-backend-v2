@@ -73,9 +73,10 @@ public class AccountTransactionDisplayNormalizer {
             String description3,
             String description4
     ) {
-        Stream<String> parts = "0011".equals(organization) || "0031".equals(organization)
-                ? Stream.of(description3, description2, description1, description4)
-                : Stream.of(description1, description2, description3, description4);
+        if (!"0011".equals(organization) && !"0031".equals(organization)) {
+            return List.of();
+        }
+        Stream<String> parts = Stream.of(description3, description2, description1, description4);
         return parts.filter(part -> part != null && !part.isBlank()).toList();
     }
 
