@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.group.service;
 
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.group.policy.GroupInviteCodePolicy;
 import com.amateur.howmuchbackend.application.port.in.group.command.AddGroupMemberCommand;
@@ -168,7 +169,7 @@ class GroupMembershipServiceTest {
     }
 
     @Test
-    @DisplayName("사진을 올린 멤버만 hasAvatar가 true다")
+    @DisplayName("사진을 올린 멤버만 파일명 기반 아바타 버전을 반환한다")
     void marksMembersWithAvatar() {
         GroupMember owner = activeMember(10L, OWNER_ID, GroupMemberRole.OWNER);
         GroupMember member = activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER);
@@ -180,8 +181,11 @@ class GroupMembershipServiceTest {
 
         var results = service.getMembers(GROUP_ID);
 
-        assertThat(results).extracting(result -> result.hasAvatar())
-                .containsExactly(true, false);
+        assertThat(results).extracting(result -> result.avatarVersion())
+                .containsExactly(
+                        ImageCacheVersion.fromNullableFileName("owner.webp"),
+                        null
+                );
     }
 
     @Test

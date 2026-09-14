@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.group.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.group.model.GroupImage;
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.group.GroupImageStoragePort;
 import com.amateur.howmuchbackend.application.port.out.group.GroupInviteLinkPort;
@@ -60,7 +61,10 @@ class GroupQueryServiceTest {
         var result = service.getMyGroups();
 
         assertThat(result).extracting(item -> item.groupId()).containsExactly(20L, 10L);
-        assertThat(result.getFirst().imageUrl()).isEqualTo("/api/v2/groups/20/image");
+        assertThat(result.getFirst().imageUrl()).isEqualTo(
+                "/api/v2/groups/20/image?v="
+                        + ImageCacheVersion.fromNullableFileName("image.jpg")
+        );
         assertThat(result.get(1).imageUrl()).isNull();
         assertThat(result.getFirst().memberCount()).isEqualTo(4);
         assertThat(result.getFirst().memberNames()).containsExactly("그룹장", "동명이인", "동명이인");

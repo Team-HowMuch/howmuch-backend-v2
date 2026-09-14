@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 @DisplayName("사용자 프로필 Web API 계약")
 class UserControllerTest {
+    private static final String IMAGE_VERSION = "avatar-version";
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 22, 9, 0);
 
     @Mock
@@ -75,6 +76,8 @@ class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.publicId").value("current.id"))
+                .andExpect(jsonPath("$.data.avatarUrl")
+                        .value("/api/v2/user/me/avatar?v=" + IMAGE_VERSION))
                 .andExpect(jsonPath("$.data.nickname").doesNotExist());
     }
 
@@ -145,7 +148,7 @@ class UserControllerTest {
                 null,
                 null,
                 "01012345678",
-                false,
+                IMAGE_VERSION,
                 true,
                 UserRole.USER,
                 null,

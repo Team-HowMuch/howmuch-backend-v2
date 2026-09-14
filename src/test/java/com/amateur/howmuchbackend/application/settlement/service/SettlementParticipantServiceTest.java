@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.auth.policy.IdentityPolicy;
 import com.amateur.howmuchbackend.application.group.model.GroupMemberRoster;
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.MatchSettlementContactsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SearchSettlementParticipantCommand;
@@ -173,12 +174,14 @@ class SettlementParticipantServiceTest {
         assertThat(result).extracting(item -> item.displayOrder()).containsExactly(0, 1, 2);
         assertThat(result.get(0).participantId()).isEqualTo(CREATOR_PARTICIPANT_ID);
         assertThat(result.get(0).publicId()).isEqualTo("creator.id");
-        assertThat(result.get(0).hasAvatar()).isFalse();
+        assertThat(result.get(0).avatarVersion()).isNull();
         assertThat(result.get(1).source()).isEqualTo(SettlementParticipantSource.CONTACT);
         assertThat(result.get(1).publicId()).isEqualTo("linked.id");
-        assertThat(result.get(1).hasAvatar()).isTrue();
+        assertThat(result.get(1).avatarVersion()).isEqualTo(
+                ImageCacheVersion.fromNullableFileName("linked-avatar.png")
+        );
         assertThat(result.get(2).publicId()).isNull();
-        assertThat(result.get(2).hasAvatar()).isFalse();
+        assertThat(result.get(2).avatarVersion()).isNull();
         verify(loadUserPort).findAllByIds(Set.of(CREATOR_ID, LINKED_USER_ID));
     }
 
@@ -328,8 +331,11 @@ class SettlementParticipantServiceTest {
                 .containsExactly("sua.alpha", "sua.beta");
         assertThat(result).extracting(item -> item.displayName())
                 .containsExactly("회원 3", "회원 4");
-        assertThat(result).extracting(item -> item.hasAvatar())
-                .containsExactly(true, false);
+        assertThat(result).extracting(item -> item.avatarVersion())
+                .containsExactly(
+                        ImageCacheVersion.fromNullableFileName("candidate.png"),
+                        null
+                );
     }
 
     @Test
@@ -514,8 +520,13 @@ class SettlementParticipantServiceTest {
                 .containsExactly(true, false, true, false);
         assertThat(result).extracting(item -> item.alreadyParticipant())
                 .containsExactly(false, false, true, true);
-        assertThat(result).extracting(item -> item.hasAvatar())
-                .containsExactly(true, false, false, false);
+        assertThat(result).extracting(item -> item.avatarVersion())
+                .containsExactly(
+                        ImageCacheVersion.fromNullableFileName("member.png"),
+                        null,
+                        null,
+                        null
+                );
         assertThat(result.get(0).publicId()).isEqualTo("contact.member");
         assertThat(result.get(0).memberDisplayName()).isEqualTo("회원 3");
         assertThat(result.get(1).publicId()).isNull();
@@ -707,7 +718,9 @@ class SettlementParticipantServiceTest {
 
         assertThat(result).extracting(item -> item.publicId())
                 .containsExactly("group.available");
-        assertThat(result.getFirst().hasAvatar()).isTrue();
+        assertThat(result.getFirst().avatarVersion()).isEqualTo(
+                ImageCacheVersion.fromNullableFileName("group.png")
+        );
     }
 
     @Test

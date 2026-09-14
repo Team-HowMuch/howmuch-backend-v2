@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class SettlementListServiceTest {
+    private static final String IMAGE_VERSION = "image-version";
     private static final Long USER_ID = 7L;
     private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
 
@@ -49,7 +50,11 @@ class SettlementListServiceTest {
                 0,
                 null,
                 null,
-                List.of(new SettlementListReadModel.GroupSummary(10L, "여행 모임", true))
+                List.of(new SettlementListReadModel.GroupSummary(
+                        10L,
+                        "여행 모임",
+                        IMAGE_VERSION
+                ))
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(
@@ -90,7 +95,7 @@ class SettlementListServiceTest {
                 List.of(new SettlementListItemResult.GroupSummary(
                         10L,
                         "여행 모임",
-                        true
+                        IMAGE_VERSION
                 ))
         ));
     }
