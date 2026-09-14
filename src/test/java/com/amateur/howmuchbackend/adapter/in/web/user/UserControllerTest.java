@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.in.web.user;
 
 import com.amateur.howmuchbackend.application.port.in.user.GetMyProfileImageUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.GetMyProfileUseCase;
+import com.amateur.howmuchbackend.application.port.in.user.DeleteMyAccountUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.ManageMyPushTargetUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.UpdateMyProfileUseCase;
 import com.amateur.howmuchbackend.application.port.in.user.command.UpdateMyProfileCommand;
@@ -50,6 +51,9 @@ class UserControllerTest {
     @Mock
     private ManageMyPushTargetUseCase manageMyPushTargetUseCase;
 
+    @Mock
+    private DeleteMyAccountUseCase deleteMyAccountUseCase;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -58,7 +62,8 @@ class UserControllerTest {
                 getMyProfileUseCase,
                 getMyProfileImageUseCase,
                 updateMyProfileUseCase,
-                manageMyPushTargetUseCase
+                manageMyPushTargetUseCase,
+                deleteMyAccountUseCase
         );
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();

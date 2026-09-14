@@ -297,6 +297,8 @@ class GroupMembershipServiceTest {
     }
 
     private void givenJoinGroup() {
+        when(loadUserPort.findByIdForUpdate(MEMBER_ID))
+                .thenReturn(Optional.of(user(MEMBER_ID, "member.test", "멤버", true)));
         when(loadGroupPort.findByInviteCodeForUpdate("AB12CD34")).thenReturn(Optional.of(group()));
     }
 

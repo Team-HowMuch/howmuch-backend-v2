@@ -2,9 +2,11 @@ package com.amateur.howmuchbackend.application.user.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.port.out.user.UserPushTargetStorePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,7 +29,9 @@ class ManageMyPushTargetServiceTest {
     private static final Long USER_ID = 1L;
 
     @Mock private CurrentActorPort currentActorPort;
+    @Mock private LoadUserPort loadUserPort;
     @Mock private UserPushTargetStorePort pushTargetStorePort;
+    @Mock private User user;
 
     private ManageMyPushTargetService service;
 
@@ -34,8 +39,11 @@ class ManageMyPushTargetServiceTest {
     void setUp() {
         service = new ManageMyPushTargetService(
                 currentActorPort,
+                loadUserPort,
                 pushTargetStorePort
         );
+        lenient().when(user.active()).thenReturn(true);
+        lenient().when(loadUserPort.findByIdForUpdate(USER_ID)).thenReturn(java.util.Optional.of(user));
     }
 
     @Test

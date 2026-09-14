@@ -18,6 +18,7 @@ import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.group.Group;
 import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.status.GroupStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,7 +46,8 @@ public class CreateGroupService implements CreateGroupUseCase {
     @Transactional
     public GroupDetailResult create(CreateGroupCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
-        loadUserPort.findById(actor.userId())
+        loadUserPort.findByIdForUpdate(actor.userId())
+                .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
 
         String storedImageFileName = storeImage(command.imageContent());

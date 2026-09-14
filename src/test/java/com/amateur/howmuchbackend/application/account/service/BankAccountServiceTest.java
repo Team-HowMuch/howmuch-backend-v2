@@ -55,6 +55,7 @@ class BankAccountServiceTest {
         String organization = "0020";
         var registration = new BankConnectionPort.BankRegistration(organization, "yong", "password", null);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(userId));
+        when(user.active()).thenReturn(true);
         when(loadUserPort.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
         when(connectionStorePort.findActiveByUserId(userId))
                 .thenReturn(Optional.of(new ExternalConnection(connectionId, userId, connectedId)));
@@ -79,7 +80,8 @@ class BankAccountServiceTest {
         var first = candidate("1002123456789", "주거래 통장");
         var second = candidate("1002987654321", "생활비 통장");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(userId));
-        when(loadUserPort.findById(userId)).thenReturn(Optional.of(user));
+        when(user.active()).thenReturn(true);
+        when(loadUserPort.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
         when(connectionStorePort.findActiveByIdAndUserId(connectionId, userId))
                 .thenReturn(Optional.of(new ExternalConnection(connectionId, userId, connectedId)));
         when(connectionStorePort.hasInstitution(connectionId, organization)).thenReturn(true);

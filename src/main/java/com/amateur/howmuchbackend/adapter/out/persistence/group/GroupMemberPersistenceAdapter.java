@@ -63,6 +63,17 @@ public class GroupMemberPersistenceAdapter implements
     }
 
     @Override
+    public List<GroupMember> findActiveByUserId(Long userId) {
+        return groupMemberJpaRepository.findAllByUserIdAndStatusAndActiveGroup(
+                        userId,
+                        GroupMemberStatus.ACTIVE.name()
+                )
+                .stream()
+                .map(GroupMemberMapper::toDomain)
+                .toList();
+    }
+
+    @Override
     public Optional<GroupMemberRoster> findActiveRoster(Long groupId) {
         if (groupId == null || groupId <= 0) {
             return Optional.empty();

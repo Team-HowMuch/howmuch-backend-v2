@@ -9,6 +9,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.Settlem
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadUserSettlementStatePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReceivingAccountUsagePort;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SettlementPersistenceAdapter implements
         LoadSettlementPort,
+        LoadUserSettlementStatePort,
         LoadSettlementListPort,
         SaveSettlementPort,
         DeleteSettlementPort,
@@ -52,6 +54,11 @@ public class SettlementPersistenceAdapter implements
     @Override
     public Optional<Settlement> findById(UUID settlementId) {
         return settlementJpaRepository.findById(settlementId).map(SettlementMapper::toDomain);
+    }
+
+    @Override
+    public boolean existsByUserIdAndStatusNotCompleted(Long userId) {
+        return settlementJpaRepository.existsByUserIdAndStatusNotCompleted(userId);
     }
 
     @Override

@@ -9,9 +9,12 @@ import com.amateur.howmuchbackend.application.port.in.account.command.UpdateAcco
 import com.amateur.howmuchbackend.application.port.out.account.AccountPreferenceStorePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +28,7 @@ public class AccountPreferenceService implements
         UpdateAccountDisplayOrderUseCase,
         ReplaceAccountDisplayOrdersUseCase {
     private final CurrentActorPort currentActorPort;
+    private final LoadUserPort loadUserPort;
     private final LoadAccountPort loadAccountPort;
     private final AccountPreferenceStorePort accountPreferenceStorePort;
     private final AccountDisplayOrderPolicy accountDisplayOrderPolicy;
@@ -33,6 +37,7 @@ public class AccountPreferenceService implements
     @Transactional
     public void setDefault(Long accountId) {
         Long userId = currentActorPort.getCurrentActor().userId();
+        requireActiveUserForUpdate(userId);
         List<Account> accounts = loadAccountPort.findActiveByUserIdForUpdate(userId);
         requireOwnedAccount(accounts, accountId);
         accountPreferenceStorePort.setDefault(userId, accountId);
@@ -45,6 +50,7 @@ public class AccountPreferenceService implements
             throw ApplicationException.of(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER);
         }
         Long userId = currentActorPort.getCurrentActor().userId();
+        requireActiveUserForUpdate(userId);
         List<Account> accounts = loadAccountPort.findActiveByUserIdForUpdate(userId);
         List<Long> orderedIds = accountDisplayOrderPolicy.reorder(
                 accounts,
@@ -63,6 +69,7 @@ public class AccountPreferenceService implements
             );
         }
         Long userId = currentActorPort.getCurrentActor().userId();
+        requireActiveUserForUpdate(userId);
         List<Account> accounts = loadAccountPort.findActiveByUserIdForUpdate(userId);
         List<Long> orderedIds = accountDisplayOrderPolicy.validateReplacement(
                 accounts,
@@ -76,5 +83,11 @@ public class AccountPreferenceService implements
                 .filter(account -> account.id().equals(accountId))
                 .findFirst()
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
+    }
+
+    private void requireActiveUserForUpdate(Long userId) {
+        loadUserPort.findByIdForUpdate(userId)
+                .filter(User::active)
+                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
     }
 }

@@ -48,6 +48,7 @@ public class UpdateMyProfileService implements UpdateMyProfileUseCase {
 
         CurrentActor actor = currentActorPort.getCurrentActor();
         User user = loadUserPort.findByIdForUpdate(actor.userId())
+                .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
 
         String publicId = command.publicId() == null

@@ -7,9 +7,12 @@ import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReceivingAccountUsagePort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,7 @@ import java.util.Comparator;
 @RequiredArgsConstructor
 public class AccountDeletionService implements DeleteAccountUseCase {
     private final CurrentActorPort currentActorPort;
+    private final LoadUserPort loadUserPort;
     private final LoadAccountPort loadAccountPort;
     private final DeleteAccountPort deleteAccountPort;
     private final ExternalConnectionStorePort connectionStorePort;
@@ -29,6 +33,9 @@ public class AccountDeletionService implements DeleteAccountUseCase {
     @Transactional
     public void delete(Long accountId) {
         CurrentActor actor = currentActorPort.getCurrentActor();
+        loadUserPort.findByIdForUpdate(actor.userId())
+                .filter(User::active)
+                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
         Account account = ownedAccount(accountId, actor.userId());
         connectionStorePort.findActiveByIdAndUserId(account.externalConnectionId(), actor.userId())
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));

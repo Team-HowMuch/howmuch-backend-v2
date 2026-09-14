@@ -20,6 +20,7 @@ import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStorageP
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.application.user.policy.PublicIdPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.group.Group;
 import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.GroupMemberStatus;
@@ -56,6 +57,9 @@ public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembers
     @Transactional
     public GroupDetailResult join(JoinGroupCommand command) {
         CurrentActor actor = currentActorPort.getCurrentActor();
+        loadUserPort.findByIdForUpdate(actor.userId())
+                .filter(User::active)
+                .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
         String inviteCode = groupInviteCodePolicy.normalize(command.inviteCode());
         Group group = loadGroupPort.findByInviteCodeForUpdate(inviteCode)
                 .orElseThrow(() -> ApplicationException.of(GroupStatusCode.GROUP_NOT_FOUND));
