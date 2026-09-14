@@ -7,15 +7,21 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementItemAllocationPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemAllocationFraction;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
@@ -53,6 +59,9 @@ class SettlementDetailServiceTest {
     private static final UUID CONTACT_PARTICIPANT_ID = UUID.fromString("f2878f10-77cc-4e85-94a5-343b414f69d7");
     private static final UUID PAYER_SHARE_ID = UUID.fromString("063338bb-bc17-471a-b917-723f37788857");
     private static final UUID CONTACT_SHARE_ID = UUID.fromString("7819caf2-710a-4f80-9d5d-8abe7fbf20a9");
+    private static final UUID EXPENSE_ID = UUID.fromString("eaaac071-e994-496f-9588-aa96d0e2a12c");
+    private static final UUID CREATOR_ITEM_ID = UUID.fromString("ad5773c9-e649-49c7-95c0-fc90d3dbaec1");
+    private static final UUID PAYER_ITEM_ID = UUID.fromString("4a539ff2-ee38-4f98-9d11-cb57d13e44b2");
     private static final Long CREATOR_ID = 1L;
     private static final Long PAYER_ID = 2L;
     private static final Long OTHER_USER_ID = 3L;
@@ -61,8 +70,10 @@ class SettlementDetailServiceTest {
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementExpensePort loadSettlementExpensePort;
+    @Mock private LoadSettlementItemPort loadSettlementItemPort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
+    @Mock private SettlementItemAllocationStorePort itemAllocationStorePort;
     @Mock private LoadSettlementReceivingAccountSnapshotPort loadReceivingAccountSnapshotPort;
     @Mock private LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     @Mock private LoadUserPort loadUserPort;
@@ -70,20 +81,25 @@ class SettlementDetailServiceTest {
     @Mock private BankCatalog bankCatalog;
 
     private SettlementDetailService service;
+    private SettlementItemAllocationPolicy itemAllocationPolicy;
 
     @BeforeEach
     void setUp() {
+        itemAllocationPolicy = new SettlementItemAllocationPolicy();
         service = new SettlementDetailService(
                 currentActorPort,
                 loadSettlementPort,
                 loadSettlementExpensePort,
+                loadSettlementItemPort,
                 loadSettlementParticipantPort,
                 loadSettlementSharePort,
+                itemAllocationStorePort,
                 loadReceivingAccountSnapshotPort,
                 loadDepositSummaryPort,
                 loadUserPort,
                 cooldownReader,
-                bankCatalog
+                bankCatalog,
+                itemAllocationPolicy
         );
     }
 
@@ -235,31 +251,108 @@ class SettlementDetailServiceTest {
     }
 
     @Test
-    @DisplayName("Share가 없는 참여자는 금액을 추측하지 않고 NOT_READY로 반환한다")
-    void returnsNotReadyBeforeShareCreation() {
+    @DisplayName("선택 대기 중인 품목 정산은 Share가 없어도 총액을 미수금으로 반환한다")
+    void returnsTotalAmountBeforeItemShareCreation() {
         User payer = mock(User.class);
         when(payer.id()).thenReturn(PAYER_ID);
         when(payer.avatarFileName()).thenReturn("payer.png");
         when(loadUserPort.findAllByIds(java.util.Set.of(PAYER_ID))).thenReturn(List.of(payer));
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
-        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
-                .thenReturn(participants());
-        givenReceivingAccount();
-        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
-        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
-                .thenReturn(List.of());
+        givenRequestedItemSettlement(List.of(), List.of());
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
         assertThat(result.participants().getFirst().hasAvatar()).isTrue();
-        assertThat(result.paymentSummary().expectedAmount()).isZero();
-        assertThat(result.paymentSummary().progressPercent()).isZero();
+        assertThat(result.paymentSummary()).isEqualTo(
+                new SettlementDetailResult.PaymentSummary(1_400, 0, 1_400, 0, 2, 2, 0)
+        );
         assertThat(result.participants()).allSatisfy(payment -> {
             assertThat(payment.expectedAmount()).isNull();
             assertThat(payment.paymentStatus())
                     .isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
         });
+    }
+
+    @Test
+    @DisplayName("선택 대기 중인 품목 정산은 일부 확인 입금만 총 미수금에서 뺀다")
+    void subtractsConfirmedPartialShareFromRequestedItemTotal() {
+        givenRequestedItemSettlement(
+                List.of(new SettlementShare(
+                        PAYER_SHARE_ID,
+                        SETTLEMENT_ID,
+                        PAYER_PARTICIPANT_ID,
+                        600,
+                        NOW
+                )),
+                List.of(new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(
+                        PAYER_SHARE_ID,
+                        300
+                ))
+        );
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.paymentSummary()).isEqualTo(
+                new SettlementDetailResult.PaymentSummary(1_400, 300, 1_100, 21, 2, 2, 0)
+        );
+        assertThat(result.participants()).satisfiesExactly(
+                payment -> {
+                    assertThat(payment.expectedAmount()).isEqualTo(600);
+                    assertThat(payment.confirmedAmount()).isEqualTo(300);
+                    assertThat(payment.paymentStatus())
+                            .isEqualTo(SettlementDetailResult.PaymentStatus.PARTIALLY_PAID);
+                },
+                payment -> {
+                    assertThat(payment.expectedAmount()).isNull();
+                    assertThat(payment.confirmedAmount()).isZero();
+                    assertThat(payment.paymentStatus())
+                            .isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
+                }
+        );
+    }
+
+    @Test
+    @DisplayName("선택 대기 중인 품목 정산은 생성자가 고른 몫을 미수금에서 제외한다")
+    void excludesCreatorItemAllocationFromRequestedTotal() {
+        givenRequestedItemSettlement(List.of(), List.of());
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                item(CREATOR_ITEM_ID, "생성자 품목", 400, 0),
+                item(PAYER_ITEM_ID, "참여자 품목", 1_000, 1)
+        ));
+        when(itemAllocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of(
+                SettlementItemSelection.create(
+                        SETTLEMENT_ID,
+                        CREATOR_ITEM_ID,
+                        CREATOR_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.ONE,
+                        1,
+                        NOW
+                )
+        ));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.paymentSummary()).isEqualTo(
+                new SettlementDetailResult.PaymentSummary(1_000, 0, 1_000, 0, 2, 2, 0)
+        );
+        assertThat(result.participants()).allSatisfy(payment -> {
+            assertThat(payment.expectedAmount()).isNull();
+            assertThat(payment.paymentStatus())
+                    .isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
+        });
+    }
+
+    @Test
+    @DisplayName("품목 선택이 끝나면 기존처럼 납부 대상 Share 합계를 기준으로 계산한다")
+    void usesPayableShareTotalAfterItemSelection() {
+        givenSettlement(CREATOR_ID);
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(itemSettlement(SettlementStatus.AWAITING_DEPOSIT)));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.paymentSummary()).isEqualTo(
+                new SettlementDetailResult.PaymentSummary(1_000, 700, 300, 70, 2, 2, 1)
+        );
     }
 
     @Test
@@ -394,6 +487,23 @@ class SettlementDetailServiceTest {
         givenReceivingAccount();
     }
 
+    private void givenRequestedItemSettlement(
+            List<SettlementShare> shares,
+            List<LoadSettlementDepositSummaryPort.ConfirmedShareAmount> confirmedAmounts
+    ) {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(shares);
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(confirmedAmounts);
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
+        when(itemAllocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of());
+        givenReceivingAccount();
+    }
+
     private void givenReceivingAccount() {
         lenient().when(loadReceivingAccountSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(new SettlementReceivingAccountSnapshot(
@@ -432,6 +542,39 @@ class SettlementDetailServiceTest {
                 SettlementAllocationType.DUTCH_PAY,
                 10L,
                 SettlementStatus.AWAITING_DEPOSIT,
+                NOW,
+                NOW
+        );
+    }
+
+    private Settlement itemSettlement(SettlementStatus status) {
+        return new Settlement(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                "회식 정산",
+                1_400,
+                SettlementAllocationType.ITEM_ALLOCATION,
+                10L,
+                status,
+                NOW,
+                NOW
+        );
+    }
+
+    private SettlementItem item(
+            UUID itemId,
+            String name,
+            long amount,
+            int displayOrder
+    ) {
+        return new SettlementItem(
+                itemId,
+                SETTLEMENT_ID,
+                EXPENSE_ID,
+                name,
+                1,
+                amount,
+                displayOrder,
                 NOW,
                 NOW
         );

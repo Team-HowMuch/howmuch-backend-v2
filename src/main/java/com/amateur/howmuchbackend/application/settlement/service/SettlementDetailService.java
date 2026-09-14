@@ -7,14 +7,18 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementItemAllocationPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
@@ -45,13 +49,16 @@ public class SettlementDetailService implements GetSettlementUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementPort loadSettlementPort;
     private final LoadSettlementExpensePort loadSettlementExpensePort;
+    private final LoadSettlementItemPort loadSettlementItemPort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementSharePort loadSettlementSharePort;
+    private final SettlementItemAllocationStorePort itemAllocationStorePort;
     private final LoadSettlementReceivingAccountSnapshotPort loadReceivingAccountSnapshotPort;
     private final LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     private final LoadUserPort loadUserPort;
     private final SettlementReminderCooldownReader cooldownReader;
     private final BankCatalog bankCatalog;
+    private final SettlementItemAllocationPolicy itemAllocationPolicy;
 
     @Override
     @Transactional(readOnly = true)
@@ -63,13 +70,15 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 ));
         List<SettlementParticipant> participants =
                 loadSettlementParticipantPort.findAllBySettlementId(settlementId);
-        String creatorName = participants.stream()
+        SettlementParticipant creatorParticipant = participants.stream()
                 .filter(participant -> participant.isLinkedTo(settlement.creatorId()))
-                .map(SettlementParticipant::displayName)
                 .findFirst()
-                .orElseGet(() -> loadUserPort.findById(settlement.creatorId())
-                        .map(user -> user.name())
-                        .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND)));
+                .orElse(null);
+        String creatorName = creatorParticipant == null
+                ? loadUserPort.findById(settlement.creatorId())
+                        .map(User::name)
+                        .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND))
+                : creatorParticipant.displayName();
         SettlementDetailResult.ViewerRole viewerRole = viewerRole(
                 settlement,
                 participants,
@@ -169,7 +178,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         settlement,
                         loadSettlementExpensePort.findAllBySettlementId(settlementId)
                 ),
-                summary(settlement.status(), allPayments),
+                summary(settlement, creatorParticipant, allPayments),
                 reminderNextAvailableAt(settlement, viewerRole, allPayments),
                 visiblePayments
         );
@@ -258,13 +267,19 @@ public class SettlementDetailService implements GetSettlementUseCase {
     }
 
     private SettlementDetailResult.PaymentSummary summary(
-            SettlementStatus settlementStatus,
+            Settlement settlement,
+            SettlementParticipant creatorParticipant,
             List<SettlementDetailResult.ParticipantPayment> payments
     ) {
-        long expectedAmount = payments.stream()
+        long shareExpectedAmount = payments.stream()
                 .filter(payment -> payment.expectedAmount() != null)
                 .mapToLong(SettlementDetailResult.ParticipantPayment::expectedAmount)
                 .reduce(0L, Math::addExact);
+        long expectedAmount = settlement.allocationType()
+                == SettlementAllocationType.ITEM_ALLOCATION
+                && settlement.status() == SettlementStatus.REQUESTED
+                ? requestedItemExpectedAmount(settlement, creatorParticipant)
+                : shareExpectedAmount;
         long confirmedAmount = payments.stream()
                 .filter(payment -> payment.expectedAmount() != null)
                 .mapToLong(payment -> Math.min(
@@ -277,7 +292,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         == SettlementDetailResult.PaymentStatus.PAID)
                 .count());
         int progressPercent = expectedAmount == 0
-                ? settlementStatus == SettlementStatus.COMPLETED ? 100 : 0
+                ? settlement.status() == SettlementStatus.COMPLETED ? 100 : 0
                 : BigInteger.valueOf(confirmedAmount)
                         .multiply(BigInteger.valueOf(100))
                         .divide(BigInteger.valueOf(expectedAmount))
@@ -294,5 +309,20 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 payments.size(),
                 completedCount
         );
+    }
+
+    private long requestedItemExpectedAmount(
+            Settlement settlement,
+            SettlementParticipant creatorParticipant
+    ) {
+        if (creatorParticipant == null) {
+            return settlement.totalAmount();
+        }
+        long creatorAmount = itemAllocationPolicy.calculatePersonalAmount(
+                loadSettlementItemPort.findAllBySettlementId(settlement.id()),
+                itemAllocationStorePort.findAllSelections(settlement.id()),
+                creatorParticipant.id()
+        );
+        return Math.subtractExact(settlement.totalAmount(), creatorAmount);
     }
 }
