@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 @Component
 public class AccountTransactionDisplayNormalizer {
@@ -16,17 +17,18 @@ public class AccountTransactionDisplayNormalizer {
             "실시간이체", "이체", "송금", "입금", "출금", "거래", "결제", "체크", "체크카드",
             "신용카드", "카드", "ATM", "현금", "수수료"
     );
-    private static final Map<String, Set<String>> BANK_MARKERS = Map.of(
-            "0003", Set.of("기업", "기업은행", "IBK", "IBK기업"),
-            "0004", Set.of("국민", "국민은행", "KB", "KB국민"),
-            "0011", Set.of("농협", "농협은행", "NH"),
-            "0020", Set.of("우리", "우리은행"),
-            "0037", Set.of("전북", "전북은행"),
-            "0039", Set.of("경남", "경남은행"),
-            "0045", Set.of("새마을", "새마을금고", "MG"),
-            "0071", Set.of("우체국"),
-            "0081", Set.of("하나", "하나은행", "KEB", "KEB하나"),
-            "0088", Set.of("신한", "신한은행")
+    private static final Map<String, Set<String>> BANK_MARKERS = Map.ofEntries(
+            Map.entry("0003", Set.of("기업", "기업은행", "IBK", "IBK기업")),
+            Map.entry("0004", Set.of("국민", "국민은행", "KB", "KB국민")),
+            Map.entry("0011", Set.of("농협", "농협은행", "NH")),
+            Map.entry("0020", Set.of("우리", "우리은행")),
+            Map.entry("0031", Set.of("대구", "대구은행", "DGB", "IM뱅크", "iM뱅크")),
+            Map.entry("0037", Set.of("전북", "전북은행")),
+            Map.entry("0039", Set.of("경남", "경남은행")),
+            Map.entry("0045", Set.of("새마을", "새마을금고", "MG")),
+            Map.entry("0071", Set.of("우체국")),
+            Map.entry("0081", Set.of("하나", "하나은행", "KEB", "KEB하나")),
+            Map.entry("0088", Set.of("신한", "신한은행"))
     );
 
     public AccountTransactionResult.Display normalize(
@@ -34,9 +36,53 @@ public class AccountTransactionDisplayNormalizer {
             String description,
             AccountTransactionType type
     ) {
+        return normalize(organization, description, type, null, null, null, null);
+    }
+
+    public AccountTransactionResult.Display normalize(
+            String organization,
+            String description,
+            AccountTransactionType type,
+            String description1,
+            String description2,
+            String description3,
+            String description4
+    ) {
         String normalized = normalizeText(description);
         if (normalized == null || type == null) {
             return other(description);
+        }
+        String title = Stream.of(
+                        preferredParts(organization, description1, description2, description3, description4)
+                )
+                .flatMap(List::stream)
+                .map(part -> filteredTitle(organization, part, false))
+                .filter(titlePart -> titlePart != null && !titlePart.isBlank())
+                .findFirst()
+                .orElseGet(() -> filteredTitle(organization, normalized, true));
+        return new AccountTransactionResult.Display(
+                title.isBlank() ? normalized : title,
+                kind(normalized)
+        );
+    }
+
+    private List<String> preferredParts(
+            String organization,
+            String description1,
+            String description2,
+            String description3,
+            String description4
+    ) {
+        Stream<String> parts = "0011".equals(organization) || "0031".equals(organization)
+                ? Stream.of(description3, description2, description1, description4)
+                : Stream.of(description1, description2, description3, description4);
+        return parts.filter(part -> part != null && !part.isBlank()).toList();
+    }
+
+    private String filteredTitle(String organization, String description, boolean fallbackToOriginal) {
+        String normalized = normalizeText(description);
+        if (normalized == null) {
+            return null;
         }
         String title = Arrays.stream(normalized.split(" "))
                 .filter(token -> !isNumericAccount(token))
@@ -44,12 +90,9 @@ public class AccountTransactionDisplayNormalizer {
                 .filter(token -> !isBankMarker(organization, token))
                 .filter(token -> !isBankMethod(token))
                 .reduce((left, right) -> left + " " + right)
-                .orElse(normalized)
-                .strip();
-        return new AccountTransactionResult.Display(
-                title.isBlank() ? normalized : title,
-                kind(normalized)
-        );
+                .map(String::strip)
+                .orElse("");
+        return title.isBlank() && fallbackToOriginal ? normalized : title;
     }
 
     private AccountTransactionResult.Display other(String description) {

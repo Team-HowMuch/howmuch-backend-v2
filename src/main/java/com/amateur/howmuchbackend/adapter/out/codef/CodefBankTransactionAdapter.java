@@ -114,12 +114,17 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         if (transactedAt == null || type == null || transactionAmount.signum() <= 0) {
             return null;
         }
+        DescriptionParts descriptions = descriptions(item);
         return new BankTransaction(
                 type,
                 transactionAmount,
                 transactedAt,
-                description(item),
-                signedAmount(text(item, "resAfterTranBalance"))
+                descriptions.joined(),
+                signedAmount(text(item, "resAfterTranBalance")),
+                descriptions.first(),
+                descriptions.second(),
+                descriptions.third(),
+                descriptions.fourth()
         );
     }
 
@@ -139,24 +144,19 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         }
     }
 
-    private String description(JsonNode item) {
-        List<String> values = new ArrayList<>();
-        for (String field : List.of(
-                "resAccountDesc1", "resAccountDesc2", "resAccountDesc3", "resAccountDesc4"
-        )) {
-            String value = text(item, field);
-            if (value != null && !values.contains(value)) {
-                values.add(value);
-            }
+    private DescriptionParts descriptions(JsonNode item) {
+        DescriptionParts parts = new DescriptionParts(
+                text(item, "resAccountDesc1"),
+                text(item, "resAccountDesc2"),
+                text(item, "resAccountDesc3"),
+                text(item, "resAccountDesc4"),
+                null
+        );
+        if (parts.hasValue()) {
+            return parts;
         }
-        if (values.isEmpty()) {
-            String fallback = text(item, "resAccountDesc");
-            if (fallback != null) {
-                values.add(fallback);
-            }
-        }
-        String result = String.join(" ", values);
-        return result.length() <= 500 ? result : result.substring(0, 500);
+        String fallback = text(item, "resAccountDesc");
+        return new DescriptionParts(null, null, null, null, fallback);
     }
 
     private BigDecimal positiveAmount(String value) {
@@ -214,5 +214,29 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
 
     private String digits(String value) {
         return value == null ? null : value.replaceAll("\\D", "");
+    }
+
+    private record DescriptionParts(
+            String first,
+            String second,
+            String third,
+            String fourth,
+            String fallback
+    ) {
+        private boolean hasValue() {
+            return first != null || second != null || third != null || fourth != null;
+        }
+
+        private String joined() {
+            List<String> values = java.util.stream.Stream.of(first, second, third, fourth)
+                    .filter(value -> value != null && !value.isBlank())
+                    .distinct()
+                    .toList();
+            if (values.isEmpty() && fallback != null && !fallback.isBlank()) {
+                values = List.of(fallback);
+            }
+            String result = String.join(" ", values);
+            return result.length() <= 500 ? result : result.substring(0, 500);
+        }
     }
 }

@@ -136,6 +136,8 @@ public class AccountTransactionPersistenceAdapter
             int inserted = transactionRepository.insertIgnoringDuplicate(
                     transaction.accountId(), transaction.externalTransactionKey(), transaction.type().name(),
                     transaction.amount(), transaction.transactedAt(), transaction.description(),
+                    transaction.description1(), transaction.description2(), transaction.description3(),
+                    transaction.description4(),
                     transaction.afterBalance()
             );
             if (inserted > 0) {
@@ -165,7 +167,9 @@ public class AccountTransactionPersistenceAdapter
     private Transaction toDomain(AccountTransactionJpaEntity entity) {
         return new Transaction(
                 entity.getId(), entity.getAccountId(), entity.getExternalTransactionKey(), entity.getType(),
-                entity.getAmount(), entity.getTransactedAt(), entity.getDescription(), entity.getAfterBalance()
+                entity.getAmount(), entity.getTransactedAt(), entity.getDescription(), entity.getAfterBalance(),
+                entity.getDescription1(), entity.getDescription2(), entity.getDescription3(),
+                entity.getDescription4()
         );
     }
 

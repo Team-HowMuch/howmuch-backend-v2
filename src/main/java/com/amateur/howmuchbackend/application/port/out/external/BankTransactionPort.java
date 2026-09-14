@@ -21,7 +21,20 @@ public interface BankTransactionPort {
             BigDecimal amount,
             LocalDateTime transactedAt,
             String description,
-            BigDecimal afterBalance
+            BigDecimal afterBalance,
+            String description1,
+            String description2,
+            String description3,
+            String description4
     ) {
+        public BankTransaction(
+                AccountTransactionType type,
+                BigDecimal amount,
+                LocalDateTime transactedAt,
+                String description,
+                BigDecimal afterBalance
+        ) {
+            this(type, amount, transactedAt, description, afterBalance, null, null, null, null);
+        }
     }
 }

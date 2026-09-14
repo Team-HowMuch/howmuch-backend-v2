@@ -101,10 +101,12 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
     @Query(value = """
             INSERT INTO account_transactions (
                 account_id, external_transaction_key, transaction_type, amount, transacted_at,
-                description, after_balance, created_at, updated_at
+                description, description_1, description_2, description_3, description_4,
+                after_balance, created_at, updated_at
             ) VALUES (
                 :accountId, :externalTransactionKey, :transactionType, :amount, :transactedAt,
-                :description, :afterBalance, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                :description, :description1, :description2, :description3, :description4,
+                :afterBalance, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
             ON CONFLICT (account_id, external_transaction_key) DO NOTHING
             """, nativeQuery = true)
@@ -115,6 +117,10 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
             @Param("amount") BigDecimal amount,
             @Param("transactedAt") LocalDateTime transactedAt,
             @Param("description") String description,
+            @Param("description1") String description1,
+            @Param("description2") String description2,
+            @Param("description3") String description3,
+            @Param("description4") String description4,
             @Param("afterBalance") BigDecimal afterBalance
     );
 
