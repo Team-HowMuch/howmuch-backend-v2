@@ -125,20 +125,27 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void refusesRequestedParticipantWhoAlreadySelectedItems() {
+    void remindsRequestedParticipantWithPreservedShareAfterResume() {
         givenRequestedTargetWithoutShare();
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(share()));
+        when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator()));
+        when(cooldownPort.reserve(any(), any(), anyString(), eq(Duration.ofMinutes(30)))).thenReturn(true);
+        when(recorder.record(any())).thenReturn(true);
 
-        assertStatus(SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID,
-                () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID));
+        var result = service.remind(SETTLEMENT_ID, PARTICIPANT_ID);
 
-        verifyNoInteractions(cooldownPort, recorder);
+        assertThat(result.nextAvailableAt()).isEqualTo(NOW.plusMinutes(30));
+        var captured = ArgumentCaptor.forClass(com.amateur.howmuchbackend.domain.notification.UserNotification.class);
+        verify(recorder).record(captured.capture());
+        assertThat(captured.getValue().message()).isEqualTo("생성자님이 정산 품목 선택을 기다리고 있어요");
     }
 
     @Test
-    void refusesRequestedParticipantWhoSubmittedWithoutCreatingShare() {
+    void refusesRequestedParticipantWhoSubmittedEvenWithPreservedShare() {
         givenRequestedTargetWithoutShare();
+        when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(share()));
         when(itemAllocationStorePort.findSubmission(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(SettlementItemSubmission.submit(
                         SETTLEMENT_ID, PARTICIPANT_ID, NOW

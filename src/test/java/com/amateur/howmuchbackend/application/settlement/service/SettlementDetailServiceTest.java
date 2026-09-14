@@ -192,6 +192,42 @@ class SettlementDetailServiceTest {
     }
 
     @Test
+    @DisplayName("재개 후 Share가 남아 있어도 미제출 참여자의 다음 독촉 가능 시각을 반환한다")
+    void restoresItemSelectionReminderCooldownWithPreservedShareAfterResume() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                new SettlementShare(
+                        PAYER_SHARE_ID,
+                        SETTLEMENT_ID,
+                        PAYER_PARTICIPANT_ID,
+                        600,
+                        NOW
+                )
+        ));
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+        when(itemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of());
+        givenReceivingAccount();
+        LocalDateTime nextAvailableAt = NOW.plusMinutes(30);
+        when(cooldownReader.findLatestNextAvailableAt(
+                eq(SETTLEMENT_ID),
+                eq(List.of(PAYER_PARTICIPANT_ID))
+        )).thenReturn(Optional.of(nextAvailableAt));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.reminderNextAvailableAt()).isEqualTo(nextAvailableAt);
+        assertThat(result.participants()).first().satisfies(payment ->
+                assertThat(payment.paymentStatus())
+                        .isEqualTo(SettlementDetailResult.PaymentStatus.UNPAID)
+        );
+    }
+
+    @Test
     @DisplayName("Share가 없어도 품목 선택을 제출한 참여자는 독촉 쿨다운 복원 대상에서 제외한다")
     void excludesSubmittedParticipantWithoutShareFromReminderCooldown() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
