@@ -121,7 +121,11 @@ public class SettlementDepositService implements
                             transaction.amount(),
                             transaction.transactedAt(),
                             transaction.description(),
-                            transaction.afterBalance()
+                            transaction.afterBalance(),
+                            transaction.description1(),
+                            transaction.description2(),
+                            transaction.description3(),
+                            transaction.description4()
                     ))
                     .forEach(result::add);
             month = month.plusMonths(1);

@@ -176,6 +176,37 @@ class AccountTransactionPersistenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("CODEF 설명 슬롯을 분리된 값으로 저장하고 다시 읽는다")
+    void preservesCodefDescriptionFields() {
+        Transaction transaction = new Transaction(
+                null,
+                accountId,
+                "d".repeat(64),
+                AccountTransactionType.EXPENSE,
+                new BigDecimal("12500"),
+                LocalDateTime.of(2026, 8, 22, 1, 15),
+                "원문 설명",
+                new BigDecimal("987500"),
+                "거래기록사항",
+                "실시간이체",
+                "상대방명",
+                "거래점"
+        );
+
+        adapter.saveAllIgnoringDuplicates(List.of(transaction));
+
+        assertThat(adapter.findByAccountIdAndYearMonth(accountId, AUGUST))
+                .singleElement()
+                .satisfies(saved -> {
+                    assertThat(saved.description()).isEqualTo("원문 설명");
+                    assertThat(saved.description1()).isEqualTo("거래기록사항");
+                    assertThat(saved.description2()).isEqualTo("실시간이체");
+                    assertThat(saved.description3()).isEqualTo("상대방명");
+                    assertThat(saved.description4()).isEqualTo("거래점");
+                });
+    }
+
+    @Test
     @DisplayName("거래 Key에 연결된 여러 정산을 원본 계좌 범위에서 조회한다")
     void loadsLinkedSettlementsForTransactions() {
         String transactionKey = "g".repeat(64);

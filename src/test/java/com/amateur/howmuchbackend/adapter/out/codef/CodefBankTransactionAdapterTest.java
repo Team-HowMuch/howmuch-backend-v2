@@ -178,6 +178,10 @@ class CodefBankTransactionAdapterTest {
             assertThat(transaction.afterBalance()).isEqualByComparingTo("0");
             assertThat(transaction.transactedAt()).isEqualTo(LocalDateTime.of(2026, 8, 19, 15, 15));
             assertThat(transaction.description()).isEqualTo("편의점 생활비");
+            assertThat(transaction.description1()).isEqualTo("편의점");
+            assertThat(transaction.description2()).isEqualTo("생활비");
+            assertThat(transaction.description3()).isNull();
+            assertThat(transaction.description4()).isNull();
         });
         assertThat(result.get(1)).satisfies(transaction -> {
             assertThat(transaction.type()).isEqualTo(AccountTransactionType.INCOME);

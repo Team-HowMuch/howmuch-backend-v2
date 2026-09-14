@@ -45,6 +45,18 @@ public class AccountTransactionJpaEntity extends BaseTimeJpaEntity {
     @Column(length = 500)
     private String description;
 
+    @Column(name = "description_1", length = 500)
+    private String description1;
+
+    @Column(name = "description_2", length = 500)
+    private String description2;
+
+    @Column(name = "description_3", length = 500)
+    private String description3;
+
+    @Column(name = "description_4", length = 500)
+    private String description4;
+
     @Column(name = "after_balance", precision = 19, scale = 4)
     private BigDecimal afterBalance;
 }
