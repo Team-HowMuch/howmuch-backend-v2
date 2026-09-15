@@ -94,6 +94,16 @@ class AuthSignupContractIntegrationTest {
     void rejectsInvalidPhoneNumber() throws Exception {
         String clientAddress = randomClientAddress();
         try {
+            mockMvc.perform(post(PHONE_NUMBER_CHECK_PATH)
+                            .with(request -> {
+                                request.setRemoteAddr(clientAddress);
+                                return request;
+                            })
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.code").value("INVALID_PHONE_NUMBER"));
+
             for (String invalidPhoneNumber : List.of("", "010-12")) {
                 mockMvc.perform(phoneNumberCheckRequest(invalidPhoneNumber, clientAddress))
                         .andExpect(status().isBadRequest())
@@ -156,12 +166,16 @@ class AuthSignupContractIntegrationTest {
                 .getContentAsByteArray();
         JsonNode document = objectMapper.readTree(new String(content, StandardCharsets.UTF_8));
         JsonNode operation = document.path("paths").path(PHONE_NUMBER_CHECK_PATH).path("post");
+        JsonNode requestSchema = document.path("components")
+                .path("schemas")
+                .path("PhoneNumberRegistrationCheckRequest");
 
         assertThat(operation.isMissingNode()).isFalse();
         assertThat(operation.path("responses").has("200")).isTrue();
         assertThat(operation.path("responses").has("400")).isTrue();
         assertThat(operation.path("responses").has("429")).isTrue();
         assertThat(operation.path("responses").has("503")).isTrue();
+        assertThat(requestSchema.path("required").toString()).contains("\"phoneNumber\"");
     }
 
     @Test

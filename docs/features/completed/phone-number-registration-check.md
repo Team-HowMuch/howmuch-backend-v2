@@ -79,7 +79,7 @@ PhoneNumberRegistrationWebResponse.from(result)
 
 ```text
 POST /api/v2/auth/phone-number/check
-Request: { "phoneNumber": "01012345678" }
+Request: { "phoneNumber": "01012345678" } (`phoneNumber` required)
 Response data: { "registered": true | false }
 Errors: 400 INVALID_PHONE_NUMBER, 429 TOO_MANY_REQUEST, 503 TEMPORARILY_UNAVAILABLE
 Authentication: 불필요
@@ -122,6 +122,7 @@ Authentication: 불필요
 2. `feat(auth): 전화번호 가입 여부 확인 API 추가`
 3. `test(auth): 전화번호 가입 여부 확인 계약 검증`
 4. `docs(auth): 전화번호 가입 여부 확인 완료 기록`
+5. `fix(auth): 전화번호 확인 요청 필수 계약 명시`
 
 - [x] Migration-only pull request: N/A
 - [x] UseCase와 Command/Result
@@ -147,7 +148,7 @@ PostgreSQL과 Redis가 필요한 통합 테스트는 실행 전 연결 가능 �
 
 - `./gradlew compileJava`: 통과.
 - `./gradlew compileTestJava`: 통과.
-- `AuthSignupContractIntegrationTest`: 9건 통과. 활성·비활성·미가입, 공백·형식 오류, 번호별 1회, IP별 60회, 미인증 접근과 OpenAPI를 검증했다.
+- `AuthSignupContractIntegrationTest`: 9건 통과. 활성·비활성·미가입, 필드 누락·공백·형식 오류, 번호별 1회, IP별 60회, 미인증 접근과 OpenAPI 필수 필드 계약을 검증했다.
 - `SecurityFilterChainIntegrationTest`: 기존 실제 HTTP 보안 회귀 22건 통과.
 - `bash scripts/test.sh test`: UTF-8 PostgreSQL 18·Redis 8 격리 환경에서 Java 1,162건과 JavaScript 35건 통과.
 - 최초 전체 테스트는 임시 PostgreSQL을 `SQL_ASCII`로 잘못 초기화해 한글 fixture 길이 관련 기존 테스트 9건이 실패했다. 같은 임시 DB를 UTF-8로 재생성한 뒤 전체 테스트를 다시 실행해 실패 0건을 확인했다.
@@ -160,6 +161,7 @@ PostgreSQL과 Redis가 필요한 통합 테스트는 실행 전 연결 가능 �
 |---|---|---|---|
 | 2026-09-15 | 이슈·최근 PR 관례와 auth/SMS/공개 API 흐름 분석, migration 불필요 확인 | 계약과 구현 추가 | NAT 사용자는 IP quota를 공유하며 trusted proxy 처리는 별도 과제 |
 | 2026-09-15 | API·Redis 제한·공개 보안 경로와 회귀 테스트 구현, 전체 테스트 완료 | PR 검토·배포 | 단일 Redis 기준 Lua이며 Redis Cluster 전환 시 key hash slot 설계 필요 |
+| 2026-09-15 | Codex 리뷰에 따라 `phoneNumber`의 OpenAPI required 계약과 회귀 검증 보완 | PR CI 확인 | 런타임 400 `INVALID_PHONE_NUMBER` 계약은 유지 |
 
 ## 10. 완료 기록
 
