@@ -3,7 +3,9 @@ package com.amateur.howmuchbackend.application.treasurer.service;
 import com.amateur.howmuchbackend.application.port.in.treasurer.AskTreasurerUseCase;
 import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreasurerCommand;
 import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerAnswerResult;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
+import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAnswerPort;
 import com.amateur.howmuchbackend.application.treasurer.model.InquiryScope;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
@@ -14,9 +16,12 @@ import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerCardCopy
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
 import com.amateur.howmuchbackend.domain.treasurer.PersonalSettlement;
+import com.amateur.howmuchbackend.domain.treasurer.SavedTreasurerAnswer;
+import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerGeneratedBy;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerActionType;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerView;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,8 +35,10 @@ import java.time.ZoneOffset;
 import java.time.temporal.WeekFields;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AskTreasurerService implements AskTreasurerUseCase {
     static final int CARD_LIMIT = 20;
@@ -44,11 +51,45 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     private final GenerateTreasurerAnswerPort generateTreasurerAnswerPort;
     private final TreasurerAnswerFactCheck treasurerAnswerFactCheck;
     private final TreasurerCardCopy treasurerCardCopy;
+    private final CurrentActorPort currentActorPort;
+    private final SaveTreasurerAnswerPort saveTreasurerAnswerPort;
     private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
     public TreasurerAnswerResult ask(AskTreasurerCommand command) {
+        Answered answered = answerFor(command);
+        return answered.result().withAnswerId(saveAnswer(command.question(), answered));
+    }
+
+    /**
+     * 답변을 남기고 그 식별자를 돌려준다.
+     *
+     * <p>저장은 답변의 부수 효과다. 실패하면 {@code null}을 돌려주고 답변 자체는 그대로 나간다.
+     * 앱은 식별자가 없으면 신고 버튼을 숨긴다.
+     */
+    private UUID saveAnswer(String question, Answered answered) {
+        try {
+            SavedTreasurerAnswer saved = SavedTreasurerAnswer.of(
+                    currentActorPort.getCurrentActor().userId(),
+                    question,
+                    answered.result().answer(),
+                    answered.result().intent(),
+                    answered.generatedBy(),
+                    LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)
+            );
+            saveTreasurerAnswerPort.save(saved);
+            return saved.id();
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Failed to store treasurer answer for reporting. failureType={}",
+                    exception.getClass().getSimpleName()
+            );
+            return null;
+        }
+    }
+
+    private Answered answerFor(AskTreasurerCommand command) {
         InquiryParser.ParsedInquiry parsed = inquiryParser.parse(command.question());
         if (parsed.intent() == InquiryIntent.UNKNOWN) {
             return unmatchedAnswer(command.question());
@@ -129,7 +170,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         };
     }
 
-    private TreasurerAnswerResult unmatchedAnswer(String question) {
+    private Answered unmatchedAnswer(String question) {
         String answer = inquiryScopePolicy.classify(question) == InquiryScope.RELATED
                 ? TreasurerCardCopy.CLARIFY_ANSWER
                 : TreasurerCardCopy.UNKNOWN_ANSWER;
@@ -140,26 +181,30 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         );
     }
 
-    private TreasurerAnswerResult textAnswer(
+    private Answered textAnswer(
             InquiryIntent intent,
             String answer,
             List<TreasurerAnswerResult.Prompt> prompts
     ) {
-        return new TreasurerAnswerResult(
-                intent,
-                null,
-                null,
-                TreasurerAnswerView.TEXT,
-                answer,
-                null,
-                List.of(),
-                null,
-                List.of(),
-                prompts
+        return new Answered(
+                new TreasurerAnswerResult(
+                        null,
+                        intent,
+                        null,
+                        null,
+                        TreasurerAnswerView.TEXT,
+                        answer,
+                        null,
+                        List.of(),
+                        null,
+                        List.of(),
+                        prompts
+                ),
+                TreasurerAnswerGeneratedBy.SERVER
         );
     }
 
-    private TreasurerAnswerResult answerList(
+    private Answered answerList(
             String question,
             InquiryIntent intent,
             InquiryPeriod period,
@@ -181,21 +226,28 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 .limit(CARD_LIMIT)
                 .map(item -> toItem(treasurerCardCopy.item(item, now)))
                 .toList();
-        return new TreasurerAnswerResult(
-                intent,
-                period,
-                scope,
-                TreasurerAnswerView.LIST,
-                phrasedAnswer(question, intent, scope, fallback, total, items.size(), factsOf(cards), deterministicOnly),
-                items.isEmpty() ? null : listFooter(items.size()),
-                cards,
-                null,
-                List.of(action),
-                List.of()
+        Phrased phrased = phrasedAnswer(
+                question, intent, scope, fallback, total, items.size(), factsOf(cards),
+                deterministicOnly);
+        return new Answered(
+                new TreasurerAnswerResult(
+                        null,
+                        intent,
+                        period,
+                        scope,
+                        TreasurerAnswerView.LIST,
+                        phrased.text(),
+                        items.isEmpty() ? null : listFooter(items.size()),
+                        cards,
+                        null,
+                        List.of(action),
+                        List.of()
+                ),
+                phrased.generatedBy()
         );
     }
 
-    private TreasurerAnswerResult answerStatus(
+    private Answered answerStatus(
             String question,
             InquiryPeriod period,
             String scope,
@@ -232,34 +284,40 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     case THIS_MONTH -> "이번 달 완료";
                 }
         );
-        return new TreasurerAnswerResult(
+        Phrased phrased = phrasedAnswer(
+                question,
                 InquiryIntent.SETTLEMENT_STATUS,
-                period,
                 scope,
-                TreasurerAnswerView.SUMMARY,
-                phrasedAnswer(
-                        question,
-                        InquiryIntent.SETTLEMENT_STATUS,
-                        scope,
-                        fallback,
-                        sendAmount + receiveAmount,
-                        sendCount + receiveCount,
-                        List.of(
-                                new TreasurerAnswerDraft.Item("내가 낼 돈", "SEND", sendAmount),
-                                new TreasurerAnswerDraft.Item("내가 받을 돈", "RECEIVE", receiveAmount),
-                                new TreasurerAnswerDraft.Item("완료된 정산", "COMPLETED", completedCount)
-                        ),
-                        deterministicOnly
+                fallback,
+                sendAmount + receiveAmount,
+                sendCount + receiveCount,
+                List.of(
+                        new TreasurerAnswerDraft.Item("내가 낼 돈", "SEND", sendAmount),
+                        new TreasurerAnswerDraft.Item("내가 받을 돈", "RECEIVE", receiveAmount),
+                        new TreasurerAnswerDraft.Item("완료된 정산", "COMPLETED", completedCount)
                 ),
-                null,
-                List.of(),
-                toSummary(summary),
-                List.of(new TreasurerAnswerResult.Action(TreasurerAnswerActionType.STATUS_LIST, "정산 상태 확인하기")),
-                List.of()
+                deterministicOnly
+        );
+        return new Answered(
+                new TreasurerAnswerResult(
+                        null,
+                        InquiryIntent.SETTLEMENT_STATUS,
+                        period,
+                        scope,
+                        TreasurerAnswerView.SUMMARY,
+                        phrased.text(),
+                        null,
+                        List.of(),
+                        toSummary(summary),
+                        List.of(new TreasurerAnswerResult.Action(
+                                TreasurerAnswerActionType.STATUS_LIST, "정산 상태 확인하기")),
+                        List.of()
+                ),
+                phrased.generatedBy()
         );
     }
 
-    private String phrasedAnswer(
+    private Phrased phrasedAnswer(
             String question,
             InquiryIntent intent,
             String scope,
@@ -279,11 +337,24 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 items
         );
         if (deterministicOnly) {
-            return draft.fallbackAnswer();
+            // 이름으로 좁히려다 실패한 답변이다. LLM 문장을 붙이면 없는 정산을 있는 것처럼
+            // 말할 여지가 생긴다. 서버가 계산한 문구만 내보낸다.
+            return new Phrased(draft.fallbackAnswer(), TreasurerAnswerGeneratedBy.SERVER);
         }
         return generateTreasurerAnswerPort.generate(draft)
                 .filter(text -> treasurerAnswerFactCheck.accepts(text, draft))
-                .orElse(draft.fallbackAnswer());
+                .map(text -> new Phrased(text, TreasurerAnswerGeneratedBy.LLM))
+                .orElseGet(() -> new Phrased(
+                        draft.fallbackAnswer(), TreasurerAnswerGeneratedBy.SERVER));
+    }
+
+    /**
+     * 답변과 그 문장을 누가 만들었는지. 신고를 확인할 때 LLM 문장인지 서버 문구인지 구분해야 한다.
+     */
+    private record Phrased(String text, TreasurerAnswerGeneratedBy generatedBy) {
+    }
+
+    private record Answered(TreasurerAnswerResult result, TreasurerAnswerGeneratedBy generatedBy) {
     }
 
     private List<TreasurerAnswerDraft.Item> factsOf(List<TreasurerAnswerResult.Item> items) {

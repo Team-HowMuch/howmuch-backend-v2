@@ -84,6 +84,7 @@ class TreasurerControllerTest {
     @DisplayName("질의 답변을 반환한다")
     void returnsAnswer() throws Exception {
         when(askTreasurerUseCase.ask(any())).thenReturn(new TreasurerAnswerResult(
+                UUID.fromString("55555555-5555-5555-5555-555555555555"),
                 InquiryIntent.SEND_SETTLEMENTS,
                 InquiryPeriod.THIS_MONTH,
                 "이번 달 기준으로 조회했어요.",

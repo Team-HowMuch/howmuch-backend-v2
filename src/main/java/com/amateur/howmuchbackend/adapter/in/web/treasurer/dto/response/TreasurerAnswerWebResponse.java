@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record TreasurerAnswerWebResponse(
+        UUID answerId,
         String intent,
         String period,
         String scope,
@@ -19,6 +20,7 @@ public record TreasurerAnswerWebResponse(
 ) {
     public static TreasurerAnswerWebResponse from(TreasurerAnswerResult result) {
         return new TreasurerAnswerWebResponse(
+                result.answerId(),
                 result.intent().name(),
                 result.period() == null ? null : result.period().name(),
                 result.scope(),

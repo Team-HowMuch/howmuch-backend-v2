@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record TreasurerAnswerResult(
+        UUID answerId,
         InquiryIntent intent,
         InquiryPeriod period,
         String scope,
@@ -24,6 +25,14 @@ public record TreasurerAnswerResult(
         List<Action> actions,
         List<Prompt> prompts
 ) {
+    /**
+     * 저장된 답변 식별자를 붙인 사본. 저장에 실패하면 {@code null}이고 앱은 신고 버튼을 숨긴다.
+     */
+    public TreasurerAnswerResult withAnswerId(UUID savedAnswerId) {
+        return new TreasurerAnswerResult(
+                savedAnswerId, intent, period, scope, view, answer, footer, items, summary, actions, prompts);
+    }
+
     public record Item(
             UUID settlementId,
             String requestedDate,
