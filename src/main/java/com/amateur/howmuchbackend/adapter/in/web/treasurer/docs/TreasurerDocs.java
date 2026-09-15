@@ -17,7 +17,7 @@ import jakarta.validation.Valid;
 
 import java.util.UUID;
 
-@Tag(name = "AI 총무 API", description = "개인 정산 채팅 비서. 조회만 수행하며 정산 데이터를 변경하지 않습니다.")
+@Tag(name = "AI 비서 API", description = "개인 정산 채팅 비서. 조회만 수행하며 정산 데이터를 변경하지 않습니다.")
 public interface TreasurerDocs {
     @Operation(
             summary = "AI 비서 채팅 시작",

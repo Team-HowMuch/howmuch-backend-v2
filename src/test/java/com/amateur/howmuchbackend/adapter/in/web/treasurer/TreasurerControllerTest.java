@@ -46,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AI 총무 Web API 계약")
+@DisplayName("AI 비서 Web API 계약")
 class TreasurerControllerTest {
     @Mock
     private GetTreasurerChatUseCase getTreasurerChatUseCase;
