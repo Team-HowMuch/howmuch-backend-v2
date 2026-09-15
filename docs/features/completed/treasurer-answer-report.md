@@ -186,6 +186,18 @@ Response: 기존 필드 + answerId (UUID, 저장 실패 시 null)
 
 정책이 겨냥하는 것은 생성형 결과지만, 사용자는 그 답변을 LLM이 썼는지 서버 문구인지 알 수 없다. 응답에 `answerId`가 있다 없다 하면 앱이 분기해야 하고, 서버 문구가 틀렸을 때는 신고할 수 없다. 모두 저장하고 `generated_by`로 구분한다.
 
+#### 질문 흐름은 트랜잭션을 열지 않는다
+
+이 흐름은 정산을 읽고, 최대 20초가 걸릴 수 있는 LLM을 호출하고, 답변을 저장한다.
+바깥에 읽기 전용 트랜잭션을 두면 커넥션 하나를 LLM 호출 내내 쥔 채로 저장이 두 번째
+커넥션을 요구한다. **동시 질문이 풀 크기만큼 들어오면 전부 첫 커넥션을 쥐고 두 번째를
+기다려 아무도 진행하지 못한다.** 그러면 저장이 실패해 `answerId`가 비고, 이 기능이
+지키려던 신고 경로가 조용히 꺼진다.
+
+정산 조회는 어댑터가 자체 트랜잭션에서 하고 바로 커넥션을 돌려준다. 저장도 마찬가지다.
+한 요청이 커넥션 두 개를 동시에 쥐는 구간이 없다. 주석만으로는 다음 사람이 다시 넣을 수
+있어, LLM 호출 시점에 트랜잭션이 살아 있지 않은지 통합 테스트로 고정했다.
+
 #### 답변 저장 실패가 답변을 막지 않는다
 
 저장은 답변의 부수 효과다. 저장에서 예외가 나도 사용자는 답변을 받아야 한다. 이 경우 `answerId`가 `null`이고 앱은 신고 버튼을 숨긴다.
@@ -270,10 +282,36 @@ docker compose -f compose.test.yml down -v
 | 인덱스 사용 | `EXPLAIN ANALYZE`로 확인 | 정리 10만 행 중 300건에 heap 블록 5개, 소유 확인·중복 확인은 Index (Only) Scan |
 | `FOR UPDATE SKIP LOCKED` | 동작 확인 | 한쪽이 2건을 잠근 동안 다른 쪽이 대기 없이 다른 2건 삭제 |
 | 도메인 불변식 14건 | 전부 통과 | 컴파일 후 직접 실행 |
-| Gradle 전체 스위트 | **1181건 통과, 실패 0, 건너뜀 0** | `compose.test.yml`(PostgreSQL 18 · Redis 8) + `scripts/test.sh clean test`, `origin/develop` a698653 위에서 실행 |
-| 신고 통합 테스트 | 12건 통과 | 같은 실행 |
+| Gradle 전체 스위트 | 170개 클래스 **1224건 전부 통과**, 실패·에러·건너뜀 0 | `compose.test.yml`(PostgreSQL 18 · Redis 8) + `scripts/test.sh clean test`, `origin/develop` 3583f00 위에서 실행. `build/test-results/test/*.xml` 파싱 |
+| 신고 통합 테스트 | 13건 통과 (LLM 호출 중 트랜잭션 미보유 포함) | 같은 실행 |
 | 웹 계약 테스트 | 14건 통과 | 같은 실행 |
-| 질의 서비스 테스트 | 39건 통과 | 같은 실행 |
+| 질의 서비스 테스트 | 48건 통과 | 같은 실행 |
+| 제목 확인 정책 | 15건 통과 | 같은 실행. develop의 `TitleHintVerification`(#382)과 합친 뒤 |
+
+### develop 리베이스와 충돌 해결
+
+PR을 연 뒤 #382(`fix/treasurer-unverified-title-hint`)가 develop에 머지되면서
+`AskTreasurerService`에서 충돌이 났다. 팀이 머지 커밋을 쌓지 않으므로 리베이스로
+해결했다. 두 변경이 같은 메서드들을 서로 다르게 바꾼 의미 충돌이라 손으로 합쳤다.
+
+- develop(#382): `TitleHintVerification` 필드, `verify`/`matchesTitle`, `titleDropped`,
+  3인자 `scopeLabel`, `answerList`/`answerStatus`/`phrasedAnswer`의 `deterministicOnly`
+- 이 브랜치(#381): `@Transactional` 제거, `answerFor`/`saveAnswer` 분리,
+  `Answered`/`Phrased` 레코드, `CurrentActorPort`·`SaveTreasurerAnswerPort`
+
+한 곳은 판단이 필요했다. develop의 `if (deterministicOnly) return draft.fallbackAnswer();`
+를 `return new Phrased(draft.fallbackAnswer(), TreasurerAnswerGeneratedBy.SERVER);` 로
+합쳤다. 이름으로 좁히기에 실패한 답변은 LLM 문장을 쓰지 않으므로 생성 주체가 SERVER다.
+
+필드가 10개가 되었고 선언 순서가 곧 Lombok 생성자 인자 순서다. 테스트의
+`new AskTreasurerService(...)` 10개 인자와 순서가 일치하는지 따로 확인했다.
+
+이전 실행에서 무관하게 실패하던 `ck_account_records_deleted_at` 2건
+(`SettlementPaymentInfoHttpIntegrationTest`, `AccountDeletionPersistenceIntegrationTest`)은
+이번 실행에서 나오지 않았다. 원인은 여전히 규명되지 않았다. 애플리케이션이 쓴
+`created_at`과 트리거의 `CURRENT_TIMESTAMP`를 부등호로 묶은 제약이라, 서버와 DB
+호스트의 시계가 다르면 운영에서도 같은 역전이 날 수 있다. 재현이 들쭉날쭉하다는 점
+자체가 위험이므로 별도 이슈로 다룬다.
 
 ### 작성 중 사용한 대체 검증
 
@@ -298,6 +336,7 @@ Lombok 생성자 필드 순서 오류를 전체 스위트가 잡아냈다. 두 �
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-09-14 | 현재 코드 확인, 설계 문서 작성 | 마이그레이션 PR | 질문 원문을 저장하므로 보관 기간을 반드시 지켜야 한다 |
+| 2026-09-20 | #382 머지로 생긴 충돌을 리베이스로 해결, 최신 develop(3583f00)에서 1224건 통과 | force-push | develop이 #402로 한때 깨져 있었다(#404로 수정됨). CI가 과금으로 멈춰 있어 로컬 실행이 유일한 검증 경로다 |
 
 ## 10. Decision log
 
@@ -321,7 +360,7 @@ Lombok 생성자 필드 순서 오류를 전체 스위트가 잡아냈다. 두 �
   - 실제 앱에서의 응답 확인. 서버 계약까지만 검증했다.
   - LLM을 실제로 붙인 경로(`provider != none`)에서의 `generated_by` 기록. 통합 테스트는 `provider=none`으로 돈다.
 - Remaining risks:
-  - `AskTreasurerService`가 읽기 전용 트랜잭션을 연 채 LLM을 호출하고(최대 20초), 저장이 `REQUIRES_NEW`로 두 번째 커넥션을 잡는다. 동시 질문이 많으면 커넥션 풀 고갈로 저장이 실패해 신고 버튼이 조용히 사라질 수 있다. 저장 실패 로그는 예외 타입만 남기므로 원인 추적도 어렵다.
+  - 저장 실패 로그가 예외 타입만 남겨 원인 추적이 어렵다. 저장은 부수 효과라 삼키는 것이 맞지만, 실패가 잦아지면 신고 버튼이 조용히 사라지므로 메트릭이 필요하다.
   - `treasurer_answers.user_id`는 `ON DELETE CASCADE`인데 신고 FK가 `RESTRICT`라, 사용자 행을 물리 삭제하면 막힌다. 현재 탈퇴(#376)는 익명화라 실제 경로는 아니다.
   - 신고된 답변의 질문 원문은 보관 기간과 무관하게 남는다. 처리한 신고를 지우는 시점이 실제 삭제 시점이다.
 - Follow-up work:
