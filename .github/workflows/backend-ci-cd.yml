@@ -157,7 +157,7 @@ jobs:
     name: Deploy to EC2
     if: github.event_name == 'push'
     needs: build
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux, X64, pve-deploy]
     environment:
       name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
     concurrency:
