@@ -2,6 +2,8 @@ package com.amateur.howmuchbackend.adapter.in.web.treasurer.docs;
 
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.request.AskTreasurerWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.request.ReportTreasurerAnswerWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerAnswerReportWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerAnswerWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerChatWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerRecommendationsWebResponse;
@@ -10,7 +12,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
+
+import java.util.UUID;
 
 @Tag(name = "AI 총무 API", description = "개인 정산 채팅 비서. 조회만 수행하며 정산 데이터를 변경하지 않습니다.")
 public interface TreasurerDocs {
@@ -58,4 +63,23 @@ public interface TreasurerDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "UNAUTHORIZED")
     })
     ApiResponse<TreasurerRecommendationsWebResponse> getRecommendations();
+
+    @Operation(
+            summary = "AI 비서 답변 신고",
+            description = "질의 응답으로 받은 answerId의 답변을 신고합니다. 본인이 받은 답변만 신고할 수 있고, "
+                    + "한 답변에는 한 번만 신고할 수 있습니다. 남의 답변, 없는 답변, 보관 기간이 지나 정리된 답변은 "
+                    + "모두 404로 같게 응답합니다. answerId가 null인 답변은 저장에 실패한 것이라 신고할 수 없습니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "신고 접수", useReturnTypeSchema = true),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "BAD_REQUEST"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "TREASURER_ANSWER_NOT_FOUND"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "TREASURER_ANSWER_ALREADY_REPORTED")
+    })
+    ApiResponse<TreasurerAnswerReportWebResponse> report(
+            @Parameter(description = "신고할 답변 식별자", required = true) UUID answerId,
+            @Valid ReportTreasurerAnswerWebRequest request
+    );
 }
