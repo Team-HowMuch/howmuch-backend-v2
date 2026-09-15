@@ -242,6 +242,8 @@ docker compose -f compose.test.yml down -v
 | Item | Result | Evidence |
 |---|---|---|
 | treasurer·inquiry 테스트 | 16개 클래스 128건 통과, 실패 0, 건너뜀 0 | `compose.test.yml`(PostgreSQL 18 · Redis 8) + `scripts/test.sh` |
+| Codex 리뷰 반영 후 전체 스위트 | 1177건 통과, 실패 0, 건너뜀 0 | 같은 방법 |
+| 일반어 제목 판정 | `AskTreasurerServiceTest` 44건 · `TitleHintVerificationTest` 15건 통과 | 같은 방법 |
 | 맞는 정산이 없는 제목 | 통과 | `answersFromAllSettlementsWhenTitleMatchesNothing` — 전체에서 답하고 "없어요" 단정이 없다 |
 | 이름은 맞고 기간만 다름 | 통과 | `keepsTitleFilterWhenTitleExistsOutsideRequestedPeriod` — 필터 유지, 0건 |
 | 접미사 없는 이름 | 통과 | `narrowsByTitleWithoutGenericSuffix` (`"여행"` 정산을 `"여행모임"` 질문으로 찾음) |
@@ -256,6 +258,7 @@ docker compose -f compose.test.yml down -v
 |---|---|---|---|
 | 2026-09-14 | 원인 확인, 설계 문서 작성 | 서비스 수정 | #318 완료 기준에 체크됐으나 구현되지 않은 항목이다 |
 | 2026-09-14 | 수정·테스트, 독립 리뷰로 결함 4건 수정 | 전체 검증 | 틀린 "없어요"를 고치다 LLM이 다른 정산 금액을 갖다 쓰는 경로를 새로 만들었다 |
+| 2026-09-15 | Codex 리뷰 반영. 제목 확인을 Policy로 옮기고 일반어 조합 힌트를 막았다 | PR 머지 | 흔한 말 판정을 접미사를 뗀 경로에만 걸어 둬, 이름이 실제 정산에 맞는 경로로 같은 결함이 남아 있었다. 한 경로만 막으면 다른 경로가 열려 있는지 반드시 확인해야 한다 |
 | 2026-09-14 | 2차 독립 리뷰로 P1 1건 추가 수정, 전체 검증 128건 | PR 생성 | 접미사 떼기가 일반어에도 걸려 금액을 축소 단정했다. 수정이 또 다른 결함을 만든 두 번째 사례다 |
 
 ## 10. Decision log
@@ -273,8 +276,8 @@ docker compose -f compose.test.yml down -v
 
 ## 11. Completion record
 
-- Completed on: 2026-09-14
+- Completed on: 2026-09-15 (Codex 리뷰 반영 포함)
 - Final behavior: 질문에서 뽑은 정산 이름을 사용자의 정산과 대조해 하나라도 맞을 때만 필터로 쓴다. 맞는 것이 없으면 전체에서 답하고, 이름으로 찾지 못했음을 문구로 알리며, 그 답변은 LLM을 거치지 않고 서버 문구로 나간다. 힌트가 `모임`·`정산` 접미사를 포함하므로 뗀 형태로도 대조하되, 뗀 형태가 한 글자이거나 흔한 말이면 이름의 근거로 보지 않는다. `InquiryIntent` 값과 응답 필드는 변경하지 않았다.
 - Unverified items: 실제 앱에서의 응답 문구 확인. 서버 계약까지만 검증했다. LLM을 실제로 붙인 경로(`provider != none`)는 통합 테스트가 없어 `verifyNoInteractions` 로만 확인했다.
 - Remaining risks: `GENERIC_TITLE_WORDS` 는 손으로 적은 목록이라 여기 없는 일반어(`"저녁 정산"` 의 `"저녁"` 등)는 여전히 이름으로 오인될 수 있다. 이름이 한 글자인 정산은 접미사를 뗀 경로로 좁히지 못한다. 제목 대조는 부분 문자열이라 짧은 이름이 여러 정산에 걸릴 수 있고, 그 경우 좁힌 범위가 사용자의 의도보다 넓다.
-- Follow-up work: `TreasurerAnswerFactCheck` 의 결함 두 가지를 별도 이슈로 다룬다. (1) 허용 숫자를 fallback 문장 전체에서 정규식으로 긁어서 정산 이름의 숫자(`"2차 모임"`)가 허용 목록에 들어간다. (2) `isCalendarNumber` 가 `월`·`일`·`년` 뒤 숫자를 무조건 통과시키는데 draft 에는 날짜 사실이 없어, LLM 이 없는 마감일을 지어내도 막지 못한다. 둘 다 이번 변경이 만든 것이 아니라 원래 있던 경로다.
+- Follow-up work: 테스트 환경의 `ck_account_records_deleted_at` 위반. colima VM 시계가 맥 호스트보다 뒤처지면 애플리케이션이 쓴 `created_at` 보다 트리거의 `CURRENT_TIMESTAMP` 가 이르러, 방금 만든 계좌를 지우는 테스트가 깨진다. VM을 다시 띄우면 사라지므로 이번 변경과 무관하지만, 애플리케이션 시각과 DB 시각을 부등호로 묶은 제약이라 서버와 DB 호스트가 다른 운영에서도 같은 역전이 날 수 있다. 별도 이슈로 다룬다. `TreasurerAnswerFactCheck` 의 결함 두 가지를 별도 이슈로 다룬다. (1) 허용 숫자를 fallback 문장 전체에서 정규식으로 긁어서 정산 이름의 숫자(`"2차 모임"`)가 허용 목록에 들어간다. (2) `isCalendarNumber` 가 `월`·`일`·`년` 뒤 숫자를 무조건 통과시키는데 draft 에는 날짜 사실이 없어, LLM 이 없는 마감일을 지어내도 막지 못한다. 둘 다 이번 변경이 만든 것이 아니라 원래 있던 경로다.
