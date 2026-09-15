@@ -1,6 +1,6 @@
 # Feature Plan: 로그인 전 휴대폰 번호 가입 여부 확인
 
-- 상태: 구현 중
+- 상태: 완료
 - 갱신일: 2026-09-15
 - 관련 이슈: #389
 - 관련 ADR: N/A
@@ -13,11 +13,11 @@
 
 ### 성공 조건
 
-- [ ] 미인증 사용자가 `POST /api/v2/auth/phone-number/check`에 휴대폰 번호를 body로 전달해 활성 계정 가입 여부를 확인한다.
-- [ ] 활성 계정은 `registered: true`, 존재하지 않거나 비활성인 계정은 `registered: false`를 받는다.
-- [ ] 잘못된 휴대폰 번호 형식은 400 `INVALID_PHONE_NUMBER`로 거절한다.
-- [ ] 번호별·IP별 제한을 초과한 요청은 사용자 조회 전에 429로 거절한다.
-- [ ] 기존 로그인 401 계약과 회원가입/SMS 흐름은 변경하지 않는다.
+- [x] 미인증 사용자가 `POST /api/v2/auth/phone-number/check`에 휴대폰 번호를 body로 전달해 활성 계정 가입 여부를 확인한다.
+- [x] 활성 계정은 `registered: true`, 존재하지 않거나 비활성인 계정은 `registered: false`를 받는다.
+- [x] 잘못된 휴대폰 번호 형식은 400 `INVALID_PHONE_NUMBER`로 거절한다.
+- [x] 번호별·IP별 제한을 초과한 요청은 사용자 조회 전에 429로 거절한다.
+- [x] 기존 로그인 401 계약과 회원가입/SMS 흐름은 변경하지 않는다.
 
 ### 범위 제외
 
@@ -121,13 +121,14 @@ Authentication: 불필요
 1. `docs(auth): 전화번호 가입 여부 확인 설계 기록`
 2. `feat(auth): 전화번호 가입 여부 확인 API 추가`
 3. `test(auth): 전화번호 가입 여부 확인 계약 검증`
+4. `docs(auth): 전화번호 가입 여부 확인 완료 기록`
 
 - [x] Migration-only pull request: N/A
-- [ ] UseCase와 Command/Result
-- [ ] rate-limit Output Port와 Redis Adapter
-- [ ] Application Service
-- [ ] Web DTO, Controller, Swagger, Security 공개 경로
-- [ ] 기존 auth 통합 테스트 보강
+- [x] UseCase와 Command/Result
+- [x] rate-limit Output Port와 Redis Adapter
+- [x] Application Service
+- [x] Web DTO, Controller, Swagger, Security 공개 경로
+- [x] 기존 auth 통합 테스트 보강
 - N/A: Domain 모델·Application Policy·DB migration·신규 Infra Properties
 
 ## 8. 검증
@@ -142,15 +143,27 @@ git status --short --untracked-files=all
 
 PostgreSQL과 Redis가 필요한 통합 테스트는 실행 전 연결 가능 여부를 확인한다. 활성·비활성·미가입, 형식 오류, 번호 제한, IP 제한, 공개 보안 경로와 OpenAPI 계약을 검증한다.
 
+### 결과
+
+- `./gradlew compileJava`: 통과.
+- `./gradlew compileTestJava`: 통과.
+- `AuthSignupContractIntegrationTest`: 9건 통과. 활성·비활성·미가입, 공백·형식 오류, 번호별 1회, IP별 60회, 미인증 접근과 OpenAPI를 검증했다.
+- `SecurityFilterChainIntegrationTest`: 기존 실제 HTTP 보안 회귀 22건 통과.
+- `bash scripts/test.sh test`: UTF-8 PostgreSQL 18·Redis 8 격리 환경에서 Java 1,162건과 JavaScript 35건 통과.
+- 최초 전체 테스트는 임시 PostgreSQL을 `SQL_ASCII`로 잘못 초기화해 한글 fixture 길이 관련 기존 테스트 9건이 실패했다. 같은 임시 DB를 UTF-8로 재생성한 뒤 전체 테스트를 다시 실행해 실패 0건을 확인했다.
+- `git diff --check`: 통과.
+- 별도 `bootRun`, 실제 SMS 공급자 호출, 배포는 수행하지 않았다.
+
 ## 9. 진행 및 결정 기록
 
 | 날짜 | 완료 작업 | 다음 작업 | 발견한 위험 |
 |---|---|---|---|
 | 2026-09-15 | 이슈·최근 PR 관례와 auth/SMS/공개 API 흐름 분석, migration 불필요 확인 | 계약과 구현 추가 | NAT 사용자는 IP quota를 공유하며 trusted proxy 처리는 별도 과제 |
+| 2026-09-15 | API·Redis 제한·공개 보안 경로와 회귀 테스트 구현, 전체 테스트 완료 | PR 검토·배포 | 단일 Redis 기준 Lua이며 Redis Cluster 전환 시 key hash slot 설계 필요 |
 
 ## 10. 완료 기록
 
-- 완료일: 미완료
-- 최종 동작: 미완료
-- 미검증 항목: 미완료
-- 잔여 위험: 미완료
+- 완료일: 2026-09-15
+- 최종 동작: 로그인 전 공개 POST API가 정규화된 번호의 활성 계정 가입 여부를 반환하고, 번호·연결 주소 quota 초과를 429로 차단한다.
+- 미검증 항목: 실제 운영 proxy/NAT 분포와 Redis 장애 시 운영 응답, 배포.
+- 잔여 위험: NAT 사용자는 IP quota를 공유한다. trusted proxy 정책 없이 전달 헤더를 사용하지 않으며, Redis Cluster 도입 시 두 key의 동일 hash slot 설계가 필요하다.
