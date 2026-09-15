@@ -3,9 +3,11 @@ package com.amateur.howmuchbackend.adapter.in.web.auth.docs;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.ConfirmSmsVerificationRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.LoginRequest;
+import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.PhoneNumberRegistrationCheckRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.RefreshTokenRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.SendSmsVerificationRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.SignUpRequest;
+import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.PhoneNumberRegistrationWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.SmsVerificationConfirmedWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.SmsVerificationSentWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.TokenWebResponse;
@@ -18,6 +20,18 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @Tag(name = "인증 API", description = "인증 관련 API")
 public interface AuthDocs {
+
+    @Operation(summary = "휴대폰 번호 가입 여부 확인", description = "로그인 전에 휴대폰 번호로 활성 계정 가입 여부를 확인합니다. 비활성 계정은 가입되지 않은 것으로 응답하며 번호와 IP별 호출 제한을 적용합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "가입 여부 확인 성공", useReturnTypeSchema = true),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "INVALID_PHONE_NUMBER - 휴대폰 번호 형식 오류"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "TOO_MANY_REQUEST - 번호 또는 IP 호출 제한 초과"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "TEMPORARILY_UNAVAILABLE - 호출 제한 저장소 오류")
+    })
+    ApiResponse<PhoneNumberRegistrationWebResponse> checkPhoneNumber(
+            PhoneNumberRegistrationCheckRequest request,
+            @Parameter(hidden = true) jakarta.servlet.http.HttpServletRequest servletRequest
+    );
 
     @Operation(summary = "sms 인증번호 전송", description = "사용자에게 SMS 인증번호를 전송합니다. 재발송 대기 시간에는 요청이 차단되며, 인증 실패 한도 소진·인증 완료·인증번호 만료·발송 오류로 대기 시간이 해제되지 않습니다.")
     @ApiResponses({

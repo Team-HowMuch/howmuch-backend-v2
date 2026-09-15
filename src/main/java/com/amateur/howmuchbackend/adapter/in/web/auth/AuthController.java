@@ -3,13 +3,16 @@ package com.amateur.howmuchbackend.adapter.in.web.auth;
 import com.amateur.howmuchbackend.adapter.in.web.auth.docs.AuthDocs;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.ConfirmSmsVerificationRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.LoginRequest;
+import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.PhoneNumberRegistrationCheckRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.RefreshTokenRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.SendSmsVerificationRequest;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.request.SignUpRequest;
+import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.PhoneNumberRegistrationWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.SmsVerificationConfirmedWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.SmsVerificationSentWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.auth.dto.response.TokenWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
+import com.amateur.howmuchbackend.application.port.in.auth.CheckPhoneNumberRegistrationUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.ConfirmSmsVerificationUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.LoginUseCase;
 import com.amateur.howmuchbackend.application.port.in.auth.LogoutUseCase;
@@ -29,12 +32,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/v2/auth")
 public class AuthController implements AuthDocs {
+    private final CheckPhoneNumberRegistrationUseCase checkPhoneNumberRegistrationUseCase;
     private final SendSmsVerificationUseCase sendSmsVerificationUseCase;
     private final ConfirmSmsVerificationUseCase confirmSmsVerificationUseCase;
     private final SignUpUseCase signUpUseCase;
     private final LoginUseCase loginUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
     private final LogoutUseCase logoutUseCase;
+
+    @PostMapping("/phone-number/check")
+    public ApiResponse<PhoneNumberRegistrationWebResponse> checkPhoneNumber(
+            @Valid @RequestBody PhoneNumberRegistrationCheckRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        return ApiResponse.success(PhoneNumberRegistrationWebResponse.from(
+                checkPhoneNumberRegistrationUseCase.check(request.toCommand(servletRequest.getRemoteAddr()))
+        ));
+    }
 
     @PostMapping("/sms/send")
     public ApiResponse<SmsVerificationSentWebResponse> sendSms(
