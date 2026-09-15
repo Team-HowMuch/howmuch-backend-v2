@@ -23,7 +23,6 @@ import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerView;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -55,8 +54,19 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     private final SaveTreasurerAnswerPort saveTreasurerAnswerPort;
     private final Clock clock;
 
+    /**
+     * 트랜잭션을 열지 않는다.
+     *
+     * <p>이 흐름은 정산을 읽고, 최대 20초가 걸릴 수 있는 LLM을 호출하고, 답변을 저장한다.
+     * 바깥에 읽기 전용 트랜잭션을 두면 커넥션 하나를 LLM 호출 내내 쥔 채로 저장이 두 번째
+     * 커넥션을 요구한다. 동시 질문이 풀 크기만큼 들어오면 전부 첫 커넥션을 쥐고 두 번째를
+     * 기다려 아무도 진행하지 못한다. 그러면 저장이 실패해 answerId가 비고, 신고 기능이
+     * 조용히 꺼진다.
+     *
+     * <p>정산 조회는 어댑터가 자체 트랜잭션에서 하고 바로 커넥션을 돌려준다. 저장도 마찬가지다.
+     * 한 요청이 커넥션 두 개를 동시에 쥐는 구간이 없다.
+     */
     @Override
-    @Transactional(readOnly = true)
     public TreasurerAnswerResult ask(AskTreasurerCommand command) {
         Answered answered = answerFor(command);
         return answered.result().withAnswerId(saveAnswer(command.question(), answered));

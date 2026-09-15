@@ -29,9 +29,13 @@ public class TreasurerAnswerPersistenceAdapter implements
     private final TreasurerAnswerReportJpaRepository reportRepository;
 
     /**
-     * 질문 흐름은 읽기 전용 트랜잭션이므로 새 트랜잭션에서 쓴다.
+     * 호출자의 트랜잭션에 절대 끼지 않는다.
      *
-     * <p>덕분에 저장이 실패해도 질문 흐름이 롤백되지 않고, 답변은 그대로 나간다.
+     * <p>질문 흐름은 트랜잭션을 열지 않으므로 지금은 이 저장이 유일한 트랜잭션이고 커넥션도
+     * 하나만 쓴다. REQUIRES_NEW를 남겨 두는 것은, 나중에 누가 이 흐름을 읽기 전용 트랜잭션으로
+     * 감싸더라도 저장이 조용히 실패하지 않게 하기 위해서다.
+     *
+     * <p>저장이 실패해도 질문 흐름이 롤백되지 않고, 답변은 그대로 나간다.
      */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
