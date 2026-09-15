@@ -54,6 +54,10 @@ public record TreasurerAnswerReport(
         );
     }
 
+    /**
+     * 관리자 API가 없어 지금은 운영자가 DB에서 직접 바꾼다. 이 메서드는 상태와 처리 시각이
+     * 함께 움직인다는 규칙을 한곳에 두고 검증한다. 관리자 API가 생기면 그 경로가 쓴다.
+     */
     public TreasurerAnswerReport resolve(LocalDateTime now) {
         if (status == TreasurerAnswerReportStatus.RESOLVED) {
             throw new IllegalStateException("이미 처리된 신고입니다.");
@@ -72,7 +76,7 @@ public record TreasurerAnswerReport(
             return null;
         }
         String trimmed = value.trim();
-        if (trimmed.isEmpty()) {
+        if (trimmed.isBlank()) {
             return null;
         }
         if (trimmed.length() > MAX_DETAIL_LENGTH) {

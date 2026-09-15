@@ -40,10 +40,6 @@ public record SavedTreasurerAnswer(
                 UUID.randomUUID(), userId, question, answer, intent, generatedBy, createdAt);
     }
 
-    public boolean isOwnedBy(Long candidateUserId) {
-        return userId.equals(candidateUserId);
-    }
-
     private static String requireText(String value, String label) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("%s은(는) 비어 있을 수 없습니다.".formatted(label));

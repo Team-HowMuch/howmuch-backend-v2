@@ -144,6 +144,12 @@ class TreasurerAnswerReportIntegrationTest {
 
         assertThat(outcomes).filteredOn(Objects::isNull).hasSize(1);
         assertThat(countReports(answerId)).isOne();
+        // 진 쪽이 무엇을 던졌는지까지 봐야 한다. 여기를 보지 않으면 ON CONFLICT를 지워
+        // 진 쪽이 500을 받게 되어도 이 테스트는 그대로 통과한다.
+        Throwable loser = outcomes.stream().filter(Objects::nonNull).findFirst().orElseThrow();
+        assertThat(loser).isInstanceOf(ApplicationException.class);
+        assertThat(((ApplicationException) loser).getStatusCode())
+                .isEqualTo(TreasurerStatusCode.TREASURER_ANSWER_ALREADY_REPORTED);
     }
 
     @Test
@@ -198,6 +204,43 @@ class TreasurerAnswerReportIntegrationTest {
                 .isInstanceOf(ApplicationException.class)
                 .extracting(e -> ((ApplicationException) e).getStatusCode())
                 .isEqualTo(TreasurerStatusCode.TREASURER_ANSWER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("조회 직후 답변이 정리되어도 500이 아니라 404다")
+    void mapsForeignKeyViolationToNotFound() {
+        UUID expired = saveAnswer(owner, NOW.minusDays(31));
+        // 응용 계층 조회는 통과했는데 저장 직전에 정리가 지나간 상황을 만든다.
+        jdbc.update("DELETE FROM treasurer_answers WHERE id=?", expired);
+
+        assertThatThrownBy(() -> reports.report(
+                new ReportTreasurerAnswerCommand(expired, TreasurerAnswerReportReason.OTHER, null)))
+                .isInstanceOf(ApplicationException.class)
+                .extracting(e -> ((ApplicationException) e).getStatusCode())
+                .isEqualTo(TreasurerStatusCode.TREASURER_ANSWER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("밀린 분량은 한 주기 안에서 배치를 이어 붙여 정리한다")
+    void drainsBacklogWithinOneCycle() {
+        for (int i = 0; i < 7; i++) {
+            saveAnswer(owner, NOW.minusDays(31 + i));
+        }
+
+        // 배치 하나만 도는 구현이면 2건에서 멈춘다.
+        assertThat(purge.purgeAll(Duration.ofDays(30), 2, 10)).isEqualTo(7);
+        assertThat(purge.purgeAll(Duration.ofDays(30), 2, 10)).isZero();
+    }
+
+    @Test
+    @DisplayName("한 주기에 도는 배치 수를 넘기면 남겨 두고 다음 주기로 넘긴다")
+    void stopsAfterMaxBatches() {
+        for (int i = 0; i < 7; i++) {
+            saveAnswer(owner, NOW.minusDays(31 + i));
+        }
+
+        assertThat(purge.purgeAll(Duration.ofDays(30), 2, 2)).isEqualTo(4);
+        assertThat(purge.purgeAll(Duration.ofDays(30), 2, 10)).isEqualTo(3);
     }
 
     @Test

@@ -22,6 +22,27 @@ public class PurgeExpiredTreasurerAnswerService {
     private final Clock clock;
 
     /**
+     * 밀린 것이 없어질 때까지 배치를 이어서 지운다.
+     *
+     * <p>한 주기에 한 배치만 지우면 답변이 배치 크기보다 빠르게 쌓일 때 밀린 분량이 영영 줄지
+     * 않고, 보관 기간이 지난 질문 원문이 계속 남는다. 대신 한 주기에 도는 배치 수를 묶어
+     * 정리가 다른 작업을 굶기지 않게 한다. 남으면 다음 주기가 이어서 지운다.
+     *
+     * @return 이번 주기에 지운 총 건수
+     */
+    public int purgeAll(Duration retention, int batchSize, int maxBatches) {
+        int total = 0;
+        for (int batch = 0; batch < maxBatches; batch++) {
+            int deleted = purge(retention, batchSize);
+            total += deleted;
+            if (deleted < batchSize) {
+                break;
+            }
+        }
+        return total;
+    }
+
+    /**
      * 한 번에 배치 크기만큼만 지운다.
      *
      * @return 지운 건수. 배치 크기와 같으면 아직 남아 있을 수 있다.

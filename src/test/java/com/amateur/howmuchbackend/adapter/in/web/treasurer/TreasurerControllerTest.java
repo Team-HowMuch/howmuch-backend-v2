@@ -35,10 +35,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -157,7 +160,10 @@ class TreasurerControllerTest {
                                 {"question":"보낼 정산"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.answerId").doesNotExist());
+                // doesNotExist()는 필드가 없을 때도 null일 때도 통과한다. 앱이 신고 버튼을
+                // 숨기는 기준이 "null"이므로 값이 실제로 null인지를 본다.
+                .andExpect(jsonPath("$.data.answerId").value(nullValue()))
+                .andExpect(content().string(containsString("\"answerId\":null")));
     }
 
     @Test

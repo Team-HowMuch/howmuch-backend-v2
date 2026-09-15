@@ -18,6 +18,10 @@ public interface TreasurerAnswerJpaRepository extends JpaRepository<TreasurerAns
      *
      * <p>신고된 답변은 FK가 RESTRICT라 지우려 하면 예외가 난다. 조건으로도 걸러 한 건 때문에
      * 배치 전체가 실패하지 않게 한다. 한 번에 지우는 양은 배치 크기로 제한해 긴 잠금을 피한다.
+     *
+     * <p>FOR UPDATE SKIP LOCKED는 인스턴스가 여럿일 때를 위한 것이다. 없으면 두 스케줄러가
+     * 같은 행을 고르고 한쪽이 상대의 트랜잭션이 끝날 때까지 잠금을 기다린 뒤 0건을 지운다.
+     * 저장소의 알림 아웃박스가 같은 이유로 같은 절을 쓴다.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
@@ -30,6 +34,7 @@ public interface TreasurerAnswerJpaRepository extends JpaRepository<TreasurerAns
                   )
                 ORDER BY a.created_at
                 LIMIT :batchSize
+                FOR UPDATE SKIP LOCKED
             )
             """, nativeQuery = true)
     int deleteExpired(

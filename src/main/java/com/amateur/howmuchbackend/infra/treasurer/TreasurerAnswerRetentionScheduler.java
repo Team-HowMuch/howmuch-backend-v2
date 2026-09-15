@@ -29,8 +29,8 @@ public class TreasurerAnswerRetentionScheduler {
     )
     public void purge() {
         try {
-            int deleted = purgeExpiredTreasurerAnswerService.purge(
-                    properties.retention(), properties.batchSize());
+            int deleted = purgeExpiredTreasurerAnswerService.purgeAll(
+                    properties.retention(), properties.batchSize(), properties.maxBatches());
             registry.counter("howmuch.treasurer.answer.retention.deleted").increment(deleted);
             if (deleted > 0) {
                 log.info("Purged expired treasurer answers. deleted={}", deleted);

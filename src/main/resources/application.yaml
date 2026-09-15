@@ -123,6 +123,7 @@ howmuch:
       poll-interval: ${TREASURER_ANSWER_RETENTION_POLL_INTERVAL:1h}
       initial-delay: ${TREASURER_ANSWER_RETENTION_INITIAL_DELAY:5m}
       batch-size: ${TREASURER_ANSWER_RETENTION_BATCH_SIZE:500}
+      max-batches: ${TREASURER_ANSWER_RETENTION_MAX_BATCHES:20}
   observability:
     management:
       allowed-cidr: ${MANAGEMENT_ALLOWED_CIDR:127.0.0.1/32}
