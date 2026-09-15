@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.treasurer.model.InquiryScope;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
+import com.amateur.howmuchbackend.application.treasurer.policy.TitleHintVerification;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerAnswerFactCheck;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerCardCopy;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
@@ -39,6 +40,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     private final TreasurerSettlementQuery treasurerSettlementQuery;
     private final InquiryParser inquiryParser;
     private final InquiryScopePolicy inquiryScopePolicy;
+    private final TitleHintVerification titleHintVerification;
     private final GenerateTreasurerAnswerPort generateTreasurerAnswerPort;
     private final TreasurerAnswerFactCheck treasurerAnswerFactCheck;
     private final TreasurerCardCopy treasurerCardCopy;
@@ -60,10 +62,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         InquiryPeriod period = parsedPeriod == null ? InquiryPeriod.THIS_MONTH : parsedPeriod;
         Instant now = clock.instant();
         List<PersonalSettlement> all = treasurerSettlementQuery.loadMine();
-        String titleHint = verifiedTitleHint(all, parsed.titleHint());
+        String titleHint = titleHintVerification.verify(all, parsed.titleHint());
         boolean titleDropped = parsed.titleHint() != null && titleHint == null;
         List<PersonalSettlement> mine = all.stream()
-                .filter(settlement -> matchesTitle(settlement, titleHint))
+                .filter(settlement -> titleHintVerification.matchesTitle(settlement, titleHint))
                 .toList();
         List<PersonalSettlement> filtered = mine.stream()
                 .filter(settlement -> inRequestedPeriod(settlement, period, now))
@@ -362,14 +364,6 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         return YearMonth.from(targetDate).equals(target);
     }
 
-    private boolean matchesTitle(PersonalSettlement settlement, String titleHint) {
-        if (titleHint == null) {
-            return true;
-        }
-        String title = settlement.title() == null ? "" : settlement.title().replaceAll("\\s+", "");
-        return title.toLowerCase(Locale.ROOT).contains(titleHint.toLowerCase(Locale.ROOT));
-    }
-
     /**
      * 질문에서 뽑은 제목이 사용자의 정산 중 하나라도 맞을 때만 필터로 쓴다.
      *
@@ -379,44 +373,6 @@ public class AskTreasurerService implements AskTreasurerUseCase {
      *
      * <p>기간은 보지 않는다. 이름은 맞고 기간만 다른 질문은 기존대로 기간으로 걸러야 한다.
      */
-    private static final int MIN_TITLE_EVIDENCE = 2;
-    private static final List<String> GENERIC_TITLE_WORDS = List.of(
-            "모임", "정산", "회비", "금액", "비용"
-    );
-
-    private String verifiedTitleHint(List<PersonalSettlement> all, String titleHint) {
-        if (titleHint == null) {
-            return null;
-        }
-        if (matchesAnyTitle(all, titleHint)) {
-            return titleHint;
-        }
-        // 힌트는 "모임"·"정산" 접미사를 포함한다. 정산 이름이 그 말을 빼고 "여행"이면
-        // 제목이 힌트를 포함하지 못해 맞는 정산을 놓친다. 뗀 형태로 한 번 더 본다.
-        String withoutSuffix = titleHint.replaceFirst("(모임|정산)$", "");
-        if (isDiscriminatingTitle(withoutSuffix) && matchesAnyTitle(all, withoutSuffix)) {
-            return withoutSuffix;
-        }
-        return null;
-    }
-
-    /**
-     * 뗀 형태가 이름 구실을 하는지 본다.
-     *
-     * <p>{@code "모임 정산 얼마 보내야 해?"} 는 모임 이름을 말한 것이 아닌데 힌트가 "모임정산"이
-     * 되고, 뗀 형태 "모임"이 이름에 "모임"이 든 정산 하나에만 맞는다. 그대로 거르면 나머지 정산이
-     * 빠진 채 금액을 단정하게 된다. 한 글자이거나 흔한 말이면 이름의 근거로 보지 않는다.
-     */
-    private boolean isDiscriminatingTitle(String candidate) {
-        return candidate != null
-                && candidate.length() >= MIN_TITLE_EVIDENCE
-                && !GENERIC_TITLE_WORDS.contains(candidate);
-    }
-
-    private boolean matchesAnyTitle(List<PersonalSettlement> all, String titleHint) {
-        return all.stream().anyMatch(settlement -> matchesTitle(settlement, titleHint));
-    }
-
     private String scopeLabel(InquiryPeriod period, String appliedTitleHint, String parsedTitleHint) {
         String periodLabel = switch (period) {
             case LAST_MONTH -> "지난달 기준으로 조회했어요.";
