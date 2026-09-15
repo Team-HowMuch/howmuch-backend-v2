@@ -260,6 +260,85 @@ class AskTreasurerServiceTest {
     }
 
     @Test
+    void doesNotNarrowWhenGenericHintHappensToMatchATitle() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "8월 모임 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        52_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "여행 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        30_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "점심 회비",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        29_000L,
+                        "요청자"
+                )
+        ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("모임 정산 얼마 보내야 해?"));
+
+        // 힌트 "모임정산"이 "8월 모임 정산"에 그대로 맞는다. 일반어 판정을 맞춰보기 전에
+        // 하면 그 정산 하나로 좁혀져 111,000원을 52,000원이라고 단정한다.
+        assertThat(result.items()).hasSize(3);
+        assertThat(result.answer()).contains("111,000원").doesNotContain("52,000원");
+        // 좁히지 않았다는 사실을 사용자에게 알린다. 찾았다고 말하면 안 된다.
+        assertThat(result.scope()).contains("찾지 못해").doesNotContain("찾았어요");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void narrowsWhenHintCarriesANameBesidesGenericWords() {
+        UUID travelId = UUID.randomUUID();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        travelId,
+                        "여행 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        30_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "점심 회비",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        29_000L,
+                        "요청자"
+                )
+        ));
+        when(generateTreasurerAnswerPort.generate(any()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
+                        .fallbackAnswer()));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("여행 정산 얼마 보내야 해?"));
+
+        // 일반어를 걷어내도 "여행"이 남는다. 이름을 말한 것이므로 좁히는 것이 맞다.
+        assertThat(result.items()).extracting(item -> item.settlementId()).containsExactly(travelId);
+        assertThat(result.answer()).contains("30,000원").doesNotContain("59,000원");
+    }
+
+    @Test
     void doesNotNarrowByGenericWordLeftAfterStrippingSuffix() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
