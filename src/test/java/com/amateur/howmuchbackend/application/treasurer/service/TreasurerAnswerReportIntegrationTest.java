@@ -1,10 +1,13 @@
 package com.amateur.howmuchbackend.application.treasurer.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.in.treasurer.AskTreasurerUseCase;
 import com.amateur.howmuchbackend.application.port.in.treasurer.ReportTreasurerAnswerUseCase;
+import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreasurerCommand;
 import com.amateur.howmuchbackend.application.port.in.treasurer.command.ReportTreasurerAnswerCommand;
 import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerAnswerReportResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.LoadTreasurerAnswerPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAnswerPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -22,6 +25,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -30,15 +34,18 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(properties = {
@@ -54,10 +61,12 @@ class TreasurerAnswerReportIntegrationTest {
     @Autowired SaveTreasurerAnswerPort answers;
     @Autowired LoadTreasurerAnswerPort loader;
     @Autowired ReportTreasurerAnswerUseCase reports;
+    @Autowired AskTreasurerUseCase ask;
     @Autowired PurgeExpiredTreasurerAnswerService purge;
     @Autowired JdbcTemplate jdbc;
     @MockitoBean CurrentActorPort actor;
     @MockitoBean Clock clock;
+    @MockitoBean GenerateTreasurerAnswerPort generateTreasurerAnswerPort;
 
     Long owner;
     Long stranger;
@@ -241,6 +250,26 @@ class TreasurerAnswerReportIntegrationTest {
 
         assertThat(purge.purgeAll(Duration.ofDays(30), 2, 2)).isEqualTo(4);
         assertThat(purge.purgeAll(Duration.ofDays(30), 2, 10)).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("질문 흐름은 LLM을 부르는 동안 트랜잭션을 쥐지 않는다")
+    void doesNotHoldATransactionWhileCallingTheLlm() {
+        AtomicBoolean transactionWasActive = new AtomicBoolean(true);
+        when(generateTreasurerAnswerPort.generate(any())).thenAnswer(invocation -> {
+            // 여기서 트랜잭션이 살아 있으면 커넥션 하나를 LLM 호출 내내 쥐고 있다는 뜻이다.
+            // 그 상태로 저장이 두 번째 커넥션을 요구하면, 동시 질문이 풀 크기만큼 들어왔을 때
+            // 모두가 두 번째 커넥션을 기다려 아무도 진행하지 못한다.
+            transactionWasActive.set(TransactionSynchronizationManager.isActualTransactionActive());
+            return Optional.empty();
+        });
+
+        var result = ask.ask(new AskTreasurerCommand("이번 달 보낼 정산 얼마야"));
+
+        assertThat(transactionWasActive).isFalse();
+        // 트랜잭션을 걷어내도 저장은 그대로 되어야 한다.
+        assertThat(result.answerId()).isNotNull();
+        assertThat(loader.findOwned(result.answerId(), owner)).isPresent();
     }
 
     @Test
