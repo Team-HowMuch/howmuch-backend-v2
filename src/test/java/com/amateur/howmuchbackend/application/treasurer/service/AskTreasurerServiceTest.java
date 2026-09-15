@@ -1,7 +1,12 @@
 package com.amateur.howmuchbackend.application.treasurer.service;
 
 import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreasurerCommand;
+import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
+import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAnswerPort;
+import com.amateur.howmuchbackend.domain.treasurer.SavedTreasurerAnswer;
+import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerGeneratedBy;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
@@ -16,12 +21,14 @@ import com.amateur.howmuchbackend.domain.treasurer.PersonalSettlement;
 import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerView;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerCardMarker;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
@@ -35,6 +42,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +56,12 @@ class AskTreasurerServiceTest {
 
     @Mock
     private GenerateTreasurerAnswerPort generateTreasurerAnswerPort;
+
+    @Mock
+    private CurrentActorPort currentActorPort;
+
+    @Mock
+    private SaveTreasurerAnswerPort saveTreasurerAnswerPort;
 
     @Test
     void answersOpenSendSettlementsInCurrentMonth() {
@@ -889,7 +905,67 @@ class AskTreasurerServiceTest {
         assertThat(result.answer()).contains("15,000원");
     }
 
+    @Test
+    @DisplayName("LLM이 문장을 만들면 LLM으로, 서버 문구면 SERVER로 저장한다")
+    void storesWhoGeneratedTheAnswer() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
+        when(generateTreasurerAnswerPort.generate(any())).thenReturn(Optional.empty());
+        AskTreasurerService service = service();
+
+        service.ask(new AskTreasurerCommand("이번 달 보낼 정산 얼마야"));
+
+        ArgumentCaptor<SavedTreasurerAnswer> captor = ArgumentCaptor.forClass(SavedTreasurerAnswer.class);
+        verify(saveTreasurerAnswerPort).save(captor.capture());
+        assertThat(captor.getValue().generatedBy()).isEqualTo(TreasurerAnswerGeneratedBy.SERVER);
+        assertThat(captor.getValue().question()).isEqualTo("이번 달 보낼 정산 얼마야");
+        assertThat(captor.getValue().userId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("사실 검증을 통과한 LLM 문장은 LLM으로 저장한다")
+    void storesLlmAsGenerator() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
+        when(generateTreasurerAnswerPort.generate(any()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
+                        .fallbackAnswer()));
+        AskTreasurerService service = service();
+
+        service.ask(new AskTreasurerCommand("이번 달 보낼 정산 얼마야"));
+
+        ArgumentCaptor<SavedTreasurerAnswer> captor = ArgumentCaptor.forClass(SavedTreasurerAnswer.class);
+        verify(saveTreasurerAnswerPort).save(captor.capture());
+        assertThat(captor.getValue().generatedBy()).isEqualTo(TreasurerAnswerGeneratedBy.LLM);
+    }
+
+    @Test
+    @DisplayName("의도를 못 알아들은 답변도 저장한다")
+    void storesUnmatchedAnswerToo() {
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("오늘 날씨 어때"));
+
+        verify(saveTreasurerAnswerPort).save(any(SavedTreasurerAnswer.class));
+        assertThat(result.answerId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("저장이 실패해도 답변은 나가고 answerId만 비어 있다")
+    void stillAnswersWhenStoringFails() {
+        doThrow(new RuntimeException("저장 실패"))
+                .when(saveTreasurerAnswerPort).save(any(SavedTreasurerAnswer.class));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("오늘 날씨 어때"));
+
+        assertThat(result.answerId()).isNull();
+        assertThat(result.answer()).isNotBlank();
+    }
+
     private AskTreasurerService service() {
+        // ask()는 답변을 저장하려고 현재 사용자를 읽는다. 스텁이 없으면 모든 테스트가
+        // 저장 실패 경로를 타므로 lenient로 둔다. service()만 부르고 ask()를 부르지 않는
+        // 테스트가 있어 strict stub이면 불필요 스텁으로 잡힌다.
+        lenient().when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(1L));
         return new AskTreasurerService(
                 treasurerSettlementQuery,
                 new InquiryParser(),
@@ -898,6 +974,8 @@ class AskTreasurerServiceTest {
                 generateTreasurerAnswerPort,
                 new TreasurerAnswerFactCheck(),
                 new TreasurerCardCopy(),
+                currentActorPort,
+                saveTreasurerAnswerPort,
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }
