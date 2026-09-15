@@ -23,8 +23,9 @@ public class TitleHintVerification {
     /**
      * 그 자체로는 어떤 정산도 지목하지 못하는 말.
      *
-     * <p>{@code "모임 정산 얼마 보내야 해?"} 는 모임 이름을 말한 것이 아닌데 힌트가 "모임정산"이
-     * 되고, 뗀 형태 "모임"이 이름에 "모임"이 든 정산 하나에만 맞는다.
+     * <p>{@code "모임 정산 얼마 보내야 해?"} 의 힌트는 "모임정산"이다. 이름이 "8월 모임 정산"인
+     * 정산이 하나 있으면 이 힌트가 실제로 맞아버려, 나머지 정산이 빠진 채 금액이 단정된다.
+     * 그래서 이 말들을 걷어낸 뒤에도 남는 것이 있는지로 판단한다.
      */
     private static final List<String> GENERIC_TITLE_WORDS = List.of(
             "모임", "정산", "회비", "금액", "비용"
@@ -41,7 +42,7 @@ public class TitleHintVerification {
         if (titleHint == null) {
             return null;
         }
-        if (matchesAnyTitle(all, titleHint)) {
+        if (isDiscriminating(titleHint) && matchesAnyTitle(all, titleHint)) {
             return titleHint;
         }
         // 힌트는 "모임"·"정산" 접미사를 포함한다. 정산 이름이 그 말을 빼고 "여행"이면
@@ -62,12 +63,20 @@ public class TitleHintVerification {
     }
 
     /**
-     * 뗀 형태가 이름 구실을 하는지 본다. 한 글자이거나 흔한 말이면 이름의 근거로 보지 않는다.
+     * 그 말이 특정 정산을 가리키는지 본다.
+     *
+     * <p>일반어를 걷어내고도 두 글자 이상 남아야 이름의 근거로 본다. 일반어 목록에 그대로 있는지
+     * 보는 것으로는 부족하다. "모임정산"은 목록에 없지만 일반어 둘을 붙인 것뿐이다.
      */
     private boolean isDiscriminating(String candidate) {
-        return candidate != null
-                && candidate.length() >= MIN_TITLE_EVIDENCE
-                && GENERIC_TITLE_WORDS.stream().noneMatch(candidate::equals);
+        if (candidate == null || candidate.length() < MIN_TITLE_EVIDENCE) {
+            return false;
+        }
+        String remaining = candidate;
+        for (String generic : GENERIC_TITLE_WORDS) {
+            remaining = remaining.replace(generic, "");
+        }
+        return remaining.length() >= MIN_TITLE_EVIDENCE;
     }
 
     private boolean matchesAnyTitle(List<PersonalSettlement> all, String titleHint) {
