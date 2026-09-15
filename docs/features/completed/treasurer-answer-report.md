@@ -1,7 +1,7 @@
 # Feature Plan: AI 비서 답변 신고
 
-- Status: Draft
-- Last updated: 2026-09-14
+- Status: Completed
+- Last updated: 2026-09-15
 - Related issue: [#381](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/381), [howmuch-frontend-v2#205](https://github.com/Team-HowMuch/howmuch-frontend-v2/issues/205)
 - Related ADR: N/A
 
@@ -27,13 +27,13 @@ Google Play 생성형 AI 콘텐츠 정책은 생성 결과를 앱을 나가지 �
 
 ### Success criteria
 
-- [ ] 모든 답변 응답에 `answerId`가 포함된다.
-- [ ] 그 `answerId`로 답변을 신고할 수 있다.
-- [ ] 본인 답변만 신고할 수 있고, 남의 `answerId`는 404다.
-- [ ] 같은 답변을 두 번 신고하면 409다.
-- [ ] 신고되지 않은 답변은 보관 기간이 지나면 지워진다.
-- [ ] 신고된 답변은 처리 완료 전까지 지워지지 않는다.
-- [ ] 답변 저장이 실패해도 질문 응답 자체는 나간다.
+- [x] 모든 답변 응답에 `answerId`가 포함된다.
+- [x] 그 `answerId`로 답변을 신고할 수 있다.
+- [x] 본인 답변만 신고할 수 있고, 남의 `answerId`는 404다.
+- [x] 같은 답변을 두 번 신고하면 409다.
+- [x] 신고되지 않은 답변은 보관 기간이 지나면 지워진다.
+- [x] 신고된 답변은 처리 완료 전까지 지워지지 않는다.
+- [x] 답변 저장이 실패해도 질문 응답 자체는 나간다.
 
 ### Out of scope
 
@@ -151,8 +151,8 @@ Response: 기존 필드 + answerId (UUID, 저장 실패 시 null)
 
 - Database Entity, constraint, or query changes: 테이블 2개 신설
 - Flyway migration required (`Yes` / `No`): **Yes**
-- Planned migration: `V35__create_treasurer_answer_report_schema.sql`
-- Migration pull request (`Pending` / URL): Pending
+- Planned migration: `V36__create_treasurer_answer_report_schema.sql`
+- Migration pull request (`Pending` / URL): `build/treasurer-answer-report-schema` 브랜치로 develop에 올림 (V35는 #380에서 선점되어 V36으로 조정)
 - Redis key, TTL, or serialization changes: 없음
 - External API or message changes: 없음
 - Environment variable or profile changes: 보관 기간과 정리 주기를 Properties로 뺀다
@@ -201,7 +201,7 @@ Response: 기존 필드 + answerId (UUID, 저장 실패 시 null)
 | API | 신규 엔드포인트 1개, 기존 응답에 `answerId` 추가 | `TreasurerController`, `TreasurerAnswerWebResponse` |
 | Application | UseCase 1개, Port 4개, 답변 저장 부수 효과 | `AskTreasurerService` 외 |
 | Domain | `TreasurerAnswerReport`, 사유·상태 enum | `domain/treasurer` |
-| Persistence | 테이블 2개 신설 | `V35` |
+| Persistence | 테이블 2개 신설 | `V36` |
 | Redis | 없음 | - |
 | Security | 소유 검사를 스키마와 응용 양쪽에 둔다 | `CurrentActorPort` |
 | Configuration | 보관 기간·정리 주기 Properties | `infra/treasurer` |
@@ -215,18 +215,19 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] Migration-only pull request to `develop` (`Required` / `N/A`) — **Required**
-- [ ] UseCase and Application Command/Result
-- [ ] Required Output Ports
-- [ ] Domain models and rules
-- [ ] Application Policies — **N/A**
-- [ ] Application Service
-- [ ] Output Adapters
-- [ ] Web Request/Response DTOs, Controllers, and Swagger
-- [ ] Infra configuration and Bean wiring — 보관 정리 스케줄러
-- [ ] Documentation and verification results
+- [x] Migration-only pull request to `develop` (`Required` / `N/A`) — **Required**
+- [x] UseCase and Application Command/Result
+- [x] Required Output Ports
+- [x] Domain models and rules
+- [x] Application Policies — **N/A**
+- [x] Application Service
+- [x] Output Adapters
+- [x] Web Request/Response DTOs, Controllers, and Swagger
+- [x] Infra configuration and Bean wiring — 보관 정리 스케줄러
+- [x] Documentation and verification results
 
-마이그레이션 PR을 먼저 만들고 그 시점에 작업을 멈춘다. 나머지는 후속 작업이다.
+마이그레이션 PR을 먼저 만들고 멈춘 뒤, 그 위에서 나머지를 구현했다. 기능 브랜치는
+마이그레이션 브랜치 위에 올려 두었으므로 마이그레이션이 머지되면 develop으로 재배치한다.
 
 ### Expected commit boundaries
 
@@ -263,7 +264,34 @@ docker compose -f compose.test.yml down -v
 
 | Item | Result | Evidence |
 |---|---|---|
-| 설계 문서 | Pending | 본 문서 |
+| 설계 문서 | 완료 | 본 문서 |
+| V1~V36 마이그레이션 순차 적용 | 36개 성공 | 실제 PostgreSQL에 순서대로 적용 |
+| 스키마 제약 21건 | 전부 의도대로 | 남의 답변 신고는 복합 FK가, 재신고는 유니크가, 신고된 답변 삭제는 RESTRICT가 거부 |
+| 인덱스 사용 | `EXPLAIN ANALYZE`로 확인 | 정리 10만 행 중 300건에 heap 블록 5개, 소유 확인·중복 확인은 Index (Only) Scan |
+| `FOR UPDATE SKIP LOCKED` | 동작 확인 | 한쪽이 2건을 잠근 동안 다른 쪽이 대기 없이 다른 2건 삭제 |
+| 도메인 불변식 14건 | 전부 통과 | 컴파일 후 직접 실행 |
+| Gradle 전체 스위트 | **1181건 통과, 실패 0, 건너뜀 0** | `compose.test.yml`(PostgreSQL 18 · Redis 8) + `scripts/test.sh clean test`, `origin/develop` a698653 위에서 실행 |
+| 신고 통합 테스트 | 12건 통과 | 같은 실행 |
+| 웹 계약 테스트 | 14건 통과 | 같은 실행 |
+| 질의 서비스 테스트 | 39건 통과 | 같은 실행 |
+
+### 작성 중 사용한 대체 검증
+
+Gradle을 돌릴 수 없는 환경에서 작업했다. 클라우드 세션은 Maven Central과
+services.gradle.org가 막혀 있고 디바이스 VM에는 Java 11만 있다. 그래서
+작성하는 동안에는 다음으로 대신 확인하고, 마지막에 맥에서 전체 스위트를
+돌려 위 결과를 얻었다.
+
+- 마이그레이션과 제약은 실제 PostgreSQL 인스턴스에 직접 적용해 확인
+- 도메인 불변식은 javac로 컴파일한 뒤 실제 실행해 확인
+- 생성자 인자 수 불일치는 선언과 호출부를 대조하는 검사기로 확인
+  (이번에 `TreasurerController` 4→5, `AskTreasurerService` 7→9 두 건을 잡았다)
+- 저장소 내부 import가 실재하는 파일을 가리키는지 확인
+
+이 대체 검증은 컴파일러가 아니다. 실제로 `@DisplayName` import 누락과
+Lombok 생성자 필드 순서 오류를 전체 스위트가 잡아냈다. 두 경우 모두 검사기를
+보강했고, 보강한 뒤에는 그 오류를 일부러 되돌려 실제로 잡히는지 확인했다.
+그래도 제네릭 불일치나 메서드 이름 오타는 여전히 컴파일러만 잡는다.
 
 ## 9. Progress log
 
@@ -284,8 +312,20 @@ docker compose -f compose.test.yml down -v
 
 ## 11. Completion record
 
-- Completed on:
+- Completed on: 2026-09-15
 - Final behavior:
+  - `POST /api/v2/treasurer/questions` 응답에 `answerId`가 실린다. 저장에 실패하면 `null`이고 앱은 신고 버튼을 숨긴다.
+  - `POST /api/v2/treasurer/answers/{answerId}/reports`로 본인이 받은 답변을 신고한다. 남의 답변·없는 답변·정리된 답변은 모두 같은 404, 재신고는 409.
+  - 보관 기간(기본 30일)이 지난 미신고 답변은 스케줄러가 배치로 정리한다. 신고된 답변은 남는다.
 - Unverified items:
+  - 실제 앱에서의 응답 확인. 서버 계약까지만 검증했다.
+  - LLM을 실제로 붙인 경로(`provider != none`)에서의 `generated_by` 기록. 통합 테스트는 `provider=none`으로 돈다.
 - Remaining risks:
+  - `AskTreasurerService`가 읽기 전용 트랜잭션을 연 채 LLM을 호출하고(최대 20초), 저장이 `REQUIRES_NEW`로 두 번째 커넥션을 잡는다. 동시 질문이 많으면 커넥션 풀 고갈로 저장이 실패해 신고 버튼이 조용히 사라질 수 있다. 저장 실패 로그는 예외 타입만 남기므로 원인 추적도 어렵다.
+  - `treasurer_answers.user_id`는 `ON DELETE CASCADE`인데 신고 FK가 `RESTRICT`라, 사용자 행을 물리 삭제하면 막힌다. 현재 탈퇴(#376)는 익명화라 실제 경로는 아니다.
+  - 신고된 답변의 질문 원문은 보관 기간과 무관하게 남는다. 처리한 신고를 지우는 시점이 실제 삭제 시점이다.
 - Follow-up work:
+  - 탈퇴(#376) 시 그 사용자의 `treasurer_answers` 정리. 지금은 익명화만 하고 질문 원문은 남는다. 정산·금융 이력과 달리 상대방 이해관계가 없는 본인 데이터다.
+  - 신고 확인·처리 관리자 API. 지금은 DB 직접 조회이고 `TreasurerAnswerReport.resolve`는 호출자가 없다. 그때 `(status, created_at)` 인덱스도 함께 넣는다.
+  - `TreasurerAnswerFactCheck`의 기존 결함 2건. 허용 숫자를 폴백 문자열 전체에서 정규식으로 긁어 정산 제목의 숫자까지 허용되고, 월·일·년 앞 숫자는 초안에 날짜 사실이 없어도 무조건 통과한다.
+  - `Clock` 빈이 `TreasurerConfig`에 있는데 정산·알림·계좌가 모두 쓴다. 공통 설정으로 옮기는 편이 맞다.
