@@ -69,8 +69,9 @@ jobs:
 
       - name: Verify deployment image identity and readiness
         run: |
-          python3 -m pip install PyYAML==6.0.2
-          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
+          python3 -m venv "$RUNNER_TEMP/ci-venv"
+          "$RUNNER_TEMP/ci-venv/bin/python" -m pip install --disable-pip-version-check PyYAML==6.0.2
+          PYTHONDONTWRITEBYTECODE=1 "$RUNNER_TEMP/ci-venv/bin/python" -m unittest discover -s scripts/tests -v
 
       - name: Run Java and JavaScript tests
         run: bash scripts/test.sh
