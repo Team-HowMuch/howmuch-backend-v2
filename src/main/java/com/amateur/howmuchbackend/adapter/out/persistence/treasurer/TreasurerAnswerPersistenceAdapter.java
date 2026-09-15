@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.out.persistence.treasurer;
 import com.amateur.howmuchbackend.adapter.out.persistence.treasurer.mapper.TreasurerAnswerMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.treasurer.repository.TreasurerAnswerJpaRepository;
 import com.amateur.howmuchbackend.adapter.out.persistence.treasurer.repository.TreasurerAnswerReportJpaRepository;
+import com.amateur.howmuchbackend.application.port.out.treasurer.DeleteExpiredTreasurerAnswerPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.LoadTreasurerAnswerPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAnswerPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAnswerReportPort;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,7 +23,8 @@ import java.util.UUID;
 public class TreasurerAnswerPersistenceAdapter implements
         SaveTreasurerAnswerPort,
         LoadTreasurerAnswerPort,
-        SaveTreasurerAnswerReportPort {
+        SaveTreasurerAnswerReportPort,
+        DeleteExpiredTreasurerAnswerPort {
     private final TreasurerAnswerJpaRepository answerRepository;
     private final TreasurerAnswerReportJpaRepository reportRepository;
 
@@ -47,5 +50,11 @@ public class TreasurerAnswerPersistenceAdapter implements
     @Transactional
     public boolean saveIfAbsent(TreasurerAnswerReport report) {
         return reportRepository.insertIfAbsent(report) == 1;
+    }
+
+    @Override
+    @Transactional
+    public int deleteExpired(LocalDateTime createdBefore, int batchSize) {
+        return answerRepository.deleteExpired(createdBefore, batchSize);
     }
 }

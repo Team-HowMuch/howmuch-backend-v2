@@ -117,6 +117,12 @@ howmuch:
         api-key: ${GEMINI_API_KEY:}
         model: ${GEMINI_MODEL:gemini-flash-latest}
         base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+    answer-retention:
+      enabled: ${TREASURER_ANSWER_RETENTION_ENABLED:true}
+      retention: ${TREASURER_ANSWER_RETENTION:30d}
+      poll-interval: ${TREASURER_ANSWER_RETENTION_POLL_INTERVAL:1h}
+      initial-delay: ${TREASURER_ANSWER_RETENTION_INITIAL_DELAY:5m}
+      batch-size: ${TREASURER_ANSWER_RETENTION_BATCH_SIZE:500}
   observability:
     management:
       allowed-cidr: ${MANAGEMENT_ALLOWED_CIDR:127.0.0.1/32}
