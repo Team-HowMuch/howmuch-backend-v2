@@ -22,7 +22,7 @@ env:
 jobs:
   test:
     name: Run tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'main') && 'self-hosted' || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -92,7 +92,7 @@ jobs:
     outputs:
       image: ${{ steps.image.outputs.image }}
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'main') && 'self-hosted' || 'ubuntu-latest' }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v6
@@ -157,7 +157,7 @@ jobs:
     name: Deploy to EC2
     if: github.event_name == 'push'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, pve-deploy]
     environment:
       name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
     concurrency:
