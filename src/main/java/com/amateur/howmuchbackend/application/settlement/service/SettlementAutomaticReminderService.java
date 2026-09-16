@@ -18,14 +18,16 @@ import java.time.LocalDateTime;
 public class SettlementAutomaticReminderService implements SendAutomaticSettlementRemindersUseCase {
     private final SettlementAutomaticReminderTargetPort targets;
     private final SettlementReminderWriter writer;
+    private final SettlementReminderPolicy policy;
     private final Clock clock;
 
     @Override
     public int sendDue(int batchSize) {
         if (batchSize < 1) throw new IllegalArgumentException("batchSize must be positive");
         LocalDateTime now = LocalDateTime.now(clock);
+        if (policy.isAutomaticQuietHours(now)) return 0;
         int created = 0;
-        for (var target : targets.findDue(now.minus(SettlementReminderPolicy.AUTOMATIC_DELAY),
+        for (var target : targets.findDue(now.minus(SettlementReminderPolicy.AUTOMATIC_INTERVAL),
                 now.minus(SettlementReminderPolicy.COOLDOWN), batchSize)) {
             try {
                 if (writer.automatic(target)) created++;

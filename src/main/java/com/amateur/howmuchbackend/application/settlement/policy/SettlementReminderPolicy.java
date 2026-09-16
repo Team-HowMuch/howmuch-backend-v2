@@ -6,18 +6,39 @@ import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 @Component
 public class SettlementReminderPolicy {
     public static final Duration COOLDOWN = Duration.ofMinutes(30);
 
-    public static final Duration AUTOMATIC_DELAY = Duration.ofHours(24);
+    public static final Duration AUTOMATIC_INTERVAL = Duration.ofHours(12);
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+    private static final LocalTime QUIET_HOURS_START = LocalTime.of(3, 0);
+    private static final LocalTime QUIET_HOURS_END = LocalTime.of(6, 0);
 
-    public boolean isAutomaticDue(Settlement settlement, SettlementShare share, LocalDateTime now) {
+    public boolean isAutomaticDue(
+            Settlement settlement,
+            SettlementShare share,
+            LocalDateTime reminderAnchor,
+            LocalDateTime now
+    ) {
         return (settlement.status() == SettlementStatus.REQUESTED
                 || settlement.status() == SettlementStatus.AWAITING_DEPOSIT
                 || settlement.status() == SettlementStatus.SUSPENDED)
-                && share != null && !share.createdAt().plus(AUTOMATIC_DELAY).isAfter(now);
+                && share != null
+                && !reminderAnchor.plus(AUTOMATIC_INTERVAL).isAfter(now)
+                && !isAutomaticQuietHours(now);
+    }
+
+    public boolean isAutomaticQuietHours(LocalDateTime now) {
+        LocalTime koreaTime = now.atOffset(ZoneOffset.UTC)
+                .atZoneSameInstant(KOREA_ZONE)
+                .toLocalTime();
+        return !koreaTime.isBefore(QUIET_HOURS_START)
+                && koreaTime.isBefore(QUIET_HOURS_END);
     }
 
     public void validateManual(Settlement settlement, Long actorId) {
