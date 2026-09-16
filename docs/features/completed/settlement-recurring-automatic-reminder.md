@@ -1,6 +1,6 @@
 # Feature Plan: 정산 자동 리마인드 12시간 반복과 심야 이월
 
-- Status: Active
+- Status: Completed
 - Last updated: 2026-09-16
 - Related issue: [#397](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/397)
 - Related ADR: N/A
@@ -17,11 +17,11 @@
 
 ### Success criteria
 
-- [ ] 확정 Share가 있는 활성 연결 회원의 미납 정산에 최초 12시간 후 자동 리마인드를 생성한다.
-- [ ] 마지막 실제 자동 리마인드 생성 시각으로부터 12시간이 지나면 다음 리마인드를 생성한다.
-- [ ] KST 03:00 이상 06:00 미만에는 자동 리마인드를 생성하지 않고, 미뤄진 후보를 06:00 이후 첫 배치에서 처리한다.
-- [ ] 동시 배치와 재시작에도 같은 반복 주기의 알림을 중복 생성하지 않는다.
-- [ ] 기존 수동·자동 공통 30분 쿨다운과 회원·미납·정산 상태 검증을 유지한다.
+- [x] 확정 Share가 있는 활성 연결 회원의 미납 정산에 최초 12시간 후 자동 리마인드를 생성한다.
+- [x] 마지막 실제 자동 리마인드 생성 시각으로부터 12시간이 지나면 다음 리마인드를 생성한다.
+- [x] KST 03:00 이상 06:00 미만에는 자동 리마인드를 생성하지 않고, 미뤄진 후보를 06:00 이후 첫 배치에서 처리한다.
+- [x] 동시 배치와 재시작에도 같은 반복 주기의 알림을 중복 생성하지 않는다.
+- [x] 기존 수동·자동 공통 30분 쿨다운과 회원·미납·정산 상태 검증을 유지한다.
 
 ### Out of scope
 
@@ -173,14 +173,14 @@ Existing behavior that must remain unchanged:
 
 - [x] Migration-only pull request to `develop` (`N/A`: 기존 알림 이력과 고유 제약 재사용)
 - [x] UseCase and Application Command/Result (`N/A`: 기존 UseCase 재사용)
-- [ ] Required Output Ports
+- [x] Required Output Ports
 - [x] Domain models and rules (`N/A`: Domain 변경 없음)
-- [ ] Application Policies
-- [ ] Application Service
-- [ ] Output Adapters
+- [x] Application Policies
+- [x] Application Service
+- [x] Output Adapters
 - [x] Web Request/Response DTOs, Controllers, and Swagger (`N/A`: API 변경 없음)
 - [x] Infra configuration and Bean wiring (`N/A`: 기존 설정·스케줄러 재사용)
-- [ ] Documentation and verification results
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -207,23 +207,30 @@ PostgreSQL·Redis가 필요한 통합 테스트는 로컬 서비스와 테스트
 
 ### Completion criteria
 
-- [ ] Purpose의 최초·반복·심야 이월 결과를 검증한다.
-- [ ] 정상·경계·동시 실행 흐름을 검증한다.
-- [ ] 현재 계약 문서와 실제 정책이 일치한다.
-- [ ] 미실행 검증과 이유를 기록한다.
+- [x] Purpose의 최초·반복·심야 이월 결과를 검증한다.
+- [x] 정상·경계·동시 실행 흐름을 검증한다.
+- [x] 현재 계약 문서와 실제 정책이 일치한다.
+- [x] 미실행 검증과 이유를 기록한다.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
 | Migration 판단 | Passed | 기존 `user_notifications.created_at`, 중복키 고유 제약, 정산 잠금 재사용으로 schema 변경 없음 |
-| 구현·테스트 | Pending |  |
+| Java 컴파일 | Passed | `./gradlew compileJava`, `./gradlew compileTestJava` |
+| 12시간·심야 경계 단위 검증 | Passed | `SettlementReminderServiceTest` |
+| PostgreSQL·Redis 통합 검증 | Passed | 격리 schema에서 `NotificationInboxIntegrationTest` 23건 통과 |
+| 리마인드 관련 회귀 | Passed | 격리 schema에서 관련 6개 클래스 50건 통과 |
+| Java 전체 회귀 | Partial | 1,164건 중 1,163건 통과. 범위 밖 `AccountTransactionPersistenceIntegrationTest.loadsHistoryAfterActiveAccountDeletion` 1건은 공유 DB의 다른 테스트 schema가 `information_schema` 결과에 포함되어 실패 |
+| 실제 운영 스케줄·FCM 수신 | Not run | 운영 자동 스케줄러 설정과 실제 앱 기기 필요 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-09-16 | ALM-STL-003, 최신 `origin/develop`, 기존 24시간 1회 흐름과 이력 구조 확인 | Port·Policy·Service·Adapter 구현 | 심야 이월 뒤 원래 슬롯을 유지하면 다음 간격이 12시간보다 짧아질 수 있음 |
+| 2026-09-16 | 12시간 반복, KST 방해 금지, 반복 중복키와 legacy 이력 호환 구현 | 단위·통합·회귀 검증 | 공유 기본 schema는 기존 V16 checksum이 달라 격리 schema 필요 |
+| 2026-09-16 | 관련 50건 통과, 전체 1,164건 중 1,163건 통과, 클라이언트 계약 갱신 | PR 리뷰와 운영 활성화 확인 | 전체 실패 1건은 공유 DB의 범위 밖 schema 간섭 |
 
 ## 10. Decision log
 
@@ -235,8 +242,8 @@ PostgreSQL·Redis가 필요한 통합 테스트는 로컬 서비스와 테스트
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- Completed on: 2026-09-16
+- Final behavior: 요청 알림 이력이 있는 활성 연결 회원의 확정 Share가 미납이면 최초 12시간 후, 이후 마지막 실제 자동 리마인드부터 12시간마다 반복한다. KST 03:00 이상 06:00 미만에는 생성하지 않고 06:00 이후 첫 배치로 이월한다. 수동·자동 공통 30분 쿨다운과 기존 대상 재검증은 유지한다.
+- Unverified items: 실제 운영 스케줄러 실행과 Firebase 기기 수신.
+- Remaining risks: 기본 1분 polling 때문에 06:00 또는 12시간 정각보다 최대 polling 주기만큼 늦게 생성될 수 있다. 전체 회귀의 범위 밖 1건은 공유 DB에 남은 다른 테스트 schema 때문에 실패했다.
+- Follow-up work: 운영에서 `SETTLEMENT_AUTOMATIC_REMINDER_ENABLED=true` 여부를 확인하고 실제 앱 알림 수신 시간을 점검한다.
