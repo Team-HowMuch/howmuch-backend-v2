@@ -88,6 +88,7 @@
 - KST 03:00은 차단하고 06:00은 허용한다.
 - 방해 금지 시간에 예정된 알림은 별도 예약 레코드 없이 기존 후보 조건을 유지해 06:00 이후 첫 배치에서 처리한다.
 - 기존 `AUTO_REMINDER:<shareId>` 이력도 마지막 자동 리마인드로 인식해 배포 직후 중복을 막는다.
+- 배치 크기를 초과한 후보는 마지막 자동 리마인드 시각 또는 Share 확정 시각이 오래된 순서로 처리해 반복 대상이 최초 대상을 밀어내지 않는다.
 
 ## 4. Contracts
 
@@ -144,7 +145,7 @@ Result -> Web Response DTO: N/A
 ### Technology and patterns
 
 - Constraint to solve: 기존 1회 중복키를 반복 가능하게 바꾸면서 동시 실행 중복을 막고 심야 예정분을 06:00으로 이월한다.
-- Selected approach: 마지막 실제 자동 리마인드 `created_at`을 반복 기준으로 사용하고, 기준 시각 epoch second를 중복키에 포함한다. 방해 금지 시간에는 배치가 후보를 소비하지 않는다.
+- Selected approach: 마지막 실제 자동 리마인드 `created_at`을 반복 기준으로 사용하고, 기준 시각 epoch second를 중복키에 포함한다. 후보는 반복 기준 시각순으로 조회하며 방해 금지 시간에는 배치가 후보를 소비하지 않는다.
 - Reason for selection: 기존 테이블·고유 제약·정산 잠금을 재사용하며 추가 예약 저장 없이 06:00 이월과 재시작 복구가 가능하다.
 - Alternatives considered: Share 시각 기준 고정 12시간 슬롯은 심야 이월 뒤 다음 알림까지 12시간보다 짧아질 수 있어 제외한다. 별도 next reminder 컬럼은 현재 이력으로 계산 가능해 migration 비용이 불필요하다.
 - Trade-offs and limits: 06:00 실제 생성은 기본 1분 polling 지연만큼 늦을 수 있다. 자동 스케줄러는 운영 설정으로 활성화해야 한다.
@@ -189,6 +190,7 @@ docs(settlement): 자동 리마인드 반복 정책 설계 기록
 feat(settlement): 자동 리마인드 12시간 반복과 심야 이월 적용
 test(settlement): 자동 리마인드 반복 일정 검증
 docs(settlement): 자동 리마인드 반복 정책 완료 기록
+fix(settlement): 자동 리마인드 후보를 도래 순서로 조회
 ```
 
 ## 8. Verification
@@ -220,6 +222,7 @@ PostgreSQL·Redis가 필요한 통합 테스트는 로컬 서비스와 테스트
 | Java 컴파일 | Passed | `./gradlew compileJava`, `./gradlew compileTestJava` |
 | 12시간·심야 경계 단위 검증 | Passed | `SettlementReminderServiceTest` |
 | PostgreSQL·Redis 통합 검증 | Passed | 격리 schema에서 `NotificationInboxIntegrationTest` 23건 통과 |
+| 배치 후보 정렬 회귀 | Passed | 반복 기준 시각이 더 이른 최초 대상이 오래된 반복 대상보다 먼저 선택됨 |
 | 리마인드 관련 회귀 | Passed | 격리 schema에서 관련 6개 클래스 50건 통과 |
 | Java 전체 회귀 | Partial | 1,164건 중 1,163건 통과. 범위 밖 `AccountTransactionPersistenceIntegrationTest.loadsHistoryAfterActiveAccountDeletion` 1건은 공유 DB의 다른 테스트 schema가 `information_schema` 결과에 포함되어 실패 |
 | 실제 운영 스케줄·FCM 수신 | Not run | 운영 자동 스케줄러 설정과 실제 앱 기기 필요 |
@@ -231,6 +234,7 @@ PostgreSQL·Redis가 필요한 통합 테스트는 로컬 서비스와 테스트
 | 2026-09-16 | ALM-STL-003, 최신 `origin/develop`, 기존 24시간 1회 흐름과 이력 구조 확인 | Port·Policy·Service·Adapter 구현 | 심야 이월 뒤 원래 슬롯을 유지하면 다음 간격이 12시간보다 짧아질 수 있음 |
 | 2026-09-16 | 12시간 반복, KST 방해 금지, 반복 중복키와 legacy 이력 호환 구현 | 단위·통합·회귀 검증 | 공유 기본 schema는 기존 V16 checksum이 달라 격리 schema 필요 |
 | 2026-09-16 | 관련 50건 통과, 전체 1,164건 중 1,163건 통과, 클라이언트 계약 갱신 | PR 리뷰와 운영 활성화 확인 | 전체 실패 1건은 공유 DB의 범위 밖 schema 간섭 |
+| 2026-09-16 | 리뷰에서 확인된 후보 기아 가능성을 반복 기준 시각 정렬로 수정하고 통합 검증 | PR 재검토 | 없음 |
 
 ## 10. Decision log
 
@@ -239,6 +243,7 @@ PostgreSQL·Redis가 필요한 통합 테스트는 로컬 서비스와 테스트
 | 2026-09-16 | 최초는 Share 확정 시각, 이후는 마지막 실제 자동 리마인드 생성 시각을 12시간 기준으로 사용 | 심야 이월 뒤에도 수신 간격을 최소 12시간으로 유지 | Share 기준 고정 슬롯과 달리 이월 뒤 cadence가 실제 발송 시각에 맞춰 이동 |
 | 2026-09-16 | KST 03:00 이상 06:00 미만에는 배치를 중단 | 후보를 소비하지 않아 06:00 이후 기존 조건으로 자연스럽게 이월 | 별도 예약 시각 저장 불필요 |
 | 2026-09-16 | 기존 이력·중복키 고유 제약과 정산 잠금 재사용 | migration 없이 반복과 동시성 보장 | 중복키에 반복 기준 epoch second 추가 |
+| 2026-09-16 | 후보를 `COALESCE(마지막 자동 리마인드 시각, Share 확정 시각)` 오름차순으로 처리 | 배치 상한에 도달해도 오래된 반복 대상이 미처리 최초 대상을 영구적으로 밀어내지 않음 | 동일 기준 시각은 Share ID로 안정 정렬 |
 
 ## 11. Completion record
 

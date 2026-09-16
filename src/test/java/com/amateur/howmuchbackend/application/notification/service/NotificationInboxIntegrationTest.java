@@ -311,7 +311,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void automaticCandidateFiltersLegacyUnsubmittedInactiveAndCompleted() {
+    void automaticCandidateSelectionFiltersIneligibleAndOrdersByNextDueAt() {
         assertThat(due()).isEmpty();
         recorder.record(request());
         assertThat(due()).hasSize(1);
@@ -322,6 +322,16 @@ class NotificationInboxIntegrationTest {
         assertThat(due()).isEmpty();
         assertThat(writer.automatic(candidate())).isFalse();
         jdbc.update("UPDATE settlements SET status='REQUESTED' WHERE id=?", settlement);
+        assertThat(writer.automatic(candidate())).isTrue();
+
+        var earlierDueCandidate = insertAutomaticCandidate(NOW.minusHours(1));
+        try {
+            assertThat(targets.findDue(NOW, NOW.plusHours(11).plusMinutes(30), 1))
+                    .containsExactly(earlierDueCandidate);
+        } finally {
+            jdbc.update("DELETE FROM settlements WHERE id=?", earlierDueCandidate.settlementId());
+        }
+
         jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
         assertThat(due()).isEmpty();
     }
@@ -400,6 +410,30 @@ class NotificationInboxIntegrationTest {
     }
     private SettlementAutomaticReminderTargetPort.Target candidate() {
         return new SettlementAutomaticReminderTargetPort.Target(settlement, participant, share, recipient);
+    }
+    private SettlementAutomaticReminderTargetPort.Target insertAutomaticCandidate(LocalDateTime shareCreatedAt) {
+        UUID candidateSettlement = UUID.randomUUID();
+        UUID candidateParticipant = UUID.randomUUID();
+        UUID candidateShare = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO settlements(id,creator_id,title,total_amount,allocation_type,status,created_at,updated_at)
+                VALUES (?,?,'후속 알림 검증',1000,'DUTCH_PAY','AWAITING_DEPOSIT',?,?)
+                """, candidateSettlement, creator, shareCreatedAt.minusHours(1), shareCreatedAt);
+        jdbc.update("""
+                INSERT INTO settlement_receiving_account_snapshots
+                (settlement_id,source_account_id,organization,account_number_ciphertext,account_holder,created_at)
+                VALUES (?,?,'0020','test-ciphertext','예금주',?)
+                """, candidateSettlement, account, shareCreatedAt.minusHours(1));
+        jdbc.update("""
+                INSERT INTO settlement_participants(id,settlement_id,source,linked_user_id,display_name,display_order,created_at,updated_at)
+                VALUES (?,?,'REGISTERED_USER',?,'참여자',0,?,?)
+                """, candidateParticipant, candidateSettlement, recipient, shareCreatedAt.minusHours(1), shareCreatedAt);
+        shareStore.saveAll(List.of(new com.amateur.howmuchbackend.domain.settlement.SettlementShare(
+                candidateShare, candidateSettlement, candidateParticipant, 1000, shareCreatedAt)));
+        recorder.record(NotificationMessages.request(candidateSettlement, recipient, SettlementAllocationType.DUTCH_PAY,
+                "요청 당시 이름", shareCreatedAt));
+        return new SettlementAutomaticReminderTargetPort.Target(
+                candidateSettlement, candidateParticipant, candidateShare, recipient);
     }
     private List<SettlementAutomaticReminderTargetPort.Target> due() {
         return targets.findDue(NOW.minusHours(12), NOW.minusMinutes(30), 50);
