@@ -20,6 +20,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Service
@@ -55,15 +56,18 @@ public class SettlementReminderWriter {
         if (settlement == null) return false;
         Target target = loadTarget(settlement, candidate.participantId(), ReminderKind.AUTOMATIC);
         LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime reminderAnchor = automaticTargets.findLatestAutomaticReminderAt(
+                target.share().id(),
+                target.recipient().id()
+        ).orElse(target.share().createdAt());
         if (!target.share().id().equals(candidate.shareId())
                 || !target.recipient().id().equals(candidate.recipientUserId())
-                || !policy.isAutomaticDue(settlement, target.share(), now)
-                || !automaticTargets.hasRequestNotification(settlement.id(), target.recipient().id())
-                || automaticTargets.hasAutomaticReminder(target.share().id(), target.recipient().id())) {
+                || !policy.isAutomaticDue(settlement, target.share(), reminderAnchor, now)
+                || !automaticTargets.hasRequestNotification(settlement.id(), target.recipient().id())) {
             return false;
         }
         return store(settlement, target, ReminderKind.AUTOMATIC,
-                "AUTO_REMINDER:" + target.share().id(), now);
+                automaticReminderKey(target.share().id(), reminderAnchor), now);
     }
 
     private String reminderMessage(Settlement settlement, SettlementShare share,
@@ -129,6 +133,10 @@ public class SettlementReminderWriter {
             log.warn("Reminder reservation release failed. settlementId={}, participantId={}, failureType={}",
                     settlementId, participantId, exception.getClass().getSimpleName());
         }
+    }
+
+    private String automaticReminderKey(UUID shareId, LocalDateTime reminderAnchor) {
+        return "AUTO_REMINDER:" + shareId + ":" + reminderAnchor.toEpochSecond(ZoneOffset.UTC);
     }
 
     private enum ReminderKind { MANUAL, AUTOMATIC }

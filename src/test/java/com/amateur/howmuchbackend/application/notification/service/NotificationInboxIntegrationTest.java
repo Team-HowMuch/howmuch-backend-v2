@@ -44,6 +44,7 @@ class NotificationInboxIntegrationTest {
     @Autowired LoadNotificationPort notifications;
     @Autowired MarkNotificationReadPort reads;
     @Autowired SettlementAutomaticReminderTargetPort targets;
+    @Autowired SettlementAutomaticReminderService automaticReminders;
     @Autowired SettlementReminderWriter writer;
     @Autowired LoadSettlementSharePort shareReader;
     @Autowired SaveSettlementSharePort shareStore;
@@ -221,18 +222,34 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void automaticMessageStartsAtExactly24HoursFromShare() {
-        recorder.record(request()); // Request was created 25 hours ago.
-        replaceShareCreatedAt(NOW.minusHours(24).plusSeconds(1));
-        assertThat(due()).isEmpty();
-        assertThat(writer.automatic(candidate())).isFalse();
-        when(clock.instant()).thenReturn(NOW.plusSeconds(1).toInstant(ZoneOffset.UTC));
-        assertThat(writer.automatic(candidate())).isTrue();
+    void automaticReminderDefersQuietHoursAndRepeatsFromActualDelivery() {
+        recorder.record(request());
+        LocalDateTime quietStart = LocalDateTime.of(2026, 9, 5, 18, 0); // KST 03:00
+        replaceShareCreatedAt(quietStart.minusHours(12));
+        when(clock.instant()).thenReturn(quietStart.toInstant(ZoneOffset.UTC));
+
+        assertThat(automaticReminders.sendDue(50)).isZero();
+        assertThat(notifications.countUnread(recipient)).isOne();
+
+        LocalDateTime deferredAt = LocalDateTime.of(2026, 9, 5, 21, 0); // KST 06:00
+        when(clock.instant()).thenReturn(deferredAt.toInstant(ZoneOffset.UTC));
+        assertThat(automaticReminders.sendDue(50)).isOne();
+        assertThat(automaticReminders.sendDue(50)).isZero();
+
+        redis.delete("settlement:reminder:" + settlement + ":" + participant);
+        when(clock.instant()).thenReturn(deferredAt.plusHours(12).minusSeconds(1)
+                .toInstant(ZoneOffset.UTC));
+        assertThat(automaticReminders.sendDue(50)).isZero();
+        when(clock.instant()).thenReturn(deferredAt.plusHours(12).toInstant(ZoneOffset.UTC));
+        assertThat(automaticReminders.sendDue(50)).isOne();
+
         assertThat(notifications.findPage(recipient, null, null, 10))
                 .filteredOn(n -> n.type() == com.amateur.howmuchbackend.domain.notification.NotificationType.SETTLEMENT_REMINDER)
                 .extracting(UserNotification::message)
-                .containsExactly("정산을 요청받은지 24시간이나 지났어요");
-        assertThat(writer.automatic(candidate())).isFalse();
+                .containsExactly(
+                        "정산을 요청받은지 27시간이나 지났어요",
+                        "정산을 요청받은지 15시간이나 지났어요"
+                );
     }
 
     @Test
@@ -294,7 +311,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void automaticCandidateFiltersLegacyUnsubmittedInactiveAndCompleted() {
+    void automaticCandidateSelectionFiltersIneligibleAndOrdersByNextDueAt() {
         assertThat(due()).isEmpty();
         recorder.record(request());
         assertThat(due()).hasSize(1);
@@ -305,6 +322,16 @@ class NotificationInboxIntegrationTest {
         assertThat(due()).isEmpty();
         assertThat(writer.automatic(candidate())).isFalse();
         jdbc.update("UPDATE settlements SET status='REQUESTED' WHERE id=?", settlement);
+        assertThat(writer.automatic(candidate())).isTrue();
+
+        var earlierDueCandidate = insertAutomaticCandidate(NOW.minusHours(1));
+        try {
+            assertThat(targets.findDue(NOW, NOW.plusHours(11).plusMinutes(30), 1))
+                    .containsExactly(earlierDueCandidate);
+        } finally {
+            jdbc.update("DELETE FROM settlements WHERE id=?", earlierDueCandidate.settlementId());
+        }
+
         jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
         assertThat(due()).isEmpty();
     }
@@ -356,7 +383,7 @@ class NotificationInboxIntegrationTest {
         when(clock.instant()).thenReturn(NOW.plusMinutes(31).toInstant(ZoneOffset.UTC));
         // Simulate Redis TTL expiration without sleeping or modifying other test keys.
         redis.delete("settlement:reminder:" + settlement + ":" + participant);
-        assertThat(targets.findDue(NOW.plusMinutes(31).minusHours(24), NOW.plusMinutes(1), 50)).hasSize(1);
+        assertThat(targets.findDue(NOW.plusMinutes(31).minusHours(12), NOW.plusMinutes(1), 50)).hasSize(1);
         assertThat(writer.automatic(candidate())).isTrue();
         assertThat(notifications.countUnread(recipient)).isEqualTo(3);
     }
@@ -384,8 +411,32 @@ class NotificationInboxIntegrationTest {
     private SettlementAutomaticReminderTargetPort.Target candidate() {
         return new SettlementAutomaticReminderTargetPort.Target(settlement, participant, share, recipient);
     }
+    private SettlementAutomaticReminderTargetPort.Target insertAutomaticCandidate(LocalDateTime shareCreatedAt) {
+        UUID candidateSettlement = UUID.randomUUID();
+        UUID candidateParticipant = UUID.randomUUID();
+        UUID candidateShare = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO settlements(id,creator_id,title,total_amount,allocation_type,status,created_at,updated_at)
+                VALUES (?,?,'후속 알림 검증',1000,'DUTCH_PAY','AWAITING_DEPOSIT',?,?)
+                """, candidateSettlement, creator, shareCreatedAt.minusHours(1), shareCreatedAt);
+        jdbc.update("""
+                INSERT INTO settlement_receiving_account_snapshots
+                (settlement_id,source_account_id,organization,account_number_ciphertext,account_holder,created_at)
+                VALUES (?,?,'0020','test-ciphertext','예금주',?)
+                """, candidateSettlement, account, shareCreatedAt.minusHours(1));
+        jdbc.update("""
+                INSERT INTO settlement_participants(id,settlement_id,source,linked_user_id,display_name,display_order,created_at,updated_at)
+                VALUES (?,?,'REGISTERED_USER',?,'참여자',0,?,?)
+                """, candidateParticipant, candidateSettlement, recipient, shareCreatedAt.minusHours(1), shareCreatedAt);
+        shareStore.saveAll(List.of(new com.amateur.howmuchbackend.domain.settlement.SettlementShare(
+                candidateShare, candidateSettlement, candidateParticipant, 1000, shareCreatedAt)));
+        recorder.record(NotificationMessages.request(candidateSettlement, recipient, SettlementAllocationType.DUTCH_PAY,
+                "요청 당시 이름", shareCreatedAt));
+        return new SettlementAutomaticReminderTargetPort.Target(
+                candidateSettlement, candidateParticipant, candidateShare, recipient);
+    }
     private List<SettlementAutomaticReminderTargetPort.Target> due() {
-        return targets.findDue(NOW.minusHours(24), NOW.minusMinutes(30), 50);
+        return targets.findDue(NOW.minusHours(12), NOW.minusMinutes(30), 50);
     }
     private boolean attemptAutomatic() {
         try { return writer.automatic(candidate()); }

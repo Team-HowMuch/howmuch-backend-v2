@@ -79,10 +79,7 @@ class SettlementReminderServiceTest {
     @BeforeEach
     void setUp() {
         var policy = new SettlementReminderPolicy();
-        writer = new SettlementReminderWriter(loadSettlementPort, loadSettlementParticipantPort,
-                loadSettlementSharePort, itemAllocationStorePort, loadSettlementDepositSummaryPort,
-                loadUserPort, cooldownPort, recorder, policy,
-                Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC), automaticTargets);
+        writer = writerAt(NOW);
         service = new SettlementReminderService(currentActorPort, loadSettlementPort,
                 loadSettlementParticipantPort, writer, policy, cooldownReader);
         TransactionSynchronizationManager.initSynchronization();
@@ -235,22 +232,37 @@ class SettlementReminderServiceTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(longs = {-1, 0, 1})
-    void automaticThresholdIsInclusive(long secondsAfterDeadline) {
+    @org.junit.jupiter.params.provider.CsvSource({
+            "2026-09-05T09:00:00,-1,false",
+            "2026-09-05T09:00:00,0,true",
+            "2026-09-05T09:00:00,1,true",
+            "2026-09-05T18:00:00,0,false",
+            "2026-09-05T21:00:00,0,true"
+    })
+    void automaticThresholdAndQuietHoursAreInclusive(
+            LocalDateTime currentTime,
+            long secondsAfterDeadline,
+            boolean expected
+    ) {
+        writer = writerAt(currentTime);
         givenTarget();
+        LocalDateTime reminderAnchor = currentTime.minusHours(12)
+                .minusSeconds(secondsAfterDeadline);
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(new SettlementShare(SHARE_ID, SETTLEMENT_ID, PARTICIPANT_ID, 1000,
-                        NOW.minusHours(24).minusSeconds(secondsAfterDeadline))));
-        if (secondsAfterDeadline >= 0) {
+                        reminderAnchor)));
+        if (expected) {
             when(automaticTargets.hasRequestNotification(SETTLEMENT_ID, PAYER_ID)).thenReturn(true);
             when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
             when(recorder.record(any())).thenReturn(true);
         }
-        assertThat(writer.automatic(candidate())).isEqualTo(secondsAfterDeadline >= 0);
-        if (secondsAfterDeadline >= 0) {
+        assertThat(writer.automatic(candidate())).isEqualTo(expected);
+        if (expected) {
             var capture = ArgumentCaptor.forClass(com.amateur.howmuchbackend.domain.notification.UserNotification.class);
             verify(recorder).record(capture.capture());
-            assertThat(capture.getValue().deduplicationKey()).isEqualTo("AUTO_REMINDER:" + SHARE_ID);
+            assertThat(capture.getValue().deduplicationKey()).isEqualTo(
+                    "AUTO_REMINDER:" + SHARE_ID + ":" + reminderAnchor.toEpochSecond(ZoneOffset.UTC)
+            );
         } else verifyNoInteractions(recorder, cooldownPort);
     }
 
@@ -262,12 +274,26 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void automaticIsOnceEvenAfterRestart() {
+    void automaticWaitsTwelveHoursAfterPreviousReminder() {
         givenOldShare();
         when(automaticTargets.hasRequestNotification(SETTLEMENT_ID, PAYER_ID)).thenReturn(true);
-        when(automaticTargets.hasAutomaticReminder(SHARE_ID, PAYER_ID)).thenReturn(true);
+        when(automaticTargets.findLatestAutomaticReminderAt(SHARE_ID, PAYER_ID))
+                .thenReturn(Optional.of(NOW.minusHours(12).plusSeconds(1)));
         assertThat(writer.automatic(candidate())).isFalse();
         verifyNoInteractions(recorder, cooldownPort);
+
+        LocalDateTime reminderAnchor = NOW.minusHours(12);
+        when(automaticTargets.findLatestAutomaticReminderAt(SHARE_ID, PAYER_ID))
+                .thenReturn(Optional.of(reminderAnchor));
+        when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
+        when(recorder.record(any())).thenReturn(true);
+
+        assertThat(writer.automatic(candidate())).isTrue();
+        var capture = ArgumentCaptor.forClass(com.amateur.howmuchbackend.domain.notification.UserNotification.class);
+        verify(recorder).record(capture.capture());
+        assertThat(capture.getValue().deduplicationKey()).isEqualTo(
+                "AUTO_REMINDER:" + SHARE_ID + ":" + reminderAnchor.toEpochSecond(ZoneOffset.UTC)
+        );
     }
 
     @Test
@@ -293,6 +319,12 @@ class SettlementReminderServiceTest {
         givenTarget();
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(new SettlementShare(SHARE_ID, SETTLEMENT_ID, PARTICIPANT_ID, 1000, NOW.minusHours(25))));
+    }
+    private SettlementReminderWriter writerAt(LocalDateTime now) {
+        return new SettlementReminderWriter(loadSettlementPort, loadSettlementParticipantPort,
+                loadSettlementSharePort, itemAllocationStorePort, loadSettlementDepositSummaryPort,
+                loadUserPort, cooldownPort, recorder, new SettlementReminderPolicy(),
+                Clock.fixed(now.toInstant(ZoneOffset.UTC), ZoneOffset.UTC), automaticTargets);
     }
     private com.amateur.howmuchbackend.application.port.out.settlement.SettlementAutomaticReminderTargetPort.Target candidate() {
         return new com.amateur.howmuchbackend.application.port.out.settlement.SettlementAutomaticReminderTargetPort.Target(

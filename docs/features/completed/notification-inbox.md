@@ -1,5 +1,7 @@
 # Feature Plan: 회원 알림함과 정산 자동 리마인드
 
+> 2026-09-16: 이 문서의 24시간 후 1회 자동 독촉 일정은 [12시간 반복과 심야 이월 정책](settlement-recurring-automatic-reminder.md)으로 대체되었다. 알림함·Outbox 설계 기록은 그대로 유효하다.
+
 - Status: Implemented
 - Last updated: 2026-09-05
 - Related issue: #269, #270, #272, #273, #274, #275

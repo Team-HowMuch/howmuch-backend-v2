@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -16,8 +17,8 @@ public class SettlementAutomaticReminderTargetAdapter implements SettlementAutom
 
     @Override
     @Transactional(readOnly = true)
-    public List<Target> findDue(LocalDateTime shareCreatedBefore, LocalDateTime lastReminderBefore, int limit) {
-        return repository.findDue(shareCreatedBefore, lastReminderBefore, limit).stream()
+    public List<Target> findDue(LocalDateTime automaticDueBefore, LocalDateTime lastReminderBefore, int limit) {
+        return repository.findDue(automaticDueBefore, lastReminderBefore, limit).stream()
                 .map(row -> new Target(row.getSettlementId(), row.getParticipantId(), row.getShareId(), row.getRecipientUserId()))
                 .toList();
     }
@@ -28,7 +29,8 @@ public class SettlementAutomaticReminderTargetAdapter implements SettlementAutom
     }
 
     @Override
-    public boolean hasAutomaticReminder(UUID shareId, Long recipientUserId) {
-        return repository.hasAutomaticReminder(recipientUserId, "AUTO_REMINDER:" + shareId);
+    @Transactional(readOnly = true)
+    public Optional<LocalDateTime> findLatestAutomaticReminderAt(UUID shareId, Long recipientUserId) {
+        return repository.findLatestAutomaticReminderAt(shareId, recipientUserId);
     }
 }
