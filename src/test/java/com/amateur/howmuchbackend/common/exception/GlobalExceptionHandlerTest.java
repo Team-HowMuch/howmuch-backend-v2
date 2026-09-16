@@ -13,10 +13,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -110,6 +114,35 @@ class GlobalExceptionHandlerTest {
                 expected.getCode(), expected.getMessage());
     }
 
+    @Test
+    void oversizeUploadReturnsPayloadTooLarge() throws Exception {
+        // 업로드 한도 초과가 500이면 클라이언트는 서버가 고장난 줄 안다. 413은 영수증
+        // OCR뿐 아니라 그룹·프로필 이미지 업로드에도 함께 적용된다.
+        var expected = CommonStatusCode.PAYLOAD_TOO_LARGE;
+        error(mvc.perform(get("/error-probe/oversize")), 413,
+                expected.getCode(), expected.getMessage());
+    }
+
+    @Test
+    void malformedMultipartReturnsInvalidArgument() throws Exception {
+        invalidArgument(mvc.perform(get("/error-probe/malformed-multipart")));
+    }
+
+    @Test
+    void missingMultipartPartReturnsInvalidArgument() throws Exception {
+        // 파트 이름이 다르면 컨트롤러에 들어가기 전에 갈린다. 여기가 400이 아니면
+        // 컨트롤러 안의 null 검사는 영원히 실행되지 않고 500만 나간다.
+        invalidArgument(mvc.perform(multipart("/error-probe/upload")
+                .file(new MockMultipartFile("image", "a.jpg", "image/jpeg", new byte[]{1}))));
+    }
+
+    @Test
+    void presentMultipartPartStillReachesTheController() throws Exception {
+        mvc.perform(multipart("/error-probe/upload")
+                        .file(new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1})))
+                .andExpect(status().isOk());
+    }
+
     private ResultActions invalidArgument(ResultActions result) throws Exception {
         return error(result, 400, "INVALID_ARGUMENT", "요청값이 올바르지 않습니다.");
     }
@@ -140,6 +173,23 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/error-probe/unexpected")
         public void unexpected() {
             throw new IllegalStateException("synthetic failure");
+        }
+
+        // 실제로는 DispatcherServlet 이 핸들러를 찾기 전에 던진다. 여기서는 매핑만
+        // 못 박고, 실제 디스패치 지점은 ReceiptOcrHttpIntegrationTest 가 확인한다.
+        @GetMapping("/error-probe/oversize")
+        public void oversize() {
+            throw new MaxUploadSizeExceededException(5 * 1024 * 1024);
+        }
+
+        @GetMapping("/error-probe/malformed-multipart")
+        public void malformedMultipart() {
+            throw new MultipartException("synthetic malformed multipart");
+        }
+
+        @PostMapping("/error-probe/upload")
+        public String upload(@RequestPart("file") MultipartFile file) {
+            return file.getOriginalFilename();
         }
     }
 
