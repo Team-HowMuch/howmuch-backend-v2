@@ -44,6 +44,7 @@ class NotificationInboxIntegrationTest {
     @Autowired LoadNotificationPort notifications;
     @Autowired MarkNotificationReadPort reads;
     @Autowired SettlementAutomaticReminderTargetPort targets;
+    @Autowired SettlementAutomaticReminderService automaticReminders;
     @Autowired SettlementReminderWriter writer;
     @Autowired LoadSettlementSharePort shareReader;
     @Autowired SaveSettlementSharePort shareStore;
@@ -221,18 +222,34 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void automaticMessageStartsAtExactly24HoursFromShare() {
-        recorder.record(request()); // Request was created 25 hours ago.
-        replaceShareCreatedAt(NOW.minusHours(24).plusSeconds(1));
-        assertThat(due()).isEmpty();
-        assertThat(writer.automatic(candidate())).isFalse();
-        when(clock.instant()).thenReturn(NOW.plusSeconds(1).toInstant(ZoneOffset.UTC));
-        assertThat(writer.automatic(candidate())).isTrue();
+    void automaticReminderDefersQuietHoursAndRepeatsFromActualDelivery() {
+        recorder.record(request());
+        LocalDateTime quietStart = LocalDateTime.of(2026, 9, 5, 18, 0); // KST 03:00
+        replaceShareCreatedAt(quietStart.minusHours(12));
+        when(clock.instant()).thenReturn(quietStart.toInstant(ZoneOffset.UTC));
+
+        assertThat(automaticReminders.sendDue(50)).isZero();
+        assertThat(notifications.countUnread(recipient)).isOne();
+
+        LocalDateTime deferredAt = LocalDateTime.of(2026, 9, 5, 21, 0); // KST 06:00
+        when(clock.instant()).thenReturn(deferredAt.toInstant(ZoneOffset.UTC));
+        assertThat(automaticReminders.sendDue(50)).isOne();
+        assertThat(automaticReminders.sendDue(50)).isZero();
+
+        redis.delete("settlement:reminder:" + settlement + ":" + participant);
+        when(clock.instant()).thenReturn(deferredAt.plusHours(12).minusSeconds(1)
+                .toInstant(ZoneOffset.UTC));
+        assertThat(automaticReminders.sendDue(50)).isZero();
+        when(clock.instant()).thenReturn(deferredAt.plusHours(12).toInstant(ZoneOffset.UTC));
+        assertThat(automaticReminders.sendDue(50)).isOne();
+
         assertThat(notifications.findPage(recipient, null, null, 10))
                 .filteredOn(n -> n.type() == com.amateur.howmuchbackend.domain.notification.NotificationType.SETTLEMENT_REMINDER)
                 .extracting(UserNotification::message)
-                .containsExactly("정산을 요청받은지 24시간이나 지났어요");
-        assertThat(writer.automatic(candidate())).isFalse();
+                .containsExactly(
+                        "정산을 요청받은지 27시간이나 지났어요",
+                        "정산을 요청받은지 15시간이나 지났어요"
+                );
     }
 
     @Test
@@ -356,7 +373,7 @@ class NotificationInboxIntegrationTest {
         when(clock.instant()).thenReturn(NOW.plusMinutes(31).toInstant(ZoneOffset.UTC));
         // Simulate Redis TTL expiration without sleeping or modifying other test keys.
         redis.delete("settlement:reminder:" + settlement + ":" + participant);
-        assertThat(targets.findDue(NOW.plusMinutes(31).minusHours(24), NOW.plusMinutes(1), 50)).hasSize(1);
+        assertThat(targets.findDue(NOW.plusMinutes(31).minusHours(12), NOW.plusMinutes(1), 50)).hasSize(1);
         assertThat(writer.automatic(candidate())).isTrue();
         assertThat(notifications.countUnread(recipient)).isEqualTo(3);
     }
@@ -385,7 +402,7 @@ class NotificationInboxIntegrationTest {
         return new SettlementAutomaticReminderTargetPort.Target(settlement, participant, share, recipient);
     }
     private List<SettlementAutomaticReminderTargetPort.Target> due() {
-        return targets.findDue(NOW.minusHours(24), NOW.minusMinutes(30), 50);
+        return targets.findDue(NOW.minusHours(12), NOW.minusMinutes(30), 50);
     }
     private boolean attemptAutomatic() {
         try { return writer.automatic(candidate()); }
