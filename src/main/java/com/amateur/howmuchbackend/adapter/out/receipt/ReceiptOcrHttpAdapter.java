@@ -9,6 +9,10 @@ import com.amateur.howmuchbackend.infra.receipt.config.ReceiptOcrProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -16,16 +20,35 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.util.Set;
+
 /**
  * 내부 OCR 서비스에 영수증 이미지를 보내고 결과를 받는다.
  *
- * <p>이미지는 요청 처리 중 메모리에만 있고 디스크에 남기지 않는다.
+ * <p>이미지는 우리 저장소(DB·오브젝트 스토리지)에 남기지 않는다. 다만 멀티파트 해석은
+ * 서블릿 컨테이너가 하고, {@code spring.servlet.multipart.file-size-threshold} 기본값이
+ * 0이라 업로드는 임시 파일로 먼저 떨어졌다가 요청이 끝날 때 삭제된다. "디스크에 전혀
+ * 닿지 않는다"고 적으면 거짓말이 된다.
  */
 @Slf4j
 @Component
 public class ReceiptOcrHttpAdapter implements AnalyzeReceiptImagePort {
     private static final String MULTIPART_FIELD = "file";
     private static final String FALLBACK_FILE_NAME = "receipt";
+
+    /**
+     * 사진을 다시 찍어도 절대 달라지지 않는 상태들.
+     *
+     * <p>401·403은 내부 서비스 인증 설정이 틀렸고, 404·405는 경로가 틀렸고, 408·429는
+     * 장비가 밀렸고, 502·503·504는 앞단 프록시가 뒤쪽이 죽었다고 알리는 것이다. 전부
+     * 우리 쪽 문제이거나 잠깐의 과부하다. 이걸 422로 내보내면 앱은 사용자에게 재촬영을
+     * 시키고, 다시 찍어도 똑같이 실패한다.
+     *
+     * <p>여기 없는 상태(400·413·415·422·500 등)는 서비스가 이미지를 보고 거절한 것으로
+     * 본다. 특히 500은 이 서비스가 분석 실패를 알리는 통로다({@code {"ok": false, "error"}}).
+     */
+    private static final Set<Integer> UNREACHABLE_STATUSES =
+            Set.of(401, 403, 404, 405, 408, 429, 502, 503, 504);
 
     private final RestClient restClient;
     private final ReceiptOcrProperties properties;
@@ -45,35 +68,55 @@ public class ReceiptOcrHttpAdapter implements AnalyzeReceiptImagePort {
             throw ApplicationException.of(SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE);
         }
 
-        OcrReceiptApiResponse response;
+        // 응답 해석과 결과 변환까지 한 try 안에 둔다. 밖으로 빼면 예상 못 한 본문 하나가
+        // 그대로 500이 된다. 여기서 터지는 것은 전부 사용자가 손댈 수 없는 실패이므로
+        // 재촬영(422)이 아니라 재시도(503)로 보낸다.
         try {
-            response = restClient.post()
+            OcrReceiptApiResponse response = restClient.post()
                     .uri(properties.endpoint())
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(multipart(fileName, contentType, bytes))
                     .retrieve()
                     .body(OcrReceiptApiResponse.class);
+
+            if (response == null || !response.hasResult()) {
+                // 서비스는 살아 있는데 이미지를 구조화하지 못했다.
+                throw ApplicationException.of(SettlementStatusCode.RECEIPT_OCR_FAILED);
+            }
+            return response.toResult();
+        } catch (ApplicationException exception) {
+            throw exception;
         } catch (RestClientResponseException exception) {
-            // 요청은 닿았고 서비스가 거절했다. 이미지를 읽지 못한 것으로 본다.
-            log.warn(
-                    "Receipt OCR rejected the request. status={}",
-                    exception.getStatusCode().value()
-            );
-            throw ApplicationException.of(SettlementStatusCode.RECEIPT_OCR_FAILED, exception);
+            throw translate(exception);
         } catch (RuntimeException exception) {
-            // 연결 실패·시간 초과·응답 해석 실패. 사용자는 기다렸다 다시 시도해야 한다.
+            // 연결 실패·시간 초과·응답 본문 해석 실패. 셋 다 사진을 다시 찍어서 풀리는
+            // 문제가 아니다. 사용자는 기다렸다 다시 시도해야 한다.
             log.warn(
                     "Receipt OCR call failed. failureType={}",
                     exception.getClass().getSimpleName()
             );
             throw ApplicationException.of(SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE, exception);
         }
+    }
 
-        if (response == null || !response.hasResult()) {
-            // 서비스는 살아 있는데 이미지를 구조화하지 못했다.
-            throw ApplicationException.of(SettlementStatusCode.RECEIPT_OCR_FAILED);
-        }
-        return response.toResult();
+    /**
+     * 상태 코드로 "서비스가 못 읽었다"와 "서비스에 닿지 못했다"를 가른다.
+     *
+     * @see #UNREACHABLE_STATUSES
+     */
+    private ApplicationException translate(RestClientResponseException exception) {
+        HttpStatusCode status = exception.getStatusCode();
+        boolean unreachable = UNREACHABLE_STATUSES.contains(status.value());
+        log.warn(
+                "Receipt OCR rejected the request. status={} treatedAs={}",
+                status.value(),
+                unreachable ? "UNAVAILABLE" : "FAILED"
+        );
+        return ApplicationException.of(
+                unreachable
+                        ? SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE
+                        : SettlementStatusCode.RECEIPT_OCR_FAILED,
+                exception);
     }
 
     private MultiValueMap<String, Object> multipart(String fileName, String contentType, byte[] bytes) {
@@ -84,8 +127,27 @@ public class ReceiptOcrHttpAdapter implements AnalyzeReceiptImagePort {
                 return fileName == null || fileName.isBlank() ? FALLBACK_FILE_NAME : fileName;
             }
         };
+
+        // 파트의 Content-Type을 직접 박는다. 비워 두면 파일 이름의 확장자로 추측하게 되고,
+        // 확장자가 없으면 application/octet-stream 으로 나가 서비스가 이미지로 보지 않는다.
+        HttpHeaders partHeaders = new HttpHeaders();
+        partHeaders.setContentType(imageMediaType(contentType));
+
         MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
-        form.add(MULTIPART_FIELD, image);
+        form.add(MULTIPART_FIELD, new HttpEntity<>(image, partHeaders));
         return form;
+    }
+
+    private MediaType imageMediaType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return MediaType.IMAGE_JPEG;
+        }
+        try {
+            MediaType parsed = MediaType.parseMediaType(contentType);
+            return new MediaType(parsed.getType(), parsed.getSubtype());
+        } catch (InvalidMediaTypeException exception) {
+            // 여기까지 오면 위층 검증이 이미 통과시킨 값이다. 호출은 막지 않는다.
+            return MediaType.IMAGE_JPEG;
+        }
     }
 }

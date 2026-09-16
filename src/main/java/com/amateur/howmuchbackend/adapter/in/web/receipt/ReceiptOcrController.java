@@ -31,6 +31,9 @@ public class ReceiptOcrController implements ReceiptOcrDocs {
     }
 
     private AnalyzeReceiptCommand toCommand(MultipartFile file) {
+        // 파트가 아예 없거나 이름이 다르면 여기까지 오지 않는다. 멀티파트 해석 단계에서
+        // MissingServletRequestPartException 이 나고 GlobalExceptionHandler 가 400으로 답한다.
+        // 한도 초과도 같은 단계에서 413으로 갈린다.
         if (file == null || file.isEmpty()) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_RECEIPT_IMAGE);
         }

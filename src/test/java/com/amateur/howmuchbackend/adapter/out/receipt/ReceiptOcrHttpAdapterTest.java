@@ -7,7 +7,10 @@ import com.amateur.howmuchbackend.infra.receipt.config.ReceiptOcrProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -21,6 +24,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 @DisplayName("영수증 OCR HTTP 어댑터")
@@ -52,7 +56,10 @@ class ReceiptOcrHttpAdapterTest {
                 // 서비스가 받는 파트 이름은 file 이다. 이름이 어긋나면 422가 돌아온다.
                 .andExpect(request -> assertThat(request.getBody().toString())
                         .contains("name=\"file\"")
-                        .contains("receipt.jpg"))
+                        .contains("receipt.jpg")
+                        // 파트에 이미지 형식을 직접 실어 보낸다. 비워 두면 파일 이름의
+                        // 확장자로 추측되고, 확장자가 없으면 octet-stream 이 나간다.
+                        .contains("Content-Type: image/jpeg"))
                 .andRespond(withSuccess("""
                         {
                           "ok": true,
@@ -165,8 +172,10 @@ class ReceiptOcrHttpAdapterTest {
     }
 
     @Test
-    @DisplayName("서비스가 5xx로 거절하면 읽지 못한 것으로 본다")
+    @DisplayName("서비스가 500으로 분석 실패를 알리면 재촬영을 안내한다")
     void treatsServerErrorAsUnreadable() {
+        // 이 서비스는 분석 실패를 500 + {"ok": false, "error"} 로 알린다. 그래서 500은
+        // 닿지 못한 것이 아니라 읽지 못한 것이다.
         server.expect(requestTo(BASE_URL + "/ocr/receipt")).andRespond(withServerError());
 
         assertThatThrownBy(() -> adapter.analyze("a.jpg", "image/jpeg", IMAGE))
@@ -203,6 +212,74 @@ class ReceiptOcrHttpAdapterTest {
                 .extracting(e -> ((ApplicationException) e).getStatusCode())
                 .isEqualTo(SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE);
         offServer.verify();
+    }
+
+    @Test
+    @DisplayName("확장자 없는 파일 이름이어도 파트에 실제 이미지 형식을 붙인다")
+    void sendsDeclaredContentTypeEvenWithoutAnExtension() {
+        server.expect(requestTo(BASE_URL + "/ocr/receipt"))
+                .andExpect(request -> assertThat(request.getBody().toString())
+                        .contains("Content-Type: image/png")
+                        .doesNotContain("application/octet-stream"))
+                .andRespond(withSuccess(okBody(), MediaType.APPLICATION_JSON));
+
+        adapter.analyze("scan", "image/png", IMAGE);
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("항목 배열에 null 원소가 섞여도 500이 되지 않는다")
+    void survivesNullItemElements() {
+        server.expect(requestTo(BASE_URL + "/ocr/receipt"))
+                .andRespond(withSuccess("""
+                        {"ok": true, "result": {"store_name": "가게", "total_verified": true,
+                         "items": [null, {"name": "김밥", "quantity": 1, "price": 3500}, null]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        ReceiptAnalysisResult result = adapter.analyze("a.jpg", "image/jpeg", IMAGE);
+
+        assertThat(result.items()).singleElement()
+                .satisfies(item -> assertThat(item.name()).isEqualTo("김밥"));
+    }
+
+    @Test
+    @DisplayName("응답 본문을 해석하지 못하면 500이 아니라 재시도를 알린다")
+    void treatsUnparseableBodyAsUnavailable() {
+        server.expect(requestTo(BASE_URL + "/ocr/receipt"))
+                .andRespond(withSuccess("<html>gateway</html>", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> adapter.analyze("a.jpg", "image/jpeg", IMAGE))
+                .isInstanceOf(ApplicationException.class)
+                .extracting(e -> ((ApplicationException) e).getStatusCode())
+                .isEqualTo(SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE);
+    }
+
+    @Test
+    @DisplayName("서비스가 422로 거절하면 이미지를 읽지 못한 것으로 본다")
+    void treatsUnprocessableAsUnreadable() {
+        server.expect(requestTo(BASE_URL + "/ocr/receipt"))
+                .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY));
+
+        assertThatThrownBy(() -> adapter.analyze("a.jpg", "image/jpeg", IMAGE))
+                .isInstanceOf(ApplicationException.class)
+                .extracting(e -> ((ApplicationException) e).getStatusCode())
+                .isEqualTo(SettlementStatusCode.RECEIPT_OCR_FAILED);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 404, 405, 408, 429, 502, 503, 504})
+    @DisplayName("사진을 다시 찍어도 안 풀리는 상태는 재촬영이 아니라 재시도를 알린다")
+    void treatsUnreachableStatusesAsUnavailable(int status) {
+        // 경로 오타(404)나 내부 인증 오설정(401)을 422로 내보내면, 모든 사용자가 모든
+        // 영수증에서 "더 밝은 곳에서 다시 찍으세요"를 듣고 다시 찍어도 영원히 실패한다.
+        server.expect(requestTo(BASE_URL + "/ocr/receipt"))
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
+
+        assertThatThrownBy(() -> adapter.analyze("a.jpg", "image/jpeg", IMAGE))
+                .isInstanceOf(ApplicationException.class)
+                .extracting(e -> ((ApplicationException) e).getStatusCode())
+                .isEqualTo(SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE);
     }
 
     private String okBody() {

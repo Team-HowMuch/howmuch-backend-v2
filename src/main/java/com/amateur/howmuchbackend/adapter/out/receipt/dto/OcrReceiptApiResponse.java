@@ -1,10 +1,11 @@
 package com.amateur.howmuchbackend.adapter.out.receipt.dto;
 
 import com.amateur.howmuchbackend.application.port.in.receipt.result.ReceiptAnalysisResult;
-import tools.jackson.annotation.JsonIgnoreProperties;
-import tools.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 내부 OCR 서비스의 응답.
@@ -53,7 +54,9 @@ public record OcrReceiptApiResponse(
                 result.purchasedAt(),
                 result.items() == null
                         ? List.of()
+                        // 배열 안에 null 원소가 섞여 올 수 있다. 서비스 스키마가 막지 않는다.
                         : result.items().stream()
+                                .filter(Objects::nonNull)
                                 .map(item -> new ReceiptAnalysisResult.Item(
                                         item.name(), item.quantity(), item.price()))
                                 .toList(),
