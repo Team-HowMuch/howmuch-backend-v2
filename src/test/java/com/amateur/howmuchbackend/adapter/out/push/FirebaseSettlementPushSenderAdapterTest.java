@@ -37,13 +37,14 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     @Mock private ObjectProvider<FirebaseMessaging> firebaseMessagingProvider;
     @Mock private FirebaseMessaging firebaseMessaging;
+    @Mock private ApnsPushSender apnsPushSender;
 
     @Test
     @DisplayName("참여와 독촉 알림은 개인정보 없이 앱 라우팅 데이터만 전달한다")
     void sendsPrivacySafeSettlementPayloads() throws Exception {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
         when(firebaseMessaging.send(any(Message.class))).thenReturn("message-id");
-        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
+        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
 
         var participationResult = adapter.sendParticipationRequest(
                 FCM_TOKEN,
@@ -87,7 +88,7 @@ class FirebaseSettlementPushSenderAdapterTest {
     })
     void sendsAllocationAndStoredBody(String type, SettlementAllocationType allocation) throws Exception {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
-        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
+        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
         var notificationId = UUID.randomUUID();
         var body = "정산을 요청받은지 25시간이나 지났어요";
         adapter.sendNotification(FCM_TOKEN, new SettlementPushSenderPort.NotificationMessage(
@@ -106,7 +107,7 @@ class FirebaseSettlementPushSenderAdapterTest {
     @DisplayName("Firebase가 비활성화된 환경은 성공으로 가장하지 않는다")
     void rejectsWhenFirebaseIsDisabled() {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(null);
-        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
+        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
 
         assertThatThrownBy(() -> adapter.sendNotification(
                 "firebase-installation-id",
@@ -124,10 +125,30 @@ class FirebaseSettlementPushSenderAdapterTest {
         when(exception.getMessagingErrorCode()).thenReturn(MessagingErrorCode.UNREGISTERED);
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
         when(firebaseMessaging.send(any(Message.class))).thenThrow(exception);
-        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider);
+        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
 
         assertThat(adapter.sendNotification("expired-installation-id", notification()))
                 .isEqualTo(SettlementPushSenderPort.SendResult.INVALID_TARGET);
+    }
+
+    @Test
+    @DisplayName("iOS APNs 토큰은 Firebase 대신 APNs로 발송한다")
+    void routesNativeIosTokenToApns() throws Exception {
+        String apnsToken = "a1".repeat(48);
+        when(apnsPushSender.send(any(), any(), any(), any())).thenReturn(SettlementPushSenderPort.SendResult.SENT);
+        var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
+
+        assertThat(adapter.sendNotification(apnsToken, notification()))
+                .isEqualTo(SettlementPushSenderPort.SendResult.SENT);
+        assertThat(adapter.sendParticipationRequest(apnsToken, SETTLEMENT_ID, SHARE_LINK))
+                .isEqualTo(SettlementPushSenderPort.SendResult.SENT);
+        verify(apnsPushSender).send(org.mockito.ArgumentMatchers.eq(apnsToken),
+                org.mockito.ArgumentMatchers.eq("정산 리마인드"),
+                org.mockito.ArgumentMatchers.eq("정산을 완료해 주세요."), any());
+        verify(apnsPushSender).send(org.mockito.ArgumentMatchers.eq(apnsToken),
+                org.mockito.ArgumentMatchers.eq("정산 참여 알림"),
+                org.mockito.ArgumentMatchers.eq("앱에서 정산 참여 요청을 확인해 주세요."), any());
+        org.mockito.Mockito.verifyNoInteractions(firebaseMessagingProvider);
     }
 
     private SettlementPushSenderPort.NotificationMessage notification() {

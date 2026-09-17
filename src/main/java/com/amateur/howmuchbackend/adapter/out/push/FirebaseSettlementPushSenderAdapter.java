@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -22,6 +23,7 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
     private static final String PARTICIPATION_BODY = "앱에서 정산 참여 요청을 확인해 주세요.";
 
     private final ObjectProvider<FirebaseMessaging> firebaseMessagingProvider;
+    private final ApnsPushSender apnsPushSender;
 
     @Override
     public SendResult sendParticipationRequest(
@@ -29,6 +31,11 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
             UUID settlementId,
             String shareLink
     ) {
+        if (isApnsToken(firebaseInstallationId)) {
+            return apnsPushSender.send(firebaseInstallationId, PARTICIPATION_TITLE, PARTICIPATION_BODY,
+                    Map.of("type", PARTICIPATION_TYPE, "settlementId", settlementId.toString(),
+                            "shareLink", shareLink));
+        }
         return send(Message.builder()
                 .setToken(firebaseInstallationId)
                 .setNotification(Notification.builder()
@@ -43,6 +50,12 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
 
     @Override
     public SendResult sendNotification(String firebaseInstallationId, NotificationMessage notification) {
+        if (isApnsToken(firebaseInstallationId)) {
+            return apnsPushSender.send(firebaseInstallationId, notification.title(), notification.body(),
+                    Map.of("notificationId", notification.notificationId().toString(),
+                            "settlementId", notification.settlementId().toString(),
+                            "type", notification.type(), "allocationType", notification.allocationType().name()));
+        }
         return send(Message.builder()
                 .setToken(firebaseInstallationId)
                 .setNotification(Notification.builder().setTitle(notification.title()).setBody(notification.body()).build())
@@ -51,6 +64,13 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
                 .putData("type", notification.type())
                 .putData("allocationType", notification.allocationType().name())
                 .build());
+    }
+
+    private boolean isApnsToken(String token) {
+        // ponytail: native iOS tokens are hex; add an explicit platform field if token formats overlap.
+        return token != null && !token.isEmpty() && token.length() % 2 == 0
+                && token.chars().allMatch(c -> c >= '0' && c <= '9'
+                        || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F');
     }
 
     private SendResult send(Message message) {

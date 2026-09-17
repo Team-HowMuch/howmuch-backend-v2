@@ -64,9 +64,9 @@ public interface UserDocs {
 
     @Operation(
             summary = "내 앱 푸시 대상 등록",
-            description = "FCM SDK 등록 콜백에서 받은 Firebase installation ID를 "
+            description = "Android FCM 또는 iOS APNs 네이티브 푸시 토큰을 "
                     + "현재 앱의 단일 푸시 대상으로 등록합니다. 로그인 또는 세션 복원 직후와 "
-                    + "installation ID 변경 시 호출합니다.",
+                    + "토큰 변경 시 호출합니다. JSON 필드명 firebaseInstallationId는 기존 앱 호환을 위해 유지합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -77,7 +77,7 @@ public interface UserDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "Firebase installation ID 형식 오류"
+                    description = "앱 푸시 토큰 형식 오류"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401",
