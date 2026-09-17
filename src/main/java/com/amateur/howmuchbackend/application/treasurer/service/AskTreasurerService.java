@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.treasurer.model.InquiryScope;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
+import com.amateur.howmuchbackend.application.treasurer.policy.TitleHintVerification;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerAnswerFactCheck;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerCardCopy;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
@@ -39,6 +40,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     private final TreasurerSettlementQuery treasurerSettlementQuery;
     private final InquiryParser inquiryParser;
     private final InquiryScopePolicy inquiryScopePolicy;
+    private final TitleHintVerification titleHintVerification;
     private final GenerateTreasurerAnswerPort generateTreasurerAnswerPort;
     private final TreasurerAnswerFactCheck treasurerAnswerFactCheck;
     private final TreasurerCardCopy treasurerCardCopy;
@@ -59,13 +61,16 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         InquiryPeriod parsedPeriod = parsed.period();
         InquiryPeriod period = parsedPeriod == null ? InquiryPeriod.THIS_MONTH : parsedPeriod;
         Instant now = clock.instant();
-        List<PersonalSettlement> mine = treasurerSettlementQuery.loadMine().stream()
-                .filter(settlement -> matchesTitle(settlement, parsed.titleHint()))
+        List<PersonalSettlement> all = treasurerSettlementQuery.loadMine();
+        String titleHint = titleHintVerification.verify(all, parsed.titleHint());
+        boolean titleDropped = parsed.titleHint() != null && titleHint == null;
+        List<PersonalSettlement> mine = all.stream()
+                .filter(settlement -> titleHintVerification.matchesTitle(settlement, titleHint))
                 .toList();
         List<PersonalSettlement> filtered = mine.stream()
                 .filter(settlement -> inRequestedPeriod(settlement, period, now))
                 .toList();
-        String scope = scopeLabel(period, parsed.titleHint());
+        String scope = scopeLabel(period, titleHint, parsed.titleHint());
 
         return switch (parsed.intent()) {
             case SEND_SETTLEMENTS -> answerList(
@@ -77,7 +82,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     "보낼 정산",
                     true,
                     now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.SEND_LIST, "보낼 정산 확인하기")
+                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.SEND_LIST, "보낼 정산 확인하기"),
+                    titleDropped
             );
             case RECEIVE_SETTLEMENTS -> answerList(
                     question,
@@ -88,7 +94,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     "받을 정산",
                     true,
                     now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.RECEIVE_LIST, "받을 정산 확인하기")
+                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.RECEIVE_LIST, "받을 정산 확인하기"),
+                    titleDropped
             );
             case DUE_SETTLEMENTS -> answerList(
                     question,
@@ -102,9 +109,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     "마감이 필요한 정산",
                     false,
                     now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.STATUS_LIST, "정산 상태 확인하기")
+                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.STATUS_LIST, "정산 상태 확인하기"),
+                    titleDropped
             );
-            case SETTLEMENT_STATUS -> answerStatus(question, period, scope, filtered);
+            case SETTLEMENT_STATUS -> answerStatus(question, period, scope, filtered, titleDropped);
             case EXPENSE_SUMMARY -> answerList(
                     question,
                     parsed.intent(),
@@ -114,7 +122,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     "지출·정산",
                     false,
                     now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.EXPENSE_LIST, "지출 내역 보기")
+                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.EXPENSE_LIST, "지출 내역 보기"),
+                    titleDropped
             );
             case GUIDE, UNKNOWN -> throw new IllegalStateException("이미 처리됨");
         };
@@ -159,7 +168,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             String label,
             boolean remainingCopy,
             Instant now,
-            TreasurerAnswerResult.Action action
+            TreasurerAnswerResult.Action action,
+            boolean deterministicOnly
     ) {
         long total = items.stream().mapToLong(PersonalSettlement::amountOrZero).sum();
         String fallback = items.isEmpty()
@@ -176,7 +186,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 period,
                 scope,
                 TreasurerAnswerView.LIST,
-                phrasedAnswer(question, intent, scope, fallback, total, items.size(), factsOf(cards)),
+                phrasedAnswer(question, intent, scope, fallback, total, items.size(), factsOf(cards), deterministicOnly),
                 items.isEmpty() ? null : listFooter(items.size()),
                 cards,
                 null,
@@ -189,7 +199,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             String question,
             InquiryPeriod period,
             String scope,
-            List<PersonalSettlement> items
+            List<PersonalSettlement> items,
+            boolean deterministicOnly
     ) {
         int sendCount = Math.toIntExact(items.stream()
                 .filter(PersonalSettlement::isSend)
@@ -237,7 +248,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                                 new TreasurerAnswerDraft.Item("내가 낼 돈", "SEND", sendAmount),
                                 new TreasurerAnswerDraft.Item("내가 받을 돈", "RECEIVE", receiveAmount),
                                 new TreasurerAnswerDraft.Item("완료된 정산", "COMPLETED", completedCount)
-                        )
+                        ),
+                        deterministicOnly
                 ),
                 null,
                 List.of(),
@@ -254,7 +266,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             String fallback,
             long totalAmount,
             int itemCount,
-            List<TreasurerAnswerDraft.Item> items
+            List<TreasurerAnswerDraft.Item> items,
+            boolean deterministicOnly
     ) {
         TreasurerAnswerDraft draft = new TreasurerAnswerDraft(
                 question,
@@ -265,6 +278,9 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 itemCount,
                 items
         );
+        if (deterministicOnly) {
+            return draft.fallbackAnswer();
+        }
         return generateTreasurerAnswerPort.generate(draft)
                 .filter(text -> treasurerAnswerFactCheck.accepts(text, draft))
                 .orElse(draft.fallbackAnswer());
@@ -348,23 +364,28 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         return YearMonth.from(targetDate).equals(target);
     }
 
-    private boolean matchesTitle(PersonalSettlement settlement, String titleHint) {
-        if (titleHint == null) {
-            return true;
-        }
-        String title = settlement.title() == null ? "" : settlement.title().replaceAll("\\s+", "");
-        return title.toLowerCase(Locale.ROOT).contains(titleHint.toLowerCase(Locale.ROOT));
-    }
-
-    private String scopeLabel(InquiryPeriod period, String titleHint) {
+    /**
+     * 질문에서 뽑은 제목이 사용자의 정산 중 하나라도 맞을 때만 필터로 쓴다.
+     *
+     * <p>맞는 정산이 없는데 그대로 거르면 결과가 0건이 되고 "그 정산은 없어요" 라는 단정이
+     * 나간다. 실제로는 그 이름의 정산만 없고 다른 정산은 있을 수 있다. 돈에 대한 단정이라
+     * 이름으로 좁히려던 의도를 버리고 전체에서 답한다.
+     *
+     * <p>기간은 보지 않는다. 이름은 맞고 기간만 다른 질문은 기존대로 기간으로 걸러야 한다.
+     */
+    private String scopeLabel(InquiryPeriod period, String appliedTitleHint, String parsedTitleHint) {
         String periodLabel = switch (period) {
             case LAST_MONTH -> "지난달 기준으로 조회했어요.";
             case THIS_WEEK -> "이번 주 기준으로 조회했어요.";
             case THIS_MONTH -> "이번 달 기준으로 조회했어요.";
         };
-        if (titleHint == null) {
-            return periodLabel;
+        if (appliedTitleHint != null) {
+            return periodLabel + " '%s' 기준으로 좁혀서 조회했어요.".formatted(appliedTitleHint);
         }
-        return periodLabel + " '%s'이(가) 포함된 정산을 찾았어요.".formatted(titleHint);
+        if (parsedTitleHint != null) {
+            return periodLabel + " '%s'이(가) 포함된 정산을 찾지 못해 전체에서 조회했어요."
+                    .formatted(parsedTitleHint);
+        }
+        return periodLabel;
     }
 }

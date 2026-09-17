@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasur
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
+import com.amateur.howmuchbackend.application.treasurer.policy.TitleHintVerification;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerAnswerFactCheck;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerCardCopy;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -194,6 +195,264 @@ class AskTreasurerServiceTest {
         assertThat(result.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
         assertThat(result.items()).extracting(item -> item.settlementId()).containsExactly(travelId);
         assertThat(result.scope()).contains("여행모임");
+    }
+
+    @Test
+    void answersFromAllSettlementsWhenTitleMatchesNothing() {
+        UUID dinnerId = UUID.fromString("22222222-2222-2222-2222-222222222233");
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        dinnerId,
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(result.items()).extracting(item -> item.settlementId()).containsExactly(dinnerId);
+        assertThat(result.scope()).contains("여행모임").contains("찾지 못해");
+        assertThat(result.answer()).doesNotContain("보낼 정산은 없어요");
+        // 질문은 없는 모임을 지목했는데 답변 재료는 다른 정산 금액이다.
+        // LLM 이 그 금액을 그 모임 것으로 써도 FactCheck 는 숫자만 보므로 못 막는다.
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void narrowsByTitleWithoutGenericSuffix() {
+        UUID travelId = UUID.fromString("22222222-2222-2222-2222-222222222244");
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        travelId,
+                        "여행",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        40_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        when(generateTreasurerAnswerPort.generate(any()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
+                        .fallbackAnswer()));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
+
+        assertThat(result.items()).extracting(item -> item.settlementId()).containsExactly(travelId);
+        assertThat(result.scope()).contains("'여행'").doesNotContain("찾지 못해");
+        assertThat(result.answer()).contains("40,000원").doesNotContain("52,000원");
+    }
+
+    @Test
+    void doesNotNarrowWhenGenericHintHappensToMatchATitle() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "8월 모임 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        52_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "여행 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        30_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "점심 회비",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        29_000L,
+                        "요청자"
+                )
+        ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("모임 정산 얼마 보내야 해?"));
+
+        // 힌트 "모임정산"이 "8월 모임 정산"에 그대로 맞는다. 일반어 판정을 맞춰보기 전에
+        // 하면 그 정산 하나로 좁혀져 111,000원을 52,000원이라고 단정한다.
+        assertThat(result.items()).hasSize(3);
+        assertThat(result.answer()).contains("111,000원").doesNotContain("52,000원");
+        // 좁히지 않았다는 사실을 사용자에게 알린다. 찾았다고 말하면 안 된다.
+        assertThat(result.scope()).contains("찾지 못해").doesNotContain("찾았어요");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void narrowsWhenHintCarriesANameBesidesGenericWords() {
+        UUID travelId = UUID.randomUUID();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        travelId,
+                        "여행 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        30_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "점심 회비",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        29_000L,
+                        "요청자"
+                )
+        ));
+        when(generateTreasurerAnswerPort.generate(any()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
+                        .fallbackAnswer()));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("여행 정산 얼마 보내야 해?"));
+
+        // 일반어를 걷어내도 "여행"이 남는다. 이름을 말한 것이므로 좁히는 것이 맞다.
+        assertThat(result.items()).extracting(item -> item.settlementId()).containsExactly(travelId);
+        assertThat(result.answer()).contains("30,000원").doesNotContain("59,000원");
+    }
+
+    @Test
+    void doesNotNarrowByGenericWordLeftAfterStrippingSuffix() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "제주도 여행 모임",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        99_000L,
+                        "요청자"
+                ),
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("모임 정산 얼마 보내야 해?"));
+
+        // "모임 정산"은 모임 이름이 아니라 일반어다. 뗀 형태 "모임"으로 좁히면
+        // 회식 정산이 빠진 채 99,000원이라고 단정하게 된다.
+        assertThat(result.items()).hasSize(2);
+        assertThat(result.answer()).contains("111,000원");
+        assertThat(result.scope()).doesNotContain("'모임'");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void doesNotLetLlmPhraseStatusAnswerWhenTitleWasDropped() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임 정산 상태 알려줘"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
+        assertThat(result.scope()).contains("찾지 못해");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void doesNotLetLlmPhraseDueAnswerWhenTitleWasDropped() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 25, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 주 여행 모임 마감 알려줘"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.DUE_SETTLEMENTS);
+        assertThat(result.scope()).contains("찾지 못해");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void keepsAnswerTruthfulWhenUserHasNoSettlementAtAll() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.answer()).contains("보낼 정산은 없어요");
+        assertThat(result.scope()).contains("여행모임").contains("찾지 못해");
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    void keepsTitleFilterWhenTitleExistsOutsideRequestedPeriod() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "여행 모임",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 7, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        when(generateTreasurerAnswerPort.generate(any()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
+                        .fallbackAnswer()));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 여행 모임에서 보낼 정산 얼마야?"));
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.scope()).contains("여행모임").contains("좁혀서 조회했어요");
+        assertThat(result.scope()).doesNotContain("찾지 못해");
+        assertThat(result.answer()).doesNotContain("찾았어요");
     }
 
     @Test
@@ -635,6 +894,7 @@ class AskTreasurerServiceTest {
                 treasurerSettlementQuery,
                 new InquiryParser(),
                 new InquiryScopePolicy(),
+                new TitleHintVerification(),
                 generateTreasurerAnswerPort,
                 new TreasurerAnswerFactCheck(),
                 new TreasurerCardCopy(),
