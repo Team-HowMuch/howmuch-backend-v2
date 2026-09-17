@@ -4,13 +4,13 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPush
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.amateur.howmuchbackend.infra.notification.config.ApnsProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -123,7 +123,7 @@ public class ApnsPushSender {
             var json = objectMapper.readTree(body);
             String reason = json == null ? "Unknown" : json.path("reason").asText("Unknown");
             return reason.matches("[A-Za-z]{1,80}") ? reason : "Unknown";
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             return "Unknown";
         }
     }

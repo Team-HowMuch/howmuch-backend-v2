@@ -2,11 +2,11 @@ package com.amateur.howmuchbackend.adapter.out.push;
 
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.infra.notification.config.ApnsProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import tools.jackson.databind.ObjectMapper;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
