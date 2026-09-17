@@ -283,18 +283,20 @@ Existing behavior that must remain unchanged:
 
 ## 7. Implementation plan
 
-- [ ] Migration-only pull request to `develop` (`Required` / `N/A`) — **N/A** (스키마 변경 없음)
-- [ ] UseCase and Application Command/Result
-- [ ] Required Output Ports
-- [ ] Domain models and rules — **N/A**
-- [ ] Application Policies — **N/A**
-- [ ] Application Service
-- [ ] Output Adapters
-- [ ] Web Request/Response DTOs, Controllers, and Swagger
-- [ ] Infra configuration and Bean wiring
-- [ ] Documentation and verification results
+- [x] Migration-only pull request to `develop` (`Required` / `N/A`) — **N/A** (스키마 변경 없음)
+- [x] UseCase and Application Command/Result
+- [x] Required Output Ports
+- [x] Domain models and rules — **N/A**
+- [x] Application Policies — **N/A**
+- [x] Application Service
+- [x] Output Adapters
+- [x] Web Request/Response DTOs, Controllers, and Swagger
+- [x] Infra configuration and Bean wiring
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
+
+실제 커밋 (독립 리뷰 결과로 fix 커밋 두 개가 늘었다):
 
 ```text
 docs(receipt): 영수증 OCR 프록시 설계 수립
@@ -302,6 +304,8 @@ feat(receipt): 영수증 이미지 분석 UseCase와 Port를 추가한다
 feat(receipt): 내부 OCR 서비스 HTTP 어댑터를 추가한다
 feat(receipt): 영수증 OCR 엔드포인트를 노출한다
 test(receipt): 인증·형식·실패 분기를 검증한다
+fix(common): 멀티파트 업로드 오류를 500이 아닌 상태로 답한다
+fix(receipt): 재촬영으로 풀리지 않는 실패를 503으로 가른다
 docs(receipt): 영수증 OCR 프록시 검증 결과 기록
 ```
 
@@ -322,22 +326,63 @@ OCR 서비스는 개인 장비에 있어 CI에서 부를 수 없다. 어댑터�
 
 ### Completion criteria
 
-- [ ] Purpose의 사용자 결과를 검증했다.
-- [ ] 정상·실패·경계 흐름을 검증했다.
-- [ ] 문서와 실제 코드가 일치한다. 같은 주장을 하는 다른 줄이 남아 있지 않은지 확인했다.
-- [ ] 수행하지 못한 검증과 사유를 기록했다.
+- [x] Purpose의 사용자 결과를 검증했다.
+- [x] 정상·실패·경계 흐름을 검증했다.
+- [x] 문서와 실제 코드가 일치한다. 같은 주장을 하는 다른 줄이 남아 있지 않은지 확인했다.
+- [x] 수행하지 못한 검증과 사유를 기록했다.
 
 ### Results
 
+2026-09-17, `feat/396-receipt-ocr-proxy` (`origin/develop` a698653 기준).
+`build/test-results/test/*.xml` 를 파싱해 센 숫자다. BUILD SUCCESSFUL 만 보고 적지 않았다.
+
+**전체: 171개 클래스 / 1213개 테스트 / 실패 0 / 에러 0 / 건너뜀 0**
+
 | Item | Result | Evidence |
 |---|---|---|
-| 설계 문서 | Pending | 본 문서 |
+| 설계 문서 | Done | 본 문서 |
+| 어댑터 HTTP 계약 | 22/22 | `ReceiptOcrHttpAdapterTest` |
+| 응답 DTO 매핑 | 6/6 | `OcrReceiptApiResponseTest` |
+| 서비스 인증·형식 검증 | 14/14 | `AnalyzeReceiptServiceTest` |
+| 웹 계약(단독 MockMvc) | 5/5 | `ReceiptOcrControllerTest` |
+| 실제 HTTP 계약(401·413·400·503) | 6/6 | `ReceiptOcrHttpIntegrationTest` |
+| 공용 예외 핸들러 | 18/18 | `GlobalExceptionHandlerTest` |
+| 기존 동작 회귀 | 1213/1213 | 전체 스위트 |
+
+리뷰에서 나온 지적이 실제로 초록으로 확인된 항목:
+
+| 확인 | 근거 |
+|---|---|
+| Jackson 애노테이션 패키지 수정 | `compileJava`·`compileTestJava` 통과 |
+| 미인증 업로드가 내부 서비스에 닿기 전 401 | `ReceiptOcrHttpIntegrationTest` |
+| 한도 초과가 실제 Tomcat 해석에서 413 | 〃 |
+| `file` 파트 누락이 400 | 〃 |
+| 401·403·404·405·408·429·502·503·504 → 503 | `ReceiptOcrHttpAdapterTest` (9건 파라미터화) |
+| 500 → 422 (서비스의 분석 실패 통로) | 〃 |
+| `items` 배열의 null 원소가 500을 만들지 않음 | 〃 + `OcrReceiptApiResponseTest` |
+| 확장자 없는 파일이 `octet-stream` 으로 나가지 않음 | `ReceiptOcrHttpAdapterTest` |
+| 인증 확인이 OCR 호출보다 먼저 (엄격 스텁 + `InOrder`) | `AnalyzeReceiptServiceTest` |
+| `FAIL_ON_UNKNOWN_PROPERTIES` 를 켜도 모르는 필드를 견딤 | `OcrReceiptApiResponseTest` |
+
+### 수행하지 못한 검증
+
+- **실제 OCR 장비를 부르는 종단 검증.** 서비스가 개인 홈서버에 Tailscale로 있어 CI에서
+  닿을 수 없다. 어댑터는 `MockRestServiceServer` 로 HTTP 계약만 검증했다. 실제 영수증
+  사진 한 장을 넣어 보는 수동 검증은 배포 후 별도로 해야 한다.
+- **동시 요청 하의 동작.** 홈서버 GPU가 한 대라 동시 호출이 쌓이면 어떻게 되는지는
+  측정하지 않았다. 호출 제한이 후속 이슈로 빠져 있어 이번 범위 밖이다.
+- **그룹·프로필 업로드의 413 회귀.** 공용 핸들러 변경이 그 엔드포인트에도 적용되지만,
+  기존 테스트가 전부 `standaloneSetup` 이라 한도를 강제하지 않는다. 매핑 자체는
+  `GlobalExceptionHandlerTest` 로 못 박았고, 실제 디스패치 지점은 영수증 엔드포인트로만
+  확인했다.
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-09-16 | OCR 서비스 스펙 확인, 저장소 현황 확인, 설계 문서 작성 | 구현 | 이슈가 말한 `ReceiptOcrAdapter`가 저장소에 없다. prod에는 예외를 던지는 어댑터만 있어 #194의 운영 연동은 아직 없는 상태다 |
+| 2026-09-16 | UseCase·Port·어댑터·컨트롤러·테스트 구현 | 독립 리뷰 | - |
+| 2026-09-17 | 독립 리뷰 2회, 지적 반영, 전체 스위트 1213건 통과 | PR | 리뷰 1회차가 P1을 잡았다. `tools.jackson.annotation` 은 없는 패키지라 브랜치가 컴파일되지 않는 상태였고, 그 앞 5개 커밋이 주장한 검증은 실제로 돈 적이 없다. 2회차가 "이미지를 디스크에 남기지 않는다"는 문구가 사실이 아님과 상태 코드 오분류를 잡았다 |
 
 ## 10. Decision log
 
@@ -353,8 +398,26 @@ OCR 서비스는 개인 장비에 있어 CI에서 부를 수 없다. 어댑터�
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- **Completed on:** 2026-09-17
+- **Final behavior:** `POST /api/v2/receipts/ocr` 에 JPEG·PNG 영수증을 multipart(`file`)로
+  올리면 상호·구매 일시·품목·합계·결제 수단·합계 교차검증 여부를 돌려준다. 이미지는 우리
+  저장소에 보관하지 않는다. 실패는 셋으로 갈린다. 400(빈 파일·지원하지 않는 형식·파트 누락),
+  422(서비스가 이미지를 보고 거절), 503(닿지 못함·과부하·설정 오류). 413은 업로드 한도 초과다.
+- **Unverified items:** 실제 OCR 장비 종단 검증, 동시 요청 하의 동작, 그룹·프로필 업로드의
+  413 실제 디스패치. 사유는 8절에 적었다.
+- **Remaining risks:**
+  - `spring.jackson.deserialization.accept-float-as-int: false` 때문에 OCR이 정수 자리에
+    소수를 보내면 역직렬화가 터진다. 현재 서비스 OpenAPI는 integer 선언이라 나지 않지만,
+    모델을 갈아끼울 때 조용히 깨질 수 있다. 터져도 500이 아니라 503이라는 점만 확보했다
+  - 홈서버 GPU 한 대가 병목이다. 호출 제한이 없어 동시 요청이 쌓이면 전부 20초 타임아웃을
+    기다린다
+  - 멀티파트 임시 파일이 요청 처리 중 디스크에 존재한다(요청 끝에 삭제). `file-size-threshold`
+    를 올리면 없앨 수 있지만 전역 메모리에 영향이 있어 이번에 정하지 않았다
+- **Follow-up work:**
+  - 사용자별 OCR 호출 제한 (설계 단계에서 범위 밖으로 뺀 것)
+  - `GroupDocs` 의 `@ApiResponses` 에 413 추가 — 다른 사람 코드라 건드리지 않았다
+  - `GroupImagePolicy.MAX_IMAGE_SIZE` 가 컨테이너 한도와 같은 5MB라 `INVALID_GROUP_IMAGE`
+    분기가 운영에서 도달 불가다
+  - `RequestTraceFilter.area()` 에 `/api/v2/receipts` 분기 추가 — 앱에서 가장 느린 경로인데
+    지표에서 `other` 로 묶인다
+  - `spring.servlet.multipart.file-size-threshold` 를 올릴지 팀 판단
