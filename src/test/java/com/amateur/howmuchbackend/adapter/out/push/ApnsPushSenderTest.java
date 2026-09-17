@@ -5,6 +5,8 @@ import com.amateur.howmuchbackend.infra.notification.config.ApnsProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -28,8 +31,9 @@ import static org.mockito.Mockito.when;
 class ApnsPushSenderTest {
     @TempDir Path tempDir;
 
-    @Test
-    void sendsSandboxRequestAndHandlesApnsResponse() throws Exception {
+    @ParameterizedTest
+    @CsvSource({"dev,api.sandbox.push.apple.com", "prod,api.push.apple.com"})
+    void sendsToConfiguredEnvironmentAndHandlesApnsResponse(String environment, String host) throws Exception {
         var generator = KeyPairGenerator.getInstance("EC");
         generator.initialize(new ECGenParameterSpec("secp256r1"));
         var key = generator.generateKeyPair().getPrivate();
@@ -45,7 +49,7 @@ class ApnsPushSenderTest {
         when(response.body()).thenReturn("{\"reason\":\"DeviceTokenNotForTopic\"}");
         when(response.headers()).thenReturn(HttpHeaders.of(Map.of("apns-id", List.of("test-id")), (a, b) -> true));
         when(client.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
-        var sender = new ApnsPushSender(new ApnsProperties("ABC123DEFG", "DEF123GHIJ", keyPath.toString()),
+        var sender = new ApnsPushSender(new ApnsProperties("ABC123DEFG", "DEF123GHIJ", keyPath.toString(), environment),
                 new ObjectMapper(), client);
         String deviceToken = "ab".repeat(32);
 
@@ -56,7 +60,7 @@ class ApnsPushSenderTest {
         var request = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
         verify(client, times(2)).send(request.capture(), any(HttpResponse.BodyHandler.class));
         assertThat(request.getAllValues().getFirst().uri().toString())
-                .isEqualTo("https://api.sandbox.push.apple.com/3/device/" + deviceToken);
+                .isEqualTo("https://" + host + "/3/device/" + deviceToken);
         assertThat(request.getAllValues().getFirst().headers().firstValue("apns-topic"))
                 .hasValue("com.teamhowmuch.app");
         assertThat(request.getAllValues().getFirst().headers().firstValue("authorization").orElseThrow())
@@ -64,5 +68,14 @@ class ApnsPushSenderTest {
         assertThat(request.getAllValues().getLast().headers().firstValue("authorization"))
                 .isEqualTo(request.getAllValues().getFirst().headers().firstValue("authorization"));
         assertThat(request.getAllValues().getFirst().version()).hasValue(HttpClient.Version.HTTP_2);
+    }
+
+    @Test
+    void rejectsUnknownEnvironment() {
+        assertThatThrownBy(() -> new ApnsPushSender(
+                new ApnsProperties("key", "team", "path", "unknown"),
+                new ObjectMapper(), mock(HttpClient.class)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("APNS_ENVIRONMENT must be dev or prod");
     }
 }

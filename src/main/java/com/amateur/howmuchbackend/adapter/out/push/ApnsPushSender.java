@@ -30,12 +30,12 @@ import java.util.Map;
 @Component
 @Slf4j
 public class ApnsPushSender {
-    private static final String ENDPOINT = "https://api.sandbox.push.apple.com/3/device/";
     private static final String TOPIC = "com.teamhowmuch.app";
 
     private final ApnsProperties properties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final String endpoint;
     private String cachedProviderToken;
     private Instant providerTokenIssuedAt;
 
@@ -51,6 +51,11 @@ public class ApnsPushSender {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
+        this.endpoint = switch (properties.environment()) {
+            case "dev" -> "https://api.sandbox.push.apple.com/3/device/";
+            case "prod" -> "https://api.push.apple.com/3/device/";
+            default -> throw new IllegalArgumentException("APNS_ENVIRONMENT must be dev or prod");
+        };
     }
 
     SendResult send(String deviceToken, String title, String body, Map<String, String> data) {
@@ -60,7 +65,7 @@ public class ApnsPushSender {
         try {
             Map<String, Object> payload = new LinkedHashMap<>(data);
             payload.put("aps", Map.of("alert", Map.of("title", title, "body", body), "sound", "default"));
-            HttpRequest request = HttpRequest.newBuilder(URI.create(ENDPOINT + deviceToken))
+            HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint + deviceToken))
                     .version(HttpClient.Version.HTTP_2)
                     .timeout(Duration.ofSeconds(10))
                     .header("authorization", "bearer " + providerToken())
