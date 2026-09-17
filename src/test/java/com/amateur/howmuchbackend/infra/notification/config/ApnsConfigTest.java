@@ -1,13 +1,24 @@
 package com.amateur.howmuchbackend.infra.notification.config;
 
+import com.amateur.howmuchbackend.adapter.out.push.ApnsPushSender;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ApnsConfigTest {
+    @Test
+    void springBootJacksonMapperWiresApnsSender() {
+        runner().withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class))
+                .withUserConfiguration(ApnsPushSender.class)
+                .run(context -> assertThat(context).hasSingleBean(ApnsPushSender.class));
+    }
+
     @ParameterizedTest
     @CsvSource({"local,dev", "dev,dev", "prod,prod"})
     void profileSelectsApnsEnvironment(String profile, String expected) {
