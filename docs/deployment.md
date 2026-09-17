@@ -10,6 +10,21 @@ For a server-owned Compose file that still names a branch tag, use an explicit o
 
 Re-running only deploy reuses the successful build's output. Re-running all jobs can produce a new digest; deploy uses that new build output. Concurrency still serializes deployments per branch, but does not guarantee commit ordering or automatic rollback.
 
+## iOS APNs key and environment
+
+The iOS native token sender uses `apns-topic: com.teamhowmuch.app`. Set `APNS_ENVIRONMENT=dev` for a development build and the Sandbox endpoint, or `APNS_ENVIRONMENT=prod` for a production-signed build and `api.push.apple.com`. The `prod` Spring profile defaults to `prod`; other profiles default to `dev`. Each server selects one APNs environment for all its tokens. Firebase Console's uploaded APNs key is not available to this server. Keep the original `.p8` file outside the repository and mount it read-only into the `app` container. The container runs as UID `10001`, which must be able to read the file. The key must be authorized for the selected APNs environment.
+
+Add these names to the server's runtime `.env` with the values from Apple Developer and the **container** path to the mounted file:
+
+```text
+APNS_KEY_ID=<Key ID>
+APNS_TEAM_ID=<Team ID>
+APNS_PRIVATE_KEY_PATH=/app/secrets/apns.p8
+APNS_ENVIRONMENT=<dev or prod>
+```
+
+Set `APNS_ENVIRONMENT=prod` on the production server. The server-owned Compose `app` service needs a read-only file mount, for example `/opt/howmuch-infra/secrets/apns.p8:/app/secrets/apns.p8:ro`. Do not print the file, key, device token, or provider JWT in logs. A rejected request logs only the APNs HTTP status, `reason`, and `apns-id`. A successful APNs HTTP 200 means APNs accepted the request; confirm device display separately.
+
 ## Readiness gate
 
 After image identity verification, the [deployment script](../scripts/deploy-readiness.sh) waits up to 180 seconds for HTTP 200 from `/actuator/health/readiness` inside the same container. The loopback management port defaults to 9091 (`MANAGEMENT_SERVER_PORT`); readiness includes application availability, PostgreSQL, and Redis. EC2 requires Bash and GNU `timeout`, and the application image includes curl. The management port remains private.

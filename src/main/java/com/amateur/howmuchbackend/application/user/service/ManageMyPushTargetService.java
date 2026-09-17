@@ -29,7 +29,7 @@ public class ManageMyPushTargetService implements ManageMyPushTargetUseCase {
         if (normalized.isEmpty() || normalized.length() > User.MAX_FCM_TARGET_LENGTH) {
             throw ApplicationException.of(
                     CommonStatusCode.INVALID_ARGUMENT,
-                    "FCM registration token은 1~255자로 입력해야 합니다."
+                    "앱 푸시 토큰은 1~255자로 입력해야 합니다."
             );
         }
         Long userId = currentActorPort.getCurrentActor().userId();

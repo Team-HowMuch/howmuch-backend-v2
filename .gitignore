@@ -37,6 +37,7 @@ out/
 .vscode/
 
 .env
+*.p8
 
 # Local CODEF mock data
 tools/codef-mock/data/
