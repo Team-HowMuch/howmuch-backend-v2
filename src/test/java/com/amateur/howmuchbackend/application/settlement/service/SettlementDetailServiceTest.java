@@ -35,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -47,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -440,6 +442,53 @@ class SettlementDetailServiceTest {
             assertThat(payment.paymentStatus())
                     .isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
         });
+    }
+
+    @Test
+    @DisplayName("품목 선택을 제출했지만 0원인 참여자는 납부 완료로 반환한다")
+    void returnsPaidForSubmittedParticipantWithoutShare() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(itemSettlement(SettlementStatus.AWAITING_DEPOSIT)));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                new SettlementShare(
+                        PAYER_SHARE_ID,
+                        SETTLEMENT_ID,
+                        PAYER_PARTICIPANT_ID,
+                        1_000,
+                        NOW
+                )
+        ));
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
+        when(itemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of(
+                SettlementItemSubmission.submit(SETTLEMENT_ID, CONTACT_PARTICIPANT_ID, NOW)
+        ));
+        givenReceivingAccount();
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        InOrder readOrder = inOrder(itemAllocationStorePort, loadSettlementSharePort);
+        readOrder.verify(itemAllocationStorePort).findAllSubmissions(SETTLEMENT_ID);
+        readOrder.verify(loadSettlementSharePort).findAllBySettlementId(SETTLEMENT_ID);
+        assertThat(result.paymentSummary()).isEqualTo(
+                new SettlementDetailResult.PaymentSummary(1_000, 0, 1_000, 0, 2, 2, 1)
+        );
+        assertThat(result.participants()).satisfiesExactly(
+                payment -> {
+                    assertThat(payment.expectedAmount()).isEqualTo(1_000);
+                    assertThat(payment.paymentStatus())
+                            .isEqualTo(SettlementDetailResult.PaymentStatus.UNPAID);
+                },
+                payment -> {
+                    assertThat(payment.expectedAmount()).isEqualTo(0L);
+                    assertThat(payment.confirmedAmount()).isZero();
+                    assertThat(payment.paymentStatus())
+                            .isEqualTo(SettlementDetailResult.PaymentStatus.PAID);
+                }
+        );
     }
 
     @Test
