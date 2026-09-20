@@ -1,6 +1,6 @@
 # Feature Plan: 품목 정산 0원 제출자 상태 보정
 
-- Status: In Progress
+- Status: Completed
 - Last updated: 2026-09-21
 - Related issue: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/406
 - Related ADR: N/A
@@ -22,11 +22,11 @@
 
 ### Success criteria
 
-- [ ] 품목 정산 참여자가 0원으로 제출하고 정산이 `AWAITING_DEPOSIT`이 되면 해당 행이
+- [x] 품목 정산 참여자가 0원으로 제출하고 정산이 `AWAITING_DEPOSIT`이 되면 해당 행이
   `expectedAmount = 0`, `confirmedAmount = 0`, `paymentStatus = PAID`로 반환된다.
-- [ ] 아직 제출하지 않은 share 없는 참여자만 `expectedAmount = null`,
+- [x] 아직 제출하지 않은 share 없는 참여자만 `expectedAmount = null`,
   `paymentStatus = NOT_READY`로 반환된다.
-- [ ] share가 있는 참여자, 더치페이, 기존 요약·독촉 계산은 변경되지 않는다.
+- [x] share가 있는 참여자, 더치페이, 기존 요약·독촉 계산은 변경되지 않는다.
 
 ### Out of scope
 
@@ -174,11 +174,11 @@ Existing behavior that must remain unchanged:
 - [x] Required Output Ports (`N/A` — 기존 Port 재사용)
 - [x] Domain models and rules (`N/A` — 기존 0원 share 규칙 유지)
 - [x] Application Policies (`N/A` — 조회 투영으로 기존 Policy 재사용 없음)
-- [ ] Application Service
-- [ ] Output Adapters (`N/A` — 기존 Adapter 재사용)
+- [x] Application Service
+- [x] Output Adapters (`N/A` — 기존 Adapter 재사용)
 - [x] Web Request/Response DTOs, Controllers, and Swagger (`N/A` — 응답 구조 변경 없음)
 - [x] Infra configuration and Bean wiring (`N/A`)
-- [ ] Documentation and verification results
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -196,6 +196,7 @@ docs(settlement): 0원 제출자 상태 보정 결과 기록
 ```bash
 ./gradlew test --tests 'com.amateur.howmuchbackend.application.settlement.service.SettlementDetailServiceTest'
 ./gradlew compileJava
+./gradlew test
 git diff --check
 git status --short --untracked-files=all
 ```
@@ -204,21 +205,25 @@ git status --short --untracked-files=all
 
 ### Completion criteria
 
-- [ ] 0원 제출자와 미제출자를 동시에 포함한 `AWAITING_DEPOSIT` 상세를 검증한다.
-- [ ] 기존 share 결제 상태와 요약·독촉 계산 회귀를 검증한다.
-- [ ] 컴파일·변경 내용·문서 상태를 확인한다.
+- [x] 0원 제출자와 미제출자를 동시에 포함한 `AWAITING_DEPOSIT` 상세를 검증한다.
+- [x] 기존 share 결제 상태와 요약·독촉 계산 회귀를 검증한다.
+- [x] 컴파일·변경 내용·문서 상태를 확인한다.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
-|  | Pending |  |
+| 상세 서비스 집중 테스트 | Passed | `./gradlew test --tests 'com.amateur.howmuchbackend.application.settlement.service.SettlementDetailServiceTest'` |
+| Java 컴파일 | Passed | `./gradlew compileJava` |
+| 전체 Java 테스트 | Not run | `compose.test.yml` PostgreSQL·Redis를 사용할 Docker daemon이 실행 중이지 않음 |
+| 변경 검사 | Passed | `git diff --check`, `git status --short --untracked-files=all` |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-09-21 | 이슈·기존 PR·상세 조회 흐름 분석, Flyway 불필요 확인 | 서비스 수정과 회귀 테스트 | 제출 기록을 어느 상태·조회자에게 적용할지 테스트로 고정해야 한다. |
+| 2026-09-21 | 제출 기록을 상세 결제 행에 반영하고 집중 테스트·컴파일 통과 | PR 게시 | 전체 테스트는 Docker daemon 부재로 실행하지 못했다. |
 
 ## 10. Decision log
 
@@ -228,8 +233,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- Completed on: 2026-09-21
+- Final behavior: 제출 기록이 있는 share 없는 참여자는 `expectedAmount = 0`, `confirmedAmount = 0`, `paymentStatus = PAID`로 반환하고, 미제출자는 기존 `null`·`NOT_READY`를 유지한다.
+- Unverified items: 전체 Java 테스트는 Docker daemon 부재로 PostgreSQL·Redis를 기동할 수 없어 실행하지 못했다.
+- Remaining risks: 없음
+- Follow-up work: 없음
