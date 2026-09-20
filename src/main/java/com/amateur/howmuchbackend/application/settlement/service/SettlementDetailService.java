@@ -85,6 +85,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 participants,
                 actorId
         );
+        Set<UUID> submittedParticipantIds = itemAllocationStorePort.findAllSubmissions(settlementId).stream()
+                .map(submission -> submission.participantId())
+                .collect(Collectors.toSet());
         Map<UUID, SettlementShare> shareByParticipantId = loadSettlementSharePort
                 .findAllBySettlementId(settlementId)
                 .stream()
@@ -116,9 +119,6 @@ public class SettlementDetailService implements GetSettlementUseCase {
                                 user -> ImageCacheVersion.fromNullableFileName(user.avatarFileName())
                         ));
 
-        Set<UUID> submittedParticipantIds = itemAllocationStorePort.findAllSubmissions(settlementId).stream()
-                .map(submission -> submission.participantId())
-                .collect(Collectors.toSet());
         List<SettlementDetailResult.ParticipantPayment> allPayments = participants.stream()
                 .filter(participant -> !participant.isLinkedTo(settlement.creatorId()))
                 .sorted(Comparator.comparingInt(SettlementParticipant::displayOrder))
