@@ -35,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -47,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -468,6 +470,9 @@ class SettlementDetailServiceTest {
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
+        InOrder readOrder = inOrder(itemAllocationStorePort, loadSettlementSharePort);
+        readOrder.verify(itemAllocationStorePort).findAllSubmissions(SETTLEMENT_ID);
+        readOrder.verify(loadSettlementSharePort).findAllBySettlementId(SETTLEMENT_ID);
         assertThat(result.paymentSummary()).isEqualTo(
                 new SettlementDetailResult.PaymentSummary(1_000, 0, 1_000, 0, 2, 2, 1)
         );
