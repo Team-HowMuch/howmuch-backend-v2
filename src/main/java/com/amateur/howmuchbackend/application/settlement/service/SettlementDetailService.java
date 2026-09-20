@@ -116,6 +116,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
                                 user -> ImageCacheVersion.fromNullableFileName(user.avatarFileName())
                         ));
 
+        Set<UUID> submittedParticipantIds = itemAllocationStorePort.findAllSubmissions(settlementId).stream()
+                .map(submission -> submission.participantId())
+                .collect(Collectors.toSet());
         List<SettlementDetailResult.ParticipantPayment> allPayments = participants.stream()
                 .filter(participant -> !participant.isLinkedTo(settlement.creatorId()))
                 .sorted(Comparator.comparingInt(SettlementParticipant::displayOrder))
@@ -125,7 +128,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         confirmedByShareId,
                         participant.linkedUserId() == null
                                 ? null
-                                : avatarVersionsByUserId.get(participant.linkedUserId())
+                                : avatarVersionsByUserId.get(participant.linkedUserId()),
+                        submittedParticipantIds.contains(participant.id())
                 ))
                 .toList();
         UUID viewerParticipantId = viewerRole == SettlementDetailResult.ViewerRole.PARTICIPANT
@@ -143,13 +147,6 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         : allPayments.stream()
                                 .filter(payment -> payment.participantId().equals(viewerParticipantId))
                                 .toList();
-        Set<UUID> submittedParticipantIds = viewerRole == SettlementDetailResult.ViewerRole.CREATOR
-                && settlement.status() == SettlementStatus.REQUESTED
-                ? itemAllocationStorePort.findAllSubmissions(settlementId).stream()
-                        .map(submission -> submission.participantId())
-                        .collect(Collectors.toSet())
-                : Set.of();
-
         String bankName = null;
         String accountNumber = null;
         String institutionIconUrl = null;
@@ -261,16 +258,19 @@ public class SettlementDetailService implements GetSettlementUseCase {
             SettlementParticipant participant,
             SettlementShare share,
             Map<UUID, Long> confirmedByShareId,
-            String avatarVersion
+            String avatarVersion,
+            boolean submitted
     ) {
         if (share == null) {
             return new SettlementDetailResult.ParticipantPayment(
                     participant.id(),
                     participant.displayName(),
                     participant.linkedUserId() != null,
-                    null,
+                    submitted ? 0L : null,
                     0,
-                    SettlementDetailResult.PaymentStatus.NOT_READY,
+                    submitted
+                            ? SettlementDetailResult.PaymentStatus.PAID
+                            : SettlementDetailResult.PaymentStatus.NOT_READY,
                     avatarVersion
             );
         }
