@@ -1,6 +1,6 @@
 # Feature Plan: 정산 링크 조회 요청 시각 추가
 
-- Status: In Progress
+- Status: Completed
 - Last updated: 2026-09-21
 - Related issue: #408
 - Related ADR: 없음
@@ -17,10 +17,10 @@
 
 ### 성공 기준
 
-- [ ] 링크 조회 응답에 `requestedAt`이 포함되고, 링크 생성 시각을 반환한다.
-- [ ] 링크 생성 시각이 없는 데이터는 정산 생성 시각으로 대체한다.
-- [ ] APP_DIRECT와 BROWSER_SELECTION 두 진입 모드가 동일한 기준 시각을 반환한다.
-- [ ] Swagger 계약과 Web/Application 테스트가 실제 응답 필드와 일치한다.
+- [x] 링크 조회 응답에 `requestedAt`이 포함되고, 링크 생성 시각을 반환한다.
+- [x] 링크 생성 시각이 없는 데이터는 정산 생성 시각으로 대체한다.
+- [x] APP_DIRECT와 BROWSER_SELECTION 두 진입 모드가 동일한 기준 시각을 반환한다.
+- [x] Swagger 계약과 Web/Application 테스트가 실제 응답 필드와 일치한다.
 
 ### 범위 제외
 
@@ -150,15 +150,15 @@ Authentication: 공개 조회, 유효한 Bearer 인증 시 APP_DIRECT 분기
 ## 7. 구현 계획
 
 - [x] Migration-only pull request to `develop` (N/A: 기존 컬럼만 사용)
-- [ ] UseCase와 Application Command/Result
+- [x] UseCase와 Application Command/Result
 - [x] Required Output Ports (N/A: 새 외부 대화 없음)
 - [x] Domain models and rules (N/A: 기존 상태 재사용)
 - [x] Application Policies (N/A: 별도 정책 없음)
-- [ ] Application Service
+- [x] Application Service
 - [x] Output Adapters (N/A: persistence 변경 없음)
-- [ ] Web Request/Response DTOs, Controllers, and Swagger
+- [x] Web Request/Response DTOs, Controllers, and Swagger
 - [x] Infra configuration and Bean wiring (N/A: 설정 변경 없음)
-- [ ] Documentation and verification results
+- [x] Documentation and verification results
 
 ### 예상 커밋 경계
 
@@ -179,26 +179,30 @@ git diff --check
 git status --short --untracked-files=all
 ```
 
-PostgreSQL·Redis가 필요한 전체 테스트는 환경을 확인한 뒤 실행한다.
+서비스·컨트롤러 집중 테스트는 실행했고, OpenAPI 통합 테스트는 로컬 DB의 기존 Flyway checksum 문제로 컨텍스트 초기화 단계에서 실패했다. 전체 테스트는 별도 실행하지 않았다.
 
 ### 완료 기준
 
-- [ ] 링크 생성 시각이 있는 APP_DIRECT/BROWSER_SELECTION 응답 검증
-- [ ] fallback 규칙 검증
-- [ ] Swagger `requestedAt` 필드 확인
-- [ ] 미실행 검증과 이유 기록
+- [x] 링크 생성 시각이 있는 APP_DIRECT/BROWSER_SELECTION 응답 검증
+- [x] fallback 규칙 검증
+- [ ] Swagger `requestedAt` 필드 확인 (OpenAPI 통합 테스트 환경 문제로 미검증)
+- [x] 미실행 검증과 이유 기록
 
 ### 결과
 
 | 항목 | 결과 | 근거 |
 |---|---|---|
-|  | 진행 중 |  |
+| Java 컴파일 | 통과 | `./gradlew compileJava` |
+| 서비스·컨트롤러 계약 테스트 | 통과 | `./gradlew test --tests '*SettlementLinkEntryServiceTest' --tests '*SettlementLinkEntryControllerTest'` |
+| OpenAPI 통합 테스트 | 미통과 | 로컬 DB의 Flyway V16 checksum mismatch (`applied -1039115587`, `resolved 192761889`) |
+| diff 검사 | 통과 | `git diff --check` |
 
 ## 9. 진행 기록
 
 | 날짜 | 완료 작업 | 다음 작업 | 발견 위험 |
 |---|---|---|---|
 | 2026-09-21 | 이슈·기존 흐름·최신 `origin/develop` 확인, 설계 초안 작성 | Result/Service/Web 계약 구현 | 도메인상 링크 생성 시각은 필수지만 목록 API 의미를 위해 fallback 유지 |
+| 2026-09-21 | Result·Service·Web 응답·Swagger와 APP_DIRECT/BROWSER_SELECTION/fallback 테스트 구현 | PR 생성 | 로컬 Flyway V16 checksum mismatch로 OpenAPI 통합 테스트 미검증 |
 
 ## 10. 결정 기록
 
@@ -208,8 +212,8 @@ PostgreSQL·Redis가 필요한 전체 테스트는 환경을 확인한 뒤 실�
 
 ## 11. 완료 기록
 
-- 완료일: 미정
-- 최종 동작: 미정
-- 미검증 항목: 미정
-- 남은 위험: 미정
+- 완료일: 2026-09-21
+- 최종 동작: `GET /api/v2/settlement-links/{token}`가 링크 생성 시각 우선의 `requestedAt`을 반환하고, 없으면 정산 생성 시각을 반환한다.
+- 미검증 항목: OpenAPI 통합 테스트와 전체 테스트. 로컬 DB의 Flyway V16 checksum mismatch를 수정하지 않고 보존했다.
+- 남은 위험: Swagger 스키마의 실제 생성 결과는 CI 또는 migration checksum이 정리된 DB에서 확인해야 한다.
 - 후속 작업: 프론트에서 링크 참여 `minutes_since_request` 계측
