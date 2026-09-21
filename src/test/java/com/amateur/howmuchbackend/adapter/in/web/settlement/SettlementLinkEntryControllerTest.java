@@ -32,6 +32,7 @@ class SettlementLinkEntryControllerTest {
     private static final String TOKEN = "x".repeat(43);
     private static final UUID SETTLEMENT_ID = UUID.fromString("7c33b1fb-82f1-4a45-a834-a015a26b2ba6");
     private static final UUID PARTICIPANT_ID = UUID.fromString("e4049b4f-1c0a-4c63-b88e-3bdaee853679");
+    private static final LocalDateTime REQUESTED_AT = LocalDateTime.of(2026, 8, 24, 10, 0);
     private static final LocalDateTime EXPIRES_AT = LocalDateTime.of(2026, 8, 24, 12, 30);
 
     @Mock private ResolveSettlementLinkUseCase resolveSettlementLinkUseCase;
@@ -56,6 +57,7 @@ class SettlementLinkEntryControllerTest {
                         "회식 정산",
                         "행복식당",
                         LocalDateTime.of(2026, 8, 24, 19, 30),
+                        REQUESTED_AT,
                         10_000,
                         2,
                         SettlementRequestPhase.TRANSFER_READY,

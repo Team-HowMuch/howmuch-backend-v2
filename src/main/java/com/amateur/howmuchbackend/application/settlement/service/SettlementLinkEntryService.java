@@ -94,6 +94,7 @@ public class SettlementLinkEntryService implements
                     access.settlement().title(),
                     payment.storeName(),
                     payment.paidAt(),
+                    requestedAt(access),
                     access.settlement().totalAmount(),
                     participants.size(),
                     access.phase(),
@@ -110,6 +111,7 @@ public class SettlementLinkEntryService implements
                 access.settlement().title(),
                 payment.storeName(),
                 payment.paidAt(),
+                requestedAt(access),
                 access.settlement().totalAmount(),
                 participants.size(),
                 access.phase(),
@@ -169,6 +171,12 @@ public class SettlementLinkEntryService implements
                         SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND
                 ));
         return new LinkAccess(link, settlement, resolvePhase(settlement));
+    }
+
+    private LocalDateTime requestedAt(LinkAccess access) {
+        return access.link().createdAt() != null
+                ? access.link().createdAt()
+                : access.settlement().createdAt();
     }
 
     private SettlementRequestPhase resolvePhase(Settlement settlement) {
