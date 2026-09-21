@@ -48,7 +48,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReceiptOcrHttpIntegrationTest {
     private static final String PATH = "/api/v2/receipts/ocr";
     private static final String BOUNDARY = "howmuch-receipt-test-boundary";
-    private static final byte[] SMALL_IMAGE = "fake-jpeg-bytes".getBytes(StandardCharsets.UTF_8);
+    /** 진짜 JPEG 시그니처다. 정책이 선언한 형식이 아니라 바이트를 보므로 아무 바이트나 쓸 수 없다. */
+    private static final byte[] SMALL_IMAGE = jpegBytes();
+
+    private static byte[] jpegBytes() {
+        byte[] content = new byte[64];
+        content[0] = (byte) 0xFF;
+        content[1] = (byte) 0xD8;
+        content[2] = (byte) 0xFF;
+        return content;
+    }
 
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbc;
@@ -111,9 +120,12 @@ class ReceiptOcrHttpIntegrationTest {
     }
 
     @Test
-    @DisplayName("JPEG·PNG가 아니면 400으로 거절한다")
-    void rejectsUnsupportedContentType() throws Exception {
-        assertError(post(accessToken, part("file", "receipt.pdf", "application/pdf", SMALL_IMAGE)),
+    @DisplayName("image/jpeg라고 선언한 PDF도 바이트를 보고 400으로 거절한다")
+    void rejectsDisguisedPdf() throws Exception {
+        // 파트의 Content-Type은 클라이언트가 정한다. 선언을 믿으면 PDF가 OCR까지 간다.
+        byte[] pdf = "%PDF-1.7\nfake".getBytes(StandardCharsets.UTF_8);
+
+        assertError(post(accessToken, part("file", "receipt.jpg", "image/jpeg", pdf)),
                 400, "INVALID_RECEIPT_IMAGE");
     }
 
