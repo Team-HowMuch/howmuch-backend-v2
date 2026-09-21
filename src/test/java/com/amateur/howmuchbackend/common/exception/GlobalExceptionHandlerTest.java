@@ -22,6 +22,8 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -129,6 +131,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void serverSideMultipartFailureRemainsRetryable() throws Exception {
+        // 임시 업로드 디렉터리가 꽉 찼거나 쓸 수 없을 때도 컨테이너는 같은 예외로 감싼다.
+        // 그걸 400으로 돌려주면 클라이언트는 자기 요청을 고치려 들고 재시도하지 않는다.
+        var expected = CommonStatusCode.TEMPORARILY_UNAVAILABLE;
+        error(mvc.perform(get("/error-probe/multipart-io")), expected.getStatus(),
+                expected.getCode(), expected.getMessage())
+                .andExpect(header().string("Retry-After", "1"));
+    }
+
+    @Test
     void missingMultipartPartReturnsInvalidArgument() throws Exception {
         // 파트 이름이 다르면 컨트롤러에 들어가기 전에 갈린다. 여기가 400이 아니면
         // 컨트롤러 안의 null 검사는 영원히 실행되지 않고 500만 나간다.
@@ -185,6 +197,12 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/error-probe/malformed-multipart")
         public void malformedMultipart() {
             throw new MultipartException("synthetic malformed multipart");
+        }
+
+        @GetMapping("/error-probe/multipart-io")
+        public void multipartIoFailure() {
+            throw new MultipartException("Failed to parse multipart servlet request",
+                    new IOException("No space left on device"));
         }
 
         @PostMapping("/error-probe/upload")

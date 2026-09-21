@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -102,13 +103,41 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 멀티파트 본문 자체가 깨졌다. 한도 초과는 위에서 더 구체적으로 잡는다.
+     * 멀티파트 해석이 실패했다. 한도 초과는 위에서 더 구체적으로 잡는다.
+     *
+     * <p>전부 400으로 보내면 안 된다. 임시 업로드 디렉터리가 꽉 찼거나 쓸 수 없을 때도
+     * 서블릿 컨테이너는 같은 예외로 감싸 올린다. 그건 요청이 아니라 서버 문제이고,
+     * 400을 돌려주면 클라이언트는 자기 요청을 고치려 들고 재시도하지 않는다.
+     * 원인 사슬에 I/O 실패가 있으면 잠시 후 재시도하라고 알린다.
      */
     @ExceptionHandler(MultipartException.class)
-    public ResponseEntity<BaseResponse<ErrorResponse>> handleMalformedMultipart(MultipartException exception) {
+    public ResponseEntity<BaseResponse<ErrorResponse>> handleMultipartFailure(MultipartException exception) {
+        if (causedByIo(exception)) {
+            SafeExceptionLogger.log(exception, CommonStatusCode.TEMPORARILY_UNAVAILABLE.getStatus());
+            ErrorResponse error = ErrorResponse.of(
+                    CommonStatusCode.TEMPORARILY_UNAVAILABLE.getStatus(),
+                    CommonStatusCode.TEMPORARILY_UNAVAILABLE.getCode(),
+                    CommonStatusCode.TEMPORARILY_UNAVAILABLE.getMessage()
+            );
+            return ResponseEntity.status(error.status())
+                    .header(HttpHeaders.RETRY_AFTER, "1")
+                    .body(new BaseResponse<>(false, null, error));
+        }
         SafeExceptionLogger.log(exception, 400);
         ErrorResponse error = ErrorResponse.of(400, "INVALID_ARGUMENT", "요청값이 올바르지 않습니다.");
         return ResponseEntity.badRequest().body(new BaseResponse<>(false, null, error));
+    }
+
+    private boolean causedByIo(Throwable exception) {
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof IOException) {
+                return true;
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+        }
+        return false;
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
