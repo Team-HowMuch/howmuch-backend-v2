@@ -16,7 +16,10 @@ public record SettlementLinkEntryWebResponse(
         String storeName,
         @Schema(nullable = true, description = "결제일(UTC, offset 없는 값). 영수증·결제내역 지출을 합쳐 한 건일 때만 채워지며 알 수 없으면 null이다. 정산 상세의 paymentInfo.paidAt과 같은 값이다.")
         LocalDateTime paidAt,
-        @Schema(description = "정산 요청 시각(UTC, offset 없는 값). 공유 링크 생성 시각을 사용하며 링크 생성 시각이 없으면 정산 생성 시각을 사용한다.")
+        @Schema(
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "정산 요청 시각(UTC, offset 없는 값). 공유 링크 생성 시각을 사용하며 링크 생성 시각이 없으면 정산 생성 시각을 사용한다."
+        )
         LocalDateTime requestedAt,
         long totalAmount,
         int participantCount,
