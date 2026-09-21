@@ -119,9 +119,16 @@ Result -> Web Response DTO: ReceiptOcrWebResponse.from()
 
 ### Application Policy
 
-- Decision owned by the Policy: 없음. 판정 규칙이 없다
-- Facts loaded by the Service and passed to the Policy: N/A
-- Why the rule is not an Entity-local invariant: N/A
+`ReceiptImagePolicy`
+
+- Decision owned by the Policy: 업로드된 바이트가 OCR 이 읽을 수 있는 이미지인지,
+  그리고 실제 형식이 무엇인지
+- Facts loaded by the Service and passed to the Policy: 이미지 바이트 전체
+- Why the rule is not an Entity-local invariant: 저장하는 엔티티가 없다. 요청 한 건의
+  바이트를 보고 판정할 뿐이라 도메인 객체의 불변식이 아니다
+- Why the declared Content-Type is not used: 멀티파트 헤더는 클라이언트가 정하는 값이다.
+  그것만 보면 PDF 를 `image/jpeg` 라고 선언해 GPU 한 대짜리 OCR 장비의 수 초를 쓸 수 있다.
+  판정한 형식을 OCR 요청 파트에 실어, 서비스가 엉뚱한 형식으로 읽지 않게 한다
 - Future inputs deliberately not implemented yet: 사용자별 호출 제한
 
 ### Web API
@@ -287,7 +294,7 @@ Existing behavior that must remain unchanged:
 - [x] UseCase and Application Command/Result
 - [x] Required Output Ports
 - [x] Domain models and rules — **N/A**
-- [x] Application Policies — **N/A**
+- [x] Application Policies — `ReceiptImagePolicy` (Codex 리뷰로 추가)
 - [x] Application Service
 - [x] Output Adapters
 - [x] Web Request/Response DTOs, Controllers, and Swagger
@@ -333,27 +340,47 @@ OCR 서비스는 개인 장비에 있어 CI에서 부를 수 없다. 어댑터�
 
 ### Results
 
-2026-09-17, `feat/396-receipt-ocr-proxy` (`origin/develop` a698653 기준).
+2026-09-21, `feat/396-receipt-ocr-proxy` (`origin/develop` 3583f00 기준).
 `build/test-results/test/*.xml` 를 파싱해 센 숫자다. BUILD SUCCESSFUL 만 보고 적지 않았다.
 
-**전체: 171개 클래스 / 1213개 테스트 / 실패 0 / 에러 0 / 건너뜀 0**
+**전체: 175개 클래스 / 1267개 테스트 / 실패 0 / 에러 0 / 건너뜀 0**
 
 | Item | Result | Evidence |
 |---|---|---|
 | 설계 문서 | Done | 본 문서 |
-| 어댑터 HTTP 계약 | 22/22 | `ReceiptOcrHttpAdapterTest` |
+| 이미지 바이트 판정 | 7/7 | `ReceiptImagePolicyTest` |
+| 어댑터 HTTP 계약 | 28/28 | `ReceiptOcrHttpAdapterTest` |
 | 응답 DTO 매핑 | 6/6 | `OcrReceiptApiResponseTest` |
-| 서비스 인증·형식 검증 | 14/14 | `AnalyzeReceiptServiceTest` |
+| 서비스 인증·판정 | 12/12 | `AnalyzeReceiptServiceTest` |
 | 웹 계약(단독 MockMvc) | 5/5 | `ReceiptOcrControllerTest` |
 | 실제 HTTP 계약(401·413·400·503) | 6/6 | `ReceiptOcrHttpIntegrationTest` |
-| 공용 예외 핸들러 | 18/18 | `GlobalExceptionHandlerTest` |
-| 기존 동작 회귀 | 1213/1213 | 전체 스위트 |
+| 공용 예외 핸들러 | 19/19 | `GlobalExceptionHandlerTest` |
+| 기존 동작 회귀 | 1267/1267 | 전체 스위트 |
+
+### Codex 리뷰 반영 (2회차, base 를 develop 으로 고친 뒤)
+
+base 가 `main` 으로 잡혀 있던 1회차는 다른 PR 의 변경까지 리뷰 범위에 들어가
+영수증 코드에 대한 지적이 없었다. base 를 고치고 다시 돌린 2회차에서 세 건이 나왔고
+전부 반영했다.
+
+| 지적 | 무엇이 문제였나 | 어떻게 고쳤나 |
+|---|---|---|
+| 이미지 시그니처 검증 | 멀티파트 Content-Type 은 클라이언트가 정하는 값인데 그것만 보고 통과시켰다. PDF 를 `image/jpeg` 라고 선언하면 GPU 한 대짜리 OCR 까지 그대로 갔고, Swagger 에 적은 "JPEG·PNG 가 아니면 400, OCR 까지 가지 않는다" 가 사실이 아니었다 | `ReceiptImagePolicy` 로 바이트에서 형식을 판정하고 그 값을 OCR 파트에 싣는다. 저장소의 `GroupImagePolicy`·`ProfileImagePolicy` 와 같은 방식이다 |
+| 나머지 5xx 분류 | 도달 불가 상태를 열거하고 나머지를 422 로 보냈다. 501·507 이나 프록시 전용 520 이 재촬영 안내로 빠졌다 | 방향을 뒤집어 이미지 거절(400·413·415·422·500)만 열거하고 나머지를 503 으로 보낸다 |
+| `MultipartException` 일괄 400 | 임시 업로드 디렉터리가 꽉 찼을 때 같은 서버 문제도 400 으로 클라이언트를 탓했다. 업로드 엔드포인트 전부가 영향을 받는다 | 원인 사슬에 `IOException` 이 있으면 503 과 `Retry-After` 로 답한다 |
+
+첫 번째는 저장소에 이미 선례가 있었는데 따르지 않은 것이다. 413 영향 범위를 확인하느라
+`GroupImagePolicy` 를 두 번 열어 보고도 그 클래스가 선언값을 버리고 바이트로 판정한다는
+점을 보지 못했다.
 
 리뷰에서 나온 지적이 실제로 초록으로 확인된 항목:
 
 | 확인 | 근거 |
 |---|---|
 | Jackson 애노테이션 패키지 수정 | `compileJava`·`compileTestJava` 통과 |
+| `image/jpeg` 로 선언한 PDF 가 OCR 까지 가지 않음 | `ReceiptImagePolicyTest`, `AnalyzeReceiptServiceTest`, `ReceiptOcrHttpIntegrationTest` |
+| 501·507·520 이 재촬영이 아니라 재시도로 분류됨 | `ReceiptOcrHttpAdapterTest` (12건 파라미터화) |
+| 서버 쪽 멀티파트 실패가 400 이 아니라 503 + `Retry-After` | `GlobalExceptionHandlerTest` |
 | 미인증 업로드가 내부 서비스에 닿기 전 401 | `ReceiptOcrHttpIntegrationTest` |
 | 한도 초과가 실제 Tomcat 해석에서 413 | 〃 |
 | `file` 파트 누락이 400 | 〃 |
@@ -383,6 +410,7 @@ OCR 서비스는 개인 장비에 있어 CI에서 부를 수 없다. 어댑터�
 | 2026-09-16 | OCR 서비스 스펙 확인, 저장소 현황 확인, 설계 문서 작성 | 구현 | 이슈가 말한 `ReceiptOcrAdapter`가 저장소에 없다. prod에는 예외를 던지는 어댑터만 있어 #194의 운영 연동은 아직 없는 상태다 |
 | 2026-09-16 | UseCase·Port·어댑터·컨트롤러·테스트 구현 | 독립 리뷰 | - |
 | 2026-09-17 | 독립 리뷰 2회, 지적 반영, 전체 스위트 1213건 통과 | PR | 리뷰 1회차가 P1을 잡았다. `tools.jackson.annotation` 은 없는 패키지라 브랜치가 컴파일되지 않는 상태였고, 그 앞 5개 커밋이 주장한 검증은 실제로 돈 적이 없다. 2회차가 "이미지를 디스크에 남기지 않는다"는 문구가 사실이 아님과 상태 코드 오분류를 잡았다 |
+| 2026-09-21 | 최신 develop(3583f00) 위로 리베이스, Codex 리뷰 3건 반영, 전체 스위트 1267건 통과 | 리뷰 재요청 | PR base 가 `main` 으로 잡혀 있어 1회차 리뷰가 다른 PR 의 코드를 봤다. base 를 고쳐야 우리 코드가 리뷰된다. 그리고 선언한 Content-Type 을 믿는 검증은 검증이 아니었다 |
 
 ## 10. Decision log
 
