@@ -9,6 +9,7 @@ public record SettlementLinkEntryResult(
         String settlementTitle,
         String storeName,
         LocalDateTime paidAt,
+        LocalDateTime requestedAt,
         long totalAmount,
         int participantCount,
         SettlementRequestPhase allocationPhase,
