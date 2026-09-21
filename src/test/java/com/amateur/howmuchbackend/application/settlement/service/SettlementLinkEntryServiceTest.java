@@ -39,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,6 +53,7 @@ class SettlementLinkEntryServiceTest {
     private static final UUID CREATOR_PARTICIPANT_ID = UUID.fromString("bb97ee76-3a82-4ccc-b324-4a9974c8e1af");
     private static final UUID PAYER_PARTICIPANT_ID = UUID.fromString("e4049b4f-1c0a-4c63-b88e-3bdaee853679");
     private static final UUID CONTEXT_ID = UUID.fromString("074dc83c-f0aa-4bf6-8f6b-d17a415620c7");
+    private static final LocalDateTime SETTLEMENT_CREATED_AT = LocalDateTime.of(2026, 8, 24, 9, 0);
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 24, 10, 0);
     private static final LocalDateTime PAID_AT = LocalDateTime.of(2026, 8, 24, 19, 30);
 
@@ -90,6 +92,7 @@ class SettlementLinkEntryServiceTest {
 
         assertThat(result.entryMode()).isEqualTo(SettlementLinkEntryMode.BROWSER_SELECTION);
         assertThat(result.allocationPhase()).isEqualTo(SettlementRequestPhase.TRANSFER_READY);
+        assertThat(result.requestedAt()).isEqualTo(CREATED_AT);
         assertThat(result.totalAmount()).isEqualTo(10_000);
         assertThat(result.participantCount()).isEqualTo(2);
         assertThat(result.participantCandidates())
@@ -118,6 +121,7 @@ class SettlementLinkEntryServiceTest {
         var result = service.resolve(RAW_TOKEN);
 
         assertThat(result.entryMode()).isEqualTo(SettlementLinkEntryMode.APP_DIRECT);
+        assertThat(result.requestedAt()).isEqualTo(CREATED_AT);
         assertThat(result.totalAmount()).isEqualTo(10_000);
         assertThat(result.participantCount()).isEqualTo(2);
         assertThat(result.selectedParticipant().participantId()).isEqualTo(PAYER_PARTICIPANT_ID);
@@ -274,6 +278,22 @@ class SettlementLinkEntryServiceTest {
     }
 
     @Test
+    @DisplayName("링크 생성 시각이 없으면 정산 생성 시각을 요청 시각으로 사용한다")
+    void fallsBackToSettlementCreatedAtWhenLinkCreatedAtIsMissing() {
+        arrangeItemAllocationAccess();
+        SettlementLink link = mock(SettlementLink.class);
+        when(link.isUsableAt(any())).thenReturn(true);
+        when(link.settlementId()).thenReturn(SETTLEMENT_ID);
+        when(link.createdAt()).thenReturn(null);
+        when(loadSettlementLinkPort.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.of(link));
+        when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
+
+        var result = service.resolve(RAW_TOKEN);
+
+        assertThat(result.requestedAt()).isEqualTo(SETTLEMENT_CREATED_AT);
+    }
+
+    @Test
     @DisplayName("영수증이 두 건 이상이면 어느 가게인지 정할 수 없어 비운다")
     void leavesReceiptInfoEmptyWhenAmbiguous() {
         arrangeItemAllocationAccess();
@@ -362,7 +382,7 @@ class SettlementLinkEntryServiceTest {
                 allocationType,
                 7L,
                 status,
-                CREATED_AT,
+                SETTLEMENT_CREATED_AT,
                 CREATED_AT
         );
     }
