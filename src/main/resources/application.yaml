@@ -62,6 +62,13 @@ howmuch:
       poll-interval: ${SETTLEMENT_NOTIFICATION_OUTBOX_POLL_INTERVAL:1s}
       initial-delay: ${SETTLEMENT_NOTIFICATION_OUTBOX_INITIAL_DELAY:1s}
       batch-size: ${SETTLEMENT_NOTIFICATION_OUTBOX_BATCH_SIZE:50}
+  receipt:
+    ocr:
+      # 비워 두면 연동이 꺼진다. 테스트·로컬에서 내부 장비를 부르지 않게 한다.
+      base-url: ${RECEIPT_OCR_BASE_URL:}
+      path: ${RECEIPT_OCR_PATH:/ocr/receipt}
+      connect-timeout: ${RECEIPT_OCR_CONNECT_TIMEOUT:3s}
+      read-timeout: ${RECEIPT_OCR_READ_TIMEOUT:20s}
   profile:
     image:
       storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}

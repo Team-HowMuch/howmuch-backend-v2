@@ -96,7 +96,13 @@ public enum SettlementStatusCode implements StatusCode {
     SETTLEMENT_DUTCH_PAY_TOTAL_MISMATCH("더치페이 배분 합계가 정산 총액과 일치하지 않습니다.", 409),
     INVALID_DUTCH_PAY_TOTAL("더치페이 배분 합계가 허용 범위를 초과했습니다.", 400),
     INVALID_SETTLEMENT_STATUS_TRANSITION("허용되지 않는 정산 상태 변경입니다.", 409),
-    SETTLEMENT_RECEIPT_EXTRACTION_UNAVAILABLE("운영 OCR 연동이 아직 준비되지 않았습니다.", 503);
+    SETTLEMENT_RECEIPT_EXTRACTION_UNAVAILABLE("운영 OCR 연동이 아직 준비되지 않았습니다.", 503),
+
+    // 영수증 이미지 분석(#396). '닿지 못함'과 '읽지 못함'은 사용자가 할 일이 다르다.
+    // 전자는 기다렸다 다시 하는 것이고 후자는 다시 찍는 것이다.
+    INVALID_RECEIPT_IMAGE("영수증 이미지를 확인해주세요.", 400),
+    RECEIPT_OCR_FAILED("영수증을 읽지 못했습니다. 더 밝은 곳에서 다시 찍어주세요.", 422),
+    RECEIPT_OCR_UNAVAILABLE("영수증 분석 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.", 503);
 
     private final String message;
     private final int status;

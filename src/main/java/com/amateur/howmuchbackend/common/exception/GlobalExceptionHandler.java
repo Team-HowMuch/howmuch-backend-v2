@@ -17,7 +17,11 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -66,7 +70,8 @@ public class GlobalExceptionHandler {
             MethodArgumentTypeMismatchException.class,
             HttpMessageNotReadableException.class,
             MissingRequestHeaderException.class,
-            MissingServletRequestParameterException.class
+            MissingServletRequestParameterException.class,
+            MissingServletRequestPartException.class
     })
     public ResponseEntity<BaseResponse<ErrorResponse>> handleRequestConversionException(Exception exception) {
         SafeExceptionLogger.log(exception, 400);
@@ -76,6 +81,63 @@ public class GlobalExceptionHandler {
                 "요청값이 올바르지 않습니다."
         );
         return ResponseEntity.badRequest().body(new BaseResponse<>(false, null, error));
+    }
+
+    /**
+     * 업로드 한도를 넘었다. 요청이 잘못된 것이므로 500이 아니라 413으로 답한다.
+     *
+     * <p>멀티파트 파싱은 핸들러를 찾기 전에 끝난다. 그래서 컨트롤러 안의
+     * {@code @ExceptionHandler}로는 잡히지 않고 여기서만 잡을 수 있다.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<BaseResponse<ErrorResponse>> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException exception
+    ) {
+        SafeExceptionLogger.log(exception, CommonStatusCode.PAYLOAD_TOO_LARGE.getStatus());
+        ErrorResponse error = ErrorResponse.of(
+                CommonStatusCode.PAYLOAD_TOO_LARGE.getStatus(),
+                CommonStatusCode.PAYLOAD_TOO_LARGE.getCode(),
+                CommonStatusCode.PAYLOAD_TOO_LARGE.getMessage()
+        );
+        return ResponseEntity.status(error.status()).body(new BaseResponse<>(false, null, error));
+    }
+
+    /**
+     * 멀티파트 해석이 실패했다. 한도 초과는 위에서 더 구체적으로 잡는다.
+     *
+     * <p>전부 400으로 보내면 안 된다. 임시 업로드 디렉터리가 꽉 찼거나 쓸 수 없을 때도
+     * 서블릿 컨테이너는 같은 예외로 감싸 올린다. 그건 요청이 아니라 서버 문제이고,
+     * 400을 돌려주면 클라이언트는 자기 요청을 고치려 들고 재시도하지 않는다.
+     * 원인 사슬에 I/O 실패가 있으면 잠시 후 재시도하라고 알린다.
+     */
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<BaseResponse<ErrorResponse>> handleMultipartFailure(MultipartException exception) {
+        if (causedByIo(exception)) {
+            SafeExceptionLogger.log(exception, CommonStatusCode.TEMPORARILY_UNAVAILABLE.getStatus());
+            ErrorResponse error = ErrorResponse.of(
+                    CommonStatusCode.TEMPORARILY_UNAVAILABLE.getStatus(),
+                    CommonStatusCode.TEMPORARILY_UNAVAILABLE.getCode(),
+                    CommonStatusCode.TEMPORARILY_UNAVAILABLE.getMessage()
+            );
+            return ResponseEntity.status(error.status())
+                    .header(HttpHeaders.RETRY_AFTER, "1")
+                    .body(new BaseResponse<>(false, null, error));
+        }
+        SafeExceptionLogger.log(exception, 400);
+        ErrorResponse error = ErrorResponse.of(400, "INVALID_ARGUMENT", "요청값이 올바르지 않습니다.");
+        return ResponseEntity.badRequest().body(new BaseResponse<>(false, null, error));
+    }
+
+    private boolean causedByIo(Throwable exception) {
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof IOException) {
+                return true;
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+        }
+        return false;
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)

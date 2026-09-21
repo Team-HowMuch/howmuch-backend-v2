@@ -1,0 +1,451 @@
+# Feature Plan: 영수증 OCR 프록시 API
+
+- Status: Draft
+- Last updated: 2026-09-16
+- Related issue: [#396](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/396), [howmuch-frontend-v2#249](https://github.com/Team-HowMuch/howmuch-frontend-v2/issues/249)
+- Related ADR: N/A
+
+## 1. Purpose
+
+### Problem
+
+**앱이 개인 장비의 Tailscale Funnel 주소로 영수증 이미지를 직접 올린다.**
+
+세 가지가 동시에 문제다.
+
+- **인증이 없다.** 주소만 알면 누구나 호출한다. OCR은 한 건당 약 3초가 걸리는 GPU 작업이라 그대로 비용이자 가용성 위험이다.
+- **주소가 앱에 박혀 있다.** 장비나 도메인이 바뀌면 앱을 다시 심사해야 한다.
+- **영수증 이미지는 개인정보다.** 구매처·품목·금액이 담긴다. 전송 경로와 보존 정책을 백엔드가 쥐고 있어야 하는데 지금은 앱과 개인 장비 사이에서 끝난다.
+
+### Why now
+
+프론트(#249)가 운영 API 경유로 바꾸려고 이 엔드포인트를 기다린다. 장비가 꺼지면
+영수증 촬영 기능 전체가 멈추는 상태를 더 끌 이유가 없다.
+
+### Success criteria
+
+- [ ] 인증된 사용자만 영수증 이미지를 올려 OCR 결과를 받는다.
+- [ ] 앱이 내부 OCR 주소를 모른다.
+- [ ] 이미지를 우리 저장소에 보관하지 않는다.
+- [ ] OCR 서비스가 죽어 있어도 백엔드가 500이 아니라 의미 있는 상태 코드로 답한다.
+- [ ] 업로드 크기와 타임아웃이 명시적으로 제한된다.
+
+### Out of scope
+
+- **사용자별 호출 제한.** 후속 이슈로 뺀다. 실제 사용량을 보고 한도를 정하는 편이 맞다.
+  다만 홈서버 한 대가 병목이라는 점은 그대로 남으므로 후속에서 반드시 다룬다.
+- 기존 `ExtractReceiptItemsPort`(참조 문자열 → 정산 품목) 경로. 목적이 달라 건드리지 않는다.
+- OCR 결과를 정산에 바로 반영하는 흐름. 앱이 결과를 받아 기존 등록 API로 보낸다.
+- 이미지 저장·재처리·비동기 큐.
+
+## 2. Domain analysis
+
+### Domain boundary
+
+- Existing domain to reuse: `Settlement`(영수증) 주변이지만, 이 기능 자체는 정산 상태를 바꾸지 않는다
+- Reason a new domain is required, if applicable: 없음. 새 도메인 모델을 만들지 않는다.
+  이 기능은 외부 서비스 호출과 응답 변환이 전부이고, 지켜야 할 불변식이 없다
+- Relationships to other domains: `User`(인증된 호출자)
+
+### Ubiquitous language
+
+| Term | Meaning | Code representation |
+|---|---|---|
+| 영수증 분석 | 이미지 한 장을 구조화된 영수증 데이터로 바꾸는 일 | `AnalyzeReceiptUseCase` |
+| 영수증 분석 결과 | 상호·일시·품목·합계 | `ReceiptAnalysis` |
+| 합계 검증 여부 | OCR 숫자와 교차 검증되었는지 | `totalVerified` |
+| 내부 OCR 서비스 | 비전 모델과 텍스트 OCR을 돌리는 별도 서비스 | `ReceiptOcrClient` |
+
+### Actors and UseCases
+
+| Actor | Goal | UseCase |
+|---|---|---|
+| 로그인 사용자 | 영수증을 찍어 품목과 합계를 받는다 | `AnalyzeReceiptUseCase` (신규) |
+
+### State and invariants
+
+- State transitions: 없음. 이 기능은 아무 상태도 바꾸지 않는다
+- Rules that must always hold:
+  - 인증되지 않은 호출은 OCR 서비스에 닿지 않는다.
+  - 이미지는 응답 후 우리 쪽에 남지 않는다(컨테이너 임시 파일은 요청 끝에 삭제된다).
+- Invalid states: N/A
+
+## 3. Scenarios
+
+### Normal flow
+
+1. 사용자가 영수증을 찍어 `POST /api/v2/receipts/ocr`에 multipart로 올린다.
+2. 백엔드가 인증을 확인하고 크기·형식을 검사한다.
+3. 내부 OCR 서비스에 그대로 전달한다.
+4. 응답을 백엔드 DTO로 변환해 돌려준다.
+
+### Failure flow
+
+- Condition: 이미지가 아니거나 빈 파일
+- Returned error or state transition: 400. OCR 서비스까지 가지 않는다
+- Condition: 파일이 업로드 한도를 넘음
+- Returned error or state transition: 413
+- Condition: OCR 서비스가 응답하지 않거나 연결되지 않음
+- Returned error or state transition: 503. 장비가 꺼진 상태를 사용자에게 그대로 알린다
+- Condition: OCR 서비스가 분석에 실패(`ok=false`)
+- Returned error or state transition: 422. 요청은 닿았고 이미지를 읽지 못한 것이다
+- Condition: 인증 없음
+- Returned error or state transition: 401 (기존 필터 체인)
+
+### Boundary conditions
+
+- OCR은 한 건당 약 3초다. 타임아웃을 그보다 넉넉히 두되 무한정 기다리지 않는다.
+- `result`가 `null`일 수 있다. 그때는 실패로 다룬다.
+- `total_verified=false`는 실패가 아니다. 값을 그대로 전달해 앱이 사용자에게 확인받게 한다.
+- 품목의 `name`·`quantity`·`price`가 각각 `null`일 수 있다. 앱이 감당해야 하므로 그대로 내보낸다.
+
+## 4. Contracts
+
+### Input Port and boundary mapping
+
+```text
+UseCase: AnalyzeReceiptUseCase (신규)
+Command: AnalyzeReceiptCommand(fileName, contentType, bytes)
+Result: ReceiptAnalysisResult(storeName, purchasedAt, items, totalAmount, paymentMethod, totalVerified)
+Web Request DTO -> Command: 컨트롤러가 MultipartFile 을 Command 로 옮긴다
+Result -> Web Response DTO: ReceiptOcrWebResponse.from()
+```
+
+### Output Ports
+
+| Port | Purpose | Caller | Expected Adapter |
+|---|---|---|---|
+| `AnalyzeReceiptImagePort` | 이미지 한 장을 영수증 데이터로 분석한다 | `AnalyzeReceiptService` | `ReceiptOcrHttpAdapter` |
+
+### Application Policy
+
+`ReceiptImagePolicy`
+
+- Decision owned by the Policy: 업로드된 바이트가 OCR 이 읽을 수 있는 이미지인지,
+  그리고 실제 형식이 무엇인지
+- Facts loaded by the Service and passed to the Policy: 이미지 바이트 전체
+- Why the rule is not an Entity-local invariant: 저장하는 엔티티가 없다. 요청 한 건의
+  바이트를 보고 판정할 뿐이라 도메인 객체의 불변식이 아니다
+- Why the declared Content-Type is not used: 멀티파트 헤더는 클라이언트가 정하는 값이다.
+  그것만 보면 PDF 를 `image/jpeg` 라고 선언해 GPU 한 대짜리 OCR 장비의 수 초를 쓸 수 있다.
+  판정한 형식을 OCR 요청 파트에 실어, 서비스가 엉뚱한 형식으로 읽지 않게 한다
+- Future inputs deliberately not implemented yet: 사용자별 호출 제한
+
+### Web API
+
+```text
+POST /api/v2/receipts/ocr
+Content-Type: multipart/form-data
+Request: file = 영수증 이미지 (JPEG/PNG)
+Response: {
+  "storeName": "스타필드",
+  "purchasedAt": "2026-09-16 16:47",
+  "items": [{"name": "참치김밥", "quantity": 1, "price": 3500}],
+  "totalAmount": 60000,
+  "paymentMethod": "카드",
+  "totalVerified": true
+}
+Errors:
+  400 INVALID_RECEIPT_IMAGE          빈 파일이거나 이미지가 아님
+  401                                 인증 없음 (기존 필터 체인)
+  413 PAYLOAD_TOO_LARGE               업로드 한도 초과 (기존 multipart 설정)
+  422 RECEIPT_OCR_FAILED              OCR 서비스가 이미지를 읽지 못함
+  503 RECEIPT_OCR_UNAVAILABLE         OCR 서비스에 닿지 못하거나 시간 초과
+Authentication: 필요
+```
+
+### Persistence and external integrations
+
+- Database Entity, constraint, or query changes: **없음**
+- Flyway migration required (`Yes` / `No`): **No**
+- Planned migration: N/A
+- Migration pull request (`Pending` / URL): N/A
+- Redis key, TTL, or serialization changes: 없음
+- External API or message changes: 내부 OCR 서비스 `POST /ocr/receipt` (multipart `file`) 신규 연동
+- Environment variable or profile changes: OCR base URL·타임아웃·허용 이미지 형식
+
+## 5. Design decisions
+
+### Business logic
+
+- Rules and their locations: 형식·크기 검사는 웹 경계, 실패 해석은 Service
+- Behavior owned by Domain: 없음
+- Decisions owned by Application Policy: 없음
+- Flow orchestrated by Application: 인증된 사용자 확인 → 포트 호출 → 결과 변환
+
+### Technology and patterns
+
+- Constraint to solve: 내부 서비스의 스키마 변화가 앱 계약을 깨지 않아야 한다
+- Selected approach: OCR 응답을 백엔드 DTO로 변환한다
+- Reason for selection: 아래 별도 항목
+- Alternatives considered: 응답을 그대로 통과시키기
+- Trade-offs and limits: 필드가 늘면 백엔드도 함께 고쳐야 한다
+
+#### 응답을 그대로 통과시키지 않는다
+
+OCR 응답에는 `raw`(비전 모델 원본 문자열), `ocr_lines`, `corrections` 같은 디버깅용
+필드가 들어 있다. 그대로 내보내면 **내부 모델 동작이 공개 API가 된다.** 모델을 바꾸거나
+보정 로직을 손볼 때마다 앱 계약이 흔들리고, `raw`에는 이미지에서 읽은 텍스트가 통째로
+담겨 로그·캐시에 남을 여지도 커진다.
+
+백엔드 DTO로 변환하면 필드가 늘 때 백엔드도 고쳐야 하지만, 그 비용은 계약을 한 곳에서
+쥐는 값으로 치를 만하다.
+
+#### 이미지를 보관하지 않는다
+
+보존 기간을 정하는 것보다 두지 않는 편이 낫다. 지켜야 할 삭제 일정도, 유출 표면도
+생기지 않는다. 이미지는 DB에도 오브젝트 스토리지에도 들어가지 않고, 로그에도 남기지 않는다.
+
+**다만 "디스크에 전혀 닿지 않는다"는 사실이 아니다.** 멀티파트 해석은 서블릿 컨테이너가
+하고, `spring.servlet.multipart.file-size-threshold` 기본값이 `0B`라 업로드된 파트는
+`java.io.tmpdir` 아래 임시 파일로 먼저 떨어졌다가 요청이 끝날 때
+`DispatcherServlet.cleanupMultipart` → `Part.delete()`로 지워진다. 이건 이 저장소의 모든
+업로드 엔드포인트(그룹 이미지·프로필 이미지)가 이미 그렇게 동작하는 방식이고, 이번
+기능이 새로 만든 노출면이 아니다. 문서와 Swagger 문구를 "보관하지 않는다"로 맞췄다.
+
+`file-size-threshold`를 한도 위로 올리면 임시 파일 자체가 사라지지만, 그 설정은 전역이라
+그룹·프로필 업로드까지 최대 5MB를 힙에 들고 있게 된다. 동시 업로드 수에 따라 메모리가
+직접 걸리는 변경이므로 이번 PR에서 혼자 정하지 않는다. **후속 이슈 후보.**
+
+나중에 재처리나 품질 분석이 필요해지면 그때 보존 정책과 함께 따로 설계한다.
+
+#### OCR 서비스 실패를 두 가지로 나눈다
+
+"닿지 못함"과 "읽지 못함"은 사용자가 할 일이 다르다. 전자는 기다렸다 다시 하는 것이고
+후자는 다시 찍는 것이다. 503과 422로 나눈다.
+
+가르는 기준은 **"사진을 다시 찍으면 달라지는가"** 하나다.
+
+| 상태 | 우리 응답 | 이유 |
+|---|---|---|
+| 401·403 | 503 | 내부 서비스 인증 설정이 틀렸다. 사용자가 할 수 있는 게 없다 |
+| 404·405 | 503 | `RECEIPT_OCR_PATH` 오타 같은 배포 실수. 재촬영은 영원히 실패한다 |
+| 408·429 | 503 | 홈서버 한 대가 밀렸다. 잠시 후 재시도가 맞다 |
+| 502·503·504 | 503 | 앞단 프록시가 뒤쪽이 죽었다고 알리는 신호 |
+| 400·413·415·422 | 422 | 서비스가 이미지를 보고 거절했다 |
+| 500 | 422 | 이 서비스는 분석 실패를 `500 + {"ok": false, "error"}`로 알린다 |
+| 연결 실패·타임아웃·본문 해석 실패 | 503 | 셋 다 사진으로 풀리지 않는다 |
+
+처음 구현은 502·503·504만 갈랐다. 그러면 경로 오타 하나로 **모든 사용자가 모든 영수증에서**
+"더 밝은 곳에서 다시 찍어주세요"를 듣고, 다시 찍어도 똑같이 실패한다. 리뷰에서 잡혔다.
+
+**남은 위험:** `application.yaml`의 `spring.jackson.deserialization.accept-float-as-int: false`
+때문에, OCR 서비스가 `"total_amount": 10500.0` 처럼 정수 자리에 소수를 보내면 역직렬화가
+터지고 사용자는 503을 본다. 서비스 OpenAPI는 integer로 선언되어 있어 지금은 나지 않지만,
+모델을 갈아끼울 때 조용히 깨질 수 있는 지점이다. 터지면 500이 아니라 503이라는 점만
+확보해 두었다(`treatsUnparseableBodyAsUnavailable`).
+
+#### 기존 ExtractReceiptItemsPort 를 건드리지 않는다
+
+이름이 비슷해 헷갈리지만 목적이 다르다. 기존 포트는 `(requesterId, receiptReference)`로
+**이미 분석된 결과를 정산에 가져오는** 경로이고, 이번 것은 **이미지를 분석하는** 경로다.
+시그니처도 결과 모양도 맞지 않는다. 새 포트를 만든다.
+
+참고로 이슈 본문은 "기존 `ReceiptOcrAdapter`(#194) 경로"라고 적었지만, 저장소에는 그런
+어댑터가 없다. prod 프로파일에는 예외를 던지는 `UnavailableReceiptExtractionAdapter`만
+있다. 즉 #194의 운영 어댑터는 아직 없는 상태다.
+
+## 6. Impact surface
+
+| Area | Impact | Verified file or contract |
+|---|---|---|
+| API | 신규 엔드포인트 1개 | `ReceiptOcrController` |
+| Application | UseCase 1개, Output Port 1개 | `AnalyzeReceiptService` |
+| Domain | 없음 | - |
+| Persistence | 없음 | - |
+| Redis | 없음 | - |
+| Security | `/api/**`가 이미 인증을 요구한다 | `SecurityConfig` |
+| Configuration | OCR base URL·타임아웃 Properties | `infra/receipt` |
+| Documentation | 본 문서, Swagger | `docs/features/` |
+
+Existing behavior that must remain unchanged:
+
+- 기존 영수증 가져오기 경로(`ExtractReceiptItemsPort`)와 그 상태 코드
+- multipart 업로드 한도 값 자체(5MB/6MB). 이 PR은 한도를 바꾸지 않는다
+
+**바뀌는 기존 동작 (의도한 변경, 리뷰 필요):**
+
+`GlobalExceptionHandler`에 `MaxUploadSizeExceededException` → 413,
+`MultipartException` → 400, `MissingServletRequestPartException` → 400을 추가했다.
+이건 공용 핸들러라 영수증 OCR만이 아니라 **기존 업로드 엔드포인트에도 함께 적용된다.**
+
+| 엔드포인트 | 이전 | 이후 |
+|---|---|---|
+| `POST /api/v2/groups` | 한도 초과 시 500 INTERNAL_SERVER_ERROR | 413 PAYLOAD_TOO_LARGE |
+| `PATCH /api/v2/groups/{groupId}` | 〃 | 〃 |
+| `PATCH /api/v2/user/me/profile` | 〃 | 〃 |
+
+한도 초과를 500으로 돌려주던 것이 버그였으므로 개선이지만, 범위 밖의 계약 변경이다.
+기존 테스트는 전부 `standaloneSetup`이라 한도를 강제하지 않아 빨개지는 것은 없다
+(확인: `GroupControllerTest`, `UserControllerTest`). 대신 `GlobalExceptionHandlerTest`에
+매핑을 못 박아 두었다.
+
+**남긴 것 (다른 사람 코드라 건드리지 않음, 오빠 판단 필요):**
+
+- `GroupDocs`의 `@ApiResponses`에는 413이 없다. Swagger가 실제와 어긋난다
+- `GroupImagePolicy.MAX_IMAGE_SIZE`가 컨테이너 한도와 똑같은 5MB라, 그 클래스의
+  `INVALID_GROUP_IMAGE`(400) 분기는 운영에서 도달 불가다. 컨테이너가 먼저 413을 낸다
+- `RequestTraceFilter.area()`에 `/api/v2/receipts` 분기가 없어 새 엔드포인트가 `other`로
+  묶인다. 앱에서 가장 느린 경로인데 대시보드에서 따로 볼 수 없다
+
+## 7. Implementation plan
+
+- [x] Migration-only pull request to `develop` (`Required` / `N/A`) — **N/A** (스키마 변경 없음)
+- [x] UseCase and Application Command/Result
+- [x] Required Output Ports
+- [x] Domain models and rules — **N/A**
+- [x] Application Policies — `ReceiptImagePolicy` (Codex 리뷰로 추가)
+- [x] Application Service
+- [x] Output Adapters
+- [x] Web Request/Response DTOs, Controllers, and Swagger
+- [x] Infra configuration and Bean wiring
+- [x] Documentation and verification results
+
+### Expected commit boundaries
+
+실제 커밋 (독립 리뷰 결과로 fix 커밋 두 개가 늘었다):
+
+```text
+docs(receipt): 영수증 OCR 프록시 설계 수립
+feat(receipt): 영수증 이미지 분석 UseCase와 Port를 추가한다
+feat(receipt): 내부 OCR 서비스 HTTP 어댑터를 추가한다
+feat(receipt): 영수증 OCR 엔드포인트를 노출한다
+test(receipt): 인증·형식·실패 분기를 검증한다
+fix(common): 멀티파트 업로드 오류를 500이 아닌 상태로 답한다
+fix(receipt): 재촬영으로 풀리지 않는 실패를 503으로 가른다
+docs(receipt): 영수증 OCR 프록시 검증 결과 기록
+```
+
+## 8. Verification
+
+### Commands
+
+```bash
+docker compose -f compose.test.yml up -d
+DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test \
+DB_PASSWORD=howmuch_test REDIS_HOST=127.0.0.1 REDIS_PORT=16379 \
+  bash scripts/test.sh clean test
+docker compose -f compose.test.yml down -v
+```
+
+OCR 서비스는 개인 장비에 있어 CI에서 부를 수 없다. 어댑터는 `MockRestServiceServer`로
+실제 HTTP 계약(멀티파트 필드 이름, 응답 파싱, 타임아웃, 연결 실패)을 검증한다.
+
+### Completion criteria
+
+- [x] Purpose의 사용자 결과를 검증했다.
+- [x] 정상·실패·경계 흐름을 검증했다.
+- [x] 문서와 실제 코드가 일치한다. 같은 주장을 하는 다른 줄이 남아 있지 않은지 확인했다.
+- [x] 수행하지 못한 검증과 사유를 기록했다.
+
+### Results
+
+2026-09-21, `feat/396-receipt-ocr-proxy` (`origin/develop` 3583f00 기준).
+`build/test-results/test/*.xml` 를 파싱해 센 숫자다. BUILD SUCCESSFUL 만 보고 적지 않았다.
+
+**전체: 175개 클래스 / 1267개 테스트 / 실패 0 / 에러 0 / 건너뜀 0**
+
+| Item | Result | Evidence |
+|---|---|---|
+| 설계 문서 | Done | 본 문서 |
+| 이미지 바이트 판정 | 7/7 | `ReceiptImagePolicyTest` |
+| 어댑터 HTTP 계약 | 28/28 | `ReceiptOcrHttpAdapterTest` |
+| 응답 DTO 매핑 | 6/6 | `OcrReceiptApiResponseTest` |
+| 서비스 인증·판정 | 12/12 | `AnalyzeReceiptServiceTest` |
+| 웹 계약(단독 MockMvc) | 5/5 | `ReceiptOcrControllerTest` |
+| 실제 HTTP 계약(401·413·400·503) | 6/6 | `ReceiptOcrHttpIntegrationTest` |
+| 공용 예외 핸들러 | 19/19 | `GlobalExceptionHandlerTest` |
+| 기존 동작 회귀 | 1267/1267 | 전체 스위트 |
+
+### Codex 리뷰 반영 (2회차, base 를 develop 으로 고친 뒤)
+
+base 가 `main` 으로 잡혀 있던 1회차는 다른 PR 의 변경까지 리뷰 범위에 들어가
+영수증 코드에 대한 지적이 없었다. base 를 고치고 다시 돌린 2회차에서 세 건이 나왔고
+전부 반영했다.
+
+| 지적 | 무엇이 문제였나 | 어떻게 고쳤나 |
+|---|---|---|
+| 이미지 시그니처 검증 | 멀티파트 Content-Type 은 클라이언트가 정하는 값인데 그것만 보고 통과시켰다. PDF 를 `image/jpeg` 라고 선언하면 GPU 한 대짜리 OCR 까지 그대로 갔고, Swagger 에 적은 "JPEG·PNG 가 아니면 400, OCR 까지 가지 않는다" 가 사실이 아니었다 | `ReceiptImagePolicy` 로 바이트에서 형식을 판정하고 그 값을 OCR 파트에 싣는다. 저장소의 `GroupImagePolicy`·`ProfileImagePolicy` 와 같은 방식이다 |
+| 나머지 5xx 분류 | 도달 불가 상태를 열거하고 나머지를 422 로 보냈다. 501·507 이나 프록시 전용 520 이 재촬영 안내로 빠졌다 | 방향을 뒤집어 이미지 거절(400·413·415·422·500)만 열거하고 나머지를 503 으로 보낸다 |
+| `MultipartException` 일괄 400 | 임시 업로드 디렉터리가 꽉 찼을 때 같은 서버 문제도 400 으로 클라이언트를 탓했다. 업로드 엔드포인트 전부가 영향을 받는다 | 원인 사슬에 `IOException` 이 있으면 503 과 `Retry-After` 로 답한다 |
+
+첫 번째는 저장소에 이미 선례가 있었는데 따르지 않은 것이다. 413 영향 범위를 확인하느라
+`GroupImagePolicy` 를 두 번 열어 보고도 그 클래스가 선언값을 버리고 바이트로 판정한다는
+점을 보지 못했다.
+
+리뷰에서 나온 지적이 실제로 초록으로 확인된 항목:
+
+| 확인 | 근거 |
+|---|---|
+| Jackson 애노테이션 패키지 수정 | `compileJava`·`compileTestJava` 통과 |
+| `image/jpeg` 로 선언한 PDF 가 OCR 까지 가지 않음 | `ReceiptImagePolicyTest`, `AnalyzeReceiptServiceTest`, `ReceiptOcrHttpIntegrationTest` |
+| 501·507·520 이 재촬영이 아니라 재시도로 분류됨 | `ReceiptOcrHttpAdapterTest` (12건 파라미터화) |
+| 서버 쪽 멀티파트 실패가 400 이 아니라 503 + `Retry-After` | `GlobalExceptionHandlerTest` |
+| 미인증 업로드가 내부 서비스에 닿기 전 401 | `ReceiptOcrHttpIntegrationTest` |
+| 한도 초과가 실제 Tomcat 해석에서 413 | 〃 |
+| `file` 파트 누락이 400 | 〃 |
+| 401·403·404·405·408·429·502·503·504 → 503 | `ReceiptOcrHttpAdapterTest` (9건 파라미터화) |
+| 500 → 422 (서비스의 분석 실패 통로) | 〃 |
+| `items` 배열의 null 원소가 500을 만들지 않음 | 〃 + `OcrReceiptApiResponseTest` |
+| 확장자 없는 파일이 `octet-stream` 으로 나가지 않음 | `ReceiptOcrHttpAdapterTest` |
+| 인증 확인이 OCR 호출보다 먼저 (엄격 스텁 + `InOrder`) | `AnalyzeReceiptServiceTest` |
+| `FAIL_ON_UNKNOWN_PROPERTIES` 를 켜도 모르는 필드를 견딤 | `OcrReceiptApiResponseTest` |
+
+### 수행하지 못한 검증
+
+- **실제 OCR 장비를 부르는 종단 검증.** 서비스가 개인 홈서버에 Tailscale로 있어 CI에서
+  닿을 수 없다. 어댑터는 `MockRestServiceServer` 로 HTTP 계약만 검증했다. 실제 영수증
+  사진 한 장을 넣어 보는 수동 검증은 배포 후 별도로 해야 한다.
+- **동시 요청 하의 동작.** 홈서버 GPU가 한 대라 동시 호출이 쌓이면 어떻게 되는지는
+  측정하지 않았다. 호출 제한이 후속 이슈로 빠져 있어 이번 범위 밖이다.
+- **그룹·프로필 업로드의 413 회귀.** 공용 핸들러 변경이 그 엔드포인트에도 적용되지만,
+  기존 테스트가 전부 `standaloneSetup` 이라 한도를 강제하지 않는다. 매핑 자체는
+  `GlobalExceptionHandlerTest` 로 못 박았고, 실제 디스패치 지점은 영수증 엔드포인트로만
+  확인했다.
+
+## 9. Progress log
+
+| Date | Completed work | Next work | Discovered risk |
+|---|---|---|---|
+| 2026-09-16 | OCR 서비스 스펙 확인, 저장소 현황 확인, 설계 문서 작성 | 구현 | 이슈가 말한 `ReceiptOcrAdapter`가 저장소에 없다. prod에는 예외를 던지는 어댑터만 있어 #194의 운영 연동은 아직 없는 상태다 |
+| 2026-09-16 | UseCase·Port·어댑터·컨트롤러·테스트 구현 | 독립 리뷰 | - |
+| 2026-09-17 | 독립 리뷰 2회, 지적 반영, 전체 스위트 1213건 통과 | PR | 리뷰 1회차가 P1을 잡았다. `tools.jackson.annotation` 은 없는 패키지라 브랜치가 컴파일되지 않는 상태였고, 그 앞 5개 커밋이 주장한 검증은 실제로 돈 적이 없다. 2회차가 "이미지를 디스크에 남기지 않는다"는 문구가 사실이 아님과 상태 코드 오분류를 잡았다 |
+| 2026-09-21 | 최신 develop(3583f00) 위로 리베이스, Codex 리뷰 3건 반영, 전체 스위트 1267건 통과 | 리뷰 재요청 | PR base 가 `main` 으로 잡혀 있어 1회차 리뷰가 다른 PR 의 코드를 봤다. base 를 고쳐야 우리 코드가 리뷰된다. 그리고 선언한 Content-Type 을 믿는 검증은 검증이 아니었다 |
+
+## 10. Decision log
+
+| Date | Decision | Reason | Alternative or impact |
+|---|---|---|---|
+| 2026-09-16 | OCR 응답을 백엔드 DTO로 변환한다 | `raw`·`ocr_lines` 같은 내부 디버깅 필드가 공개 API가 되면 모델을 바꿀 때마다 앱 계약이 흔들린다 | 필드가 늘면 백엔드도 함께 고쳐야 한다 |
+| 2026-09-16 | 이미지를 보관하지 않는다 | 보존 기간을 지키는 것보다 아예 두지 않는 편이 안전하다 | 재처리·품질 분석이 필요해지면 따로 설계한다 |
+| 2026-09-16 | `file-size-threshold`는 이번에 바꾸지 않는다 | 전역 설정이라 모든 업로드가 최대 5MB를 힙에 든다. 혼자 정할 변경이 아니다 | 요청 처리 중 임시 파일이 남는다(요청 끝에 삭제). 후속 이슈 후보 |
+| 2026-09-16 | 도달 불가 상태를 열거해 503으로 보낸다 | 경로 오타 하나로 모든 사용자가 무한 재촬영을 하게 된다 | 새 상태가 생기면 목록을 갱신해야 한다 |
+| 2026-09-16 | 기존 `ExtractReceiptItemsPort`를 건드리지 않는다 | 이름은 비슷하지만 '참조로 가져오기'와 '이미지 분석'으로 목적이 다르다 | 영수증 관련 포트가 둘이 된다 |
+| 2026-09-16 | 호출 제한을 이번 범위에서 뺀다 | 실제 사용량을 보고 한도를 정하는 편이 맞다 | 홈서버 한 대가 병목으로 남는다. 후속 이슈 필요 |
+| 2026-09-16 | 닿지 못함(503)과 읽지 못함(422)을 나눈다 | 사용자가 할 일이 다르다. 기다리기와 다시 찍기 | 상태 코드가 하나 늘어난다 |
+
+## 11. Completion record
+
+- **Completed on:** 2026-09-17
+- **Final behavior:** `POST /api/v2/receipts/ocr` 에 JPEG·PNG 영수증을 multipart(`file`)로
+  올리면 상호·구매 일시·품목·합계·결제 수단·합계 교차검증 여부를 돌려준다. 이미지는 우리
+  저장소에 보관하지 않는다. 실패는 셋으로 갈린다. 400(빈 파일·지원하지 않는 형식·파트 누락),
+  422(서비스가 이미지를 보고 거절), 503(닿지 못함·과부하·설정 오류). 413은 업로드 한도 초과다.
+- **Unverified items:** 실제 OCR 장비 종단 검증, 동시 요청 하의 동작, 그룹·프로필 업로드의
+  413 실제 디스패치. 사유는 8절에 적었다.
+- **Remaining risks:**
+  - `spring.jackson.deserialization.accept-float-as-int: false` 때문에 OCR이 정수 자리에
+    소수를 보내면 역직렬화가 터진다. 현재 서비스 OpenAPI는 integer 선언이라 나지 않지만,
+    모델을 갈아끼울 때 조용히 깨질 수 있다. 터져도 500이 아니라 503이라는 점만 확보했다
+  - 홈서버 GPU 한 대가 병목이다. 호출 제한이 없어 동시 요청이 쌓이면 전부 20초 타임아웃을
+    기다린다
+  - 멀티파트 임시 파일이 요청 처리 중 디스크에 존재한다(요청 끝에 삭제). `file-size-threshold`
+    를 올리면 없앨 수 있지만 전역 메모리에 영향이 있어 이번에 정하지 않았다
+- **Follow-up work:**
+  - 사용자별 OCR 호출 제한 (설계 단계에서 범위 밖으로 뺀 것)
+  - `GroupDocs` 의 `@ApiResponses` 에 413 추가 — 다른 사람 코드라 건드리지 않았다
+  - `GroupImagePolicy.MAX_IMAGE_SIZE` 가 컨테이너 한도와 같은 5MB라 `INVALID_GROUP_IMAGE`
+    분기가 운영에서 도달 불가다
+  - `RequestTraceFilter.area()` 에 `/api/v2/receipts` 분기 추가 — 앱에서 가장 느린 경로인데
+    지표에서 `other` 로 묶인다
+  - `spring.servlet.multipart.file-size-threshold` 를 올릴지 팀 판단
