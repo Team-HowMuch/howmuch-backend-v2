@@ -7,6 +7,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.treasurer.SettlementDirection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +20,14 @@ public class TreasurerSettlementPersistenceAdapter implements LoadTreasurerSettl
 
     private final SettlementJpaRepository settlementJpaRepository;
 
+    /**
+     * 두 번의 조회를 한 트랜잭션으로 묶는다. 호출자는 트랜잭션을 열지 않는다.
+     *
+     * <p>질문 흐름이 LLM 호출 내내 커넥션을 쥐지 않도록 바깥 트랜잭션을 없앴기 때문에,
+     * 두 탭의 조회가 같은 스냅샷을 보도록 여기서 경계를 잡는다.
+     */
     @Override
+    @Transactional(readOnly = true)
     public List<TreasurerSettlementRecord> findAll(Long userId) {
         List<TreasurerSettlementRecord> records = new ArrayList<>();
         records.addAll(map(settlementJpaRepository.findAllForTreasurer(userId, SQL_RECEIVE_TAB), SettlementDirection.RECEIVE));

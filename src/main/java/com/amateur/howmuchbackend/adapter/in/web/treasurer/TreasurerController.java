@@ -3,6 +3,8 @@ package com.amateur.howmuchbackend.adapter.in.web.treasurer;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.docs.TreasurerDocs;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.request.AskTreasurerWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.request.ReportTreasurerAnswerWebRequest;
+import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerAnswerReportWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerAnswerWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerChatWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.treasurer.dto.response.TreasurerRecommendationsWebResponse;
@@ -11,13 +13,17 @@ import com.amateur.howmuchbackend.application.port.in.treasurer.AskTreasurerUseC
 import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerChatUseCase;
 import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerRecommendationsUseCase;
 import com.amateur.howmuchbackend.application.port.in.treasurer.GetTreasurerSummaryUseCase;
+import com.amateur.howmuchbackend.application.port.in.treasurer.ReportTreasurerAnswerUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -27,6 +33,7 @@ public class TreasurerController implements TreasurerDocs {
     private final GetTreasurerSummaryUseCase getTreasurerSummaryUseCase;
     private final AskTreasurerUseCase askTreasurerUseCase;
     private final GetTreasurerRecommendationsUseCase getTreasurerRecommendationsUseCase;
+    private final ReportTreasurerAnswerUseCase reportTreasurerAnswerUseCase;
 
     @Override
     @GetMapping("/chat")
@@ -52,5 +59,15 @@ public class TreasurerController implements TreasurerDocs {
         return ApiResponse.success(
                 TreasurerRecommendationsWebResponse.from(getTreasurerRecommendationsUseCase.getRecommendations())
         );
+    }
+
+    @Override
+    @PostMapping("/answers/{answerId}/reports")
+    public ApiResponse<TreasurerAnswerReportWebResponse> report(
+            @PathVariable UUID answerId,
+            @Valid @RequestBody ReportTreasurerAnswerWebRequest request
+    ) {
+        return ApiResponse.success(TreasurerAnswerReportWebResponse.from(
+                reportTreasurerAnswerUseCase.report(request.toCommand(answerId))));
     }
 }

@@ -11,7 +11,7 @@ import java.net.http.HttpClient;
 import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(TreasurerLlmProperties.class)
+@EnableConfigurationProperties({TreasurerLlmProperties.class, TreasurerAnswerRetentionProperties.class})
 public class TreasurerConfig {
     @Bean
     Clock treasurerClock() {
