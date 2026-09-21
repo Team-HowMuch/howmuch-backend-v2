@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -255,11 +255,12 @@ class ReceiptOcrHttpAdapterTest {
                 .isEqualTo(SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE);
     }
 
-    @Test
-    @DisplayName("서비스가 422로 거절하면 이미지를 읽지 못한 것으로 본다")
-    void treatsUnprocessableAsUnreadable() {
+    @ParameterizedTest
+    @ValueSource(ints = {400, 413, 415, 422})
+    @DisplayName("서비스가 이미지를 보고 거절한 상태만 재촬영을 안내한다")
+    void treatsImageRejectionsAsUnreadable(int status) {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
-                .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY));
+                .andRespond(withStatus(HttpStatusCode.valueOf(status)));
 
         assertThatThrownBy(() -> adapter.analyze("a.jpg", "image/jpeg", IMAGE))
                 .isInstanceOf(ApplicationException.class)
@@ -268,13 +269,15 @@ class ReceiptOcrHttpAdapterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {401, 403, 404, 405, 408, 429, 502, 503, 504})
+    @ValueSource(ints = {401, 403, 404, 405, 408, 429, 501, 502, 503, 504, 507, 520})
     @DisplayName("사진을 다시 찍어도 안 풀리는 상태는 재촬영이 아니라 재시도를 알린다")
     void treatsUnreachableStatusesAsUnavailable(int status) {
         // 경로 오타(404)나 내부 인증 오설정(401)을 422로 내보내면, 모든 사용자가 모든
         // 영수증에서 "더 밝은 곳에서 다시 찍으세요"를 듣고 다시 찍어도 영원히 실패한다.
+        // 501·507이나 프록시 전용 520처럼 처음 보는 상태도 같은 쪽으로 가야 한다.
+        // 분류를 화이트리스트로 두면 새 상태가 조용히 재촬영 안내로 빠진다.
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
-                .andRespond(withStatus(HttpStatus.valueOf(status)));
+                .andRespond(withStatus(HttpStatusCode.valueOf(status)));
 
         assertThatThrownBy(() -> adapter.analyze("a.jpg", "image/jpeg", IMAGE))
                 .isInstanceOf(ApplicationException.class)

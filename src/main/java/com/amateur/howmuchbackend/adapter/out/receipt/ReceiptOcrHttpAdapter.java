@@ -37,18 +37,17 @@ public class ReceiptOcrHttpAdapter implements AnalyzeReceiptImagePort {
     private static final String FALLBACK_FILE_NAME = "receipt";
 
     /**
-     * 사진을 다시 찍어도 절대 달라지지 않는 상태들.
+     * 서비스가 이미지를 **보고** 거절한 상태들. 이때만 재촬영을 안내한다.
      *
-     * <p>401·403은 내부 서비스 인증 설정이 틀렸고, 404·405는 경로가 틀렸고, 408·429는
-     * 장비가 밀렸고, 502·503·504는 앞단 프록시가 뒤쪽이 죽었다고 알리는 것이다. 전부
-     * 우리 쪽 문제이거나 잠깐의 과부하다. 이걸 422로 내보내면 앱은 사용자에게 재촬영을
-     * 시키고, 다시 찍어도 똑같이 실패한다.
+     * <p>목록에 없는 모든 상태는 재시도(503)로 보낸다. 화이트리스트를 반대로 두면
+     * 새로 나타나는 상태가 조용히 재촬영 안내로 빠진다. 501·507이나 프록시 전용
+     * 520 같은 값은 사진을 다시 찍어도 달라지지 않는데, 그걸 422로 내보내면 모든
+     * 사용자가 모든 영수증에서 영원히 실패한다.
      *
-     * <p>여기 없는 상태(400·413·415·422·500 등)는 서비스가 이미지를 보고 거절한 것으로
-     * 본다. 특히 500은 이 서비스가 분석 실패를 알리는 통로다({@code {"ok": false, "error"}}).
+     * <p>500이 여기 있는 것은 이 서비스의 계약이다. 분석 실패를
+     * {@code 500 + {"ok": false, "error"}} 로 알린다.
      */
-    private static final Set<Integer> UNREACHABLE_STATUSES =
-            Set.of(401, 403, 404, 405, 408, 429, 502, 503, 504);
+    private static final Set<Integer> IMAGE_REJECTED_STATUSES = Set.of(400, 413, 415, 422, 500);
 
     private final RestClient restClient;
     private final ReceiptOcrProperties properties;
@@ -102,11 +101,11 @@ public class ReceiptOcrHttpAdapter implements AnalyzeReceiptImagePort {
     /**
      * 상태 코드로 "서비스가 못 읽었다"와 "서비스에 닿지 못했다"를 가른다.
      *
-     * @see #UNREACHABLE_STATUSES
+     * @see #IMAGE_REJECTED_STATUSES
      */
     private ApplicationException translate(RestClientResponseException exception) {
         HttpStatusCode status = exception.getStatusCode();
-        boolean unreachable = UNREACHABLE_STATUSES.contains(status.value());
+        boolean unreachable = !IMAGE_REJECTED_STATUSES.contains(status.value());
         log.warn(
                 "Receipt OCR rejected the request. status={} treatedAs={}",
                 status.value(),
