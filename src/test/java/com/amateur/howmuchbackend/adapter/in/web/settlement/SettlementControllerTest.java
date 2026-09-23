@@ -484,7 +484,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("잠금 획득 실패를 재시도 가능한 503 TEMPORARILY_UNAVAILABLE로 반환한다")
-    void returnsServiceUnavailableForLockFailure() throws Exception {
+    void settlementUpdate_lockFailure_returnsRetryableUnavailable() throws Exception {
         when(updateSettlementDraftUseCase.update(eq(SETTLEMENT_ID), any(UpdateSettlementDraftCommand.class)))
                 .thenThrow(new PessimisticLockingFailureException("lock timeout"));
 
