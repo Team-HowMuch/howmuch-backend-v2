@@ -46,7 +46,7 @@ class AccountDeletionServiceTest {
 
     @Test
     @DisplayName("기본 계좌를 삭제하면 정산 참조를 분리하고 다음 계좌를 기본으로 승격한다")
-    void deletesDefaultAccountAndPromotesNext() {
+    void defaultAccount_deleted_referencesDetachedAndNextPromoted() {
         Account deleted = account(10L, true, 2);
         Account next = account(12L, false, 1);
         Account later = account(11L, false, 3);
