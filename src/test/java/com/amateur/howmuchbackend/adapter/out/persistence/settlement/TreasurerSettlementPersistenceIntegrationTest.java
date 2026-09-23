@@ -145,7 +145,7 @@ class TreasurerSettlementPersistenceIntegrationTest {
 
     @Test
     @DisplayName("SEND는 현재 사용자의 Share 금액을 선택한다")
-    void loadsAmountToPayForLinkedParticipant() {
+    void linkedParticipant_currentUserShare_selected() {
         var result = treasurerSettlementPersistenceAdapter.findAll(payerId);
 
         assertThat(result)
