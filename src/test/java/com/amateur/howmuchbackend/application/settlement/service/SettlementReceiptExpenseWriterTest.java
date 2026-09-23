@@ -69,7 +69,7 @@ class SettlementReceiptExpenseWriterTest {
 
     @Test
     @DisplayName("잠긴 DRAFT 정산에 OCR 지출과 순서가 보존된 품목을 함께 저장한다")
-    void writesReceiptExpenseAndItems() {
+    void receiptExpense_draft_savesReceiptAndOrderedItems() {
         givenOwnedDraft();
         when(loadSettlementExpensePort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(2);
         when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(5_000L);
