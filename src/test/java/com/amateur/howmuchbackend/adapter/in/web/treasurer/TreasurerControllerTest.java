@@ -167,7 +167,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("답변을 신고하면 접수 식별자와 시각을 반환한다")
-    void reportsAnswer() throws Exception {
+    void answerReport_validRequest_returnsReceiptIdAndTime() throws Exception {
         when(reportTreasurerAnswerUseCase.report(any())).thenReturn(new TreasurerAnswerReportResult(
                 UUID.fromString("66666666-6666-6666-6666-666666666666"),
                 LocalDateTime.of(2026, 9, 15, 12, 0)
