@@ -190,7 +190,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("필수 파라미터가 누락되어도 미인증 보호 API는 먼저 401로 거절한다")
-    void preservesAuthenticationBeforeParameterBinding() throws Exception {
+    void authentication_missingParameter_preservedBeforeBindingError() throws Exception {
         assertError(request("GET", paymentCandidatesPath(), null), 401, "UNAUTHORIZED");
     }
 
