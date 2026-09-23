@@ -112,7 +112,7 @@ class SettlementMemberItemAllocationServiceTest {
 
     @Test
     @DisplayName("요청 이후에는 참여자가 자기 몫을 조회한다")
-    void readsOwnAllocationAfterRequest() {
+    void memberItemAllocation_afterRequest_readsOwnSelection() {
         arrangeParticipantAccess(SettlementStatus.REQUESTED);
         when(allocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of());
         when(allocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of());
