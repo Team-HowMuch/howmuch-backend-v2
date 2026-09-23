@@ -68,7 +68,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("부분 수정에서 전달되지 않은 금액을 보존한다")
-    void updatesOnlyRequestedField() {
+    void expense_partialUpdate_omittedAmountPreserved() {
         SettlementExpense expense = manualExpense();
 
         SettlementExpense updated = expense.updateManual(
