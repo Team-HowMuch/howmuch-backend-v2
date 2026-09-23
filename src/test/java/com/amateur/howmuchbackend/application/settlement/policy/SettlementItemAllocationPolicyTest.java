@@ -253,7 +253,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("전체 제출 후에도 반만 배분된 품목은 중단 대상으로 반환한다")
-    void marksUnderAllocatedItemsInvalid() {
+    void itemAllocation_underAllocatedAfterSubmit_returnsInvalidItems() {
         var finalization = policy.finalizeAllocation(
                 SETTLEMENT_ID,
                 1_000,
