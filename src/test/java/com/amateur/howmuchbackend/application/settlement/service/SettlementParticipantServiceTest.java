@@ -641,7 +641,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("한 요청에서 500개를 초과한 연락처 매칭을 거부한다")
-    void rejectsTooManyContacts() {
+    void contactMatch_over500Contacts_rejected() {
         List<SettlementContactCommand> contacts = new ArrayList<>();
         for (int index = 0; index < 501; index++) {
             contacts.add(contact("contact-" + index, "연락처 " + index, "01011112222"));
