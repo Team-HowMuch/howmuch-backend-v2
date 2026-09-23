@@ -319,7 +319,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("OWNER 멤버 제거 성공은 빈 200 응답을 반환한다")
-    void removesGroupMember() throws Exception {
+    void groupMember_ownerRemoval_returnsEmptyResponse() throws Exception {
         mockMvc.perform(delete(
                         "/api/v2/groups/{groupId}/members/{memberId}",
                         10L,
