@@ -160,7 +160,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("정산에 저장된 OCR 품목과 전체 합계를 반환한다")
-    void getsSettlementItems() throws Exception {
+    void settlementItems_request_returnsSavedItemsAndTotal() throws Exception {
         when(getSettlementItemsUseCase.get(SETTLEMENT_ID))
                 .thenReturn(new SettlementItemListResult(List.of(itemResult()), 10_000));
 
