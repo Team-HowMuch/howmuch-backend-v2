@@ -395,7 +395,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("유효하지 않은 공개 ID prefix는 사용자 저장소를 조회하기 전에 거부한다")
-    void rejectsInvalidCandidateSearchPrefix() {
+    void participantCandidates_invalidPrefix_rejectedBeforeLookup() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
