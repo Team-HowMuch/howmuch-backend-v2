@@ -9,7 +9,7 @@ class TreasurerLlmResponseParserTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void readsOpenAiMessageContent() throws Exception {
+    void openAiResponse_messageContent_parsed() throws Exception {
         String content = TreasurerLlmResponseParser.openAiContent(objectMapper.readTree("""
                 {"choices":[{"message":{"content":"보낼 정산이 1건 있어요."}}]}
                 """));
