@@ -164,7 +164,7 @@ class SettlementDepositPersistenceIntegrationTest {
 
     @Test
     @DisplayName("정산 상세 조회를 위해 Share별 실제 입금액을 합산한다")
-    void sumsConfirmedAmountByShare() {
+    void share_confirmedDeposits_sumComputed() {
         UUID settlementId = settlementIds.get(0);
         UUID shareId = jdbcTemplate.queryForObject(
                 "SELECT id FROM settlement_shares WHERE settlement_id = ?",
