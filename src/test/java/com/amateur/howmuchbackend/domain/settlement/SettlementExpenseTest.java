@@ -21,7 +21,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("수동 지출 설명의 앞뒤 공백을 제거하고 양수 금액을 보존한다")
-    void createsNormalizedManualExpense() {
+    void manualExpense_descriptionTrimmed_positiveAmountPreserved() {
         SettlementExpense expense = SettlementExpense.manual(
                 SETTLEMENT_ID,
                 "  저녁 식사  ",
