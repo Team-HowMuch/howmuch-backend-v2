@@ -147,7 +147,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 상세에 생성일을 반환한다")
-    void getsGroupWithCreatedAt() throws Exception {
+    void groupDetail_createdAt_included() throws Exception {
         when(getGroupUseCase.get(10L)).thenReturn(detail("여행", "메모", null));
 
         mockMvc.perform(get("/api/v2/groups/{groupId}", 10L))
