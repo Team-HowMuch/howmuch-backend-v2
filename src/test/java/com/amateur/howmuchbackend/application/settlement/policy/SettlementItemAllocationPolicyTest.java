@@ -213,7 +213,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("다른 참여자 선택과 합쳐 1을 초과하면 거부한다")
-    void rejectsOverAllocation() {
+    void itemAllocation_totalOverOne_rejected() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(),
                 List.of(selection(
