@@ -171,7 +171,7 @@ class LoginProfilePersistenceIntegrationTest {
     }
 
     @Test
-    void sessionFailureRollsBackLoginTimestamps() {
+    void loginSession_failure_rollsBackTimestamps() {
         User before = readUser();
         when(tokens.issueNewSession(any())).thenThrow(new IllegalStateException("synthetic session failure"));
         assertThatThrownBy(() -> tx.execute(status -> login.login(new LoginCommand(PHONE, PIN))))
