@@ -177,7 +177,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("음수 금액을 UseCase 호출 전에 거부한다")
-    void rejectsNegativeDutchPayAmount() throws Exception {
+    void dutchPayAmount_negative_returnsBadRequest() throws Exception {
         mockMvc.perform(patch(
                         "/api/v2/settlements/{settlementId}/dutch-pay-allocations/{participantId}",
                         SETTLEMENT_ID,
