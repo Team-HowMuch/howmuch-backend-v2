@@ -132,7 +132,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("같은 참여자가 두 번 오면 합계가 맞아도 저장을 거부한다")
-    void rejectsDuplicateParticipant() {
+    void dutchPayAllocation_duplicateParticipant_rejected() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friend = participant(2L, "친구 1", 1);
 
