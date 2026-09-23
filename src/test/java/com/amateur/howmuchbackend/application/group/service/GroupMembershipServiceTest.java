@@ -81,7 +81,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("초대 코드로 신규 MEMBER를 생성한다")
-    void joinsAsNewMember() {
+    void groupJoin_newInviteCode_createsMember() {
         givenJoinGroup();
         givenInviteLink();
         when(loadGroupMemberPort.findByGroupIdAndUserIdForUpdate(GROUP_ID, MEMBER_ID))
