@@ -97,7 +97,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("알림 발송 전 DRAFT에서도 생성자가 자기 품목을 조회한다")
-    void readsOwnItemsWhileDraft() {
+    void creatorItemSelection_draft_returnsOwnItems() {
         arrangeCreatorAccess(SettlementStatus.DRAFT);
         when(allocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of());
         when(allocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of());
