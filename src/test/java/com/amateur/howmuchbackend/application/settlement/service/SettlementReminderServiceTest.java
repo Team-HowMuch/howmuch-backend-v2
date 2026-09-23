@@ -204,7 +204,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void bulkCountsCreatedNotificationsAndSkipsUnlinked() {
+    void bulkReminder_createdCountReturnedAndUnlinkedSkipped() {
         givenTarget();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
