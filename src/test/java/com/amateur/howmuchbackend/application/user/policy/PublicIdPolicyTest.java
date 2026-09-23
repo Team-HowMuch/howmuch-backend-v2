@@ -62,7 +62,7 @@ class PublicIdPolicyTest {
 
     @Test
     @DisplayName("회원가입용 공개 ID를 user_ 접두사와 영문 소문자·숫자 12자리로 생성한다")
-    void generatesPublicId() {
+    void publicId_generation_userPrefixAndTwelveLowercaseChars() {
         for (int attempt = 0; attempt < 100; attempt++) {
             assertThat(publicIdPolicy.generate()).matches("^user_[a-z0-9]{12}$");
         }
