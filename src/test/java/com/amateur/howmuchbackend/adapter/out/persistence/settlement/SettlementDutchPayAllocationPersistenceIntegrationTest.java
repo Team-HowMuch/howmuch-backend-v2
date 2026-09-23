@@ -121,7 +121,7 @@ class SettlementDutchPayAllocationPersistenceIntegrationTest {
 
     @Test
     @DisplayName("V12 스키마에 참여자별 초안을 교체·조회·수정한다")
-    void replacesLoadsAndUpdatesAllocations() {
+    void dutchPayDraft_participantAmounts_replacedLoadedAndUpdated() {
         List<SettlementDutchPayAllocation> saved = adapter.replaceAll(
                 settlementId,
                 List.of(
