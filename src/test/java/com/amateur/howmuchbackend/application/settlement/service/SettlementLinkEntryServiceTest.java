@@ -232,7 +232,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("영수증 정산이면 상호명과 결제일을 함께 준다")
-    void exposesReceiptStoreNameAndPaidAt() {
+    void settlementLink_receiptExpense_returnsStoreAndPaidAt() {
         arrangeItemAllocationAccess();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
                 List.of(SettlementExpense.receiptOcr(
