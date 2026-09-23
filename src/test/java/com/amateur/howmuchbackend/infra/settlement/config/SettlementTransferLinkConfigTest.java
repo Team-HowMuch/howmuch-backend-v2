@@ -74,7 +74,7 @@ class SettlementTransferLinkConfigTest {
     }
 
     @Test
-    void invalidSelectedMockUrlFailsStartup() {
+    void transferLinkConfig_invalidSelectedMockUrl_startupRejected() {
         runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", "mock",
                 "SETTLEMENT_MOCK_TRANSFER_BASE_URL", "http://external.example/send"))
                 .run(context -> assertThat(context).hasFailed());
