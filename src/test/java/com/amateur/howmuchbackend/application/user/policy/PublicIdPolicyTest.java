@@ -22,7 +22,7 @@ class PublicIdPolicyTest {
 
     @Test
     @DisplayName("허용된 문자와 길이를 벗어난 공개 ID를 거부한다")
-    void rejectsInvalidPublicId() {
+    void publicId_invalidCharactersOrLength_rejected() {
         List<String> invalidValues = List.of("abc", "a".repeat(21), "수아01", "sua-01", "sua 01");
 
         for (String invalidValue : invalidValues) {
