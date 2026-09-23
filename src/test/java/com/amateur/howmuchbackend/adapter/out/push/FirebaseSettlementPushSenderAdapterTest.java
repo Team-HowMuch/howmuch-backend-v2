@@ -133,7 +133,7 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     @Test
     @DisplayName("iOS APNs 토큰은 Firebase 대신 APNs로 발송한다")
-    void routesNativeIosTokenToApns() throws Exception {
+    void iosApnsToken_delivery_routesToApns() throws Exception {
         String apnsToken = "a1".repeat(48);
         when(apnsPushSender.send(any(), any(), any(), any())).thenReturn(SettlementPushSenderPort.SendResult.SENT);
         var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
