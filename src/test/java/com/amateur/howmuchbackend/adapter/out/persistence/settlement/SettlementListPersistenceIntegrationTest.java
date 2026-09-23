@@ -254,7 +254,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("RECEIVE 완료 인원에서 생성자 본인 Share를 제외한다")
-    void excludesCreatorShareFromCompletedParticipantCount() {
+    void receiveSettlement_completedCount_excludesCreatorShare() {
         RequestFixture request = insertReceiveRequest(600L);
         UUID creatorShareId = UUID.randomUUID();
         settlementShareJpaRepository.saveAndFlush(new SettlementShareJpaEntity(
