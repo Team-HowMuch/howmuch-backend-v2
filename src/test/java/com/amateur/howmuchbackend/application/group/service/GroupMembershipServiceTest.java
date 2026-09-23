@@ -270,7 +270,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("OWNER는 LEFT 멤버를 직접 복귀시킬 수 없다")
-    void rejectsDirectRestoreForLeftMember() {
+    void groupMember_leftMember_directRestore_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OWNER_ID));
         when(loadUserPort.findByPublicId("member.test"))
                 .thenReturn(Optional.of(user(MEMBER_ID, "member.test", "멤버", true)));
