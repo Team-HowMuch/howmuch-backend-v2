@@ -673,7 +673,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("양수가 아닌 그룹 ID는 UseCase 호출 없이 거부한다")
-    void rejectsNonPositiveGroupIdForParticipantAdd() throws Exception {
+    void participantAdd_nonPositiveGroupId_rejected() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/participants",
                         SETTLEMENT_ID
