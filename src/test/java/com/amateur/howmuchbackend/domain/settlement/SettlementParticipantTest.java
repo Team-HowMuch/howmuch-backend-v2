@@ -80,7 +80,7 @@ class SettlementParticipantTest {
     @NullSource
     @ValueSource(strings = {"", "   ", "\u2003", "\u3000"})
     @DisplayName("브라우저에서 참여자를 구분할 수 있도록 빈 표시 이름을 거부한다")
-    void rejectsBlankDisplayName(String displayName) {
+    void participant_blankDisplayName_rejected(String displayName) {
         assertThatThrownBy(() -> SettlementParticipant.registeredUser(
                 SETTLEMENT_ID,
                 1L,
