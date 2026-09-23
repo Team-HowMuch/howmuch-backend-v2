@@ -95,7 +95,7 @@ class UpdateGroupServiceTest {
 
     @Test
     @DisplayName("변경 지시가 없는 요청을 조회 전에 거절한다")
-    void rejectsEmptyUpdate() {
+    void groupUpdate_emptyRequest_rejectedBeforeLookup() {
         assertThatThrownBy(() -> service.update(10L, new UpdateGroupCommand(
                 null, null, false, null, false
         ))).isInstanceOfSatisfying(ApplicationException.class, exception ->
