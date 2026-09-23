@@ -135,9 +135,8 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("미인증이면 401 그대로 올리고 바이트를 보지도 않는다")
-    void doesNotReachOcrWhenActorIsMissing() {
-        // 실제 구현(SpringSecurityAdapter)이 던지는 예외다. 임의의 RuntimeException 으로
-        // 검증하면 이 경로가 401이 아니라 500이 되어도 테스트가 통과한다.
+    void receiptAnalysis_missingActor_returnsUnauthorizedWithoutOcr() {
+        // 실제 SpringSecurityAdapter가 던지는 예외를 사용해 이 경로가 401을 반환하는지 검증한다.
         when(currentActorPort.getCurrentActor())
                 .thenThrow(new ApplicationException(CommonStatusCode.UNAUTHORIZED));
         AnalyzeReceiptService service = new AnalyzeReceiptService(
