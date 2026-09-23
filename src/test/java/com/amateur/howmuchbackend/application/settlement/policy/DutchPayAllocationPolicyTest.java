@@ -25,7 +25,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("나누어떨어지지 않는 원 단위 잔여금을 생성자에게 더한다")
-    void assignsRemainderToCreator() {
+    void dutchPay_remainderAssignedToCreator() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friendOne = participant(2L, "친구 1", 1);
         SettlementParticipant friendTwo = participant(3L, "친구 2", 2);
