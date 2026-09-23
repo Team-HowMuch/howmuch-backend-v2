@@ -118,7 +118,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("내 그룹 목록을 응답 DTO로 변환한다")
-    void getsMyGroups() throws Exception {
+    void groupList_currentUser_returnsResponseDtos() throws Exception {
         when(getMyGroupsUseCase.getMyGroups()).thenReturn(List.of(
                 new GroupSummaryResult(
                         20L,
