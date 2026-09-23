@@ -377,7 +377,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("선택 대기 중인 품목 정산은 일부 확인 입금만 총 미수금에서 뺀다")
-    void subtractsConfirmedPartialShareFromRequestedItemTotal() {
+    void settlementItemAllocation_partialDeposit_deductsPaidAmount() {
         givenRequestedItemSettlement(
                 List.of(new SettlementShare(
                         PAYER_SHARE_ID,
