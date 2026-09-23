@@ -43,7 +43,7 @@ class SettlementReminderControllerTest {
 
     @Test
     @DisplayName("정산과 참여자 UUID를 전달하고 다음 독촉 가능 시각을 반환한다")
-    void remindsParticipant() throws Exception {
+    void settlementReminder_singleParticipant_returnsNextEligibleAt() throws Exception {
         when(remindUseCase.remind(SETTLEMENT_ID, PARTICIPANT_ID)).thenReturn(
                 new SettlementReminderResult(REMINDED_AT, REMINDED_AT.plusMinutes(30))
         );
