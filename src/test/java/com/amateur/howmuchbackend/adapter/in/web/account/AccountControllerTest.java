@@ -119,7 +119,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("거래내역에 연결 정산 배열을 반환한다")
-    void getsAccountTransactionsWithSettlements() throws Exception {
+    void transactions_withSettlementLinks_includeArray() throws Exception {
         YearMonth august = YearMonth.of(2026, 8);
         UUID settlementId = UUID.fromString("13000000-0000-4000-8000-000000001001");
         when(getAccountTransactionsUseCase.getAccountTransactions(1L, august)).thenReturn(List.of(
