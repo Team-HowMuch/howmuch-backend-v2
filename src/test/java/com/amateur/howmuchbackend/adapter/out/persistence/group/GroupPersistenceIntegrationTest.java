@@ -401,7 +401,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("요청자 위치와 동명이인에 관계없이 다른 구성원 세 명과 전체 인원수를 반환한다")
-    void excludesRequesterBeforeSelectingThreeNames() {
+    void groupSummary_requesterExcluded_returnsThreeOtherNames() {
         Group group = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT));
         List<Long> members = new ArrayList<>();
