@@ -472,7 +472,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void excludesDraftFromReceiveAnswers() {
+    void receiveAnswers_draft_excluded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
