@@ -64,7 +64,7 @@ class SettlementItemSelectionTest {
 
     @Test
     @DisplayName("품목 한 개 분량을 넘는 수량도 도메인에서는 허용한다")
-    void allowsUnitsBeyondSingleItem() {
+    void itemSelection_quantityAboveOneItem_allowed() {
         assertThat(selection(SettlementItemAllocationFraction.ONE, 3).allocatedUnits())
                 .isEqualTo(SettlementItemAllocationFraction.WHOLE_UNITS * 3);
     }
