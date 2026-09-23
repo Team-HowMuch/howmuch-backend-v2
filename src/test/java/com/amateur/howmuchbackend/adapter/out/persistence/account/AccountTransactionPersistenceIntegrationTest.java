@@ -177,7 +177,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("CODEF 설명 슬롯을 분리된 값으로 저장하고 다시 읽는다")
-    void preservesCodefDescriptionFields() {
+    void codefDescriptionFields_saveAndReload_inSeparateSlots() {
         Transaction transaction = new Transaction(
                 null,
                 accountId,
