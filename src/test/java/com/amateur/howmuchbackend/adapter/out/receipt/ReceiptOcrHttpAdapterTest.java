@@ -49,16 +49,15 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("multipart file 필드로 보내고 응답을 결과로 옮긴다")
-    void sendsImageAsMultipartAndMapsResponse() {
+    void receiptOcr_imageMultipart_mapsResponse() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.MULTIPART_FORM_DATA))
-                // 서비스가 받는 파트 이름은 file 이다. 이름이 어긋나면 422가 돌아온다.
+                // 서비스가 기대하는 file 파트 이름을 사용해 422 오류를 피한다.
                 .andExpect(request -> assertThat(request.getBody().toString())
                         .contains("name=\"file\"")
                         .contains("receipt.jpg")
-                        // 파트에 이미지 형식을 직접 실어 보낸다. 비워 두면 파일 이름의
-                        // 확장자로 추측되고, 확장자가 없으면 octet-stream 이 나간다.
+                        // 파트에 이미지 형식을 직접 지정해 파일 확장자나 octet-stream 추측에 의존하지 않는다.
                         .contains("Content-Type: image/jpeg"))
                 .andRespond(withSuccess("""
                         {
