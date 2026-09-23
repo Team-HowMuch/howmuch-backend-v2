@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>OCR 주소는 프로퍼티로 직접 비운다. yaml 기본값도 비어 있지만, RECEIPT_OCR_BASE_URL 을
  * 내보낸 개발자 셸에서 이 테스트가 실제 홈서버 장비를 때리는 일은 없어야 한다. 그 대가로
- * 컨텍스트 캐시 항목이 하나 늘지만, 테스트가 외부 장비에 닿는 것보다는 그게 낫다.
+ * 외부 장비 호출을 막기 위해 컨텍스트 캐시 항목 하나를 추가한다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused",
