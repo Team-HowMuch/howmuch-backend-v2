@@ -107,7 +107,7 @@ class SettlementTest {
         @NullSource
         @ValueSource(longs = {0, -1})
         @DisplayName("유효한 계좌를 참조하도록 비어 있거나 0 이하인 ID를 거부한다")
-        void rejectsInvalidAccountId(Long accountId) {
+        void settlement_accountIdNonPositive_rejected(Long accountId) {
             assertThatThrownBy(() -> draft().selectReceivingAccount(
                     accountId, CREATED_AT.plusMinutes(1)
             )).isInstanceOfSatisfying(ApplicationException.class, exception ->
