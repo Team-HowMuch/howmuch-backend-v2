@@ -178,7 +178,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("계좌 표시 순서를 변경하고 빈 성공 응답을 반환한다")
-    void updatesAccountDisplayOrder() throws Exception {
+    void accountDisplayOrder_update_returnsEmptySuccess() throws Exception {
         mockMvc.perform(patch("/api/v2/accounts/1/display-order")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"displayOrder\":2}"))
