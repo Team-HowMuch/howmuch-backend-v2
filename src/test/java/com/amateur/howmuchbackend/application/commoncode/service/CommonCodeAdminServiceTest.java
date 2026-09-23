@@ -66,7 +66,7 @@ class CommonCodeAdminServiceTest {
 
     @Test
     @DisplayName("관리자만 그룹 검색을 수행한다")
-    void rejectsNonAdmin() {
+    void commonCodeSearch_nonAdmin_rejected() {
         when(loadUserPort.findById(ADMIN_ID)).thenReturn(Optional.of(user(UserRole.USER)));
 
         assertThatThrownBy(() -> service.search(new SearchCommonCodeGroupsCommand(null)))
