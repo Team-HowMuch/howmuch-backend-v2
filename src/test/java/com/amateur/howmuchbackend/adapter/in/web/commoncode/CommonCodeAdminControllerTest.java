@@ -115,7 +115,7 @@ class CommonCodeAdminControllerTest {
 
     @Test
     @DisplayName("상세 목록의 null 원소를 400으로 거부한다")
-    void rejectsNullDetailElement() throws Exception {
+    void commonCodeDetails_nullElement_returnsBadRequest() throws Exception {
         mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
