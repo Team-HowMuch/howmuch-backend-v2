@@ -34,7 +34,7 @@ class GroupImagePolicyTest {
 
     @Test
     @DisplayName("빈 파일과 지원하지 않는 signature를 거절한다")
-    void rejectsInvalidImage() {
+    void groupImage_emptyOrUnsupportedSignature_rejected() {
         assertInvalid(new byte[0]);
         assertInvalid(new byte[]{1, 2, 3, 4});
     }
