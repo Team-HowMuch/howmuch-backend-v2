@@ -216,7 +216,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("수정 후 누적액이 long 범위를 넘으면 기존 지출을 변경하지 않는다")
-    void rejectsUpdateThatOverflowsTotal() {
+    void manualExpense_updateOverflow_preservesExistingExpense() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
                 .thenReturn(Optional.of(expense(EXPENSE_ID, "기존 지출", 1, 0)));
