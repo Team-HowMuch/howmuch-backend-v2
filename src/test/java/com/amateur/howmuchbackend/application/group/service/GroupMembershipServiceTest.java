@@ -251,7 +251,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("OWNER가 REMOVED 멤버를 직접 복구한다")
-    void restoresRemovedMember() {
+    void groupMember_removedMember_ownerRestores() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OWNER_ID));
         User target = user(MEMBER_ID, "member.test", "멤버", true);
         when(loadUserPort.findByPublicId("member.test")).thenReturn(Optional.of(target));
