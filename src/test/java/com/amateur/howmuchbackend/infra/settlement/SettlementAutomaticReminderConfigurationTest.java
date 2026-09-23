@@ -37,7 +37,7 @@ class SettlementAutomaticReminderConfigurationTest {
     }
 
     @Test
-    void invalidIntervalFailsStartup() {
+    void automaticReminder_invalidInterval_startupRejected() {
         context.withPropertyValues("howmuch.settlement.automatic-reminder.poll-interval=-1s")
                 .run(app -> assertThat(app).hasFailed());
     }
