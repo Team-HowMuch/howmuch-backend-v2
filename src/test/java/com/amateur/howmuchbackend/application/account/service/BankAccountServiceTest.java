@@ -48,7 +48,7 @@ class BankAccountServiceTest {
 
     @Test
     @DisplayName("이미 연결된 은행은 CODEF 계정 수정 후 계좌 후보를 재조회한다")
-    void updatesCredentialsForExistingInstitution() {
+    void bankCredentials_existingBank_updatedAndRefetchesAccounts() {
         Long userId = 1L;
         Long connectionId = 7L;
         String connectedId = "CID-1";
