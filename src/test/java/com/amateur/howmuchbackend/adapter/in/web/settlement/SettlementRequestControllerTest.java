@@ -75,7 +75,7 @@ class SettlementRequestControllerTest {
 
     @Test
     @DisplayName("진행 중인 정산의 공유 URL과 만료 시각을 반환한다")
-    void getsShareLink() throws Exception {
+    void settlementShareLink_activeState_returnsUrlAndExpiry() throws Exception {
         when(getSettlementShareLinkUseCase.get(SETTLEMENT_ID)).thenReturn(
                 new SettlementShareLinkResult(
                         "https://howmuch.example/settlements/token",
