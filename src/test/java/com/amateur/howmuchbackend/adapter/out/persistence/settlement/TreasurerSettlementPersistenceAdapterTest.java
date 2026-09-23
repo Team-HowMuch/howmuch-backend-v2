@@ -48,7 +48,7 @@ class TreasurerSettlementPersistenceAdapterTest {
 
     @Test
     @DisplayName("배분 유형이 있으면 도메인 타입으로 옮긴다")
-    void mapsAllocationTypeWhenPresent() {
+    void settlementAllocationType_present_mappedToDomain() {
         SettlementJpaRepository.TreasurerSettlementProjection projection =
                 mock(SettlementJpaRepository.TreasurerSettlementProjection.class);
         when(projection.getStatus()).thenReturn("REQUESTED");
