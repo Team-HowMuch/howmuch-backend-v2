@@ -238,7 +238,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void inactiveUserDoesNotResetAttemptsOrIssueTokens() {
+    void loginAttempt_inactiveUser_keepsAttemptsAndIssuesNoToken() {
         when(encoder.matches(PIN, "synthetic-hash")).thenReturn(true);
         when(user.active()).thenReturn(false);
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.USER_INACTIVE);
