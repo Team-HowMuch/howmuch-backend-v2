@@ -274,7 +274,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("공백만 있는 상세는 저장하지 않는다")
-    void storesBlankDetailAsAbsent() {
+    void answerReport_blankDetail_storedAbsent() {
         UUID answerId = saveAnswer(owner, NOW);
 
         TreasurerAnswerReportResult result = reports.report(
