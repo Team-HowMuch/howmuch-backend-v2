@@ -43,7 +43,7 @@ class TreasurerLlmAdapterTest {
     }
 
     @Test
-    void returnsEmptyWhenGeminiKeyIsMissing() {
+    void treasurerLlm_missingGeminiKey_returnsEmpty() {
         TreasurerLlmAdapter adapter = adapter("gemini");
 
         assertThat(adapter.generate(draft())).isEmpty();
