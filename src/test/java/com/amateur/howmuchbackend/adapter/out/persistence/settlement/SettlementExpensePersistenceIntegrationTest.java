@@ -125,7 +125,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("V28 영수증 결제일을 nullable 값 그대로 저장하고 조회한다")
-    void savesAndLoadsReceiptPaidAt() {
+    void receiptPaidAt_nullability_preservedOnSaveAndLoad() {
         LocalDateTime paidAt = LocalDateTime.of(2026, 8, 31, 17, 40);
         SettlementExpense saved = settlementExpensePersistenceAdapter.save(
                 SettlementExpense.receiptOcr(
