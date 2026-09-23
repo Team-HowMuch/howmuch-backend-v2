@@ -167,7 +167,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("화면이 저장 순서대로 복원되도록 참여자를 displayOrder 오름차순으로 조회한다")
-    void loadsParticipantsInDisplayOrder() {
+    void settlementParticipants_displayOrder_ascending() {
         settlementParticipantPersistenceAdapter.save(unlinkedContact("c".repeat(64), "세 번째", 2));
         settlementParticipantPersistenceAdapter.save(unlinkedContact("a".repeat(64), "첫 번째", 0));
         settlementParticipantPersistenceAdapter.save(unlinkedContact("b".repeat(64), "두 번째", 1));
