@@ -661,7 +661,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("생성자가 아닌 사용자는 주소록 연락처를 매칭할 수 없다")
-    void rejectsContactMatchingForAnotherUser() {
+    void contactMatch_otherUser_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
