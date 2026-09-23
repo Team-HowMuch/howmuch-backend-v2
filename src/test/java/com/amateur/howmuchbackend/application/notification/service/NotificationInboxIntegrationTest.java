@@ -376,12 +376,12 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void recentManualReminderDefersAutomaticUntilCooldownPasses() {
+    void automaticReminder_afterManualReminder_defersToCooldown() {
         recorder.record(request());
         writer.manual(settlement, participant, creator);
         assertThat(due()).isEmpty();
         when(clock.instant()).thenReturn(NOW.plusMinutes(31).toInstant(ZoneOffset.UTC));
-        // Simulate Redis TTL expiration without sleeping or modifying other test keys.
+        // 실제 대기하거나 다른 테스트 키를 변경하지 않고 Redis TTL 만료를 재현한다.
         redis.delete("settlement:reminder:" + settlement + ":" + participant);
         assertThat(targets.findDue(NOW.plusMinutes(31).minusHours(12), NOW.plusMinutes(1), 50)).hasSize(1);
         assertThat(writer.automatic(candidate())).isTrue();
