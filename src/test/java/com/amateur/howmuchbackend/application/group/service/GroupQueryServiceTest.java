@@ -92,7 +92,7 @@ class GroupQueryServiceTest {
 
     @Test
     @DisplayName("활성 멤버가 저장된 그룹 이미지를 조회한다")
-    void getsGroupImage() {
+    void groupImage_activeMember_returnsStoredImage() {
         when(groupAccessService.loadActive(10L)).thenReturn(group());
         when(groupAccessService.requireActiveMember(10L, 1L)).thenReturn(member());
         when(groupImageStoragePort.load("image.jpg"))
