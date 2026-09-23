@@ -26,7 +26,7 @@ class TreasurerSettlementPersistenceAdapterTest {
 
     @Test
     @DisplayName("낼 정산에 내 몫이 아직 배분되지 않았으면 금액을 null로 담는다")
-    void keepsNullAmountWhenMyShareIsNotAllocatedYet() {
+    void treasurerShare_unallocatedAmount_returnsNull() {
         SettlementJpaRepository.TreasurerSettlementProjection projection =
                 mock(SettlementJpaRepository.TreasurerSettlementProjection.class);
         when(projection.getStatus()).thenReturn("REQUESTED");
