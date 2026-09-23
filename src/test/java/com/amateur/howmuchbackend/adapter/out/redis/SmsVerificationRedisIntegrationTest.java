@@ -100,7 +100,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void concurrentFailuresStopAtLimitAndRejectCorrectCode() throws Exception {
+    void smsOtp_concurrentFailures_atLimitRejectsCorrectCode() throws Exception {
         SmsVerificationRedisAdapter racing = synchronizedReads(8);
         List<Callable<SmsOtpState.Outcome>> calls = new ArrayList<>();
         for (int i = 0; i < 8; i++) calls.add(() -> fail(racing));
