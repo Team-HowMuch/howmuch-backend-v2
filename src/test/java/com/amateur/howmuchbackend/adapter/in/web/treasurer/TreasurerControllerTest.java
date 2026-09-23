@@ -79,7 +79,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("현황 요약을 반환한다")
-    void returnsSummary() throws Exception {
+    void treasurerSummary_request_returnsSummary() throws Exception {
         when(getTreasurerSummaryUseCase.getSummary()).thenReturn(new TreasurerSummaryResult(
                 30_000L, 1, 0L, 0, 1, 0, "보낼 정산 1건, 30,000원이 남아 있어요."
         ));
