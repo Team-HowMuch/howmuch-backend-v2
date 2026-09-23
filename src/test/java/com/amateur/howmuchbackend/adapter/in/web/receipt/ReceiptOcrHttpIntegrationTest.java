@@ -131,7 +131,7 @@ class ReceiptOcrHttpIntegrationTest {
 
     @Test
     @DisplayName("빈 파일은 400으로 거절한다")
-    void rejectsEmptyFile() throws Exception {
+    void receiptUpload_emptyFile_returnsBadRequest() throws Exception {
         assertError(post(accessToken, part("file", "receipt.jpg", "image/jpeg", new byte[0])),
                 400, "INVALID_RECEIPT_IMAGE");
     }
