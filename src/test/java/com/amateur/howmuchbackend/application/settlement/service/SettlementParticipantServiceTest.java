@@ -251,7 +251,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("정산에 속하지 않은 참여자의 아바타 요청은 PARTICIPANT_NOT_FOUND로 거부한다")
-    void rejectsAvatarForMissingParticipant() {
+    void participantAvatar_missingParticipant_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findBySettlementIdAndId(
