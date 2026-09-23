@@ -91,7 +91,7 @@ class ObservabilityHttpIntegrationTest {
     }
 
     @Test
-    void metricsAreAvailableOnlyThroughSeparateLoopbackManagementPort() throws Exception {
+    void managementMetrics_loopbackPort_only() throws Exception {
         get(port, "/api/v2/user/me");
         assertThat(managementPort).isNotEqualTo(port);
         assertThat(get(managementPort, "/actuator/health").statusCode()).isEqualTo(200);
