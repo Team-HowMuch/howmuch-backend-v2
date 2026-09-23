@@ -70,15 +70,14 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("읽지 못한 값은 null로 내보낸다")
-    void exposesUnreadValuesAsNull() throws Exception {
+    void receiptAnalysis_unreadValues_returnsNull() throws Exception {
         when(analyzeReceiptUseCase.analyze(any())).thenReturn(
                 new ReceiptAnalysisResult(null, null, List.of(), null, null, false));
 
         mockMvc.perform(multipart("/api/v2/receipts/ocr")
                         .file(image("bytes".getBytes(StandardCharsets.UTF_8))))
                 .andExpect(status().isOk())
-                // doesNotExist() 는 필드가 없을 때도 통과한다. 앱이 "값을 못 읽었다"를
-                // 판단하는 기준이 null 이므로 실제로 null 인지를 본다.
+                // 앱은 읽지 못한 필드를 생략하지 않고 null로 반환하므로 실제 null을 확인한다.
                 .andExpect(jsonPath("$.data.storeName").value(nullValue()))
                 .andExpect(jsonPath("$.data.totalAmount").value(nullValue()))
                 .andExpect(content().string(containsString("\"storeName\":null")))
