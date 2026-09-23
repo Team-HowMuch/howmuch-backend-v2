@@ -91,7 +91,7 @@ class GroupInviteIntegrationTest {
     }
 
     @Test
-    void invalidMissingAndDeletedInvitesAreNotFound() throws Exception {
+    void inviteLookup_missingOrDeleted_returnsNotFound() throws Exception {
         Group deleted = group(user("방장").id());
         groups.update(deleted.delete(NOW));
         for (String code : new String[]{"bad", "        ", codes.generate(), deleted.inviteCode()}) {
