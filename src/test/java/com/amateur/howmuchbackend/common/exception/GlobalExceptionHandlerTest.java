@@ -131,7 +131,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void serverSideMultipartFailureRemainsRetryable() throws Exception {
+    void multipart_serverFailure_remainsRetryable() throws Exception {
         // 임시 업로드 디렉터리가 꽉 찼거나 쓸 수 없을 때도 컨테이너는 같은 예외로 감싼다.
         // 그걸 400으로 돌려주면 클라이언트는 자기 요청을 고치려 들고 재시도하지 않는다.
         var expected = CommonStatusCode.TEMPORARILY_UNAVAILABLE;
