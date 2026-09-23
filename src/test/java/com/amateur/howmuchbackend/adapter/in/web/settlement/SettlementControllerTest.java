@@ -319,7 +319,7 @@ class SettlementControllerTest {
     }
 
     @Test
-    void rejectsInvalidYearMonth() throws Exception {
+    void settlementList_invalidYearMonth_rejected() throws Exception {
         for (String value : List.of("2026-13", "2026-00", "2026-9", "2026-09-01", "invalid",
                 "+999999999-12", "+294277-01", "+10000-01", "-0001-01", "0000-01",
                 "+02026-09", "", " 2026-09", "2026-09 ")) {
