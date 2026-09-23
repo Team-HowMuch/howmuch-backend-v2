@@ -187,7 +187,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("다른 링크에서 발급된 참여 문맥으로는 송금 정보를 조회할 수 없다")
-    void rejectsContextIssuedForAnotherLink() {
+    void transferInstruction_contextFromAnotherLink_rejected() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
                 new SettlementParticipantContext(
