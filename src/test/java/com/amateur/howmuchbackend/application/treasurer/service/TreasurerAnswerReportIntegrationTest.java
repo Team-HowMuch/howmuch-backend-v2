@@ -192,7 +192,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("정리는 배치 크기만큼만 지우고 남은 것은 다음 주기가 이어서 지운다")
-    void purgesInBatches() {
+    void answerCleanup_limitedBatch_deletesRemainderNextCycle() {
         for (int i = 0; i < 5; i++) {
             saveAnswer(owner, NOW.minusDays(31 + i));
         }
