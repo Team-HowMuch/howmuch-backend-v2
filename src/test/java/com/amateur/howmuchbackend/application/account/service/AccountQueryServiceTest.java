@@ -296,7 +296,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("연결 잠금 전에 계좌가 삭제되면 CODEF 조회 없이 404로 종료한다")
-    void rejectsAccountDeletedBeforeTransactionFetch() {
+    void accountTransactions_deletedBeforeFetch_notFoundWithoutCodef() {
         Account account = account(1L, "0020", true, 0);
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
         when(loadTransactionPort.findSummary(account.id(), AUGUST)).thenReturn(Optional.empty());
