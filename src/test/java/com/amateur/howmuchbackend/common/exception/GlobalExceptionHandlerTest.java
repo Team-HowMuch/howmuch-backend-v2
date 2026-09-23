@@ -103,7 +103,7 @@ class GlobalExceptionHandlerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"UNAUTHORIZED", "FORBIDDEN"})
-    void applicationAuthenticationAndAuthorizationErrorsArePreserved(String code) throws Exception {
+    void authenticationOrAuthorizationError_statusPreserved(String code) throws Exception {
         var expected = CommonStatusCode.valueOf(code);
         error(mvc.perform(get("/error-probe/application").param("code", code)),
                 expected.getStatus(), code, expected.getMessage());
