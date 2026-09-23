@@ -203,7 +203,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹멤버 출처 참여자가 속한 정산 상태를 중복 없이 조회한다")
-    void loadsDistinctSettlementStatusesForGroupMember() {
+    void groupMemberSettlementStatuses_duplicateStatuses_excluded() {
         settlementParticipantPersistenceAdapter.save(SettlementParticipant.groupMember(
                 settlementId,
                 groupId,
