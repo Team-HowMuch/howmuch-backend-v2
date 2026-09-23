@@ -144,7 +144,7 @@ public class GroupController implements GroupDocs {
     @PostMapping("/{groupId}/members")
     public ApiResponse<GroupMemberWebResponse> addGroupMember(
             @PathVariable Long groupId,
-            @Valid @RequestBody AddGroupMemberWebRequest request
+            @RequestBody AddGroupMemberWebRequest request
     ) {
         return ApiResponse.created(GroupMemberWebResponse.from(
                 groupId,
@@ -156,7 +156,7 @@ public class GroupController implements GroupDocs {
     @PutMapping("/{groupId}/owner")
     public ApiResponse<Void> transferGroupOwnership(
             @PathVariable Long groupId,
-            @Valid @RequestBody TransferGroupOwnershipWebRequest request
+            @RequestBody TransferGroupOwnershipWebRequest request
     ) {
         transferGroupOwnershipUseCase.transfer(groupId, request.toCommand());
         return ApiResponse.success();
