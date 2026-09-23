@@ -61,7 +61,7 @@ class UpdateGroupServiceTest {
 
     @Test
     @DisplayName("OWNER가 메모를 제거하고 이미지를 교체한다")
-    void updatesSettingsAndSchedulesImageReplacement() {
+    void groupSettings_ownerRequest_removesMemoAndReplacesImage() {
         Group group = group();
         GroupMember owner = owner();
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(1L));
