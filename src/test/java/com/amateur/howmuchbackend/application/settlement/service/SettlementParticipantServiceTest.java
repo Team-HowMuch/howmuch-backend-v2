@@ -603,7 +603,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("잘못된 휴대폰 번호가 포함된 연락처 매칭 요청을 거부한다")
-    void rejectsInvalidContactPhoneNumber() {
+    void contactMatch_invalidPhone_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
