@@ -242,7 +242,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("참여자 ID 누락을 UseCase 호출 전에 거부한다")
-    void rejectsAllocationWithoutParticipantId() throws Exception {
+    void dutchPayAllocation_missingParticipantId_returnsBadRequest() throws Exception {
         mockMvc.perform(put(
                         "/api/v2/settlements/{settlementId}/dutch-pay-allocations",
                         SETTLEMENT_ID
