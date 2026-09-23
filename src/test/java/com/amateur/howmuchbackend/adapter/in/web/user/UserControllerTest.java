@@ -74,7 +74,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("내 프로필은 nickname 없이 공개 ID를 반환한다")
-    void returnsPublicIdInMyProfile() throws Exception {
+    void userProfile_request_returnsPublicIdWithoutNickname() throws Exception {
         when(getMyProfileUseCase.getMyProfile()).thenReturn(result("current.id"));
 
         mockMvc.perform(get("/api/v2/user/me"))
