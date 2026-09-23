@@ -93,7 +93,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("질의 답변을 반환한다")
-    void returnsAnswer() throws Exception {
+    void treasurerAnswer_question_returnsAnswer() throws Exception {
         when(askTreasurerUseCase.ask(any())).thenReturn(answerResult());
 
         mockMvc.perform(post("/api/v2/treasurer/questions")
