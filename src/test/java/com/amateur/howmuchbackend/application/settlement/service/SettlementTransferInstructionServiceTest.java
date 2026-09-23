@@ -129,7 +129,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("은행 이름을 찾지 못하면 코드를 그대로 돌려준다")
-    void fallsBackToBankCodeWhenNameIsUnknown() {
+    void transferInstruction_unknownBankName_returnsBankCode() {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
