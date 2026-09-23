@@ -271,7 +271,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("입금·납부 거래로 연결된 정산을 함께 조회하고 작성 중 정산은 제외한다")
-    void loadsSettlementsLinkedByDepositAndPayment() {
+    void settlements_depositOrPaymentLinked_loadedWithoutDrafts() {
         String incomeKey = "d".repeat(64);
         String expenseKey = "e".repeat(64);
         String draftKey = "f".repeat(64);
