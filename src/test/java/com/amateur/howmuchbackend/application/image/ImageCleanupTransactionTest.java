@@ -141,7 +141,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void resetOrMissingPreviousImageIsSafe(boolean reset) {
+    void imageReset_missingPreviousImage_safe(boolean reset) {
         var storage = mock(GroupImageStoragePort.class);
         var support = new GroupImageTransactionSupport(storage);
         new TransactionTemplate(new TestTransactionManager()).executeWithoutResult(status ->
