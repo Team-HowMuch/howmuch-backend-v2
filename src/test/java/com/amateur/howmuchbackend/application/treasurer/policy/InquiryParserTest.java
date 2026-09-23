@@ -106,7 +106,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void classifiesColloquialSendExpressions() {
+    void colloquialSendPhrase_classified() {
         assertThat(parser.parse("내가 내야 할 돈 얼마야?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
         assertThat(parser.parse("아직 안 낸 정산 있어?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
         assertThat(parser.parse("나 아직 돈 안 냈어?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
