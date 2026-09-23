@@ -124,7 +124,7 @@ class SettlementPaymentExpenseControllerTest {
 
     @Test
     @DisplayName("양수가 아닌 계좌 ID와 결제내역 ID를 UseCase 호출 전에 거부한다")
-    void rejectsInvalidImportRequest() throws Exception {
+    void paymentExpenseImport_invalidIds_rejectedBeforeUseCase() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/expenses/payment-history",
                         SETTLEMENT_ID
