@@ -50,7 +50,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("3인분 중 2인분처럼 units와 fraction을 곱한 몫을 허용한다")
-    void allowsMultipleUnitsOfFraction() {
+    void itemAllocation_fractionAcrossMultipleUnits_allowed() {
         policy.validateSelection(
                 item(30_000),
                 List.of(selection(
