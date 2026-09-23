@@ -156,7 +156,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("유효한 API 인증으로도 서비스 포트의 관리 지표에 접근할 수 없다")
-    void rejectsManagementAccessWithValidApiToken() throws Exception {
+    void managementMetrics_validApiToken_servicePortAccessRejected() throws Exception {
         jdbc.update("UPDATE users SET role='ADMIN' WHERE id=?", userId);
         assertThat(request("GET", "/actuator/metrics", accessToken).statusCode()).isEqualTo(403);
         assertThat(request("GET", "/actuator/prometheus", accessToken).statusCode()).isEqualTo(403);
