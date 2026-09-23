@@ -149,7 +149,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("정산이 삭제되면 하위 참여자도 함께 삭제한다")
-    void deletesParticipantWithSettlement() {
+    void settlementDeletion_participants_cascaded() {
         SettlementParticipant participant = settlementParticipantPersistenceAdapter.save(
                 SettlementParticipant.registeredUser(
                         settlementId,
