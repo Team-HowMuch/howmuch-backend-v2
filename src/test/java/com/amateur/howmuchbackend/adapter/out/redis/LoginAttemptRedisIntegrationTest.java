@@ -215,7 +215,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void stateWithoutExpiryIsBlocked() {
+    void loginAttempt_noExpiry_remainsBlocked() {
         redis.opsForValue().set(key, "1");
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.PIN_ATTEMPTS_EXCEEDED);
         assertThat(redis.opsForValue().get(key)).isEqualTo("1");
