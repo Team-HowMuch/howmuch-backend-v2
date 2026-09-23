@@ -128,7 +128,7 @@ class SettlementItemPersistenceIntegrationTest {
 
     @Test
     @DisplayName("같은 OCR 참조를 동일 정산에 두 번 저장하면 전용 충돌 오류로 변환한다")
-    void rejectsDuplicateReceiptReference() {
+    void receiptReference_duplicateInSettlement_returnsConflict() {
         saveReceiptExpense("receipt-duplicate");
 
         assertThatThrownBy(() -> saveReceiptExpense("receipt-duplicate"))
