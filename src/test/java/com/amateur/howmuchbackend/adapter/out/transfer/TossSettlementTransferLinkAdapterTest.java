@@ -44,7 +44,7 @@ class TossSettlementTransferLinkAdapterTest {
 
     @Test
     @DisplayName("지원하지 않는 은행과 유효하지 않은 송금 입력은 링크를 만들지 않는다")
-    void rejectsUnsupportedOrInvalidInput() {
+    void tossTransferLink_unsupportedBankOrInvalidInput_rejected() {
         when(bankCatalog.findTossDeepLinkBankName("0090")).thenReturn(Optional.empty());
 
         assertThat(adapter.create("0090", "1002123456789", 6_000, "최수아")).isEmpty();
