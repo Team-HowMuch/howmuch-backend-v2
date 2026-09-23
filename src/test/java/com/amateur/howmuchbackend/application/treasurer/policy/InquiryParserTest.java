@@ -70,7 +70,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void prefersTheEarlierSendOrReceiveKeyword() {
+    void sendIntent_competingKeywords_earlierPreferred() {
         InquiryParser.ParsedInquiry receiveFirst = parser.parse("받을 사람한테 보낼 돈은 얼마야?");
         InquiryParser.ParsedInquiry sendFirst = parser.parse("보낼 정산에서 받을 사람 있어?");
 
