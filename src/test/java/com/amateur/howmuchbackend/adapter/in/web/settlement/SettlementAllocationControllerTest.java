@@ -133,7 +133,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("0원은 허용하고 수정 뒤 최신 불균형 상태를 반환한다")
-    void updatesDutchPayAmountToZero() throws Exception {
+    void dutchPayAllocation_zeroAmount_updatesAndReturnsLatestState() throws Exception {
         SettlementDutchPayResult updated = new SettlementDutchPayResult(
                 SETTLEMENT_ID,
                 1_000,
