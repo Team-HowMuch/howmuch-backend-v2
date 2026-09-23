@@ -43,7 +43,7 @@ class SettlementTransferLinkConfigTest {
 
     @ParameterizedTest
     @CsvSource({"local,toss", "dev,toss", "prod,mock", "none,mock"})
-    void environmentOverridesProfileDefault(String profile, String selection) {
+    void transferLinkConfig_environmentSelection_overridesProfile(String profile, String selection) {
         runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", selection))
                 .withPropertyValues("spring.profiles.active=" + profile).run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(SettlementTransferLinkPort.class);
