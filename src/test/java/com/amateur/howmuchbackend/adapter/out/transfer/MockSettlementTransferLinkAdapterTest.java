@@ -98,7 +98,7 @@ class MockSettlementTransferLinkAdapterTest {
     }
 
     @Test
-    void rejectsUnsupportedBank() {
+    void mockTransferLink_unsupportedBank_rejected() {
         when(bankCatalog.findBankName("9999")).thenReturn(Optional.empty());
         assertThat(adapter.create("9999", "123", 1, "예금주")).isEmpty();
     }
