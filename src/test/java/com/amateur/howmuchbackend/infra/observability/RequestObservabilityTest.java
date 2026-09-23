@@ -129,7 +129,7 @@ class RequestObservabilityTest {
 
     @ParameterizedTest
     @ValueSource(ints = {400, 401, 403, 404, 409, 429, 500, 503})
-    void failuresUseFixedTagsAndCorrelateLogsWithoutRequestValues(int status) throws Exception {
+    void requestFailure_fixedTagsAndSafeLogCorrelation(int status) throws Exception {
         var request = request("/api/v2/settlement-links/" + SECRET + "/resource");
         request.addHeader("Authorization", SECRET);
         request.setQueryString("otp=" + SECRET);
