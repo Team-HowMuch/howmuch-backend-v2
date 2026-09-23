@@ -821,7 +821,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersQuickActionStatusAsSummaryCard() {
+    void quickStatusAction_returnsSummaryCard() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
