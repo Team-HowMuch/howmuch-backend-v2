@@ -58,7 +58,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void missingRequiredParameterReturnsInvalidArgument() throws Exception {
+    void requiredParameter_missing_returnsInvalidArgument() throws Exception {
         invalidArgument(mvc.perform(get(CANDIDATES)));
         verifyNoInteractions(candidates, importer);
     }
