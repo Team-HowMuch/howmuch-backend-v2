@@ -290,7 +290,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("비회원 연락처는 연결된 회원 정보 없이 PROFILE_IMAGE_NOT_FOUND를 반환한다")
-    void rejectsAvatarForUnlinkedContact() {
+    void participantAvatar_unlinkedContact_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findBySettlementIdAndId(
