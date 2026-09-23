@@ -142,7 +142,7 @@ class SettlementParticipantTest {
     @ParameterizedTest
     @ValueSource(longs = {0, -1})
     @DisplayName("그룹 참여자는 양수 출처 그룹 ID가 있어야 한다")
-    void rejectsInvalidSourceGroupId(long sourceGroupId) {
+    void participant_sourceGroupId_nonPositive_rejected(long sourceGroupId) {
         assertThatThrownBy(() -> SettlementParticipant.groupMember(
                 SETTLEMENT_ID,
                 sourceGroupId,
