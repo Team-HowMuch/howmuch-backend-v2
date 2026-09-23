@@ -81,7 +81,7 @@ class GroupTest {
 
     @Test
     @DisplayName("생성자는 활성 OWNER 멤버십이 된다")
-    void createsOwnerMembership() {
+    void group_creatorMembership_activeOwner() {
         GroupMember owner = GroupMember.owner(10L, 1L, NOW);
 
         assertThat(owner.role()).isEqualTo(GroupMemberRole.OWNER);
