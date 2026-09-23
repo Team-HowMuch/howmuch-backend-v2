@@ -50,7 +50,7 @@ class SettlementParticipantContextRedisAdapterTest {
 
     @Test
     @DisplayName("링크와 참여자가 같은 유효 문맥을 원자 발급하고 재사용한다")
-    void issuesOrReusesContextAtomically() throws Exception {
+    void participantContext_sameRequest_issuedOrReused() throws Exception {
         UUID settlementId = UUID.randomUUID();
         UUID participantId = UUID.randomUUID();
         var storedContext = new SettlementParticipantContext(
