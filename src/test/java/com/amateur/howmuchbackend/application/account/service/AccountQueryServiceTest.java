@@ -195,7 +195,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("현재 월 refresh marker가 만료되면 CODEF를 다시 조회한다")
-    void refreshesCurrentMonthWhenRefreshMarkerIsExpired() {
+    void accountSummary_expiredRefreshMarker_refreshedFromCodef() {
         YearMonth currentMonth = SEPTEMBER;
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
