@@ -255,7 +255,7 @@ class SettlementTransferInstructionServiceTest {
             "SUSPENDED, 4000, 6000"
     })
     @DisplayName("본인 Share의 확인된 입금만 차감하고 완납이면 링크를 생성하지 않는다")
-    void reflectsRemainingAmount(SettlementStatus status, long confirmedAmount, long expectedAmount) {
+    void transferInstruction_partialDeposit_subtractsConfirmedAmount(SettlementStatus status, long confirmedAmount, long expectedAmount) {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(status)));
