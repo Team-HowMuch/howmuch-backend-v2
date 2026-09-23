@@ -370,7 +370,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("잠금 조회가 쓰기 가능한 트랜잭션에서 연결 ID를 복호화한다")
-    void loadsConnectionWithPessimisticLock() {
+    void bankConnection_lockedLookup_decryptsConnectionId() {
         assertThat(connectionAdapter.findActiveByIdAndUserId(connectionId, userId))
                 .hasValueSatisfying(connection -> assertThat(connection.connectedId()).isEqualTo("CID-TEST"));
     }
