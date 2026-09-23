@@ -218,7 +218,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void bulkRemindsRequestedParticipantsWithoutShare() {
+    void bulkReminder_requestedWithoutShare_notified() {
         givenRequestedTargetWithoutShare();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(requestedSettlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
