@@ -55,7 +55,7 @@ class SettlementItemSelectionTest {
     @ParameterizedTest
     @ValueSource(ints = {0, -1})
     @DisplayName("1개 미만인 수량은 거부한다")
-    void rejectsInvalidUnits(int units) {
+    void itemSelection_quantityBelowOne_rejected(int units) {
         assertThatThrownBy(() -> selection(SettlementItemAllocationFraction.HALF, units))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
