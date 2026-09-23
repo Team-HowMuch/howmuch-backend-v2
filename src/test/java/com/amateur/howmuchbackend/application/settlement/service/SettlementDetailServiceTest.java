@@ -550,7 +550,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("표시 대상 사용자를 일괄 조회해 파일명 기반 사진 버전을 반환한다")
-    void returnsAvatarPresenceForLinkedUsersOnly() {
+    void settlementDetail_linkedUsers_returnsAvatarVersions() {
         givenSettlement(CREATOR_ID);
         User payer = mock(User.class);
         when(payer.id()).thenReturn(PAYER_ID);
