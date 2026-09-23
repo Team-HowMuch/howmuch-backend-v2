@@ -228,7 +228,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("항목 배열에 null 원소가 섞여도 500이 되지 않는다")
-    void survivesNullItemElements() {
+    void receiptOcr_nullItem_doesNotFail() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess("""
                         {"ok": true, "result": {"store_name": "가게", "total_verified": true,
