@@ -185,7 +185,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("식별할 수 없는 정산이 생성되지 않도록 빈 제목을 INVALID_ARGUMENT로 거부한다")
-    void rejectsBlankTitle() throws Exception {
+    void settlementTitle_blank_returnsInvalidArgument() throws Exception {
         mockMvc.perform(post("/api/v2/settlements")
                         .contentType("application/json")
                         .content("""
