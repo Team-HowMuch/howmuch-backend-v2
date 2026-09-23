@@ -290,7 +290,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void missingKeyAndWrongRequestDoNotIssueSuccess() {
+    void smsOtp_missingKeyOrWrongRequest_noSuccess() {
         assertThat(adapter.verifyAndConsume(phoneHash, "old-request", initial.codeHash(), 5))
                 .isEqualTo(CODE_MISMATCH);
         assertThat(storedState()).contains(initial);
