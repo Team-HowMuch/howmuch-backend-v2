@@ -129,7 +129,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("수동 지출에 외부 참조가 있거나 결제내역에 외부 참조가 없으면 거부한다")
-    void validatesSourceReferenceByExpenseSource() {
+    void expenseSource_inconsistentReference_rejected() {
         assertThatThrownBy(() -> new SettlementExpense(
                 UUID.randomUUID(),
                 SETTLEMENT_ID,
