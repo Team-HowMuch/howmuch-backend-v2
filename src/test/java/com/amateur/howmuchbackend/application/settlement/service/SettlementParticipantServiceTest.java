@@ -410,7 +410,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("미추가 활성 회원 후보의 저장된 아바타를 반환한다")
-    void getsParticipantCandidateAvatar() {
+    void participantCandidateAvatar_activeMember_returnsStored() {
         ProfileImage image = new ProfileImage("image/png", new byte[]{1, 2, 3});
         User candidate = user(OTHER_USER_ID, "sua.alpha", "candidate.png");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
