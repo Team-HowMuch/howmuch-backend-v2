@@ -37,7 +37,7 @@ class GroupTest {
 
     @Test
     @DisplayName("20자를 초과한 이름을 거절한다")
-    void rejectsLongName() {
+    void group_nameOver20Characters_rejected() {
         assertThatThrownBy(() -> Group.create("가".repeat(21), null, null, 1L, "AB12CD34", NOW))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(GroupStatusCode.INVALID_GROUP_NAME));
