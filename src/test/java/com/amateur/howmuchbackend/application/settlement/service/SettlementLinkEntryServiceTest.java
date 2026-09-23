@@ -295,7 +295,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("영수증이 두 건 이상이면 어느 가게인지 정할 수 없어 비운다")
-    void leavesReceiptInfoEmptyWhenAmbiguous() {
+    void settlementLink_ambiguousReceipts_paymentInfoEmpty() {
         arrangeItemAllocationAccess();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
                 List.of(
