@@ -162,7 +162,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("이미 제출했으면 다시 고칠 수 없다")
-    void rejectsEditAfterSubmission() {
+    void creatorItemAllocation_afterSubmission_editRejected() {
         arrangeCreatorAccess(SettlementStatus.DRAFT);
         when(allocationStorePort.findSubmission(SETTLEMENT_ID, CREATOR_PARTICIPANT_ID))
                 .thenReturn(Optional.of(SettlementItemSubmission.submit(
