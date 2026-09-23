@@ -27,7 +27,7 @@ class TossSettlementTransferLinkAdapterTest {
 
     @Test
     @DisplayName("은행명은 URL 인코딩하고 계좌번호의 하이픈은 제거한다")
-    void createsTossTransferLink() {
+    void tossTransferLink_supportedBank_createsEncodedLink() {
         when(bankCatalog.findTossDeepLinkBankName("0004"))
                 .thenReturn(Optional.of("KB국민은행"));
 
