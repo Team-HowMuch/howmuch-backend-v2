@@ -88,7 +88,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("multipart 공개 ID 입력을 Application Command로 전달하고 변경 결과를 반환한다")
-    void updatesPublicId() throws Exception {
+    void userPublicId_multipartRequest_mapsCommandAndReturnsResult() throws Exception {
         when(updateMyProfileUseCase.update(any(UpdateMyProfileCommand.class)))
                 .thenReturn(result("new.id_1"));
 
