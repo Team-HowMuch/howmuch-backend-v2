@@ -96,7 +96,7 @@ class CommonCodePersistenceAdapterCacheTest {
 
     @Test
     @DisplayName("TTL 만료 후 활성 CommonCode를 다시 조회한다")
-    void reloadsAfterTtl() {
+    void commonCodeCache_ttlExpired_reloadsActiveCode() {
         CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
                 new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
         );
