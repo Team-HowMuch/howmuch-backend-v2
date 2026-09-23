@@ -53,7 +53,7 @@ class GetTreasurerSummaryServiceTest {
     }
 
     @Test
-    void keepsDraftOutOfSendAndReceiveTotals() {
+    void summary_draftExcludedFromSendAndReceiveTotals() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
