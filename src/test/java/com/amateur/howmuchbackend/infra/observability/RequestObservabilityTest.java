@@ -103,7 +103,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void doesNotCreateTraceHeaderWithoutAnActiveSpan() throws Exception {
+    void requestObservability_noActiveSpan_noTraceHeader() throws Exception {
         when(tracer.currentSpan()).thenReturn(null);
         var response = new MockHttpServletResponse();
         filter.doFilter(request("/api/v2/auth/login"), response, (req, res) -> {});
