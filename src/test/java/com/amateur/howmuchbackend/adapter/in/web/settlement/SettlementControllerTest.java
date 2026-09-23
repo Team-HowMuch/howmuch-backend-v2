@@ -281,7 +281,7 @@ class SettlementControllerTest {
     }
 
     @Test
-    void bindsCompletedYearMonthAndReturnsCompletedAt() throws Exception {
+    void settlementList_completedMonth_returnsCompletedAt() throws Exception {
         var month = java.time.YearMonth.of(2026, 9);
         var completedAt = LocalDateTime.of(2026, 9, 1, 0, 0);
         when(getSettlementsUseCase.get(new GetSettlementsCommand(
