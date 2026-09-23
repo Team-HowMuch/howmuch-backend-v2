@@ -804,7 +804,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("null 연락처 항목은 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
-    void rejectsNullContactMatchingItem() throws Exception {
+    void settlementContactMatch_nullItem_returnsInvalidArgument() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
                         SETTLEMENT_ID
