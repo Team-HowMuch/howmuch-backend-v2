@@ -37,7 +37,7 @@ class InquiryScopePolicyTest {
             "주식 추천해줘.",
             "공원이 어디야?"
     })
-    void treatsQuestionsWithoutServiceVocabularyAsUnrelated(String question) {
+    void questionWithoutServiceVocabulary_unrelated(String question) {
         assertThat(policy.classify(question)).isEqualTo(InquiryScope.UNRELATED);
     }
 
