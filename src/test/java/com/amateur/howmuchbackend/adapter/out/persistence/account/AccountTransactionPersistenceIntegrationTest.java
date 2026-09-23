@@ -314,7 +314,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("새 거래가 실제 저장된 월만 기존 월 요약을 무효화한다")
-    void invalidatesOnlyChangedMonthlySummary() {
+    void monthlySummary_newTransactions_invalidateOnlyWrittenMonths() {
         Transaction first = transaction(
                 "e".repeat(64), AccountTransactionType.EXPENSE, "1000",
                 LocalDateTime.of(2026, 8, 20, 0, 15)
