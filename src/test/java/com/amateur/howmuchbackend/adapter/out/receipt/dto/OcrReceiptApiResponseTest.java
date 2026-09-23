@@ -81,7 +81,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("items가 없으면 빈 목록이 된다")
-    void treatsMissingItemsAsEmpty() {
+    void receiptOcr_missingItems_returnsEmptyList() {
         String body = "{\"ok\": true, \"result\": {\"store_name\": \"가게\", \"total_verified\": false}}";
 
         assertThat(strict.readValue(body, OcrReceiptApiResponse.class).toResult().items()).isEmpty();
