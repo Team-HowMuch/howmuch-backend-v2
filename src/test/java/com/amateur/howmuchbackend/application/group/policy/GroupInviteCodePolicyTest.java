@@ -36,7 +36,7 @@ class GroupInviteCodePolicyTest {
 
     @Test
     @DisplayName("생성한 초대 코드는 8자리 대문자 영숫자다")
-    void generatesInviteCode() {
+    void groupInviteCode_generated_eightUppercaseAlphanumeric() {
         assertThat(policy.generate()).matches("^[A-Z0-9]{8}$");
     }
 
