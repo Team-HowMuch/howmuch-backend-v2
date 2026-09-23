@@ -105,7 +105,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("V11 스키마에 지출을 표시 순서대로 저장하고 누적액을 계산한다")
-    void savesAndLoadsExpenses() {
+    void settlementExpenses_displayOrder_savedAndTotalCalculated() {
         settlementExpensePersistenceAdapter.save(manualExpense("카페", 8_000, 1));
         settlementExpensePersistenceAdapter.save(manualExpense("저녁 식사", 42_000, 0));
 
