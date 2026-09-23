@@ -84,7 +84,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("기관 필터와 최근 정렬 결과를 공개 계좌번호 없이 반환한다")
-    void getsAccounts() throws Exception {
+    void accounts_byInstitutionAndRecentOrder_hidePublicNumber() throws Exception {
         var query = new GetAccountsQuery("0020", AccountSort.RECENT);
         when(getAccountsUseCase.getAccounts(query)).thenReturn(List.of(new AccountSummaryResult(
                 1L, "0020", "우리은행", "woori.png", "생활비 통장", "****6789",
