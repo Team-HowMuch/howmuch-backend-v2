@@ -222,7 +222,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void automaticReminderDefersQuietHoursAndRepeatsFromActualDelivery() {
+    void automaticReminder_quietHoursDeferred_repeatsFromDeliveryTime() {
         recorder.record(request());
         LocalDateTime quietStart = LocalDateTime.of(2026, 9, 5, 18, 0); // KST 03:00
         replaceShareCreatedAt(quietStart.minusHours(12));
