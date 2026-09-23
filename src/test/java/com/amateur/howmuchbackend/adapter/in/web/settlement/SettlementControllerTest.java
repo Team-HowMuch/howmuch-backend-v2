@@ -705,7 +705,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("후보 아바타 URL에서 원본 Content-Type과 바이트를 반환한다")
-    void getsSettlementParticipantCandidateAvatar() throws Exception {
+    void participantAvatar_urlRequest_returnsOriginalBytes() throws Exception {
         byte[] imageContent = {(byte) 0x89, 0x50, 0x4E, 0x47};
         when(getSettlementParticipantCandidateAvatarUseCase.get(SETTLEMENT_ID, "sua.alpha"))
                 .thenReturn(new ProfileImage("image/png", imageContent));
