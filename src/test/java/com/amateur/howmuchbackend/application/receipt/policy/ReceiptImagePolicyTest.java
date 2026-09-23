@@ -74,7 +74,7 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("비었거나 없으면 거절한다")
-    void rejectsEmpty() {
+    void receiptImage_emptyOrMissing_rejected() {
         assertThatThrownBy(() -> policy.detectMediaType(new byte[0]))
                 .isInstanceOf(ApplicationException.class);
         assertThatThrownBy(() -> policy.detectMediaType(null))
