@@ -218,7 +218,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("없는 정산의 참여자 목록은 SETTLEMENT_NOT_FOUND로 거부한다")
-    void rejectsParticipantListForMissingSettlement() {
+    void participantList_missingSettlement_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.empty());
 
