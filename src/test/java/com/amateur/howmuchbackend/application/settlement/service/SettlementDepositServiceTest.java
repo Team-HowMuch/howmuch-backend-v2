@@ -323,7 +323,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("외부 거래 조회 장애는 계좌와 정산 잠금을 획득하기 전에 전파한다")
-    void externalFailureDoesNotAcquireDatabaseLocks() {
+    void settlementDeposit_externalFailure_beforeDatabaseLocks() {
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
