@@ -155,7 +155,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void releasesOnlyOwnedReservationOnCommitFailure() {
+    void reminder_commitFailure_releasesOwnedReservation() {
         givenTarget();
         when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
         when(recorder.record(any())).thenReturn(true);
