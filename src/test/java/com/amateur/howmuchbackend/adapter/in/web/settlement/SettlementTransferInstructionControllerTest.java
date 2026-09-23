@@ -95,7 +95,7 @@ class SettlementTransferInstructionControllerTest {
 
     @Test
     @DisplayName("완납 응답은 0원과 빈 링크 배열을 유지한다")
-    void returnsPaidInstructionWithoutLinks() throws Exception {
+    void transferInstruction_paidState_returnsZeroAndNoLinks() throws Exception {
         when(getUseCase.get(TOKEN, CONTEXT_ID)).thenReturn(new SettlementTransferInstructionResult(
                 SETTLEMENT_ID, PARTICIPANT_ID, SHARE_ID, 0,
                 "최수아", "0020", "우리은행", "1002123456789", List.of()
