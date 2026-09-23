@@ -33,7 +33,7 @@ class SettlementTransferLinkConfigTest {
     }
 
     @Test
-    void defaultLocalProfileUsesMock() {
+    void transferLinkConfig_localProfile_mockSelected() {
         runner(Map.of()).run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(SettlementTransferLinkPort.class);
             assertThat(context.getBean(SettlementTransferLinkPort.class))
