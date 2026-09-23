@@ -111,8 +111,8 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("image/jpeg라고 선언한 PDF는 OCR까지 보내지 않는다")
-    void rejectsDisguisedPdfBeforeCallingOcr() {
-        // OCR 한 건은 수 초짜리 GPU 작업이다. 읽지 못할 것이 뻔한 요청을 보내면 안 된다.
+    void receiptAnalysis_pdfClaimedAsJpeg_rejectedBeforeOcr() {
+        // OCR 요청은 수 초의 GPU 자원을 사용하므로 읽을 수 없는 파일은 전송 전에 거부한다.
         byte[] pdf = "%PDF-1.7\nfake".getBytes(StandardCharsets.UTF_8);
 
         assertThatThrownBy(() -> service().analyze(new AnalyzeReceiptCommand("a.jpg", "image/jpeg", pdf)))
