@@ -190,7 +190,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void extractsSingleCharacterTitle() {
+    void titleHint_singleCharacter_extracted() {
         InquiryParser.ParsedInquiry parsed = parser.parse("봄 정산에서 받을 돈 있어?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
