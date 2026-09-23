@@ -26,7 +26,6 @@ import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
-import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;

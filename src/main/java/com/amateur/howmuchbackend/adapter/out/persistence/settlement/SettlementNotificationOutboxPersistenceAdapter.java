@@ -5,7 +5,6 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.Sett
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementNotificationOutboxJpaRepository;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementNotificationOutboxPort;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
-import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutboxStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;

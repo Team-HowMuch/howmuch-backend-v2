@@ -2,7 +2,6 @@ package com.amateur.howmuchbackend.application.settlement.policy;
 
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
-import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementDutchPayAllocation;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
