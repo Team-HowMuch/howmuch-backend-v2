@@ -162,7 +162,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("생성자만 지출을 바꿀 수 있도록 다른 사용자의 등록을 저장하지 않는다")
-    void rejectsCreationByAnotherUser() {
+    void manualExpense_otherUser_notSaved() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
 
