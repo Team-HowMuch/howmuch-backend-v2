@@ -205,7 +205,7 @@ class LoginAttemptRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"5", "6", "invalid", "generation:invalid"})
-    void lockedOrMalformedLegacyStateIsPreserved(String state) {
+    void loginAttempt_legacyState_lockedOrMalformed_preserved(String state) {
         redis.opsForValue().set(key, state, LOCK);
         long ttl = redis.getExpire(key, TimeUnit.MILLISECONDS);
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.PIN_ATTEMPTS_EXCEEDED);
