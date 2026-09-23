@@ -64,7 +64,7 @@ class CommonCodeListPersistenceIntegrationTest {
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "\t\n"})
     @DisplayName("검색어가 없거나 공백이면 전체 목록의 빈 그룹·비활성 상세·요약 필드를 유지한다")
-    void wholeListPreservesCountsOrderAndSummaryFields(String keyword) {
+    void commonCodeList_blankSearch_preservesCountsOrderAndSummary(String keyword) {
         var last = insertGroup(prefix + "C", "비활성 그룹", "설명 C", false, 7, 1);
         var first = insertGroup(prefix + "A", "빈 그룹", null, true, 3, 0);
         var middle = insertGroup(prefix + "B", "활성·비활성 상세", "설명 B", true, 5, 2);
