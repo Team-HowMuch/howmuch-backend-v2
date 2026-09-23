@@ -579,7 +579,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("공개 ID 후보 검색 결과에 공개 정보와 보호된 아바타 URL만 반환한다")
-    void searchesSettlementParticipantCandidates() throws Exception {
+    void participantSearch_publicId_returnsPublicFieldsAndAvatarUrl() throws Exception {
         when(searchSettlementParticipantUseCase.searchByPublicId(eq(SETTLEMENT_ID), any()))
                 .thenReturn(List.of(
                         new SettlementParticipantCandidateResult(
