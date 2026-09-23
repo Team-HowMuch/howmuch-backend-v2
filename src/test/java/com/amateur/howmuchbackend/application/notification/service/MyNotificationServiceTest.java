@@ -47,7 +47,7 @@ class MyNotificationServiceTest {
         assertThat(last.items().getFirst().action().enabled()).isFalse();
         verifyNoInteractions(read);
     }
-    @Test void emptyPageAndCount() {
+    @Test void notificationList_emptyPage_returnsEmptyAndCount() {
         when(load.findPage(2L,null,null,21)).thenReturn(List.of());
         assertThat(service.get(new GetMyNotificationsCommand(null,null)).items()).isEmpty();
         when(load.countUnread(2L)).thenReturn(4L);
