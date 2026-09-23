@@ -69,7 +69,7 @@ class AuthRecordMaskingTest {
 
     @ParameterizedTest(name = "{0}: JSON, accessors and record equality remain intact")
     @MethodSource("contracts")
-    void preservesContracts(Class<?> type) throws Exception {
+    void authRecord_serializationAndEquality_preserved(Class<?> type) throws Exception {
         Object original = fixture(type, false);
         String json = mapper.writeValueAsString(original);
         Object copy = mapper.readValue(json, type);
