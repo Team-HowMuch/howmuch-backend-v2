@@ -54,7 +54,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("인증 없이 활성 계정의 휴대폰 번호 가입 여부를 확인한다")
-    void returnsRegisteredForActiveUserWithoutAuthentication() throws Exception {
+    void phoneRegistration_activeUserWithoutAuth_returnsTrue() throws Exception {
         String phoneNumber = randomPhoneNumber();
         String clientAddress = randomClientAddress();
         Long userId = insertUser(phoneNumber, true);
