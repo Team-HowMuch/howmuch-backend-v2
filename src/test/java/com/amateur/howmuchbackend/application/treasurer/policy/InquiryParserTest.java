@@ -28,7 +28,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void extractsSettlementTitleWithoutQuestionRemainder() {
+    void titleHint_settlementTitle_extractedWithoutQuestionRemainder() {
         InquiryParser.ParsedInquiry parsed = parser.parse("회식 정산에서 받을 돈 있어?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
