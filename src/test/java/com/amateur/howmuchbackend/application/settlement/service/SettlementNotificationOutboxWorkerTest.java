@@ -130,7 +130,7 @@ class SettlementNotificationOutboxWorkerTest {
     }
 
     @Test
-    void retriesDeliveryFailurePreservingNotificationId() {
+    void notificationOutbox_deliveryFailure_retriesWithSameId() {
         var notification = com.amateur.howmuchbackend.application.notification.service.NotificationMessages.request(
                 SETTLEMENT_ID, 1L, com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType.DUTCH_PAY,
                 "요청자", CREATED_AT);
