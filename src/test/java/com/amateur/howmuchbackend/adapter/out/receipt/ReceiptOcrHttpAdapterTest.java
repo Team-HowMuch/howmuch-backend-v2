@@ -98,9 +98,9 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("파일 이름이 없어도 파트에 이름을 붙인다")
-    void alwaysSendsAFileName() {
+    void receiptOcr_missingFilename_addsFilename() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
-                // 이름 없는 파트를 파일로 보지 않는 서버가 있다.
+                // 서버가 파트를 파일로 인식하도록 파일 이름을 항상 지정한다.
                 .andExpect(request -> assertThat(request.getBody().toString()).contains("filename="))
                 .andRespond(withSuccess(okBody(), MediaType.APPLICATION_JSON));
 
