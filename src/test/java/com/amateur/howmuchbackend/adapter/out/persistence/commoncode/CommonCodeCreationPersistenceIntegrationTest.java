@@ -82,7 +82,7 @@ class CommonCodeCreationPersistenceIntegrationTest {
     }
 
     @Test
-    void concurrentInsertsHaveExactlyOneWinner() throws Exception {
+    void commonCodeCreation_concurrentInserts_haveOneWinner() throws Exception {
         var barrier = new CyclicBarrier(2);
         var synchronizedLoad = mock(LoadCommonCodeGroupPort.class);
         when(synchronizedLoad.findByGroupCode(groupCode)).thenAnswer(call -> {
