@@ -42,7 +42,7 @@ class InquiryScopePolicyTest {
     }
 
     @Test
-    void treatsBlankQuestionAsUnrelated() {
+    void blankQuestion_unrelated() {
         assertThat(policy.classify(null)).isEqualTo(InquiryScope.UNRELATED);
         assertThat(policy.classify(" ")).isEqualTo(InquiryScope.UNRELATED);
     }
