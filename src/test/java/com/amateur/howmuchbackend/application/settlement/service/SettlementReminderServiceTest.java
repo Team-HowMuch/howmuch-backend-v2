@@ -167,7 +167,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void releasesReservationWhenStorageFails() {
+    void reminder_storageFailure_releasesReservation() {
         givenTarget();
         when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
         when(recorder.record(any())).thenThrow(new IllegalStateException("database unavailable"));
