@@ -177,7 +177,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("생성자가 삭제 가능한 정산을 삭제한다")
-    void deletesSettlement() throws Exception {
+    void settlementDeletion_creatorRequest_succeeds() throws Exception {
         mockMvc.perform(delete("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
