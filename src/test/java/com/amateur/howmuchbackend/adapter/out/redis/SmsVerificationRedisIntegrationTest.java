@@ -471,7 +471,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void realCooldownExpiryAllowsReplacementWhileOtpRemains() throws Exception {
+    void smsOtp_cooldownExpiresBeforeOtp_allowsReplacement() throws Exception {
         redis.delete(key);
         SmsVerificationPolicy shortCooldown = new SmsVerificationPolicy(
                 policy.otpTtl(), policy.challengeTtl(), Duration.ofMillis(80), 5);
