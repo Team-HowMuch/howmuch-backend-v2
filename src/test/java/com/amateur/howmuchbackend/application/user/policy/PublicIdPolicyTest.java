@@ -45,7 +45,7 @@ class PublicIdPolicyTest {
 
     @Test
     @DisplayName("빈 값이나 허용되지 않은 문자를 포함한 공개 ID 검색어를 거부한다")
-    void rejectsInvalidPublicIdSearchPrefix() {
+    void publicIdPrefix_blankOrInvalidCharacters_rejected() {
         List<String> invalidValues = List.of("", "   ", "a".repeat(21), "수아", "sua-01", "sua 01");
 
         for (String invalidValue : invalidValues) {
