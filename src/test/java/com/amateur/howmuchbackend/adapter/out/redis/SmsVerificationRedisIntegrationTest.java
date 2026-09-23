@@ -300,7 +300,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void legacyJsonWithoutConsumedCanBeVerifiedOnce() {
+    void smsOtp_legacyJson_verifiedOnce() {
         String legacy = mapper.writeValueAsString(initial).replace(",\"consumed\":false", "");
         assertThat(legacy).doesNotContain("consumed");
         redis.opsForValue().set(key, legacy, Duration.ofMinutes(3));
