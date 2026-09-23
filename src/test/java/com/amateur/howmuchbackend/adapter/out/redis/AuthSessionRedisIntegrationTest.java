@@ -80,7 +80,7 @@ class AuthSessionRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void delayedRefreshCannotRestoreLogoutOrOverwriteLogin(boolean login) throws Exception {
+    void authSession_delayedRefresh_preservesLogoutAndNewLogin(boolean login) throws Exception {
         TokenResult initial = service.issueNewSession(user);
         CountDownLatch validated = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
