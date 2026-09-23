@@ -115,7 +115,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void classifiesColloquialReceiveExpressions() {
+    void colloquialReceivePhrase_classified() {
         assertThat(parser.parse("돈 언제 들어와?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
         assertThat(parser.parse("들어올 돈 있어?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
     }
