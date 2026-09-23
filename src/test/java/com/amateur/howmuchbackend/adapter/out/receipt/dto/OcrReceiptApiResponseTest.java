@@ -89,7 +89,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("ok가 true여도 result가 없으면 결과 없음이다")
-    void treatsMissingResultAsNoResult() {
+    void receiptOcr_missingResult_returnsNoResult() {
         String body = "{\"ok\": true, \"elapsed_sec\": 1.0}";
 
         assertThat(strict.readValue(body, OcrReceiptApiResponse.class).hasResult()).isFalse();
