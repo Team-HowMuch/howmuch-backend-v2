@@ -184,7 +184,7 @@ class ObservabilityHttpIntegrationTest {
         String id = response.headers().firstValue("X-Trace-ID").orElseThrow();
         assertThat(id).matches("[0-9a-f]{32}").isNotEqualTo("11111111111111111111111111111111");
         assertThat(response.headers().firstValue("X-Request-ID")).isEmpty();
-        // The response can arrive just before the outer filter's finally block completes.
+        // 바깥 필터의 finally 처리가 끝나기 직전에 응답이 올 수 있으므로 trace 로그를 기다린다.
         long deadline = System.nanoTime() + Duration.ofSeconds(3).toNanos();
         while (!output.getAll().contains(id) && System.nanoTime() < deadline) Thread.sleep(10);
         var matching = output.getAll().lines().filter(line -> line.contains(id)).toList();
