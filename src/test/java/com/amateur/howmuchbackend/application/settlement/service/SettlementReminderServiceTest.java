@@ -105,7 +105,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void storesItemSelectionReminderForRequestedParticipantWithoutShare() {
+    void itemSelectionReminder_requestedWithoutShare_stored() {
         givenRequestedTargetWithoutShare();
         when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator()));
         when(cooldownPort.reserve(any(), any(), anyString(), eq(Duration.ofMinutes(30)))).thenReturn(true);
