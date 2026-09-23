@@ -203,7 +203,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("내 Share가 아직 없으면 보낼 금액이 없다")
-    void rejectsWhenMyShareIsMissing() {
+    void myTransferInstruction_missingShare_rejected() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
