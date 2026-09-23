@@ -297,7 +297,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void concurrentManualAndAutomaticShareCooldown() throws Exception {
+    void reminder_manualAndAutomatic_shareCooldown() throws Exception {
         recorder.record(request());
         concurrent(() -> attemptAutomatic(), () -> {
             try { writer.manual(settlement, participant, creator); return true; }
