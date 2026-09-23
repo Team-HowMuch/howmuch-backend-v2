@@ -118,7 +118,7 @@ class SettlementTest {
 
         @Test
         @DisplayName("요청 참여자의 송금 대상이 바뀌지 않도록 초안 이후 선택을 거부한다")
-        void rejectsSelectionAfterRequest() {
+        void settlement_afterRequest_accountSelection_rejected() {
             Settlement requested = draft().request(CREATED_AT.plusMinutes(1));
 
             assertThatThrownBy(() -> requested.selectReceivingAccount(
