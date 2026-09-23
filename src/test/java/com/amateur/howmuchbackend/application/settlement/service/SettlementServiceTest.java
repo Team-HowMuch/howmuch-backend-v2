@@ -239,7 +239,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("송금 단계 전인 생성자 정산만 삭제하고 root 삭제 Port를 호출한다")
-    void deletesSettlementBeforeTransferStage() {
+    void settlement_beforeTransfer_creatorDelete_allowed() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(draft()));
