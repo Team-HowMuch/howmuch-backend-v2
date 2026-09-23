@@ -106,7 +106,7 @@ class SettlementDepositMatchingPolicyTest {
             "Ann, Joanne 입금"
     })
     @DisplayName("부분 이름이나 문자·숫자에 붙은 이름으로 연결하지 않는다")
-    void rejectsPartialNamesAndAttachedNames(String name, String description) {
+    void depositMatching_partialOrAttachedName_rejected(String name, String description) {
         assertThat(policy.match(transaction(description, "6000"), List.of(
                 payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).isEmpty();
