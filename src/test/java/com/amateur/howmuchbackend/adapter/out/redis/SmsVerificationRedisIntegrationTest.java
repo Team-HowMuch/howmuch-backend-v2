@@ -448,7 +448,7 @@ class SmsVerificationRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(longs = {-3600, 3600})
-    void legacyCooldownUsesRedisLifetimeDespiteClockOffset(long offset) {
+    void smsOtp_legacyCooldown_usesRedisLifetime(long offset) {
         saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(), initial.codeHash(),
                 5, now().plusSeconds(offset + 60), now().plusSeconds(offset + 180)), Duration.ofMinutes(3));
         assertCooldown();
