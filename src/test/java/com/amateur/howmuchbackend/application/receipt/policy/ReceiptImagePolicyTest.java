@@ -56,7 +56,7 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("임의 바이트는 거절한다")
-    void rejectsArbitraryBytes() {
+    void receiptImage_arbitraryBytes_rejected() {
         assertThatThrownBy(() -> policy.detectMediaType("not-an-image".getBytes(StandardCharsets.UTF_8)))
                 .isInstanceOf(ApplicationException.class);
     }
