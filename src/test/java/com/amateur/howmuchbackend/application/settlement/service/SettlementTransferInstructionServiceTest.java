@@ -159,7 +159,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("지원하는 송금 앱 링크가 없으면 원계좌번호만 반환하지 않는다")
-    void rejectsUnsupportedTransferLink() {
+    void transferInstruction_noSupportedAppLink_rejected() {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
