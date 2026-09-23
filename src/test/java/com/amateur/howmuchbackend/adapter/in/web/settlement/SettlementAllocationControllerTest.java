@@ -226,7 +226,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("빈 배분 목록을 UseCase 호출 전에 거부한다")
-    void rejectsEmptyAllocations() throws Exception {
+    void dutchPayAllocations_empty_returnsBadRequest() throws Exception {
         mockMvc.perform(put(
                         "/api/v2/settlements/{settlementId}/dutch-pay-allocations",
                         SETTLEMENT_ID
