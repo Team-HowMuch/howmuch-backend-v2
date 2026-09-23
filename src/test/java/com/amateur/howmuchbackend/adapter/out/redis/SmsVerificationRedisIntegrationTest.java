@@ -309,7 +309,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void challengeSaveFailureDoesNotRestoreOtp() {
+    void smsOtp_challengeSaveFailure_doesNotRestoreOtp() {
         AuthChallengeRedisAdapter challenges = mock(AuthChallengeRedisAdapter.class);
         doThrow(new IllegalStateException("synthetic storage failure")).when(challenges).save(any(), any());
         ConfirmSmsVerificationService service = new ConfirmSmsVerificationService(identity, policy, adapter, challenges);
