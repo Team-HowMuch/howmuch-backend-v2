@@ -143,7 +143,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자 상세에 연결된 미납 참여자의 다음 독촉 가능 시각을 반환한다")
-    void restoresReminderCooldownForCreator() {
+    void settlementDetail_creatorView_restoresReminderCooldown() {
         givenSettlement(CREATOR_ID, List.of());
         LocalDateTime nextAvailableAt = NOW.plusMinutes(30);
         when(cooldownReader.findLatestNextAvailableAt(
