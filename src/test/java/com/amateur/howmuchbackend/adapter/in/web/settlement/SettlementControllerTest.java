@@ -424,7 +424,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("생성자가 중단된 정산을 재개하고 최신 상태를 받는다")
-    void resumesSettlement() throws Exception {
+    void settlementLifecycle_suspendedState_resumesWithLatestState() throws Exception {
         when(resumeSettlementUseCase.resume(SETTLEMENT_ID)).thenReturn(
                 new SettlementResult(
                         SETTLEMENT_ID,
