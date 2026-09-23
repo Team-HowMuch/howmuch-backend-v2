@@ -208,7 +208,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("거래 Key에 연결된 여러 정산을 원본 계좌 범위에서 조회한다")
-    void loadsLinkedSettlementsForTransactions() {
+    void transactionSettlements_linkedKey_scopedToSourceAccount() {
         String transactionKey = "g".repeat(64);
         UUID olderSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001001");
         UUID newerSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001002");
