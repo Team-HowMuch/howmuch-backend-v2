@@ -69,7 +69,7 @@ class GroupTest {
 
     @Test
     @DisplayName("소유권을 이전하면 OWNER와 수정 시각을 함께 변경한다")
-    void transfersOwnership() {
+    void group_ownershipTransfer_ownerAndUpdateTimeChanged() {
         Group group = Group.create("여행", null, null, 1L, "AB12CD34", NOW);
 
         Group transferred = group.transferOwnership(2L, NOW.plusHours(1));
