@@ -46,7 +46,7 @@ class CodefBankConnectionAdapterTest {
 
     @Test
     @DisplayName("성공 응답에 연결 식별자가 없으면 응답 계약 오류로 구분한다")
-    void rejectsIncompleteSuccessResponse() throws Exception {
+    void codefSuccess_missingConnectionId_classifiedAsContractError() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         when(rsaEncryptor.encrypt("password")).thenReturn("encrypted-password");
         when(client.post(eq("/v1/account/create"), any())).thenReturn(objectMapper.readTree("""
