@@ -186,7 +186,7 @@ class AuthSessionRedisIntegrationTest {
     }
 
     @Test
-    void invalidReplacementDoesNotDeleteCurrentSession() {
+    void authSession_invalidReplacement_preservesCurrentSession() {
         service.issueNewSession(user);
         AuthSession expected = sessions.findByUserId(userId).orElseThrow();
         String before = redis.opsForValue().get(key);
