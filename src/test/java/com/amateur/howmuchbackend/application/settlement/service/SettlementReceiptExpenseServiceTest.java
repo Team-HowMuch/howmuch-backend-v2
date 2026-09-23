@@ -166,7 +166,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("생성자와 DRAFT를 먼저 검증한 뒤 OCR 결과를 저장 컴포넌트에 전달한다")
-    void extractsAndDelegatesValidatedReceipt() {
+    void receiptExpense_validatedDraft_delegatesExtractedReceipt() {
         Settlement settlement = settlement(CREATOR_ID, SettlementStatus.DRAFT);
         ExtractReceiptItemsPort.ReceiptExtraction extraction = extraction(30_000);
         SettlementReceiptExpenseMutationResult expected =
