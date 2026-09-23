@@ -846,7 +846,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("길이 제한을 초과한 연락처 항목을 UseCase 호출 없이 거부한다")
-    void rejectsOversizedContactMatchingFields() throws Exception {
+    void contactMatch_oversizedFields_returnsInvalidArgument() throws Exception {
         String oversizedContactId = "c".repeat(101);
         String oversizedDisplayName = "이".repeat(101);
         String oversizedPhoneNumber = "-".repeat(21) + "01011112222";
