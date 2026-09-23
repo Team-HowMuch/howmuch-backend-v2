@@ -97,7 +97,7 @@ class ReceiptOcrHttpIntegrationTest {
 
     @Test
     @DisplayName("미인증 업로드는 내부 서비스에 닿기 전에 401이다")
-    void rejectsUnauthenticatedUpload() throws Exception {
+    void receiptUpload_unauthenticated_returns401BeforeService() throws Exception {
         assertError(post(null, part("file", "receipt.jpg", "image/jpeg", SMALL_IMAGE)),
                 401, "UNAUTHORIZED");
     }
