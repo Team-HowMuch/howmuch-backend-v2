@@ -207,7 +207,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("헤더 문맥의 참여자와 path 참여자가 다르면 정산을 조회하지 않는다")
-    void rejectsMismatchedParticipantContext() {
+    void itemAllocation_participantContextMismatch_rejectedBeforeRead() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
                 context(SECOND_PARTICIPANT_ID)
