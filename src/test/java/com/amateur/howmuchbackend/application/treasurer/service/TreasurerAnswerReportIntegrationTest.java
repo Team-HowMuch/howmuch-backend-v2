@@ -205,7 +205,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("정리된 답변을 신고하면 404다")
-    void reportingPurgedAnswerIsNotFound() {
+    void answerReport_purgedAnswer_notFound() {
         UUID expired = saveAnswer(owner, NOW.minusDays(31));
         purge.purge(Duration.ofDays(30), 500);
 
