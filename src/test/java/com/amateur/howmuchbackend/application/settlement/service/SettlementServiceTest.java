@@ -210,7 +210,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("생성자가 아닌 사용자는 정산을 수동 중단하지 않는다")
-    void rejectsManualSuspendByAnotherUser() {
+    void settlement_otherUserManualSuspend_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(requested()));
