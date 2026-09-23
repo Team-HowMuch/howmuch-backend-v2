@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SettlementTransferLinkPropertiesTest {
     @Test
-    void defaultsToToss() {
+    void transferLinkProperties_defaultProvider_toss() {
         assertThat(new SettlementTransferLinkProperties(null, null).adapter()).isEqualTo(TOSS);
     }
 
