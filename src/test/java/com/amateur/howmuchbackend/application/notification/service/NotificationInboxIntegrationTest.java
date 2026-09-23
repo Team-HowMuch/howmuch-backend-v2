@@ -311,7 +311,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void automaticCandidateSelectionFiltersIneligibleAndOrdersByNextDueAt() {
+    void automaticReminder_candidates_filteredAndOrderedByDueTime() {
         assertThat(due()).isEmpty();
         recorder.record(request());
         assertThat(due()).hasSize(1);
