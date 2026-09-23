@@ -20,7 +20,7 @@ class SecureSettlementLinkTokenAdapterTest {
 
     @Test
     @DisplayName("URL에는 원본 난수 토큰을 넣고 저장용 SHA-256 hash와 만료 시각을 반환한다")
-    void issuesRawUrlAndHashedStorageToken() throws Exception {
+    void settlementLink_rawTokenInUrl_hashedForStorageWithExpiry() throws Exception {
         SecureSettlementLinkTokenAdapter adapter = new SecureSettlementLinkTokenAdapter(
                 new SettlementLinkProperties("https://howmuch.example/settlements/", Duration.ofDays(7))
         );
