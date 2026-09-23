@@ -105,7 +105,7 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     @Test
     @DisplayName("Firebase가 비활성화된 환경은 성공으로 가장하지 않는다")
-    void rejectsWhenFirebaseIsDisabled() {
+    void firebasePush_disabled_returnsFailure() {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(null);
         var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
 
