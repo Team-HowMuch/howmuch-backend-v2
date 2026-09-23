@@ -16,7 +16,7 @@ class PublicIdPolicyTest {
 
     @Test
     @DisplayName("사용자 입력의 앞뒤 공백을 제거하고 영문을 소문자로 정규화한다")
-    void normalizesPublicId() {
+    void publicId_inputTrimmedAndLowercased() {
         assertThat(publicIdPolicy.normalize("  Sua.Test_1  ")).isEqualTo("sua.test_1");
     }
 
