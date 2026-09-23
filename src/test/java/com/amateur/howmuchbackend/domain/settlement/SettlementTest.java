@@ -148,7 +148,7 @@ class SettlementTest {
 
         @Test
         @DisplayName("입금 확인 단계를 건너뛰지 않도록 DRAFT에서 바로 완료하는 전이를 거부한다")
-        void rejectsSkippedTransition() {
+        void settlement_draftToCompleted_transitionRejected() {
             assertThatThrownBy(() -> draft().complete(CREATED_AT.plusMinutes(1)))
                     .isInstanceOfSatisfying(ApplicationException.class, exception ->
                             assertThat(exception.getStatusCode())
