@@ -214,7 +214,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("확장자 없는 파일 이름이어도 파트에 실제 이미지 형식을 붙인다")
-    void sendsDeclaredContentTypeEvenWithoutAnExtension() {
+    void receiptOcr_missingExtension_usesDeclaredContentType() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andExpect(request -> assertThat(request.getBody().toString())
                         .contains("Content-Type: image/png")
