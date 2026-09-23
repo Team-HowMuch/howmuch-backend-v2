@@ -111,7 +111,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("앱 영수증의 빈 품목 목록은 UseCase 호출 전에 거부한다")
-    void rejectsEmptySubmittedReceiptItems() throws Exception {
+    void receiptExpense_emptyItems_rejectedBeforeUseCase() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/expenses/receipt",
                         SETTLEMENT_ID
