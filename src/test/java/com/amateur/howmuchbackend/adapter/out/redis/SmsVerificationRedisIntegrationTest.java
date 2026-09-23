@@ -271,7 +271,7 @@ class SmsVerificationRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(longs = {-3600, 3600})
-    void validTtlIsIndependentOfApplicationClockOffset(long offsetSeconds) {
+    void smsOtp_redisTtl_independentOfClockOffset(long offsetSeconds) {
         saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
                 initial.codeHash(), 0, now().plusSeconds(offsetSeconds), now().plusSeconds(offsetSeconds)),
                 Duration.ofMinutes(3));
