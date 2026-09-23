@@ -230,7 +230,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void missingUserConsumesAttemptWithoutPinVerification() {
+    void loginAttempt_missingUser_consumedWithoutPinCheck() {
         when(users.findByPhoneNumber(PHONE)).thenReturn(Optional.empty());
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.INVALID_LOGIN_CREDENTIALS);
         assertThat(redis.opsForValue().get(key)).endsWith(":1");
