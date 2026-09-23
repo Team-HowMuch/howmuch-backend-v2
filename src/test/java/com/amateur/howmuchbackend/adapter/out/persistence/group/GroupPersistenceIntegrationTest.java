@@ -138,7 +138,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹을 소프트 삭제해도 기존 OWNER 멤버십은 보존하고 목록에서는 숨긴다")
-    void softDeletePreservesMembership() {
+    void group_softDeleted_membershipPreservedAndHidden() {
         Group savedGroup = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(savedGroup.id(), userId, CREATED_AT));
 
