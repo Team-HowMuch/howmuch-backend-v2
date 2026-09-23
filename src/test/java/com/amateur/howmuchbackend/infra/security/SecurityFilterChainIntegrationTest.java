@@ -80,7 +80,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("미인증 요청은 보호 API에서 401 JSON을 받는다")
-    void rejectsUnauthenticatedRequest() throws Exception {
+    void protectedApi_unauthenticated_returns401Json() throws Exception {
         assertError(request("GET", PROFILE, null), 401, "UNAUTHORIZED");
     }
 
