@@ -137,7 +137,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("앱 푸시 대상을 해제한다")
-    void clearsPushTarget() throws Exception {
+    void pushTarget_deleteRequest_cleared() throws Exception {
         mockMvc.perform(delete("/api/v2/user/me/push-target"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
