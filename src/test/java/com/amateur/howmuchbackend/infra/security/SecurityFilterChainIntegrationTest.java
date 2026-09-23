@@ -96,7 +96,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("Redis 세션이 활성 상태여도 만료된 JWT는 401이다")
-    void rejectsExpiredAccessToken() throws Exception {
+    void protectedApi_expiredAccessToken_rejectedDespiteActiveSession() throws Exception {
         var expiredIssuer = new JwtTokenProvider(new JwtProperties(jwtProperties.secret(), -60, 600));
         assertError(request("GET", PROFILE, expiredIssuer.createAccessToken(user, sessionId)), 401, "UNAUTHORIZED");
     }
