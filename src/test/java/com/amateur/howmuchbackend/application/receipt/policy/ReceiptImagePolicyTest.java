@@ -37,7 +37,7 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("PNG 바이트는 image/png로 판정한다")
-    void detectsPng() {
+    void receiptImage_pngBytes_detectedAsImagePng() {
         assertThat(policy.detectMediaType(png())).isEqualTo("image/png");
     }
 
