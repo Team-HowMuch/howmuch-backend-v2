@@ -72,7 +72,7 @@ class SettlementTest {
 
         @Test
         @DisplayName("의미 없는 수정을 막기 위해 변경할 필드가 없는 PATCH를 거부한다")
-        void rejectsPatchWithoutChanges() {
+        void settlementPatch_noChanges_rejected() {
             assertThatThrownBy(() -> draft().updateDraft(null, null, CREATED_AT.plusMinutes(1)))
                     .isInstanceOfSatisfying(ApplicationException.class, exception ->
                             assertThat(exception.getStatusCode())
