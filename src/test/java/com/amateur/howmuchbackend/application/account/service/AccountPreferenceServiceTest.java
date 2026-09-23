@@ -138,7 +138,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsDuplicatedAccountInOrder() {
+    void accountPreference_duplicateAccount_rejected() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         assertThatThrownBy(() -> service().replaceDisplayOrders(
