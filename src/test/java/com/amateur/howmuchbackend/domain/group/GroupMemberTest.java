@@ -28,7 +28,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("LEFT 멤버의 가입 시각을 갱신해 재가입시킨다")
-    void rejoinsLeftMember() {
+    void member_leftRejoin_joinTimeUpdated() {
         GroupMember rejoined = endedMember(GroupMemberStatus.LEFT).rejoin(REACTIVATED_AT);
 
         assertThat(rejoined.status()).isEqualTo(GroupMemberStatus.ACTIVE);
