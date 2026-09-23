@@ -96,7 +96,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("수량이 2인 품목은 2개까지 한 사람이 가져갈 수 있다")
-    void allowsTakingEveryUnitOfMultiQuantityItem() {
+    void itemAllocation_multiQuantityEveryUnit_allowed() {
         policy.validateSelection(
                 item(10_000, 2),
                 List.of(),
