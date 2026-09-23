@@ -128,7 +128,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("목록 요청을 우회해도 외화 계좌를 수령 계좌로 저장하지 않는다")
-    void rejectsUnsupportedAccount() {
+    void receivingAccount_foreignCurrency_rejected() {
         authenticate();
         Account foreignAccount = account(
                 7L, true, 0, AccountType.FOREIGN_CURRENCY, "11", "USD"
