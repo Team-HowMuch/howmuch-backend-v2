@@ -200,7 +200,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("생성자만 참여자 아바타를 볼 수 있도록 다른 사용자의 조회를 거부한다")
-    void rejectsParticipantAvatarForAnotherUser() {
+    void participantAvatar_otherUser_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
 
