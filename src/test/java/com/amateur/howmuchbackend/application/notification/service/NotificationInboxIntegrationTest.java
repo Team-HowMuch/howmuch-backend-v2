@@ -253,7 +253,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void existingReminderMessageIsNotRewritten() throws Exception {
+    void reminder_existingMessage_notRewritten() throws Exception {
         var old = NotificationMessages.reminder(settlement, recipient, SettlementAllocationType.DUTCH_PAY,
                 "요청자", "legacy-message", "정산을 요청받았어요. 지금 정산을 완료해 주세요.", NOW.minusDays(1));
         recorder.record(old);
