@@ -103,7 +103,7 @@ class GroupInviteIntegrationTest {
     }
 
     @Test
-    void rateLimitCountsFailedLookupsAndExpiresWithoutTrustingForwardedHeaders() throws Exception {
+    void inviteLookup_failedRequests_rateLimitedAndExpires() throws Exception {
         mvc.perform(get(PATH, "bad")
                         .with(request -> { request.setRemoteAddr(remoteAddress); return request; }))
                 .andExpect(status().isNotFound());
