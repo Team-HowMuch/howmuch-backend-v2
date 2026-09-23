@@ -369,7 +369,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
-    void filtersCompletedMonthAtKoreanMonthBoundariesForBothTabs() {
+    void settlementList_koreanMonthBoundaries_filtersBothTabs() {
         YearMonth month = YearMonth.of(2026, 9);
         LocalDateTime start = LocalDateTime.of(2026, 8, 31, 15, 0);
         LocalDateTime end = LocalDateTime.of(2026, 9, 30, 15, 0);
@@ -390,7 +390,7 @@ class SettlementListPersistenceIntegrationTest {
                 assertThat(receive).singleElement().satisfies(item -> {
                     assertThat(item.settlementId()).isEqualTo(receiveSettlementId);
                     assertThat(item.completedAt()).isEqualTo(completedAt);
-                    // Existing requestedAt projection is outside this change; completedAt must use UTC.
+                    // 기존 requestedAt projection은 유지하고 completedAt을 UTC 기준으로 검증한다.
                 });
                 assertThat(pay).singleElement().satisfies(item -> {
                     assertThat(item.settlementId()).isEqualTo(paySettlementId);
