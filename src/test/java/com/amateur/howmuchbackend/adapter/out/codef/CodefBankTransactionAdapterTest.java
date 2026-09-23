@@ -43,7 +43,7 @@ class CodefBankTransactionAdapterTest {
             "CF-09999, CODEF_UPSTREAM_UNAVAILABLE",
             "CF-04000, BANK_CONNECTION_FAILED"
     })
-    void mapsOfficialFailureCodes(String code, ExternalConnectionStatusCode expected) {
+    void bankTransactions_officialFailureCodes_mapped(String code, ExternalConnectionStatusCode expected) {
         assertThat(CodefFailureMapper.map(code, ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, null)
                 .getStatusCode()).isEqualTo(expected);
     }
