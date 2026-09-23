@@ -447,7 +447,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("활성 사용자가 없는 그룹 요약은 0명과 빈 이름 배열을 반환한다")
-    void summarizesNoActiveUsers() {
+    void groupSummary_noActiveUsers_returnsEmptyNamesAndZero() {
         Group group = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT));
         jdbcTemplate.update("UPDATE users SET active = FALSE WHERE id = ?", userId);
