@@ -169,7 +169,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("완료된 정산의 링크는 활성 상태여도 공개하지 않는다")
-    void rejectsCompletedSettlementLink() {
+    void settlementLink_completedSettlement_notPublic() {
         arrangeLink();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
                 settlement(SettlementAllocationType.DUTCH_PAY, SettlementStatus.COMPLETED)
