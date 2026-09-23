@@ -120,7 +120,7 @@ class RequestObservabilityTest {
             "/api/v2/treasurer/questions, treasurer",
             "/api/v2/admin/common-codes, admin"
     })
-    void classifiesOperationalAreas(String path, String area) throws Exception {
+    void requestObservability_operationalArea_fixedCategory(String path, String area) throws Exception {
         filter.doFilter(request(path), new MockHttpServletResponse(), (req, res) -> {});
 
         assertThat(count(area, "200")).isEqualTo(1);
