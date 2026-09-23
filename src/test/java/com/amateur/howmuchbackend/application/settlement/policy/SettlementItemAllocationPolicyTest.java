@@ -125,7 +125,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("나누어떨어지지 않아도 각자 내림값만 낸다. 차액은 생성자가 부담한다")
-    void floorsEveryShare() {
+    void itemShare_nonDivisible_roundsDownAndRemainderToCreator() {
         SettlementItem item = item(5_000);
         List<SettlementItemSelection> selections = List.of(
                 selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW),
