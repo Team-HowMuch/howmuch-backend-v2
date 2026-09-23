@@ -45,7 +45,7 @@ class GroupTest {
 
     @Test
     @DisplayName("60자를 초과한 메모를 거절한다")
-    void rejectsLongMemo() {
+    void group_memoOver60Characters_rejected() {
         assertThatThrownBy(() -> Group.create("여행", "가".repeat(61), null, 1L, "AB12CD34", NOW))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(GroupStatusCode.INVALID_GROUP_MEMO));
