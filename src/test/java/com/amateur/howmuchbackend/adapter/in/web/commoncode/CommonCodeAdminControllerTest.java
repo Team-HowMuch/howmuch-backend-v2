@@ -131,7 +131,7 @@ class CommonCodeAdminControllerTest {
 
     @ParameterizedTest
     @ValueSource(ints = {100, 101, 255})
-    void acceptsAttributeBoundariesWithoutTruncation(int length) throws Exception {
+    void commonCodeAttribute_boundaryLength_preserved(int length) throws Exception {
         String value = "가".repeat(length);
         when(updateUseCase.update(eq("BANK"), any())).thenReturn(groupResult());
         mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
