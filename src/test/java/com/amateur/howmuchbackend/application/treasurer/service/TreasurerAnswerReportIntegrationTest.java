@@ -163,7 +163,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("응용 계층을 건너뛰어도 스키마가 남의 답변 신고를 거부한다")
-    void schemaRejectsReportOnSomeoneElsesAnswer() {
+    void answerReport_foreignAnswerRejectedBySchema() {
         UUID othersAnswer = saveAnswer(stranger, NOW);
 
         assertThatThrownBy(() -> jdbc.update("""
