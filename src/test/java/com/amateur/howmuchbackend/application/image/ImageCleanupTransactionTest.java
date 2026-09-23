@@ -127,7 +127,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void groupCreationCleanupRunsOnlyOnRollback(boolean rollback) {
+    void groupCreation_imageCleanup_onlyOnRollback(boolean rollback) {
         var storage = mock(GroupImageStoragePort.class);
         var support = new GroupImageTransactionSupport(storage);
         new TransactionTemplate(new TestTransactionManager()).executeWithoutResult(status -> {
