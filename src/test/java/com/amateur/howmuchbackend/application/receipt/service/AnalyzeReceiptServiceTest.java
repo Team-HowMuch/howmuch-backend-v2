@@ -64,7 +64,7 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("이미지를 분석 포트에 넘기고 결과를 그대로 돌려준다")
-    void delegatesToThePort() {
+    void receiptAnalysis_imageRequest_returnsPortResult() {
         ReceiptAnalysisResult analysis = new ReceiptAnalysisResult(
                 "가게", "2026-09-16 12:00",
                 List.of(new ReceiptAnalysisResult.Item("김밥", 1, 3_500L)),
