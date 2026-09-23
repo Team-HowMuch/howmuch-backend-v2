@@ -78,7 +78,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void usesActiveTraceIdAndDoesNotTrustRequestHeadersOrMutateMdc() throws Exception {
+    void requestTrace_activeSpan_headersIgnoredMdcUnchanged() throws Exception {
         MDC.put("traceId", TRACE_ID);
         MDC.put("spanId", SPAN_ID);
         MDC.put("unrelated", "preserved");
