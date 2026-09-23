@@ -196,7 +196,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("재개 후 Share가 남아 있어도 미제출 참여자의 다음 독촉 가능 시각을 반환한다")
-    void restoresItemSelectionReminderCooldownWithPreservedShareAfterResume() {
+    void settlementDetail_resume_restoresPendingCooldown() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
