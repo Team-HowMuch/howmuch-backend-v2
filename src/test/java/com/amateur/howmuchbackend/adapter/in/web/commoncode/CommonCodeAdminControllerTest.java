@@ -82,7 +82,7 @@ class CommonCodeAdminControllerTest {
 
     @Test
     @DisplayName("그룹 저장 요청을 Application Command로 전달한다")
-    void updatesGroup() throws Exception {
+    void groupUpdate_request_mapsToCommand() throws Exception {
         when(updateUseCase.update(eq("BANK"), any())).thenReturn(groupResult());
 
         mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
