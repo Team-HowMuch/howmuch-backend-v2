@@ -74,7 +74,7 @@ class GroupQueryServiceTest {
 
     @Test
     @DisplayName("활성 멤버에게 그룹 상세와 활성 인원수를 반환한다")
-    void getsGroupDetail() {
+    void groupDetail_activeMember_returnsDetailsAndCount() {
         Group group = group();
         GroupMember member = member();
         when(groupAccessService.loadActive(10L)).thenReturn(group);
