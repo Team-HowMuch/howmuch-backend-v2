@@ -364,7 +364,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("의미 없는 변경 요청을 막기 위해 수정 필드가 없는 PATCH를 INVALID_ARGUMENT로 거부한다")
-    void rejectsPatchWithoutFields() throws Exception {
+    void settlementPatch_noFields_returnsInvalidArgument() throws Exception {
         mockMvc.perform(patch("/api/v2/settlements/{settlementId}", SETTLEMENT_ID)
                         .contentType("application/json")
                         .content("{}"))
