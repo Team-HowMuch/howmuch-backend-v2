@@ -225,7 +225,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("본인 답변이 아니거나 없는 답변은 404를 반환한다")
-    void returnsNotFoundForAnswerThatIsNotMine() throws Exception {
+    void answerReport_notOwnedOrMissing_returnsNotFound() throws Exception {
         when(reportTreasurerAnswerUseCase.report(any()))
                 .thenThrow(new ApplicationException(TreasurerStatusCode.TREASURER_ANSWER_NOT_FOUND));
 
