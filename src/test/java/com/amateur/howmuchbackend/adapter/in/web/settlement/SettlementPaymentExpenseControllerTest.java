@@ -62,7 +62,7 @@ class SettlementPaymentExpenseControllerTest {
 
     @Test
     @DisplayName("월별 출금 후보와 기존 가져오기 여부를 반환한다")
-    void getsPaymentExpenseCandidates() throws Exception {
+    void paymentExpenseCandidates_monthly_returnsImportState() throws Exception {
         when(getCandidatesUseCase.get(
                 SETTLEMENT_ID,
                 10L,
