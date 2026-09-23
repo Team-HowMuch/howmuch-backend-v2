@@ -81,7 +81,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void successfulRollbackDeletesNewImage(boolean group) {
+    void imageRollback_newImage_deleted(boolean group) {
         var fixture = fixture(group, false);
         new TransactionTemplate(new TestTransactionManager()).executeWithoutResult(status -> {
             fixture.update.run();
