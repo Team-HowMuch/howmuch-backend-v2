@@ -88,7 +88,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("동시 등록과 상태 확정을 직렬화하도록 정산을 잠근 뒤 다음 순서로 수동 지출을 저장한다")
-    void createsManualExpenseUnderSettlementLock() {
+    void manualExpense_concurrentDraftWrites_savedUnderLock() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(2);
         when(saveSettlementExpensePort.save(any(SettlementExpense.class)))
