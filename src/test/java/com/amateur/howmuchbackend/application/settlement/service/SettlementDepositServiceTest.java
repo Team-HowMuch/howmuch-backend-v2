@@ -394,7 +394,7 @@ class SettlementDepositServiceTest {
             "2026-12-31T15:00:00,2026-12-31T16:00:00,2027-01-01,2027-01-01"
     })
     @DisplayName("KST 00~09시와 월·연 경계에도 UTC 날짜 대신 KST 날짜로 조회한다")
-    void queriesKstCalendarDay(String snapshotUtc, String nowUtc, String start, String end) {
+    void settlementDeposit_kstBoundaries_usesKstCalendarDate(String snapshotUtc, String nowUtc, String start, String end) {
         assertQueryPeriods(snapshotUtc, nowUtc, List.of(LocalDate.parse(start)), List.of(LocalDate.parse(end)));
     }
 
