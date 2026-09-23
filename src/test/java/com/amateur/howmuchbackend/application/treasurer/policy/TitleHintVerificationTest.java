@@ -45,7 +45,7 @@ class TitleHintVerificationTest {
 
     @Test
     @DisplayName("맞는 정산이 없는 이름은 쓰지 않는다")
-    void rejectsHintThatMatchesNothing() {
+    void titleHint_withoutMatchingSettlement_rejected() {
         assertThat(policy.verify(all, "없는이름정산")).isNull();
     }
 
