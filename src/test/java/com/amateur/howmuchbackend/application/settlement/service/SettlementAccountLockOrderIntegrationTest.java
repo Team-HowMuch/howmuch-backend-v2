@@ -99,7 +99,7 @@ class SettlementAccountLockOrderIntegrationTest {
 
     @Test
     @DisplayName("수령계좌 선택과 계좌 삭제를 100회 동시에 실행해 데드락 없이 직렬화한다")
-    void serializesSelectionAndDeletionWithoutDeadlock() throws Exception {
+    void accountLock_selectAndDelete_noDeadlock() throws Exception {
         long deadlocksBefore = deadlockCount();
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
