@@ -77,7 +77,7 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("OCR 호출 전에 현재 사용자를 먼저 확인한다")
-    void checksTheActorBeforeReachingOcr() {
+    void receiptAnalysis_currentActor_checkedBeforeOcr() {
         when(analyzeReceiptImagePort.analyze(any(), any(), any())).thenReturn(
                 new ReceiptAnalysisResult(null, null, List.of(), null, null, false));
 
