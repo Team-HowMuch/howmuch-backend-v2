@@ -225,7 +225,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void readsContextWordsAsWholeWords() {
+    void contextWord_wholeWordMatch() {
         assertThat(parser.parse("돈까스 남았어?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("돈까스 언제 들어와?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("돈 언제 들어와?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
