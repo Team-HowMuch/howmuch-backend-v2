@@ -64,7 +64,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("활성 OWNER와 MEMBER의 역할을 소유권 이전 상태로 변경한다")
-    void changesOwnershipRoles() {
+    void member_ownershipTransfer_rolesChanged() {
         GroupMember owner = GroupMember.owner(10L, 1L, JOINED_AT);
         GroupMember member = GroupMember.member(10L, 2L, JOINED_AT);
 
