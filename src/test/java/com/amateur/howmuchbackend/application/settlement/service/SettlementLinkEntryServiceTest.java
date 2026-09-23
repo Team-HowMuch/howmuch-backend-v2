@@ -184,7 +184,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("전원 제출로 중단된 뒤에도 링크로 송금 안내를 다시 볼 수 있다")
-    void keepsLinkOpenAfterEverySubmission() {
+    void settlementLink_allSubmitted_remainsOpenForTransfer() {
         arrangeLink();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
                 settlement(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.SUSPENDED)
