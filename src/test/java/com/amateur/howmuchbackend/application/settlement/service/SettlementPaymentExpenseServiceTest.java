@@ -212,7 +212,7 @@ class SettlementPaymentExpenseServiceTest {
 
     @Test
     @DisplayName("같은 결제내역을 이미 가져왔으면 저장하지 않는다")
-    void rejectsDuplicateImport() {
+    void paymentExpense_duplicateImport_rejected() {
         givenOwnedDraftForUpdate();
         Transaction transaction = transaction(
                 TRANSACTION_ID,
