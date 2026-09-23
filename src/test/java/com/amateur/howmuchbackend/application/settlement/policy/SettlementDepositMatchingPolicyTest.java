@@ -123,7 +123,7 @@ class SettlementDepositMatchingPolicyTest {
             "민선영, 민선영 입금"
     })
     @DisplayName("전체 이름과 허용 접미어에 기존 공백·Unicode·대소문자 정규화를 적용한다")
-    void matchesNormalizedFullNames(String name, String description) {
+    void depositMatching_normalizedFullName_matched(String name, String description) {
         assertThat(policy.match(transaction("  " + description + "  ", "3000"), List.of(
                 payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).contains(SHARE_ID);
