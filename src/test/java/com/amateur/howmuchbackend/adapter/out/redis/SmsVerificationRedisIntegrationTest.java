@@ -113,7 +113,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void successRacingFailureCannotRestoreConsumedOtp() throws Exception {
+    void smsOtp_successRacesFailure_consumedOtpNotRestored() throws Exception {
         SmsVerificationRedisAdapter racing = synchronizedReads(2);
         List<SmsOtpState.Outcome> results = race(List.of(() -> succeed(racing), () -> fail(racing)));
         assertThat(results.getFirst()).isEqualTo(VERIFIED);
