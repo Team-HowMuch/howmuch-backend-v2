@@ -23,7 +23,7 @@ class SettlementItemTest {
 
     @Test
     @DisplayName("OCR 품목 이름을 정규화하고 수량이 반영된 행 금액을 보존한다")
-    void createsNormalizedReceiptItem() {
+    void receiptItem_nameNormalizedAndQuantityAppliedToRowAmount() {
         SettlementItem item = SettlementItem.fromReceipt(
                 SETTLEMENT_ID,
                 EXPENSE_ID,
