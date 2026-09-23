@@ -39,7 +39,7 @@ class SettlementTransferLinkPropertiesTest {
     }
 
     @Test
-    void unusedMockSettingsDoNotPreventTossStartup() {
+    void transferLinkConfig_unusedMockSettings_tossStartupAllowed() {
         assertThat(new SettlementTransferLinkProperties(TOSS,
                 new SettlementTransferLinkProperties.Mock("not a URL")).adapter()).isEqualTo(TOSS);
     }
