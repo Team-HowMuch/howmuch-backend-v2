@@ -63,7 +63,7 @@ class SettlementDepositMatchingPolicyTest {
             "민선영, 민선영/최수아"
     })
     @DisplayName("거래 설명에 전체 입금자명이 포함되면 연결한다")
-    void matchesFullNameIncludedInDescription(String name, String description) {
+    void depositMatching_fullNameInDescription_matched(String name, String description) {
         assertThat(policy.match(transaction(description, "6000"), List.of(
                 payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).contains(SHARE_ID);
