@@ -584,7 +584,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("같은 연락처 ID가 여러 전화번호를 가리키는 매칭 요청을 거부한다")
-    void rejectsDuplicateContactIds() {
+    void contactMatch_duplicateContactIds_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
