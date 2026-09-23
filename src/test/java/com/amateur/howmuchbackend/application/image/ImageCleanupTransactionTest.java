@@ -30,7 +30,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void cleanupFailureDoesNotFailCommittedTransactionAndIsTraceable(boolean group) {
+    void imageCleanup_postCommitFailure_doesNotFailAndIsLogged(boolean group) {
         var fixture = fixture(group, false);
         fixture.failDelete.accept(OLD);
         var logger = (Logger) LoggerFactory.getLogger(group
