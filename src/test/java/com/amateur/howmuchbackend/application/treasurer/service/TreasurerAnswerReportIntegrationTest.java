@@ -243,7 +243,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("한 주기에 도는 배치 수를 넘기면 남겨 두고 다음 주기로 넘긴다")
-    void stopsAfterMaxBatches() {
+    void answerCleanup_maxBatchesReached_stopsForNextCycle() {
         for (int i = 0; i < 7; i++) {
             saveAnswer(owner, NOW.minusDays(31 + i));
         }
