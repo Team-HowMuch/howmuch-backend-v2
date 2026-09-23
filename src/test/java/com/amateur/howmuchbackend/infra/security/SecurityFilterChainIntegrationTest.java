@@ -122,7 +122,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("실제 로그아웃 이후 서명이 유효한 기존 Access 토큰도 401이다")
-    void rejectsTokenRevokedByLogout() throws Exception {
+    void protectedApi_loggedOutAccessToken_revoked() throws Exception {
         assertThat(request("GET", PROFILE, accessToken).statusCode()).isEqualTo(200);
         assertThat(request("POST", "/api/v2/auth/logout", accessToken).statusCode()).isEqualTo(200);
         assertThat(sessions.findByUserId(userId)).isEmpty();
