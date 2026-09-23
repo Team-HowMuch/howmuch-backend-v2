@@ -114,7 +114,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("타인 또는 비활성 계좌를 노출하지 않도록 없는 계좌와 같은 오류로 거부한다")
-    void rejectsUnknownOwnedAccount() {
+    void receivingAccount_unknownOrIneligible_rejected() {
         authenticate();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(loadAccountPort.findActiveByIdAndUserIdForUpdate(99L, USER_ID)).thenReturn(Optional.empty());
