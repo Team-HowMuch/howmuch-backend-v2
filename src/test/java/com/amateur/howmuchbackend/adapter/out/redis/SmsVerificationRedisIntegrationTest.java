@@ -456,7 +456,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void consumedOtpKeepsIndependentCooldown() {
+    void smsOtp_consumedState_keepsIndependentCooldown() {
         redis.delete(key);
         assertThat(adapter.tryReserve(phoneHash, initial, policy.otpTtl(), policy.resendCooldown())).isTrue();
         assertThat(succeed(adapter)).isEqualTo(VERIFIED);
