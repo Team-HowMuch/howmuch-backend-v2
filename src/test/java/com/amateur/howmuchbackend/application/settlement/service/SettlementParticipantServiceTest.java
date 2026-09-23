@@ -309,7 +309,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("공개 ID prefix를 정규화하고 이미 추가된 회원을 제외해 후보 공개 정보만 반환한다")
-    void searchesPublicIdCandidates() {
+    void participantCandidates_normalizedPrefix_excludesExisting() {
         User firstCandidate = user(OTHER_USER_ID, "sua.alpha", "candidate.png");
         User secondCandidate = user(4L, "sua.beta", null);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
