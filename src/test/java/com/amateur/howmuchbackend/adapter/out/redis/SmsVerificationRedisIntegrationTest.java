@@ -90,7 +90,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void concurrentFailuresFromSameSnapshotAreBothCountedAndKeepTtl() throws Exception {
+    void smsOtp_concurrentFailures_sameSnapshotCountedAndTtlKept() throws Exception {
         long ttl = redis.getExpire(key, TimeUnit.MILLISECONDS);
         SmsVerificationRedisAdapter racing = synchronizedReads(2);
         assertThat(race(List.of(() -> fail(racing), () -> fail(racing))))
