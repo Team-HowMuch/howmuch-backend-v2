@@ -86,11 +86,11 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("유효한 Access 토큰과 활성 Redis 세션은 본인 프로필을 조회한다")
-    void acceptsActiveAccessToken() throws Exception {
+    void protectedApi_activeAccessTokenAndSession_returnsOwnProfile() throws Exception {
         var response = request("GET", PROFILE, accessToken);
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(json.readTree(response.body()).path("data").path("userId").longValue()).isEqualTo(userId);
-        // A later anonymous request must not inherit the preceding request's authentication.
+        // 뒤따르는 익명 요청이 앞선 인증 요청의 사용자 정보를 물려받지 않는지 확인한다.
         assertError(request("GET", PROFILE, null), 401, "UNAUTHORIZED");
     }
 
