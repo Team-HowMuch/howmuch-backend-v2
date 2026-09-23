@@ -184,7 +184,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("V25 원본 계좌를 저장하고 계좌별 결제내역 중복을 409로 변환한다")
-    void savesSourceReferenceAndRejectsDuplicateImport() {
+    void paymentImport_duplicateWithinAccount_returnsConflict() {
         SettlementExpense imported = SettlementExpense.paymentHistory(
                 settlementId,
                 sourceAccountId,
