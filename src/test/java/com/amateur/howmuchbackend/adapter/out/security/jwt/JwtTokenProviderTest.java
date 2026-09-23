@@ -37,7 +37,7 @@ class JwtTokenProviderTest {
 
     @ParameterizedTest
     @EnumSource(JwtTokenType.class)
-    void uniqueIssuancePreservesClaimsWithinSameSecond(JwtTokenType type) {
+    void jwt_sameSecondIssuance_uniqueJtiAndClaims(JwtTokenType type) {
         when(user.id()).thenReturn(7L);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
         try (var time = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
