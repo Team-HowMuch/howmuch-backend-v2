@@ -177,7 +177,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("생성자가 요청 중인 정산을 수동 중단하고 저장한다")
-    void suspendsRequestedSettlementForCreator() {
+    void settlement_creator_suspendRequested_suspendedAndSaved() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(requested()));
