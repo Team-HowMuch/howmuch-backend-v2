@@ -35,7 +35,7 @@ class SettlementTest {
         @NullSource
         @ValueSource(strings = {"", "   "})
         @DisplayName("정산을 식별할 수 있도록 비어 있는 제목을 허용하지 않는다")
-        void rejectsEmptyTitle(String title) {
+        void settlement_emptyTitle_rejected(String title) {
             assertThatThrownBy(() -> Settlement.draft(CREATOR_ID, title, 10_000, CREATED_AT))
                     .isInstanceOfSatisfying(ApplicationException.class, exception ->
                             assertThat(exception.getStatusCode())
