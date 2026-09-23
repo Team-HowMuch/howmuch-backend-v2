@@ -138,7 +138,7 @@ class ReceiptOcrHttpIntegrationTest {
 
     @Test
     @DisplayName("OCR 주소가 비어 있으면 503으로 재시도를 알린다")
-    void answersUnavailableWhenIntegrationIsOff() throws Exception {
+    void receiptOcr_missingBaseUrl_returnsUnavailableForRetry() throws Exception {
         assertError(post(accessToken, part("file", "receipt.jpg", "image/jpeg", SMALL_IMAGE)),
                 503, "RECEIPT_OCR_UNAVAILABLE");
     }
