@@ -367,7 +367,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("요약은 본인 포함 활성 사용자만 세고 그룹장·가입 시각·ID 순으로 세 이름을 반환한다")
-    void summarizesOnlyActiveUsersWithBoundedOrderedNames() {
+    void groupSummary_activeUsers_boundedNamesOrderedAndCounted() {
         Group group = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT.plusDays(1)));
         Long first = insertUser("이름, 공백");
