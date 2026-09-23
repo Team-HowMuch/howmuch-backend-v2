@@ -57,7 +57,7 @@ class TitleHintVerificationTest {
 
     @Test
     @DisplayName("한 글자 조각은 이름의 근거로 보지 않는다")
-    void rejectsSingleCharacterHint() {
+    void titleHint_singleCharacter_rejected() {
         assertThat(policy.verify(List.of(settlement("여행 정산")), "여")).isNull();
     }
 
