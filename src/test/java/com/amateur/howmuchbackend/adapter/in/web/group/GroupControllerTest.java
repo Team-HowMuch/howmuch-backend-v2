@@ -99,7 +99,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("multipart 그룹 생성 결과를 201로 반환한다")
-    void createsGroup() throws Exception {
+    void groupCreation_multipartRequest_returnsCreated() throws Exception {
         when(createGroupUseCase.create(any())).thenReturn(detail("여행", "메모", "/api/v2/groups/10/image"));
         MockMultipartFile image = new MockMultipartFile(
                 "image", "group.png", "image/png", new byte[]{1, 2, 3}
