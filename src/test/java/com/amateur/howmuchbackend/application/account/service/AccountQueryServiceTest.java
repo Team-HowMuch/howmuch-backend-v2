@@ -111,7 +111,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("월 요약이 있으면 CODEF를 호출하지 않고 상세를 반환한다")
-    void returnsCachedSummary() {
+    void accountSummary_cached_doesNotCallCodef() {
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
                 10L, account.id(), AUGUST, new BigDecimal("12500.0000"), 1,
