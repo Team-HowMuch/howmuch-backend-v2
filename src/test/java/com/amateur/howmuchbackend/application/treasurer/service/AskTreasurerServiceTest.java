@@ -446,7 +446,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void keepsTitleFilterWhenTitleExistsOutsideRequestedPeriod() {
+    void titleOutsidePeriod_periodFilter_keepsTitleFilter() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
