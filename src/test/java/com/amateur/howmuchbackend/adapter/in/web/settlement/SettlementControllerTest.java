@@ -352,7 +352,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("읽을 수 없는 JSON을 서버 오류로 오해하지 않도록 INVALID_ARGUMENT로 거부한다")
-    void rejectsUnreadableJson() throws Exception {
+    void settlementRequest_unreadableJson_returnsInvalidArgument() throws Exception {
         mockMvc.perform(post("/api/v2/settlements")
                         .contentType("application/json")
                         .content("{\"title\":\"회식 정산\",\"totalAmount\":"))
