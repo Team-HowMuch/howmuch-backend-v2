@@ -89,7 +89,7 @@ class GlobalExceptionHandlerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "{", "{\"name\":{}}"})
-    void missingOrMalformedBodyPreservesInvalidArgument(String body) throws Exception {
+    void requestBody_missingOrMalformed_returnsInvalidArgument(String body) throws Exception {
         invalidArgument(mvc.perform(post("/error-probe/body")
                 .contentType(MediaType.APPLICATION_JSON).content(body)));
     }
