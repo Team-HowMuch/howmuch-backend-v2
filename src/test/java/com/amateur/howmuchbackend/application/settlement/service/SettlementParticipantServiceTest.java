@@ -270,7 +270,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("아바타 파일이 유실된 경우 PROFILE_IMAGE_NOT_FOUND를 반환한다")
-    void rejectsMissingStoredAvatar() {
+    void participantAvatar_missingFile_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findBySettlementIdAndId(
