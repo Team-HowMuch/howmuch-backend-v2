@@ -230,7 +230,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("활성 그룹 멤버 목록을 응답 DTO로 변환한다")
-    void getsGroupMembers() throws Exception {
+    void groupMembers_activeOnly_returnsResponseDtos() throws Exception {
         when(getGroupMembersUseCase.getMembers(10L)).thenReturn(List.of(memberResult()));
 
         mockMvc.perform(get("/api/v2/groups/{groupId}/members", 10L))
