@@ -563,7 +563,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("아바타가 없는 참여자는 PROFILE_IMAGE_NOT_FOUND로 반환한다")
-    void returnsNotFoundForMissingParticipantAvatar() throws Exception {
+    void participantAvatar_missing_returnsNotFound() throws Exception {
         when(getSettlementParticipantAvatarUseCase.get(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenThrow(ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
 
