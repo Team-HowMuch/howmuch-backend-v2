@@ -164,7 +164,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("품목이 덜 채워졌으면 나머지를 배분하지 않는다")
-    void keepsRemainderUnassignedWhileItemIsIncomplete() {
+    void itemAllocation_incompleteItem_remainderUnassigned() {
         SettlementItem item = item(5_000);
 
         var amounts = policy.calculateSelectionAmounts(
