@@ -320,7 +320,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void narrowsWhenHintCarriesANameBesidesGenericWords() {
+    void titleHint_containsName_narrowsResults() {
         UUID travelId = UUID.randomUUID();
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
