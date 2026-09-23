@@ -743,7 +743,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("연결된 그룹 정보가 없으면 다른 참여자 경로를 위해 빈 후보를 반환한다")
-    void returnsEmptyGroupCandidatesWhenRosterIsUnavailable() {
+    void groupCandidates_missingRoster_returnsEmpty() {
         Long groupId = 10L;
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
