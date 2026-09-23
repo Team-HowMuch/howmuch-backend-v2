@@ -493,7 +493,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("품목 선택이 끝나면 기존처럼 납부 대상 Share 합계를 기준으로 계산한다")
-    void usesPayableShareTotalAfterItemSelection() {
+    void settlementItemAllocation_completed_usesPayableShareTotal() {
         givenSettlement(CREATOR_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.AWAITING_DEPOSIT)));
