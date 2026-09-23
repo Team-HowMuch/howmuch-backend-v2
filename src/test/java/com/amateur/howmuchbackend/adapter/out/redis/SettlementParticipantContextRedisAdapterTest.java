@@ -102,7 +102,7 @@ class SettlementParticipantContextRedisAdapterTest {
 
     @Test
     @DisplayName("문맥 토큰으로 저장된 참여 문맥을 조회한다")
-    void loadsContextByToken() throws Exception {
+    void participantContext_token_lookupLoadsContext() throws Exception {
         UUID contextToken = UUID.randomUUID();
         var storedContext = new SettlementParticipantContext(
                 contextToken,
