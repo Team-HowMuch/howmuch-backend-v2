@@ -297,7 +297,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("완료된 정산의 재대조는 CODEF를 재호출하거나 입금을 중복 저장하지 않는다")
-    void returnsCompletedSummaryIdempotently() {
+    void settlementDeposit_completedStatus_reconciliationIdempotent() {
         arrangeSettlement(SettlementStatus.COMPLETED);
         Transaction transaction = transaction("6000");
         SettlementDeposit deposit = new SettlementDeposit(
