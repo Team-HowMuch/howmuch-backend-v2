@@ -53,7 +53,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("정산 금액 합계가 감소하지 않도록 0원 이하 지출을 거부한다")
-    void rejectsNonPositiveAmount() {
+    void expense_nonPositiveAmount_rejected() {
         assertThatThrownBy(() -> SettlementExpense.manual(
                 SETTLEMENT_ID,
                 "저녁 식사",
