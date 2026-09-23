@@ -42,7 +42,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("snake_case 필드를 우리 이름으로 옮긴다")
-    void mapsSnakeCaseFields() {
+    void receiptOcr_snakeCaseFields_mapped() {
         String body = """
                 {"ok": true, "result": {"store_name": "가게", "purchased_at": "2026-09-16 16:47",
                  "total_amount": 10500, "payment_method": "카드", "total_verified": true,
