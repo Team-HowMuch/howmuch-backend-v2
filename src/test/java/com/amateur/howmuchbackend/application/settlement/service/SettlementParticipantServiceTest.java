@@ -540,7 +540,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("분당 연락처 매칭 요청 한도를 초과하면 회원 조회를 거부한다")
-    void rejectsContactMatchingOverRequestQuota() {
+    void contactMatch_requestQuotaExceeded_rejectedBeforeLookup() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
         when(trackSettlementContactMatchUsagePort.recordUsage(
