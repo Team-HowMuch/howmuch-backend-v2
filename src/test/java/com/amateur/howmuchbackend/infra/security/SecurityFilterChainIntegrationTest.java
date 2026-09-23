@@ -184,7 +184,7 @@ class SecurityFilterChainIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"", "?accountId=", "?accountId=not-a-number"})
     @DisplayName("실제 JWT·Redis 인증을 통과한 요청의 필수 파라미터 오류는 400이다")
-    void rejectsInvalidRequiredParameterOverHttp(String query) throws Exception {
+    void requiredParameter_httpInvalidAfterAuthentication_returns400(String query) throws Exception {
         assertInvalidArgument(request("GET", paymentCandidatesPath() + query, accessToken));
     }
 
