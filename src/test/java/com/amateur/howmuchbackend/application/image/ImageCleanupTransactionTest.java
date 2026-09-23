@@ -67,7 +67,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void rollbackDeletesOnlyNewImageAndPreservesOriginalFailure(boolean group) {
+    void imageRollback_cleanupFailure_preservesOriginalFailure(boolean group) {
         var fixture = fixture(group, false);
         fixture.failDelete.accept(NEW);
         var original = new IllegalStateException("original failure");
