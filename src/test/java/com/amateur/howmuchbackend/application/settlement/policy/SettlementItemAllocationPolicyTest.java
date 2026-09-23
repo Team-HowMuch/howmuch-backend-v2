@@ -82,7 +82,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("품목 수량을 넘는 요청은 선점 충돌로 거부한다")
-    void rejectsUnitsExceedingItemQuantity() {
+    void itemAllocation_unitsExceedQuantity_rejected() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(),
                 List.of(),
