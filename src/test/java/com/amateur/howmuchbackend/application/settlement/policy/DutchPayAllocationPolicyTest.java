@@ -116,7 +116,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("참여자가 빠지면 저장을 거부한다")
-    void rejectsMissingParticipant() {
+    void dutchPayAllocation_missingParticipant_rejected() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friend = participant(2L, "친구 1", 1);
 
