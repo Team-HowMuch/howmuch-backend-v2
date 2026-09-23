@@ -205,7 +205,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("신고 상세가 500자를 넘으면 400을 반환한다")
-    void rejectsTooLongDetail() throws Exception {
+    void answerReport_detailOverLimit_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v2/treasurer/answers/55555555-5555-5555-5555-555555555555/reports")
                         .contentType("application/json")
                         .content("{\"reason\":\"OTHER\",\"detail\":\"" + "가".repeat(501) + "\"}"))
