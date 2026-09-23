@@ -95,7 +95,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void validationPreservesFieldDetails() throws Exception {
+    void requestValidation_fieldDetails_preserved() throws Exception {
         invalidArgument(mvc.perform(post("/error-probe/body")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}")))
                 .andExpect(jsonPath("$.error.details.name").value("이름은 필수입니다."));
