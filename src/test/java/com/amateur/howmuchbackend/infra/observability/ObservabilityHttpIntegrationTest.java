@@ -75,7 +75,7 @@ class ObservabilityHttpIntegrationTest {
     }
 
     @Test
-    void authenticationApplicationFailureAndMalformedBodyDoNotLeak(CapturedOutput output) throws Exception {
+    void observability_authOrMalformedBody_noSensitiveDataLeak(CapturedOutput output) throws Exception {
         var response = get(port, "/api/v2/settlement-links/_observability/auth");
         assertThat(response.statusCode()).isEqualTo(401);
         assertCorrelated(response, output);
