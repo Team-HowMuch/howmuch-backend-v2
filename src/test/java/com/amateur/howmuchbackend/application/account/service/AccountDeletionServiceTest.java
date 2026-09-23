@@ -61,7 +61,7 @@ class AccountDeletionServiceTest {
 
     @Test
     @DisplayName("진행 중 정산이 수령 계좌로 사용하면 아무것도 변경하지 않고 409로 거부한다")
-    void rejectsAccountUsedByInProgressSettlement() {
+    void accountDeletion_inProgressSettlement_noChangeAndConflict() {
         Account account = account(10L, true, 0);
         givenOwnedLockedAccount(account);
         when(settlementUsagePort.existsInProgressByReceivingAccountId(account.id())).thenReturn(true);
