@@ -160,7 +160,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("저장된 OCR 품목이 없으면 품목별 할당 선택을 거부한다")
-    void rejectsItemAllocationWithoutReceiptItems() {
+    void allocationType_missingReceiptItems_rejected() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(null, 1_000)));
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
