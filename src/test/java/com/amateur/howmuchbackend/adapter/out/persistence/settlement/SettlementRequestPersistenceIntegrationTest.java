@@ -131,7 +131,7 @@ class SettlementRequestPersistenceIntegrationTest {
 
     @Test
     @DisplayName("기존 Account 기준으로 암호화된 계좌 스냅샷도 호환 조회한다")
-    void loadsLegacyAccountBoundSnapshot() {
+    void legacyAccountSnapshot_encryptedWithAccount_restored() {
         String legacyCiphertext = cipher.encryptAccountKey(
                 creatorId,
                 connectionId,
