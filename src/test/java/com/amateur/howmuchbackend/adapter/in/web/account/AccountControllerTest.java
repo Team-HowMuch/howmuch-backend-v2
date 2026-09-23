@@ -169,7 +169,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("기본 결제수단을 설정하고 빈 성공 응답을 반환한다")
-    void setsDefaultAccount() throws Exception {
+    void defaultPaymentMethod_setAsDefault_returnsEmptySuccess() throws Exception {
         mockMvc.perform(patch("/api/v2/accounts/1/default"))
                 .andExpect(status().isOk());
 
