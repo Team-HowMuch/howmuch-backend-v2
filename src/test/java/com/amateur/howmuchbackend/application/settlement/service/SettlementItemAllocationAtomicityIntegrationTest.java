@@ -103,7 +103,7 @@ class SettlementItemAllocationAtomicityIntegrationTest {
 
     @Test
     @DisplayName("Share 저장 실패 시 마지막 제출과 상태 전이를 모두 롤백한다")
-    void rollsBackSubmissionWhenFinalSharePersistenceFails() {
+    void itemAllocation_shareSaveFailure_rollsBackSubmissionAndStatus() {
         doThrow(new IllegalStateException("injected share failure"))
                 .when(saveSettlementSharePort).saveAll(anyList());
 
