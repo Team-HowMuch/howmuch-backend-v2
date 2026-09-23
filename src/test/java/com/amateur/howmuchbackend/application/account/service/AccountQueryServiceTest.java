@@ -328,7 +328,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("미래 월은 외부 조회 전에 거절한다")
-    void rejectsFutureMonth() {
+    void accountTransactions_futureMonth_rejectedBeforeCodef() {
         Account account = account(1L, "0020", true, 0);
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
         YearMonth future = SEPTEMBER.plusMonths(1);
