@@ -59,7 +59,7 @@ class UserPublicIdSearchPersistenceIntegrationTest {
 
     @Test
     @DisplayName("연락처 HMAC 목록과 일치하는 활성 회원만 한 번에 조회한다")
-    void matchesActiveUsersByIdentityKeys() {
+    void userLookup_identityKeys_returnsActiveMatchesOnce() {
         String key = UUID.randomUUID().toString().replace("-", "").substring(0, 6);
         String activeIdentityKey = "active-contact-" + key;
         String inactiveIdentityKey = "inactive-contact-" + key;
