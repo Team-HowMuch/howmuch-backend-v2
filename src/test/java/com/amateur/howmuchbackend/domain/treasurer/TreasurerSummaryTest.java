@@ -36,7 +36,7 @@ class TreasurerSummaryTest {
     }
 
     @Test
-    void countsDraftAsInProgressWithoutSendOrReceiveBalance() {
+    void treasurerSummary_draftInProgressWithoutBalance() {
         TreasurerSummary summary = TreasurerSummary.from(List.of(
                 settlement(SettlementDirection.RECEIVE, SettlementStatus.DRAFT, 80_000L)
         ));
