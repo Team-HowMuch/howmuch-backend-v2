@@ -507,7 +507,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자도 연결 참여자도 아닌 사용자의 조회를 거부한다")
-    void rejectsUnrelatedUser() {
+    void settlementDetail_unrelatedUser_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
