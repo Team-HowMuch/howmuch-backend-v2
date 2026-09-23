@@ -23,7 +23,7 @@ class SettlementParticipantTest {
 
     @Test
     @DisplayName("등록 사용자와 그룹 구성원은 회원 ID로 식별한다")
-    void createsParticipantsLinkedToUsers() {
+    void participant_registeredUserAndGroupMember_identifiedByUserId() {
         SettlementParticipant registered = SettlementParticipant.registeredUser(
                 SETTLEMENT_ID,
                 1L,
