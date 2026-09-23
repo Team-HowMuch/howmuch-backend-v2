@@ -104,7 +104,7 @@ class MockSettlementTransferLinkAdapterTest {
     }
 
     @Test
-    void acceptsMaximumAccountLengthAndConfiguredUrl() {
+    void mockTransferLink_maxAccountLength_usesConfiguredUrl() {
         adapter = new MockSettlementTransferLinkAdapter(bankCatalog, "http://localhost:3000/send");
         when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("우리은행"));
         String url = adapter.create("0020", "12345678901234", Long.MAX_VALUE, "예금주")
