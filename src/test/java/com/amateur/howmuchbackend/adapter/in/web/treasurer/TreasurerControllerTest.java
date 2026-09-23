@@ -111,7 +111,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("채팅 시작 인사와 바로가기를 반환한다")
-    void returnsChatStart() throws Exception {
+    void treasurerChat_start_returnsGreetingAndShortcuts() throws Exception {
         when(getTreasurerChatUseCase.getChat()).thenReturn(new TreasurerChatResult(
                 "안녕하세요. 어떤 정산이 궁금하세요?",
                 List.of(new TreasurerChatResult.Prompt(InquiryIntent.SEND_SETTLEMENTS, "보낼 정산", "보낼 정산")),
