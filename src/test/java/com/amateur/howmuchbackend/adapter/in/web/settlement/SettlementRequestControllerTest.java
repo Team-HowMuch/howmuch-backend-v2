@@ -47,7 +47,7 @@ class SettlementRequestControllerTest {
 
     @Test
     @DisplayName("공통 URL과 다음 배분 단계·정산 상태를 반환한다")
-    void requestsSettlement() throws Exception {
+    void settlementRequest_request_returnsNextStepAndState() throws Exception {
         when(requestSettlementUseCase.request(SETTLEMENT_ID)).thenReturn(
                 new SettlementRequestResult(
                         SETTLEMENT_ID,
