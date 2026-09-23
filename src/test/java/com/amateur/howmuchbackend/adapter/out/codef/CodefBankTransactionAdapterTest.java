@@ -72,7 +72,7 @@ class CodefBankTransactionAdapterTest {
             "503, CODEF_UPSTREAM_UNAVAILABLE",
             "400, CODEF_RESPONSE_INVALID"
     })
-    void classifiesCodeLessHttpResponsesByTransportStatus(int httpStatus, ExternalConnectionStatusCode expected)
+    void bankTransactions_codeLessHttpStatus_classifiedByTransport(int httpStatus, ExternalConnectionStatusCode expected)
             throws Exception {
         when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any()))
                 .thenThrow(new CodefClient.CodefHttpException(httpStatus, "", null));
