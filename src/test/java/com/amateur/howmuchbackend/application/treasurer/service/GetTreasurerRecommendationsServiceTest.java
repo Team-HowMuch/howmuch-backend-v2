@@ -35,7 +35,7 @@ class GetTreasurerRecommendationsServiceTest {
     }
 
     @Test
-    void exposesTransferOnlyForAwaitingDepositSend() {
+    void transferRecommendation_awaitingDepositSend_only() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
