@@ -48,7 +48,7 @@ class ManageMyPushTargetServiceTest {
 
     @Test
     @DisplayName("Firebase installation ID를 정규화해 현재 사용자에 저장한다")
-    void registersPushTarget() {
+    void pushTarget_installationIdNormalized_registered() {
         givenCurrentActor();
         when(pushTargetStorePort.claim(
                 eq(USER_ID),
