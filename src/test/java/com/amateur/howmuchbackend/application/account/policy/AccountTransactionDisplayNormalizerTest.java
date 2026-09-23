@@ -37,7 +37,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("입금 설명에서 상대방 이름과 이체 유형을 추출한다")
-    void normalizesTransferDescription() {
+    void transferDescription_counterpartyAndType_extracted() {
         var display = normalizer.normalize(
                 "0011", "실시간이체 민선영 입금 농협 001191", AccountTransactionType.INCOME
         );
