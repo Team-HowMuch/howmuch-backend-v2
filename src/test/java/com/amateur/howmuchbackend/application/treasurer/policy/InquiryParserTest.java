@@ -62,7 +62,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void extractsTitleHintWhenStatusAndGroupNameAppearTogether() {
+    void titleHint_statusAndGroupName_extracted() {
         InquiryParser.ParsedInquiry parsed = parser.parse("진행 중인 여행 모임 정산 상태는?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
