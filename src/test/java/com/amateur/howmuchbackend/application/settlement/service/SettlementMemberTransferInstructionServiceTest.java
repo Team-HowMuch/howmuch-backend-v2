@@ -144,7 +144,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("전원이 끝나지 않았어도 내 Share가 있으면 보낼 수 있다")
-    void allowsTransferBeforeEveryoneSubmits() {
+    void memberTransferInstruction_ownShareBeforeAllSubmit_allowed() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
