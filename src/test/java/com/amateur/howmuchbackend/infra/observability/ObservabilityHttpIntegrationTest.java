@@ -54,7 +54,7 @@ class ObservabilityHttpIntegrationTest {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     @Test
-    void realSecurityRejectionIsCorrelatedAndCounted(CapturedOutput output) throws Exception {
+    void observability_securityRejection_correlatedAndCounted(CapturedOutput output) throws Exception {
         double before = count("user", "401");
         var response = get(port, "/api/v2/user/me");
         assertThat(response.statusCode()).isEqualTo(401);
