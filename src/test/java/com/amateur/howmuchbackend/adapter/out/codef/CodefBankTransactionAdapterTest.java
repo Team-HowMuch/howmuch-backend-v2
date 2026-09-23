@@ -60,7 +60,7 @@ class CodefBankTransactionAdapterTest {
     }
 
     @Test
-    void classifiesMissingCodefFailureCodeAsInvalidResponse() {
+    void bankTransactions_missingFailureCode_invalidResponse() {
         var failure = CodefFailureMapper.map(
                 null, ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID, null);
 
