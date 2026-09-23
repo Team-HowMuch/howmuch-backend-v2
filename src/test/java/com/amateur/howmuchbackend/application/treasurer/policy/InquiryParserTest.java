@@ -79,7 +79,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void classifiesExpenseAndStatusWithoutPeriod() {
+    void expenseQuery_withoutPeriod_classifiedWithStatus() {
         assertThat(parser.parse("이번 달 지출을 요약해줘").intent()).isEqualTo(InquiryIntent.EXPENSE_SUMMARY);
         assertThat(parser.parse("정산 진행 상황은?").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
         assertThat(parser.parse("정산 진행 상황은?").period()).isNull();
