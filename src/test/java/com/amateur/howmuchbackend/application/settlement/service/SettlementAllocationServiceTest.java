@@ -207,7 +207,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("OCR 품목 합계가 전체 지출보다 작으면 품목별 할당 선택을 거부한다")
-    void rejectsItemAllocationTotalMismatch() {
+    void allocationType_receiptTotalMismatch_rejected() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(null, 1_000)));
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
