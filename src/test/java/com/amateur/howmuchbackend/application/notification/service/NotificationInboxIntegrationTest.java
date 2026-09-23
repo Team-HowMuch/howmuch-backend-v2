@@ -166,7 +166,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void deletedSettlementRetainsMessageAndDisablesAction() throws Exception {
+    void settlementDeleted_notificationMessageKeptActionDisabled() throws Exception {
         var n = request(); recorder.record(n);
         jdbc.update("DELETE FROM settlements WHERE id=?", settlement);
         mvc.perform(get("/api/v2/notifications").with(user("member")))
