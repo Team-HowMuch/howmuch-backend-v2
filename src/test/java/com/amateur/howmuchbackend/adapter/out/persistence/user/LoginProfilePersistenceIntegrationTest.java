@@ -165,7 +165,7 @@ class LoginProfilePersistenceIntegrationTest {
     }
 
     @Test
-    void missingUserDoesNotSilentlySucceed() {
+    void login_missingUser_doesNotSucceed() {
         assertThatThrownBy(() -> tx.executeWithoutResult(status -> users.recordLogin(-1L, BEFORE)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
