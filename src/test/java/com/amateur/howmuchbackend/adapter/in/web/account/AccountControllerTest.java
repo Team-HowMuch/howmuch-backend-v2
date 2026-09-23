@@ -102,7 +102,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("요청 월 소비 요약을 YYYY-MM 계약으로 반환한다")
-    void getsAccountDetail() throws Exception {
+    void accountDetail_requestedMonth_returnsSpendSummary() throws Exception {
         YearMonth august = YearMonth.of(2026, 8);
         when(getAccountDetailUseCase.getAccountDetail(1L, august)).thenReturn(new AccountDetailResult(
                 1L, "0020", "우리은행", "woori.png", "생활비 통장", "****6789",
