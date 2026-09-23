@@ -49,7 +49,7 @@ class CodefBankTransactionAdapterTest {
     }
 
     @Test
-    void preservesFallbackAndCauseForUnknownFailureCode() {
+    void bankTransactions_unknownFailure_preservesFallbackAndCause() {
         IllegalStateException cause = new IllegalStateException("upstream failed");
 
         var failure = CodefFailureMapper.map(
