@@ -149,7 +149,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("지출 수정과 삭제가 최신 누적액에 반영된다")
-    void updatesAndDeletesExpense() {
+    void expense_updateAndDelete_recalculatesTotal() {
         SettlementExpense saved = settlementExpensePersistenceAdapter.save(
                 manualExpense("저녁 식사", 42_000, 0)
         );
