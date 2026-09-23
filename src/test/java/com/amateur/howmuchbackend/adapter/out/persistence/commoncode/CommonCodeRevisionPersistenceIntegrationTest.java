@@ -91,7 +91,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void concurrentDetailWritersHaveOneWinner() throws Exception {
+    void commonCodeRevision_concurrentDetailWrites_haveOneWinner() throws Exception {
         var before = read();
         var barrier = new CyclicBarrier(2);
         var synchronizedLoad = mock(LoadCommonCodeGroupPort.class);
