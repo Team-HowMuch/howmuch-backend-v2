@@ -16,7 +16,7 @@ class SettlementParticipantContextTest {
 
     @Test
     @DisplayName("링크 hash와 정산·참여자를 묶은 불투명 UUID token을 발급한다")
-    void issuesOpaqueContext() {
+    void participantContext_linkedIds_opaqueTokenIssued() {
         UUID settlementId = UUID.randomUUID();
         UUID participantId = UUID.randomUUID();
 
