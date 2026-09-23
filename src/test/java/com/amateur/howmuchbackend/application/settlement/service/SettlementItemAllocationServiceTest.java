@@ -179,7 +179,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("중단된 정산을 다시 조회해도 미배분 품목을 반환한다")
-    void returnsInvalidItemsWhenSuspendedSettlementIsReloaded() {
+    void itemAllocation_suspendedReload_returnsInvalidItems() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
                 context(FIRST_PARTICIPANT_ID)
