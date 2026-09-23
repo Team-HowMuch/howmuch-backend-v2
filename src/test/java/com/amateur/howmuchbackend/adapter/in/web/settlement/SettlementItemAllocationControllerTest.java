@@ -99,7 +99,7 @@ class SettlementItemAllocationControllerTest {
 
     @Test
     @DisplayName("선택 취소와 제출 endpoint를 공개한다")
-    void removesAndSubmitsSelection() throws Exception {
+    void itemSelection_cancelAndSubmit_endpointsExposed() throws Exception {
         when(removeUseCase.remove(TOKEN, CONTEXT_ID, PARTICIPANT_ID, ITEM_ID))
                 .thenReturn(result(SettlementItemAllocationPhase.SELECTING));
         when(submitUseCase.submit(TOKEN, CONTEXT_ID, PARTICIPANT_ID))
