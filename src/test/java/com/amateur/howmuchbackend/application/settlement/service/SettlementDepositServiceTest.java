@@ -434,7 +434,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("생성 2시간 이내 입금으로 완료되고 재대조가 중복 입금을 만들지 않는다")
-    void completesRecentSettlementAndDoesNotDuplicateOnRetry() {
+    void settlementDeposit_recentSettlementRetry_noDuplicateDeposit() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         Transaction saved = transaction("6000");
         arrangeFetchedTransaction(saved);
