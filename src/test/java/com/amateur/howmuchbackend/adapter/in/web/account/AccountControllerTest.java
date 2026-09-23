@@ -160,7 +160,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("계좌를 삭제하고 빈 성공 응답을 반환한다")
-    void deletesAccount() throws Exception {
+    void account_delete_returnsEmptySuccess() throws Exception {
         mockMvc.perform(delete("/api/v2/accounts/1"))
                 .andExpect(status().isOk());
 
