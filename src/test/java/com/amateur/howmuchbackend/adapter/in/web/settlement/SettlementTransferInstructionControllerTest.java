@@ -85,7 +85,7 @@ class SettlementTransferInstructionControllerTest {
 
     @Test
     @DisplayName("참여 문맥 헤더가 없으면 요청을 거부한다")
-    void rejectsMissingParticipantContext() throws Exception {
+    void transferInstruction_missingParticipantContext_rejected() throws Exception {
         mockMvc.perform(get(
                         "/api/v2/settlement-links/{token}/transfer-instruction",
                         TOKEN
