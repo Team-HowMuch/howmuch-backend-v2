@@ -159,7 +159,7 @@ class GroupPersistenceIntegrationTest {
     @Test
     @Transactional
     @DisplayName("초대 코드로 그룹을 조회하고 LEFT 멤버를 재가입 상태로 갱신한다")
-    void findsByInviteCodeAndRejoinsLeftMember() {
+    void group_inviteCodeLookup_rejoinsLeftMember() {
         Group savedGroup = saveGroup();
         GroupMember leftMember = groupMemberPersistenceAdapter.save(new GroupMember(
                 null,
