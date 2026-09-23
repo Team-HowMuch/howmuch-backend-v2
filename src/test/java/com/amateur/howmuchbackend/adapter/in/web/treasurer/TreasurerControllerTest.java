@@ -255,7 +255,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("추천 목록을 반환한다")
-    void returnsRecommendations() throws Exception {
+    void treasurerRecommendations_request_returnsList() throws Exception {
         when(getTreasurerRecommendationsUseCase.getRecommendations())
                 .thenReturn(new TreasurerRecommendationsResult("처리할 정산이 없어요.", List.of()));
 
