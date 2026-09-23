@@ -93,7 +93,7 @@ class TreasurerRecommendationTest {
     }
 
     @Test
-    void exposesDepositCheckOnlyWhenReceiveSettlementAwaitsDeposit() {
+    void recommendation_receiveAwaitingDeposit_depositCheckExposed() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement requested = settlement(
                 SettlementDirection.RECEIVE,
