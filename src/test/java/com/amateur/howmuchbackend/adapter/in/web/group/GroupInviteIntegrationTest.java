@@ -128,7 +128,7 @@ class GroupInviteIntegrationTest {
     }
 
     @Test
-    void onlyPreviewIsPublicAndOpenApiDescribesTheContract() throws Exception {
+    void invitePreview_onlyRoutePublic_openApiDocumentsContract() throws Exception {
         mvc.perform(options(PATH, "AB12CD34")
                         .header("Origin", ORIGIN)
                         .header("Access-Control-Request-Method", "GET")
