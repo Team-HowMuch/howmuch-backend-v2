@@ -126,7 +126,7 @@ class ObservabilityHttpIntegrationTest {
     }
 
     @Test
-    void doesNotPropagateW3cHeadersToExternalRequests() throws Exception {
+    void externalRequest_w3cTraceHeaders_notPropagated() throws Exception {
         var receivedHeaders = new AtomicReference<String>();
         try (var server = new ServerSocket(0)) {
             Thread serverThread = Thread.startVirtualThread(() -> acceptOnce(server, receivedHeaders));
