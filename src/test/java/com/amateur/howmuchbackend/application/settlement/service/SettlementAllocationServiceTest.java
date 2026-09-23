@@ -90,7 +90,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("기준 총액과 지출 합계가 같으면 기본 N빵을 만들고 잔여금을 생성자에게 배분한다")
-    void selectsDutchPayAndCreatesDefaultAllocation() {
+    void allocationType_balancedExpenses_createsDutchPayShares() {
         Settlement settlement = settlement(null, 1_000);
         List<SettlementParticipant> participants = participants();
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
