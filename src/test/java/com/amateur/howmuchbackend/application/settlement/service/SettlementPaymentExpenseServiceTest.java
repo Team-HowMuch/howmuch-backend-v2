@@ -90,7 +90,7 @@ class SettlementPaymentExpenseServiceTest {
 
     @Test
     @DisplayName("외부 계좌 동기화는 DB 트랜잭션 밖에서 실행하고 가져오기 저장은 트랜잭션을 유지한다")
-    void keepsExternalSynchronizationOutsideDatabaseTransaction() throws NoSuchMethodException {
+    void paymentExpense_externalSync_runsOutsideTransaction() throws NoSuchMethodException {
         var candidateMethod = SettlementPaymentExpenseService.class.getMethod(
                 "get",
                 UUID.class,
