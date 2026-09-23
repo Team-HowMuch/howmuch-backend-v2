@@ -52,7 +52,7 @@ class UserPushTargetPersistenceIntegrationTest {
 
     @Test
     @DisplayName("현재 계정의 FID를 해제한다")
-    void clearsTarget() {
+    void pushTarget_currentAccount_cleared() {
         Long userId = insertUser(TARGET);
 
         boolean cleared = inTransaction(() ->
