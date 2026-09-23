@@ -68,7 +68,7 @@ class SettlementTransferLinkConfigTest {
     }
 
     @Test
-    void unknownSelectionFailsStartup() {
+    void transferLinkConfig_unknownSelection_startupRejected() {
         runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", "typo"))
                 .run(context -> assertThat(context).hasFailed());
     }
