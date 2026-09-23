@@ -149,7 +149,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void presentMultipartPartStillReachesTheController() throws Exception {
+    void multipart_partPresent_controllerInvoked() throws Exception {
         mvc.perform(multipart("/error-probe/upload")
                         .file(new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1})))
                 .andExpect(status().isOk());
