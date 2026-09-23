@@ -231,7 +231,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("OWNER가 publicId로 신규 멤버를 직접 추가한다")
-    void addsNewMemberByPublicId() {
+    void groupMember_publicId_ownerAddsNewMember() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OWNER_ID));
         User target = user(MEMBER_ID, "member.test", "멤버", true);
         when(loadUserPort.findByPublicId("member.test")).thenReturn(Optional.of(target));
