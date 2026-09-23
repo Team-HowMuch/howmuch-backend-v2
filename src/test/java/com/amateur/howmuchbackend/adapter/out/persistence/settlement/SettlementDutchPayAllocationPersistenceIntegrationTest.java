@@ -144,7 +144,7 @@ class SettlementDutchPayAllocationPersistenceIntegrationTest {
 
     @Test
     @DisplayName("참여자가 제거되면 복합 외래키의 Cascade로 해당 배분 초안도 제거한다")
-    void cascadesWhenParticipantIsDeleted() {
+    void participant_deleted_cascadesAllocationDraft() {
         adapter.replaceAll(
                 settlementId,
                 List.of(
