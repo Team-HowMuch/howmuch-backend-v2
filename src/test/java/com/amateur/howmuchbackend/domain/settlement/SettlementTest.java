@@ -24,7 +24,7 @@ class SettlementTest {
     class CreationPolicy {
         @Test
         @DisplayName("사용자가 실수로 입력한 양끝 공백은 같은 제목으로 취급하기 위해 제거한다")
-        void trimsTitleBoundary() {
+        void settlement_titleBoundaryWhitespace_trimmed() {
             Settlement settlement = Settlement.draft(CREATOR_ID, "  회식 정산  ", 10_000, CREATED_AT);
 
             assertThat(settlement.title()).isEqualTo("회식 정산");
