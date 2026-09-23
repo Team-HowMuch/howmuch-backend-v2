@@ -149,7 +149,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void staleFailureCannotOverwriteReplacementRequest() throws Exception {
+    void smsOtp_staleFailure_doesNotOverwriteReplacement() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         SmsVerificationRedisAdapter delayed = delayedRead(read, release);
