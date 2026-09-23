@@ -14,7 +14,7 @@ class GroupImagePolicyTest {
 
     @Test
     @DisplayName("파일명이 아닌 signature로 JPEG를 판별한다")
-    void detectsJpegSignature() {
+    void groupImage_jpegSignature_recognizedByBytes() {
         var image = policy.validate(new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00});
 
         assertThat(image.contentType()).isEqualTo("image/jpeg");
