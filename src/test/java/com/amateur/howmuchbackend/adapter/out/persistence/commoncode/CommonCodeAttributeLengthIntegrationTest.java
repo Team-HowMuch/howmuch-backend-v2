@@ -44,7 +44,7 @@ class CommonCodeAttributeLengthIntegrationTest {
     }
 
     @Test
-    void jpaAndMigratedDatabaseAgreeOnAttributeLengths() throws Exception {
+    void commonCodeAttributeLengths_jpaAndMigration_match() throws Exception {
         for (String field : List.of("attr1", "attr2", "attr3")) {
             assertThat(CommonCodeJpaEntity.class.getDeclaredField(field)
                     .getAnnotation(Column.class).length()).isEqualTo(255);
