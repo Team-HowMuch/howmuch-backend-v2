@@ -24,7 +24,7 @@ class SettlementLinkPropertiesTest {
 
     @Test
     @DisplayName("로컬 개발용 loopback 주소는 HTTP를 허용한다")
-    void acceptsHttpLoopbackBaseUrls() {
+    void settlementLink_loopbackHttpBaseUrl_accepted() {
         assertThat(new SettlementLinkProperties(
                 "http://localhost:8080/settlement-links",
                 Duration.ofDays(30)
