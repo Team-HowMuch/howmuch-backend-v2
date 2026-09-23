@@ -32,7 +32,7 @@ class SettlementItemSelectionTest {
 
     @Test
     @DisplayName("수량을 주지 않던 기존 저장과 같은 1개는 그대로 한 몫이다")
-    void keepsSingleUnitBehaviour() {
+    void itemSelection_oneUnit_preservesDefaultBehavior() {
         SettlementItemSelection selection = selection(
                 SettlementItemAllocationFraction.HALF, 1
         );
