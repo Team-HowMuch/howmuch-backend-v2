@@ -646,7 +646,7 @@ class AskTreasurerServiceTest {
             "정산 기한이 지나면 어떻게 돼?",
             "이 서비스는 어떻게 사용하는 거야?"
     })
-    void clarifiesServiceRelatedQuestionInsteadOfGuidingScope(String question) {
+    void serviceQuestion_asksForClarification(String question) {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand(question));
