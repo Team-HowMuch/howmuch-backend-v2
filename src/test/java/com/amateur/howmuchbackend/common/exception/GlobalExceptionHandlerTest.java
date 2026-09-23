@@ -65,7 +65,7 @@ class GlobalExceptionHandlerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "not-a-uuid"})
-    void emptyOrMalformedHeaderReturnsInvalidArgument(String value) throws Exception {
+    void header_emptyOrMalformed_returnsInvalidArgument(String value) throws Exception {
         invalidArgument(mvc.perform(get(TRANSFER).header("Link-Participant-Context", value)));
         verifyNoInteractions(transfer);
     }
