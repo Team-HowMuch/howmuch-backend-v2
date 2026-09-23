@@ -152,7 +152,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("잘못된 요청 월 형식은 INVALID_ARGUMENT로 거절한다")
-    void rejectsInvalidYearMonth() throws Exception {
+    void yearMonth_invalidFormat_returnsInvalidArgument() throws Exception {
         mockMvc.perform(get("/api/v2/accounts/1").param("yearMonth", "2026-8"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
