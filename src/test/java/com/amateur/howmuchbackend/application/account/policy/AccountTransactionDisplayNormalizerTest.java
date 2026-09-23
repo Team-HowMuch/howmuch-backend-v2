@@ -15,7 +15,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("농협 카드 원문에서 거래처명과 카드 유형을 추출한다")
-    void normalizesNhCardDescription() {
+    void nhCardDescription_merchantAndCardType_extracted() {
         var display = normalizer.normalize(
                 "0011", "NH체크 쿠팡(쿠페이) 농협 723110", AccountTransactionType.EXPENSE
         );
