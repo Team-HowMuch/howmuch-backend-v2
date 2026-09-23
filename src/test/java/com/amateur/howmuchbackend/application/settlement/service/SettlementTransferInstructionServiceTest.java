@@ -84,7 +84,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("참여 문맥이 가리키는 참여자의 확정 금액과 수금 계좌만 반환한다")
-    void getsTransferInstructionForSelectedParticipant() {
+    void transferInstruction_selected_returnsAmountAndAccount() {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -113,7 +113,7 @@ class SettlementTransferInstructionServiceTest {
         assertThat(result.participantId()).isEqualTo(PARTICIPANT_ID);
         assertThat(result.shareId()).isEqualTo(SHARE_ID);
         assertThat(result.amount()).isEqualTo(6_000);
-        // 화면이 "OO님에게 N원을 보내주세요"를 그리려면 예금주와 은행 이름이 필요하다.
+        // 송금 화면에 수취인 이름과 은행 이름을 표시하도록 결과에 함께 담는다.
         assertThat(result.recipientName()).isEqualTo("최수아");
         assertThat(result.recipientBankCode()).isEqualTo("0020");
         assertThat(result.recipientBankName()).isEqualTo("우리은행");
