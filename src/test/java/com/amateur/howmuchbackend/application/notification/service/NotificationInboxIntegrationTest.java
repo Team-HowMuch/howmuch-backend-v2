@@ -156,7 +156,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void concurrentReadRetainsFirstTimestamp() throws Exception {
+    void notificationRead_concurrentRequests_keepsFirstTimestamp() throws Exception {
         var n = request(); recorder.record(n);
         var results = concurrent(() -> reads.markRead(n.id(), recipient, NOW),
                 () -> reads.markRead(n.id(), recipient, NOW.plusSeconds(1)));
