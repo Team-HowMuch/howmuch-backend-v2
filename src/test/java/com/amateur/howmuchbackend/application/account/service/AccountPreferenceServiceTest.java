@@ -47,7 +47,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void movesAccountAndNormalizesDisplayOrders() {
+    void accountPreference_move_normalizesDisplayOrder() {
         givenAccounts(
                 account(10L, true, 0),
                 account(11L, false, 1),
