@@ -194,7 +194,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("활성 멤버를 OWNER 우선, 가입 시각과 멤버 ID 순으로 조회한다")
-    void loadsOrderedActiveMembers() {
+    void groupMembers_activeMembers_orderedByOwnerTimeAndId() {
         Long earlierMemberUserId = insertUser("먼저 가입한 멤버");
         Long laterMemberUserId = insertUser("나중 가입한 멤버");
         Long removedMemberUserId = insertUser("제거된 멤버");
