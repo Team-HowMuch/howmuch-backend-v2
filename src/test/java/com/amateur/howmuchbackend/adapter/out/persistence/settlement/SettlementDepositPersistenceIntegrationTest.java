@@ -115,7 +115,7 @@ class SettlementDepositPersistenceIntegrationTest {
 
     @Test
     @DisplayName("재연결 전 계좌에서 정산에 연결한 외부 거래 Key를 조회한다")
-    void loadsMatchedTransactionKeyAcrossAccountLifecycles() {
+    void depositTransactions_reconnectedAccount_externalKey_loaded() {
         String externalTransactionKey = "a".repeat(64);
         Long transactionId = jdbcTemplate.queryForObject("""
                         INSERT INTO account_transactions (
