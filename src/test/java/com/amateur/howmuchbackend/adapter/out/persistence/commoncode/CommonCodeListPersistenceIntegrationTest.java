@@ -43,7 +43,7 @@ class CommonCodeListPersistenceIntegrationTest {
     @ParameterizedTest
     @ValueSource(ints = {1, 10, 100})
     @DisplayName("그룹 수가 늘어도 전체·검색 목록은 각각 두 쿼리로 정확한 집계를 반환한다")
-    void queryCountStaysConstantAsGroupCountGrows(int groupCount) {
+    void commonCodeList_groupCountGrows_queryCountStaysConstant(int groupCount) {
         List<CommonCodeGroupSummary> expected = new ArrayList<>();
         for (int index = groupCount - 1; index >= 0; index--) {
             expected.add(insertGroup(prefix + "%03d".formatted(index), "목록 " + index,
