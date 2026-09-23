@@ -52,7 +52,7 @@ class SettlementLinkPropertiesTest {
 
     @Test
     @DisplayName("localhost와 비슷한 외부 호스트는 HTTP 예외로 인정하지 않는다")
-    void rejectsLookalikeLoopbackHost() {
+    void settlementLink_lookalikeLoopbackHost_rejected() {
         assertThatThrownBy(() -> new SettlementLinkProperties(
                 "http://localhost.example/settlement-links",
                 Duration.ofDays(30)
