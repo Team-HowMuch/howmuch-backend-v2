@@ -715,7 +715,7 @@ class AskTreasurerServiceTest {
             "영화 추천해줘.",
             "주식 추천해줘."
     })
-    void guidesScopeForQuestionUnrelatedToService(String question) {
+    void outOfScopeQuestion_returnsScopeGuide(String question) {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand(question));
