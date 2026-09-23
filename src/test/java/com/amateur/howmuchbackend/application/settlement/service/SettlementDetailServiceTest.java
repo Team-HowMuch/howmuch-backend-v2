@@ -340,7 +340,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("진행 중 정산의 수금 계좌 스냅샷이 없으면 404를 반환한다")
-    void rejectsMissingReceivingAccountSnapshot() {
+    void settlementDetail_missingAccountSnapshot_returnsNotFound() {
         givenSettlement(CREATOR_ID);
         lenient().when(loadReceivingAccountSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.empty());
