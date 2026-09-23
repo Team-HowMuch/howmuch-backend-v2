@@ -92,7 +92,7 @@ class AccountDeletionServiceTest {
 
     @Test
     @DisplayName("기본 계좌가 아니면 기본 계좌 승격 없이 삭제한다")
-    void deletesNonDefaultAccountWithoutPromotion() {
+    void accountDeletion_nonDefault_noPromotion() {
         Account account = account(10L, false, 2);
         givenOwnedLockedAccount(account);
 
