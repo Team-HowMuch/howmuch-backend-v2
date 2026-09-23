@@ -231,7 +231,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("같은 계좌의 다른 정산 Share에도 맞는 거래는 어느 정산에도 자동 연결하지 않는다")
-    void rejectsTransactionAmbiguousAcrossSettlements() {
+    void settlementDeposit_ambiguousTransaction_notMatched() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("6000"));
         when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
