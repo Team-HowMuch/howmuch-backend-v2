@@ -158,7 +158,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void metadataAndDetailEditReturnsCommittedRevisionAndAllowsNextEdit() {
+    void commonCodeRevision_committedDetailEdit_allowsNextEdit() {
         var before = read();
         var response = tx.execute(status -> adapter.update(before.update("renamed", "description",
                 "attr1", null, null, false, List.of(detail("KEEP", "changed", true)))));
