@@ -84,7 +84,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("외부 원본의 수정 정책이 확정되기 전에는 수동 지출 API 수정을 거부한다")
-    void rejectsUpdateForImportedExpense() {
+    void importedExpense_manualUpdate_rejected() {
         SettlementExpense imported = SettlementExpense.paymentHistory(
                 SETTLEMENT_ID,
                 1L,
