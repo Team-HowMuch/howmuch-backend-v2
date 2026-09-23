@@ -31,7 +31,7 @@ class MyNotificationServiceTest {
         service = new MyNotificationService(actor, load, read, clock);
         when(actor.getCurrentActor()).thenReturn(new CurrentActor(2L));
     }
-    @Test void paginatesAndDoesNotMarkRead() {
+    @Test void notificationList_pageRequest_doesNotMarkRead() {
         var first = notification(UUID.randomUUID());
         when(load.findPage(2L,null,null,2)).thenReturn(List.of(first, notification(null)));
         var result = service.get(new GetMyNotificationsCommand(null,1));
