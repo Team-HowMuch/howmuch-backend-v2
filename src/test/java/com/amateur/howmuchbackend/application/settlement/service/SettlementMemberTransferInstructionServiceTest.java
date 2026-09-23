@@ -174,7 +174,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("아무도 안 고른 품목이 남아 멈춰도 내 몫은 보낼 수 있다")
-    void allowsTransferWhileSuspended() {
+    void memberTransferInstruction_suspendedOwnShare_allowed() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.SUSPENDED)));
