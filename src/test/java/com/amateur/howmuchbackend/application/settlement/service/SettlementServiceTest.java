@@ -126,7 +126,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("현재 사용자를 찾을 수 없으면 참여자 없는 정산을 만들지 않는다")
-    void rejectsCreationForMissingCurrentUser() {
+    void settlement_missingCurrentUser_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadUserPort.findByIdForUpdate(CREATOR_ID)).thenReturn(Optional.empty());
 
