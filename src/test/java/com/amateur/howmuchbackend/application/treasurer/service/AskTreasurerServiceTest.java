@@ -592,7 +592,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void includesCompletedSendInExpenseAndExcludesDraft() {
+    void expenseSummary_completedSendIncludedAndDraftExcluded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
