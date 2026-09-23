@@ -108,7 +108,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("남이 1개를 가져간 수량 2 품목에서 2개를 고르면 거부한다")
-    void rejectsTakingMoreThanRemainingQuantity() {
+    void itemAllocation_moreThanRemainingQuantity_rejected() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(10_000, 2),
                 List.of(selection(
