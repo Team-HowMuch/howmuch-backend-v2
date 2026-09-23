@@ -143,7 +143,7 @@ class LoginAttemptRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void delayedCompletionCannotChangeNewGenerationAfterSuccess(boolean success) throws Exception {
+    void loginAttempt_delayedCompletion_cannotChangeNewGeneration(boolean success) throws Exception {
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         when(encoder.matches(PIN, "synthetic-hash")).thenAnswer(call -> {
