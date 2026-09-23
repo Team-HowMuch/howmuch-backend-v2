@@ -243,7 +243,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("응답 본문을 해석하지 못하면 500이 아니라 재시도를 알린다")
-    void treatsUnparseableBodyAsUnavailable() {
+    void receiptOcr_unparseableBody_returnsUnavailable() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess("<html>gateway</html>", MediaType.APPLICATION_JSON));
 
