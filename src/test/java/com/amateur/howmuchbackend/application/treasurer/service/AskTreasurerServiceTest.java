@@ -759,7 +759,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersQuickActionSendAsListCard() {
+    void quickSendAction_returnsListCard() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.fromString("11111111-1111-1111-1111-111111111111"),
