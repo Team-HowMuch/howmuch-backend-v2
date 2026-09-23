@@ -137,7 +137,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("답변 응답에 신고용 answerId를 싣는다")
-    void exposesAnswerIdForReporting() throws Exception {
+    void treasurerAnswer_reportableResponse_includesAnswerId() throws Exception {
         when(askTreasurerUseCase.ask(any())).thenReturn(answerResult());
 
         mockMvc.perform(post("/api/v2/treasurer/questions")
