@@ -102,7 +102,7 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("PNG 바이트는 image/png로 보낸다")
-    void sendsDetectedPngType() {
+    void receiptAnalysis_pngBytes_sentAsImagePng() {
         when(analyzeReceiptImagePort.analyze(any(), eq("image/png"), any())).thenReturn(
                 new ReceiptAnalysisResult(null, null, List.of(), null, null, false));
 
