@@ -193,7 +193,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void asyncRedispatchReusesIdAndCountsOnlyCompletion() throws Exception {
+    void requestMetrics_asyncRedispatch_reusesIdCountsOnce() throws Exception {
         var request = request("/async");
         var response = new MockHttpServletResponse();
         filter.doFilter(request, response, (req, res) -> request.setAsyncStarted(true));
