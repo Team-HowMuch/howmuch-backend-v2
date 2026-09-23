@@ -64,7 +64,7 @@ class ObservabilityHttpIntegrationTest {
     }
 
     @Test
-    void handledSettlementFailureKeepsSafeJsonAndCounter(CapturedOutput output) throws Exception {
+    void observability_settlementFailure_safeJsonAndCounterPreserved(CapturedOutput output) throws Exception {
         double before = count("settlement", "500");
         var response = get(port, "/api/v2/settlement-links/_observability/" + SECRET);
         assertThat(response.statusCode()).isEqualTo(500);
