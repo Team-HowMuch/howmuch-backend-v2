@@ -29,7 +29,7 @@ class GroupInviteCodePolicyTest {
 
     @Test
     @DisplayName("null과 공백 초대 코드를 같은 기능 오류로 거절한다")
-    void rejectsMissingInviteCode() {
+    void groupInviteCode_nullOrBlank_returnsSameError() {
         assertInvalidInviteCode(null);
         assertInvalidInviteCode("   ");
     }
