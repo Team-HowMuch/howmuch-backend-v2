@@ -157,7 +157,7 @@ class SettlementDepositMatchingPolicyTest {
             "민선영, 최수아, 민선영 최수아 입금"
     })
     @DisplayName("동명이인·정규화 충돌·복수 해석과 복수 이름은 확정하지 않는다")
-    void rejectsAmbiguousFullNames(String first, String second, String description) {
+    void depositMatching_ambiguousNameOrInterpretation_rejected(String first, String second, String description) {
         var createdAt = LocalDateTime.of(2026, 8, 24, 0, 0);
         assertThat(policy.match(transaction(description, "6000"), List.of(
                 payable(SHARE_ID, first, createdAt),
