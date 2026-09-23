@@ -97,7 +97,7 @@ class SettlementMemberItemAllocationServiceTest {
 
     @Test
     @DisplayName("참여자가 아니면 접근을 거부한다")
-    void rejectsNonParticipant() {
+    void memberItemAllocation_nonParticipant_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
