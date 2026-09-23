@@ -100,7 +100,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("합계가 정산 총액과 다르면 저장을 거부한다")
-    void rejectsUnbalancedReplacement() {
+    void dutchPayAllocation_totalMismatch_rejected() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friend = participant(2L, "친구 1", 1);
 
