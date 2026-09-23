@@ -55,7 +55,7 @@ class GroupMemberExitPolicyTest {
 
     @Test
     @DisplayName("OWNER가 이전 없이 탈퇴하거나 자신을 제거하는 요청을 차단한다")
-    void requiresOwnershipTransferBeforeOwnerExit() {
+    void groupOwnerExit_withoutOwnershipTransfer_blocked() {
         GroupMember owner = activeMember(1L, GroupMemberRole.OWNER);
 
         assertStatus(
