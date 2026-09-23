@@ -75,7 +75,7 @@ class CreateGroupServiceTest {
 
     @Test
     @DisplayName("그룹과 요청자의 OWNER 멤버십을 함께 생성한다")
-    void createsGroupAndOwner() {
+    void groupCreation_request_createsGroupAndOwner() {
         when(saveGroupMemberPort.save(any(GroupMember.class)))
                 .thenAnswer(invocation -> persistedMember(invocation.getArgument(0)));
         when(groupInviteLinkPort.create("AB12CD34"))
