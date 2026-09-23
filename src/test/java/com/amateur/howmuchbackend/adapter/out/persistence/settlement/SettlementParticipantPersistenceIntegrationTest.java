@@ -183,7 +183,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹 참여자의 출처 그룹 ID를 저장하고 복원한다")
-    void savesGroupMemberSource() {
+    void settlementParticipant_groupSourceId_persisted() {
         SettlementParticipant saved = settlementParticipantPersistenceAdapter.save(
                 SettlementParticipant.groupMember(
                         settlementId,
