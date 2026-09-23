@@ -181,7 +181,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("OCR 품목 합계가 전체 지출과 같으면 품목별 할당을 선택한다")
-    void selectsItemAllocationWithBalancedReceiptItems() {
+    void allocationType_receiptTotalMatches_selectsItemAllocation() {
         Settlement settlement = settlement(null, 1_000);
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement));
