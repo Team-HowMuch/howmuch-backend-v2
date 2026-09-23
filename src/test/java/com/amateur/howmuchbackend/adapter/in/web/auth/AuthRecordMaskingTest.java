@@ -58,7 +58,7 @@ class AuthRecordMaskingTest {
 
     @ParameterizedTest(name = "{0}: masks null values")
     @MethodSource("contracts")
-    void masksNullValues(Class<?> type) throws Exception {
+    void authRecord_nullValues_masked(Class<?> type) throws Exception {
         String rendered = fixture(type, true).toString();
         for (RecordComponent component : type.getRecordComponents()) {
             if (SENSITIVE.contains(component.getName())) {
