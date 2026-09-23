@@ -129,7 +129,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("목록과 누적액이 같은 조회 결과를 반영하도록 지출 목록에서 합계를 계산한다")
-    void getsExpensesAndConsistentTotal() {
+    void settlementExpenseList_listAndTotal_consistent() {
         givenOwnedDraft();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
                 expense(EXPENSE_ID, "저녁 식사", 42_000, 0),
