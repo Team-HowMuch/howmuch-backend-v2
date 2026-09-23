@@ -118,7 +118,7 @@ class SettlementItemAllocationControllerTest {
 
     @Test
     @DisplayName("품목 선택 비율이 누락되면 400을 반환한다")
-    void rejectsMissingFraction() throws Exception {
+    void itemSelection_missingFraction_returnsBadRequest() throws Exception {
         mockMvc.perform(put(BASE_PATH + "/items/{itemId}", TOKEN, PARTICIPANT_ID, ITEM_ID)
                         .header("Link-Participant-Context", CONTEXT_ID)
                         .contentType(MediaType.APPLICATION_JSON)
