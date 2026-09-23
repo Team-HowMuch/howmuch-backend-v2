@@ -205,7 +205,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("일괄 저장 경로가 단건 이동 경로와 겹치지 않고 순서 배열을 Command로 전달한다")
-    void replacesAccountDisplayOrders() throws Exception {
+    void accountDisplayOrders_bulkSave_mapsToCommand() throws Exception {
         mockMvc.perform(patch("/api/v2/accounts/display-order")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accountIds\":[11,12,10]}"))
