@@ -18,7 +18,7 @@ class LocalGroupImageStorageAdapterTest {
 
     @Test
     @DisplayName("UUID 파일명으로 원자 저장하고 같은 content type으로 조회한다")
-    void savesAndLoadsImage() {
+    void groupImage_uuidFilename_savedAndLoaded() {
         var adapter = new LocalGroupImageStorageAdapter(
                 new GroupImageProperties(storageDirectory.toString())
         );
