@@ -127,7 +127,7 @@ class SettlementParticipantTest {
     @ParameterizedTest
     @ValueSource(longs = {0, -1})
     @DisplayName("등록 참여자는 양수 회원 ID가 있어야 한다")
-    void rejectsInvalidLinkedUserId(long linkedUserId) {
+    void participant_linkedUserId_nonPositive_rejected(long linkedUserId) {
         assertThatThrownBy(() -> SettlementParticipant.registeredUser(
                 SETTLEMENT_ID,
                 linkedUserId,
