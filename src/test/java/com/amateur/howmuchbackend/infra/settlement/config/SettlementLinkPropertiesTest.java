@@ -41,7 +41,7 @@ class SettlementLinkPropertiesTest {
 
     @Test
     @DisplayName("외부 HTTP 정산 링크 주소는 거부한다")
-    void rejectsHttpExternalBaseUrl() {
+    void settlementLink_externalHttpBaseUrl_rejected() {
         assertThatThrownBy(() -> new SettlementLinkProperties(
                 "http://pay.howmuch.example/settlement-links",
                 Duration.ofDays(30)
