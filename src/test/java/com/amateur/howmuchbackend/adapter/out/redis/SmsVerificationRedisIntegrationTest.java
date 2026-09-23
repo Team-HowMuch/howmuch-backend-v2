@@ -282,7 +282,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void keyWithoutExpiryCannotBeConsumed() {
+    void smsOtp_nonExpiringKey_cannotBeConsumed() {
         redis.persist(key);
         assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isEqualTo(-1);
         assertThat(succeed(adapter)).isEqualTo(EXPIRED);
