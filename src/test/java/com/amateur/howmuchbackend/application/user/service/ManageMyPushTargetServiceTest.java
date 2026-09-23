@@ -67,7 +67,7 @@ class ManageMyPushTargetServiceTest {
 
     @Test
     @DisplayName("등록된 푸시 대상을 해제한다")
-    void clearsPushTarget() {
+    void pushTarget_registeredTarget_cleared() {
         givenCurrentActor();
         when(pushTargetStorePort.clear(eq(USER_ID), any(LocalDateTime.class))).thenReturn(true);
 
