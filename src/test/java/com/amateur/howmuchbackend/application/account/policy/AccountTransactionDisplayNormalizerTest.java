@@ -110,7 +110,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("빈 설명은 null 제목과 OTHER로 fallback한다")
-    void fallsBackForBlankDescription() {
+    void transactionDescription_blank_usesNullTitleAndOtherKind() {
         assertThat(normalizer.normalize("0011", "  ", AccountTransactionType.EXPENSE))
                 .isEqualTo(new AccountTransactionResult.Display(null, AccountTransactionResult.Display.Kind.OTHER));
     }
