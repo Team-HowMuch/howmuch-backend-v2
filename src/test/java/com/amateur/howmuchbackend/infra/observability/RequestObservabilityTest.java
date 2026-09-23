@@ -166,7 +166,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void committedAndIoFailuresDoNotEscapeWithSensitiveCause() {
+    void requestFailure_commitOrIoCause_notExposed() {
         var response = new MockHttpServletResponse();
         assertThatThrownBy(() -> filter.doFilter(request("/io"), response, (req, res) -> {
             throw new IOException(SECRET);
