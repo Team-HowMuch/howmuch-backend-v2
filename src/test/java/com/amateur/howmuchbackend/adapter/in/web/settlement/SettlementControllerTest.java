@@ -607,7 +607,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("그룹 구성원 후보에 공개 정보와 보호된 아바타 URL만 반환한다")
-    void getsSettlementGroupParticipantCandidates() throws Exception {
+    void groupParticipantCandidates_request_returnsPublicData() throws Exception {
         when(getSettlementGroupParticipantCandidatesUseCase.get(SETTLEMENT_ID, 10L))
                 .thenReturn(List.of(
                         new SettlementParticipantCandidateResult(
