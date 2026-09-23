@@ -177,7 +177,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("빈 OCR 영수증 참조는 UseCase 호출 전에 거부한다")
-    void rejectsBlankReceiptReference() throws Exception {
+    void receiptExpense_blankReference_rejectedBeforeUseCase() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/expenses/receipt-ocr",
                         SETTLEMENT_ID
