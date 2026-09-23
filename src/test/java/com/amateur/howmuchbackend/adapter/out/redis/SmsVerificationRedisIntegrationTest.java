@@ -486,7 +486,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void legacyJsonWithoutConsumedRetainsCooldown() {
+    void smsOtp_legacyJson_withoutConsumed_keepsCooldown() {
         redis.opsForValue().set(key, mapper.writeValueAsString(initial).replace(",\"consumed\":false", ""),
                 policy.otpTtl());
         assertCooldown();
