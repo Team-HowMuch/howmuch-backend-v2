@@ -156,7 +156,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("화면 복원에 필요한 공개 정보만 표시 순서대로 조립한다")
-    void getsParticipantListWithPublicUserInformation() {
+    void participantList_creator_returnsOrderedPublicInfo() {
         List<SettlementParticipant> participants = List.of(
                 registeredCreator(),
                 linkedContact(),
