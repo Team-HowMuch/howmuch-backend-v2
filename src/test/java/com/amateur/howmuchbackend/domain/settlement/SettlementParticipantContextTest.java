@@ -32,7 +32,7 @@ class SettlementParticipantContextTest {
 
     @Test
     @DisplayName("만료 시각이 생성 시각보다 늦지 않으면 거부한다")
-    void rejectsExpiredContext() {
+    void participantContext_expirationNotAfterCreation_rejected() {
         assertThatThrownBy(() -> SettlementParticipantContext.issue(
                 "a".repeat(64), UUID.randomUUID(), UUID.randomUUID(), NOW, NOW
         )).isInstanceOf(ApplicationException.class);
