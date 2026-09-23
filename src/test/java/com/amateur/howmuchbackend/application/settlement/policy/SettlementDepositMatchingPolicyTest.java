@@ -84,7 +84,7 @@ class SettlementDepositMatchingPolicyTest {
 
     @Test
     @DisplayName("UTC 스냅샷 이전 입금만 제외하고 동일 시각과 이후는 매칭한다")
-    void matchesAtOrAfterSnapshotWithoutNineHourGrace() {
+    void depositMatching_atOrAfterSnapshot_matches() {
         var transaction = transaction("민선영 입금", "6000");
         var depositedAt = transaction.transactedAt();
         assertThat(policy.match(transaction, List.of(payable(SHARE_ID, "민선영", depositedAt.plusNanos(1)))))
