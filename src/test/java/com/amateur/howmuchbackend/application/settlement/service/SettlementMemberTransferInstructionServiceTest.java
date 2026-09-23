@@ -80,7 +80,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("링크 없이도 로그인한 참여자의 확정 금액과 수금 계좌를 반환한다")
-    void getsMyTransferInstructionWithoutLink() {
+    void memberTransferInstruction_noLink_returnsAmountAndAccount() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
