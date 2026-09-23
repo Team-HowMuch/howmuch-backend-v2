@@ -63,7 +63,7 @@ class TitleHintVerificationTest {
 
     @Test
     @DisplayName("정산이 하나도 없으면 어떤 이름도 쓰지 않는다")
-    void rejectsEveryHintWhenThereIsNoSettlement() {
+    void settlementList_empty_allHintsRejected() {
         assertThat(policy.verify(List.of(), "여행정산")).isNull();
     }
 
