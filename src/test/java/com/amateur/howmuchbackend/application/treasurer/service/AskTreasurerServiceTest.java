@@ -871,7 +871,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersDueSettlementsByDeadlineInThisWeek() {
+    void dueSettlements_thisWeek_returnsByDeadline() {
         UUID dueThisWeekId = UUID.fromString("55555555-5555-5555-5555-555555555555");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
