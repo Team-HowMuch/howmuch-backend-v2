@@ -18,7 +18,7 @@ class TreasurerCardCopyTest {
     private final TreasurerCardCopy copy = new TreasurerCardCopy();
 
     @Test
-    void buildsSendAndReceiveListCopy() {
+    void treasurerCards_sendAndReceive_buildsListCopy() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement send = new PersonalSettlement(
                 UUID.randomUUID(),
