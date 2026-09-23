@@ -186,7 +186,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("삭제된 수취 계좌는 잠금 대상 없이 불변 스냅샷으로 입금 대조를 완료한다")
-    void reconcilesDeletedReceivingAccountFromSnapshot() {
+    void settlementDeposit_deletedAccount_reconcilesFromSnapshot() {
         Settlement awaitingSettlement = settlement(SettlementStatus.AWAITING_DEPOSIT);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(awaitingSettlement));
