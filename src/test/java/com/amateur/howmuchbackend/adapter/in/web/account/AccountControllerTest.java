@@ -191,7 +191,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("음수 표시 순서는 INVALID_ACCOUNT_DISPLAY_ORDER로 거절한다")
-    void rejectsNegativeDisplayOrder() throws Exception {
+    void accountDisplayOrder_negative_returnsInvalidOrder() throws Exception {
         doThrow(ApplicationException.of(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER))
                 .when(updateAccountDisplayOrderUseCase)
                 .updateDisplayOrder(new UpdateAccountDisplayOrderCommand(1L, -1));
