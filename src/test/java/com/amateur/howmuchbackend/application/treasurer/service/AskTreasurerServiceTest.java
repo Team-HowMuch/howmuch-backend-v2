@@ -790,7 +790,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersQuickActionReceiveAsListCard() {
+    void quickReceiveAction_returnsListCard() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.fromString("44444444-4444-4444-4444-444444444444"),
