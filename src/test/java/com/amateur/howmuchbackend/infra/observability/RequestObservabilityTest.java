@@ -143,7 +143,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void adviceAndFilterExceptionsNeverLogMessagesCausesOrSuppressedValues() throws Exception {
+    void requestFailure_exceptionDetails_notLogged() throws Exception {
         var failure = new IllegalStateException(SECRET, new IllegalArgumentException(SECRET));
         failure.addSuppressed(new IllegalStateException(SECRET));
         var response = new MockHttpServletResponse();
