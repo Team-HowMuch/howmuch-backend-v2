@@ -295,7 +295,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("PAY는 연결 참여자의 Share 금액과 요청자 이름을 조회한다")
-    void loadsPaySettlementSummary() {
+    void paySettlement_linkedParticipantShareAndRequester_loaded() {
         var result = settlementPersistenceAdapter.findAll(
                 payerId,
                 SettlementListTab.PAY,
