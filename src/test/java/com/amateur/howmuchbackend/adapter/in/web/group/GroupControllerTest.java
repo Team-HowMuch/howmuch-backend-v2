@@ -244,7 +244,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("사진이 없는 멤버는 avatarUrl이 null이다")
-    void getsGroupMembersWithoutAvatar() throws Exception {
+    void groupMember_withoutAvatar_returnsNullUrl() throws Exception {
         when(getGroupMembersUseCase.getMembers(10L)).thenReturn(List.of(new GroupMemberResult(
                 20L,
                 "sua.test",
