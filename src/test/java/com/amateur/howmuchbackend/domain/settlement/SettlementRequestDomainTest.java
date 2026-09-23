@@ -47,7 +47,7 @@ class SettlementRequestDomainTest {
 
     @Test
     @DisplayName("확정 Share는 1원 이상의 송금 의무만 생성한다")
-    void requiresPositiveShareAmount() {
+    void settlementShare_nonPositiveAmount_rejected() {
         assertThat(SettlementShare.create(
                 SETTLEMENT_ID, PARTICIPANT_ID, 5_000, NOW
         ).amount()).isEqualTo(5_000);
