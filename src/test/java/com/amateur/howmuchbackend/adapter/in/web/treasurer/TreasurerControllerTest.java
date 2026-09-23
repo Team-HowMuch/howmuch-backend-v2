@@ -126,7 +126,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("빈 질문은 400을 반환한다")
-    void rejectsBlankQuestion() throws Exception {
+    void treasurerChat_blankQuestion_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v2/treasurer/questions")
                         .contentType("application/json")
                         .content("""
