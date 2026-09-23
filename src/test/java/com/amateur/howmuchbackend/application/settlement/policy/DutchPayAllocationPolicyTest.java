@@ -76,7 +76,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("참여자 전원의 금액 합계가 총액과 같으면 참여자별 금액을 돌려준다")
-    void acceptsBalancedReplacement() {
+    void dutchPayAllocation_balancedReplacement_accepted() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friendOne = participant(2L, "친구 1", 1);
         SettlementParticipant friendTwo = participant(3L, "친구 2", 2);
