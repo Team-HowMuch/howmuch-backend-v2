@@ -41,7 +41,7 @@ class GroupMemberExitPolicyTest {
             "REQUESTED", "AWAITING_DEPOSIT", "SUSPENDED"
     })
     @DisplayName("진행 중인 정산 상태가 하나라도 있으면 종료를 차단한다")
-    void blocksOngoingSettlement(SettlementStatus status) {
+    void groupMemberExit_ongoingSettlement_blocksExit(SettlementStatus status) {
         assertStatus(
                 () -> policy.validate(
                         activeMember(2L, GroupMemberRole.MEMBER),
