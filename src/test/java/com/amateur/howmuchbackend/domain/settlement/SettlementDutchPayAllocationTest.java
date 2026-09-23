@@ -32,7 +32,7 @@ class SettlementDutchPayAllocationTest {
 
     @Test
     @DisplayName("음수 부담 금액을 명시적인 입력 오류로 거부한다")
-    void rejectsNegativeAmount() {
+    void dutchPay_negativeAmount_rejected() {
         assertThatThrownBy(() -> SettlementDutchPayAllocation.create(
                 SETTLEMENT_ID,
                 PARTICIPANT_ID,
