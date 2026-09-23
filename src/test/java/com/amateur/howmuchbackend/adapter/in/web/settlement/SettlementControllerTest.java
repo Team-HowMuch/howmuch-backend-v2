@@ -307,7 +307,7 @@ class SettlementControllerTest {
     }
 
     @Test
-    void acceptsYearMonthRangeBoundaries() throws Exception {
+    void settlementList_yearMonthBoundaries_accepted() throws Exception {
         for (String value : List.of("0001-01", "9999-12")) {
             mockMvc.perform(get("/api/v2/settlements")
                             .queryParam("yearMonth", value).queryParam("status", "COMPLETED"))
