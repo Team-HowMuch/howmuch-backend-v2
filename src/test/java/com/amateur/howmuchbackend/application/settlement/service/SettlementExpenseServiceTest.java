@@ -195,7 +195,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("부분 수정 결과와 최신 누적액을 반환한다")
-    void updatesManualExpense() {
+    void manualExpense_partialUpdate_returnsExpenseAndTotal() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
                 .thenReturn(Optional.of(expense(EXPENSE_ID, "저녁 식사", 42_000, 0)));
