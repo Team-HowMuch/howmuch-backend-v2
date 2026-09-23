@@ -113,7 +113,7 @@ class SettlementReceivingAccountControllerTest {
 
     @Test
     @DisplayName("DB 조회 전에 0 이하 수령 계좌 ID를 INVALID_ARGUMENT로 거부한다")
-    void rejectsInvalidReceivingAccountId() throws Exception {
+    void receivingAccount_nonPositiveId_returnsInvalidArgument() throws Exception {
         mockMvc.perform(put(
                         "/api/v2/settlements/{settlementId}/receiving-account",
                         SETTLEMENT_ID
