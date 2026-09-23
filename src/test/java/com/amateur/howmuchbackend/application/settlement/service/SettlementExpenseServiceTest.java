@@ -254,7 +254,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("삭제 뒤 남은 지출 누적액을 반환한다")
-    void removesManualExpense() {
+    void manualExpense_delete_returnsRemainingTotal() {
         givenOwnedDraftForUpdate();
         SettlementExpense expense = expense(EXPENSE_ID, "저녁 식사", 42_000, 0);
         when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
