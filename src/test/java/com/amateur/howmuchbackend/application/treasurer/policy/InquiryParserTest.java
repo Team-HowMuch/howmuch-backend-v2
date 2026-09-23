@@ -208,7 +208,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void readsUnpaidByOthersAsMoneyComingToMe() {
+    void unpaidByOthers_moneyComingToUser_classified() {
         assertThat(parser.parse("회비 안 낸 사람 알려줘").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
         assertThat(parser.parse("나한테 안 보낸 사람 누구야?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
         assertThat(parser.parse("아직 안 낸 사람 누구야?").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
