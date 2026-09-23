@@ -199,7 +199,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("삭제 뒤 남은 지출 누적액을 반환한다")
-    void removesExpense() throws Exception {
+    void expenseDeletion_request_returnsRemainingTotal() throws Exception {
         when(removeSettlementExpenseUseCase.remove(SETTLEMENT_ID, EXPENSE_ID))
                 .thenReturn(new SettlementExpenseTotalResult(8_000));
 
