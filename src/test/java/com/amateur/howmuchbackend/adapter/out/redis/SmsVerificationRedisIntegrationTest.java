@@ -212,7 +212,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void consumedStateAllowsResendAfterOriginalCooldown() {
+    void smsOtp_consumedAfterCooldown_resendAllowed() {
         saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
                 initial.codeHash(), 0, now().minusSeconds(1), now().plusMinutes(3)), Duration.ofMinutes(3));
         assertThat(succeed(adapter)).isEqualTo(VERIFIED);
