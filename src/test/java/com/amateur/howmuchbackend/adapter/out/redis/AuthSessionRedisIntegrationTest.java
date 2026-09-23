@@ -200,7 +200,7 @@ class AuthSessionRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"session", "token", "expiry", "ttl", "json"})
-    void changedOrInvalidStoredStateIsPreserved(String change) {
+    void authSession_changedOrInvalidStoredState_preserved(String change) {
         service.issueNewSession(user);
         AuthSession expected = sessions.findByUserId(userId).orElseThrow();
         switch (change) {
