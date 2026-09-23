@@ -170,7 +170,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void delayedFailureCannotRestoreAlreadyConsumedOtp() throws Exception {
+    void smsOtp_delayedFailure_consumedOtpNotRestored() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         SmsVerificationRedisAdapter delayed = delayedRead(read, release);
