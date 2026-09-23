@@ -27,7 +27,7 @@ class TitleHintVerificationTest {
     @ParameterizedTest
     @ValueSource(strings = {"모임정산", "정산", "모임", "회비", "금액비용"})
     @DisplayName("일반어만으로 이루어진 힌트는 실제 정산에 맞아도 쓰지 않는다")
-    void rejectsHintMadeOnlyOfGenericWords(String hint) {
+    void titleHint_genericWordsOnly_rejected(String hint) {
         assertThat(policy.verify(all, hint)).isNull();
     }
 
