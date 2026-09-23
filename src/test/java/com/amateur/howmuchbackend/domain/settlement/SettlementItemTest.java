@@ -67,7 +67,7 @@ class SettlementItemTest {
 
     @Test
     @DisplayName("품목 표시 순서가 음수이면 거부한다")
-    void rejectsNegativeDisplayOrder() {
+    void receiptItem_negativeDisplayOrder_rejected() {
         assertThatThrownBy(() -> item("커피", 1, 1_000, -1))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
