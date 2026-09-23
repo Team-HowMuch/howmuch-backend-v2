@@ -157,7 +157,7 @@ class SettlementTest {
 
         @Test
         @DisplayName("생성자가 진행 중인 정산을 중단하고 다시 참여자 입력 상태로 재개한다")
-        void suspendsAndResumesRequestedSettlement() {
+        void settlement_requested_suspendAndResume_allowed() {
             Settlement requested = draft().request(CREATED_AT.plusMinutes(1));
             Settlement suspended = requested.suspendManually(CREATED_AT.plusMinutes(2));
             Settlement resumed = suspended.resume(CREATED_AT.plusMinutes(3));
