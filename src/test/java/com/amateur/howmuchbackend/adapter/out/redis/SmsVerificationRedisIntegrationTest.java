@@ -191,7 +191,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void redisExpiryBetweenReadAndTransitionDoesNotRecreateKey() throws Exception {
+    void smsOtp_expiresBetweenReadAndTransition_keyNotRecreated() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         SmsVerificationRedisAdapter delayed = delayedRead(read, release);
