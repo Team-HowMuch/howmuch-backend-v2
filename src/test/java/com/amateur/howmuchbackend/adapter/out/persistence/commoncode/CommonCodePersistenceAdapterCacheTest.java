@@ -114,7 +114,7 @@ class CommonCodePersistenceAdapterCacheTest {
 
     @Test
     @DisplayName("그룹 저장 성공 후 트랜잭션 커밋 시 활성 CommonCode 캐시를 비운다")
-    void evictsCachesAfterCommit() {
+    void commonCodeCache_saveCommitted_evictedAfterCommit() {
         CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
                 new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
         );
