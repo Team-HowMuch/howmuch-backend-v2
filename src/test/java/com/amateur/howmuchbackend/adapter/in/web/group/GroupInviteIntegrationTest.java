@@ -64,7 +64,7 @@ class GroupInviteIntegrationTest {
     }
 
     @Test
-    void anonymouslyPreviewsCurrentOwnerWithoutJoining() throws Exception {
+    void invitePreview_anonymousRequest_returnsOwnerWithoutJoining() throws Exception {
         User creator = user("원래 방장");
         User currentOwner = user("현재 방장");
         User formerMember = user("탈퇴 멤버");
