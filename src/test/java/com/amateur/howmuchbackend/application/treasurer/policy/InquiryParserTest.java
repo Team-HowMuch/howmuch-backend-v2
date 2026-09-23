@@ -121,7 +121,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void classifiesColloquialExpenseExpressions() {
+    void colloquialExpensePhrase_classified() {
         assertThat(parser.parse("이번 달에 얼마 썼어?").intent()).isEqualTo(InquiryIntent.EXPENSE_SUMMARY);
         assertThat(parser.parse("이번 달에 얼마 썼어?").period()).isEqualTo(InquiryPeriod.THIS_MONTH);
         assertThat(parser.parse("이번 달에 얼마나 지불했어?").intent()).isEqualTo(InquiryIntent.EXPENSE_SUMMARY);
