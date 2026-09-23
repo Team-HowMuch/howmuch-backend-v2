@@ -99,7 +99,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("요청 본문으로 생성자를 위조할 수 없도록 현재 로그인 사용자를 생성자로 사용한다")
-    void createsSettlementForCurrentActor() {
+    void settlement_currentActor_usedAsCreator() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadUserPort.findByIdForUpdate(CREATOR_ID)).thenReturn(Optional.of(creator()));
         when(saveSettlementPort.save(any(Settlement.class)))
