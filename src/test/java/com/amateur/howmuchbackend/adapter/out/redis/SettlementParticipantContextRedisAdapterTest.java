@@ -131,7 +131,7 @@ class SettlementParticipantContextRedisAdapterTest {
 
     @Test
     @DisplayName("문맥 토큰이 없거나 만료되어 Redis에 없으면 빈 결과를 반환한다")
-    void returnsEmptyWhenContextDoesNotExist() {
+    void participantContext_missingOrExpired_returnsEmpty() {
         UUID contextToken = UUID.randomUUID();
         when(redis.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(
