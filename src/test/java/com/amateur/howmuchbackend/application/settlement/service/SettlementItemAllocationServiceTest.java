@@ -155,7 +155,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("마지막 제출 후 미배분 품목이 남으면 중단한다. 이미 만든 내 Share는 남는다")
-    void suspendsWhenAllocationIsIncomplete() {
+    void itemAllocation_lastSubmit_suspendsAndKeepsShare() {
         arrangeRequestedAccess();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.SUSPENDED)));
