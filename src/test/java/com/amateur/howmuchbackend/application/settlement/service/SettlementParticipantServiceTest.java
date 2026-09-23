@@ -807,7 +807,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("그룹에 속하지 않은 회원은 참여자로 추가하지 않는다")
-    void rejectsUserOutsideSelectedGroup() {
+    void groupParticipant_nonMember_rejected() {
         Long groupId = 10L;
         User outsider = user(OTHER_USER_ID, "group.outsider", null);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
