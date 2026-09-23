@@ -527,7 +527,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자 참여자 백필 전 정산도 사용자 이름으로 상세 조회한다")
-    void supportsSettlementWithoutCreatorParticipant() {
+    void settlementDetail_missingCreatorParticipant_usesUserName() {
         User creator = mock(User.class);
         when(creator.name()).thenReturn("기존 생성자");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
