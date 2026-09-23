@@ -87,7 +87,7 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("빈 파일은 400이고 분석까지 가지 않는다")
-    void rejectsEmptyFile() throws Exception {
+    void receiptUpload_emptyFile_returnsBadRequestWithoutAnalysis() throws Exception {
         mockMvc.perform(multipart("/api/v2/receipts/ocr").file(image(new byte[0])))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_RECEIPT_IMAGE"));
