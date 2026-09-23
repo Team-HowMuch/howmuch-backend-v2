@@ -206,7 +206,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void requestedItemAllocationReminderExcludesSubmittedParticipantWithoutShare() {
+    void itemAllocationReminder_submittedWithoutShare_excluded() {
         jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
         jdbc.update("UPDATE settlements SET allocation_type='ITEM_ALLOCATION', status='REQUESTED' WHERE id=?", settlement);
         itemAllocations.saveSubmission(SettlementItemSubmission.submit(
