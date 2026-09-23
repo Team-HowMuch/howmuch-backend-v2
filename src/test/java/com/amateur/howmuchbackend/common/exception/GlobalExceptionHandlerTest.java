@@ -72,7 +72,7 @@ class GlobalExceptionHandlerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "not-a-number"})
-    void emptyOrMalformedParameterReturnsInvalidArgument(String value) throws Exception {
+    void parameter_emptyOrMalformed_returnsInvalidArgument(String value) throws Exception {
         invalidArgument(mvc.perform(get(CANDIDATES).param("accountId", value)));
         verifyNoInteractions(candidates, importer);
     }
