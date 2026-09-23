@@ -340,7 +340,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("연락처 추가 후 가입한 회원은 phoneHash가 일치하면 공개 ID 후보에서 제외한다")
-    void excludesCandidateMatchedByExistingContactHash() {
+    void participantCandidates_phoneHashMatch_excluded() {
         String phoneHash = "a".repeat(64);
         User convertedContact = user(OTHER_USER_ID, phoneHash, "sua.contact", null);
         User availableCandidate = user(4L, "sua.available", null);
