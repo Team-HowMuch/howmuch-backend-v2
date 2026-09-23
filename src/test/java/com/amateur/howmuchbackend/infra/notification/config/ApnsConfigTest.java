@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ApnsConfigTest {
     @Test
-    void springBootJacksonMapperWiresApnsSender() {
+    void apnsConfig_jacksonMapper_wiresSender() {
         runner().withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class))
                 .withUserConfiguration(ApnsPushSender.class)
                 .run(context -> assertThat(context).hasSingleBean(ApnsPushSender.class));
