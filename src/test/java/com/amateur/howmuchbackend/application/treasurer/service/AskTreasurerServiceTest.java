@@ -145,7 +145,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void excludesReceiveSettlementsFromExpenseSummary() {
+    void expenseSummary_receiveSettlements_excluded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
