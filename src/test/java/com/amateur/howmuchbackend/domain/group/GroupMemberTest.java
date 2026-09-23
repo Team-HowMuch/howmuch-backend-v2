@@ -93,7 +93,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("OWNER는 멤버 종료 전이를 직접 사용할 수 없다")
-    void rejectsOwnerExit() {
+    void member_ownerExit_rejected() {
         GroupMember owner = GroupMember.owner(10L, 1L, JOINED_AT);
 
         assertThatThrownBy(() -> owner.leave(REACTIVATED_AT))
