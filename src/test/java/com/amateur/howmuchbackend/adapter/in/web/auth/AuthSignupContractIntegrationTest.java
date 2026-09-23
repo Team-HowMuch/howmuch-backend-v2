@@ -220,7 +220,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("OpenAPI에 생년월일을 required date 필드로 공개한다")
-    void documentsBirthDateAsRequiredDate() throws Exception {
+    void signupBirthDate_openApiRequired_documented() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andReturn()
