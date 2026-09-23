@@ -49,7 +49,7 @@ class TreasurerCardCopyTest {
     }
 
     @Test
-    void completedSendExpenseIsNotUnpaid() {
+    void sendExpense_completed_notUnpaid() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement completed = new PersonalSettlement(
                 UUID.randomUUID(),
