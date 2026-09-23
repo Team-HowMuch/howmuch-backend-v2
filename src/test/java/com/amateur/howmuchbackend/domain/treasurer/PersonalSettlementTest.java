@@ -14,7 +14,7 @@ class PersonalSettlementTest {
     private static final Instant NOW = Instant.parse("2026-08-26T00:00:00Z");
 
     @Test
-    void treatsRequestedAwaitingAndSuspendedAsOutstanding() {
+    void personalSettlement_requestedAwaitingOrSuspended_outstanding() {
         assertThat(settlement(SettlementStatus.REQUESTED).isOutstanding()).isTrue();
         assertThat(settlement(SettlementStatus.AWAITING_DEPOSIT).isOutstanding()).isTrue();
         assertThat(settlement(SettlementStatus.SUSPENDED).isOutstanding()).isTrue();
