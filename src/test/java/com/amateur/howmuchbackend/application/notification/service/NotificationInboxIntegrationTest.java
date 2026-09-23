@@ -103,7 +103,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void concurrentRequestDeduplicationCreatesOneOutbox() throws Exception {
+    void notificationRecord_sameRequest_concurrently_createsOneOutbox() throws Exception {
         var first = request(); var second = request();
         var results = concurrent(() -> recorder.record(first), () -> recorder.record(second));
         assertThat(results).containsExactlyInAnyOrder(true, false);
