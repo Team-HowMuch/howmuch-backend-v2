@@ -103,7 +103,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("다른 키로 서명한 JWT는 401이다")
-    void rejectsInvalidSignature() throws Exception {
+    void protectedApi_invalidSignature_rejected() throws Exception {
         var otherIssuer = new JwtTokenProvider(new JwtProperties("other-test-only-signing-key-never-for-production-307", 600, 600));
         assertError(request("GET", PROFILE, otherIssuer.createAccessToken(user, sessionId)), 401, "UNAUTHORIZED");
     }
