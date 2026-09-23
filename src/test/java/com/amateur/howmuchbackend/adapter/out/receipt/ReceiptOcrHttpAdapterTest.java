@@ -198,9 +198,9 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("주소가 비어 있으면 호출하지 않고 연결 불가로 답한다")
-    void doesNotCallWhenIntegrationIsOff() {
-        // 기대를 걸지 않은 서버를 붙인다. 요청이 한 건이라도 나가면 그 자리에서 실패한다.
-        // 바깥의 server 를 그대로 쓰면 어댑터가 다른 RestClient 를 쓰므로 아무것도 증명하지 못한다.
+    void receiptOcr_integrationDisabled_sendsNoRequest() {
+        // 요청을 받을 의도가 없는 서버를 연결해 요청이 한 건이라도 나가면 실패시킨다.
+        // 바깥의 server는 다른 RestClient를 사용하므로 이 경계의 호출 여부를 검증하지 못한다.
         RestClient.Builder offBuilder = RestClient.builder();
         MockRestServiceServer offServer = MockRestServiceServer.bindTo(offBuilder).build();
         ReceiptOcrHttpAdapter off = new ReceiptOcrHttpAdapter(offBuilder.build(), properties(""));
