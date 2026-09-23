@@ -193,7 +193,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("정산 재개 시 기존 품목 선택은 유지하고 제출 완료 표시만 초기화한다")
-    void resumesSettlementAndClearsSubmissions() {
+    void settlement_resume_preservesSelectionsAndClearsSubmissions() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(suspended()));
