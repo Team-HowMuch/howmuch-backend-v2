@@ -23,7 +23,7 @@ class SettlementDepositMatchingPolicyTest {
 
     @Test
     @DisplayName("이름이 유일하고 정수 원 금액이 남은 금액 이하인 수입 거래만 연결한다")
-    void matchesOnlyUnambiguousWonIncome() {
+    void depositMatching_uniqueNameAndValidWonIncome_matched() {
         var payable = new SettlementDepositMatchingPolicy.PayableShare(
                 SHARE_ID,
                 "민선영",
