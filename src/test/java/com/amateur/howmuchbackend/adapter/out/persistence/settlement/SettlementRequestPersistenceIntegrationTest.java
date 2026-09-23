@@ -158,7 +158,7 @@ class SettlementRequestPersistenceIntegrationTest {
 
     @Test
     @DisplayName("정산 root 삭제가 Share·수령 계좌 스냅샷·링크를 함께 cascade한다")
-    void deletesRequestChildrenWithSettlement() {
+    void settlementDeletion_requestChildren_cascaded() {
         SettlementReceivingAccountSnapshot snapshot = SettlementReceivingAccountSnapshot.create(
                 settlementId,
                 accountId,
