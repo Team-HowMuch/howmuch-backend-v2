@@ -67,7 +67,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("앱 영수증 품목의 행 금액 합계를 서버에서 계산해 Writer에 전달한다")
-    void createsSubmittedReceiptWithServerCalculatedTotal() {
+    void receiptExpense_appItems_calculatesTotalOnServer() {
         CreateSettlementReceiptExpenseCommand command =
                 new CreateSettlementReceiptExpenseCommand(
                         "  receipt-app-1  ",
