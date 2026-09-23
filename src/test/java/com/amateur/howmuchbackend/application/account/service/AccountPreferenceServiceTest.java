@@ -154,7 +154,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsOrderContainingAccountTheUserDoesNotOwn() {
+    void accountPreference_unownedAccount_rejected() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         assertThatThrownBy(() -> service().replaceDisplayOrders(
