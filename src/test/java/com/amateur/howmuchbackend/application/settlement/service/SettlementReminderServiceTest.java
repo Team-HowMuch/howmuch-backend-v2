@@ -185,7 +185,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void refusesPartialPayment() {
+    void reminder_partialPayment_refused() {
         givenTarget();
         when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of(new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(SHARE_ID, 1)));
