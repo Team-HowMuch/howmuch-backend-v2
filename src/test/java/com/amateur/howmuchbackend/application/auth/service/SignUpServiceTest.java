@@ -96,7 +96,7 @@ class SignUpServiceTest {
 
     @Test
     @DisplayName("다섯 후보가 모두 충돌하면 사용자를 저장하지 않는다")
-    void rejectsWhenAllCandidatesCollide() {
+    void publicId_allCandidatesCollide_userNotSaved() {
         prepareValidSignUp();
         when(publicIdPolicy.generate()).thenReturn(COLLIDING_PUBLIC_ID);
         when(loadUserPort.existsByPublicId(COLLIDING_PUBLIC_ID)).thenReturn(true);
