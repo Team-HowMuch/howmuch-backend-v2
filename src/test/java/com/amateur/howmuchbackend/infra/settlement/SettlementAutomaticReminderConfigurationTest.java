@@ -28,7 +28,7 @@ class SettlementAutomaticReminderConfigurationTest {
     }
 
     @Test
-    void explicitEnableRegistersSchedulerAndOverridesBatch() {
+    void automaticReminder_enabled_registersSchedulerAndBatchSize() {
         context.withPropertyValues("howmuch.settlement.automatic-reminder.enabled=true",
                 "howmuch.settlement.automatic-reminder.batch-size=10").run(app -> {
             assertThat(app).hasSingleBean(SettlementAutomaticReminderScheduler.class);
