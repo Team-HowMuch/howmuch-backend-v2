@@ -122,7 +122,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("지출 누적액이 long 범위를 넘으면 500이 아닌 400 오류 계약을 반환한다")
-    void returnsBadRequestForExpenseTotalOverflow() throws Exception {
+    void expenseTotal_overflow_returnsBadRequest() throws Exception {
         when(createSettlementExpenseUseCase.create(
                 SETTLEMENT_ID,
                 new CreateSettlementExpenseCommand("추가 지출", 1)
