@@ -59,7 +59,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("잔여금을 임의 참여자에게 넘기지 않도록 생성자 참여자가 없으면 거부한다")
-    void rejectsMissingCreatorParticipant() {
+    void dutchPay_creatorMissing_rejected() {
         assertThatThrownBy(() -> policy.calculate(
                 settlement(),
                 List.of(
