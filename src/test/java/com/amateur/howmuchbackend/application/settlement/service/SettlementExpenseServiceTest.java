@@ -236,7 +236,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("다른 정산의 지출 ID로 수정할 수 없도록 소속이 일치하지 않으면 찾을 수 없음으로 처리한다")
-    void rejectsExpenseOutsideSettlement() {
+    void manualExpense_wrongSettlement_returnsNotFound() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
                 .thenReturn(Optional.empty());
