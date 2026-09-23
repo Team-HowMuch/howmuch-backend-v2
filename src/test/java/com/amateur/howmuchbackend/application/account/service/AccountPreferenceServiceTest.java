@@ -122,7 +122,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsOrderMissingAnActiveAccount() {
+    void accountPreference_missingActiveAccount_rejected() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         assertThatThrownBy(() -> service().replaceDisplayOrders(
