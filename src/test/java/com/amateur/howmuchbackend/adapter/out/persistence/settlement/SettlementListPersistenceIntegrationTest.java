@@ -179,7 +179,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("작성하다 만 초안은 목록에 나오지 않는다")
-    void hidesDraftSettlement() {
+    void settlementList_draft_excluded() {
         UUID draftId = UUID.randomUUID();
         settlementJpaRepository.saveAndFlush(new SettlementJpaEntity(new Settlement(
                 draftId,
