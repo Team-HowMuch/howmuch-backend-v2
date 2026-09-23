@@ -133,7 +133,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("로그인했어도 연결된 참여자가 없으면 신뢰 기반 이름 선택으로 전환한다")
-    void fallsBackToBrowserSelectionWhenUserIsNotLinked() {
+    void settlementLink_unlinkedUser_fallsBackToBrowserSelection() {
         arrangeItemAllocationAccess();
         when(currentActorPort.findCurrentActor()).thenReturn(Optional.of(new CurrentActor(99L)));
 
