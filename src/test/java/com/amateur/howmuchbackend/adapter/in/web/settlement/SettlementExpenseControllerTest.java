@@ -162,7 +162,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("수정 필드가 없는 PATCH를 거부한다")
-    void rejectsPatchWithoutFields() throws Exception {
+    void expensePatch_noFields_returnsBadRequest() throws Exception {
         mockMvc.perform(patch(
                         "/api/v2/settlements/{settlementId}/expenses/{expenseId}",
                         SETTLEMENT_ID,
