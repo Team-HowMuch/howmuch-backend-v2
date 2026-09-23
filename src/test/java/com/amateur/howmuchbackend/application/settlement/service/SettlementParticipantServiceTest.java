@@ -725,7 +725,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("정산 생성자가 그룹 구성원이 아니면 후보 조회를 거부한다")
-    void rejectsGroupCandidatesForNonMemberCreator() {
+    void groupCandidates_nonMemberCreator_rejected() {
         Long groupId = 10L;
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
