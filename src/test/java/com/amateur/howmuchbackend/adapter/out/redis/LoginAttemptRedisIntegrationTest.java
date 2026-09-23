@@ -247,7 +247,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void verificationExceptionDoesNotRefundAttempt() {
+    void loginAttempt_verificationFailure_attemptNotRefunded() {
         when(encoder.matches(PIN, "synthetic-hash")).thenThrow(new IllegalStateException("verification unavailable"));
         assertThatThrownBy(() -> login(PIN)).isInstanceOf(IllegalStateException.class);
         assertThat(redis.opsForValue().get(key)).endsWith(":1");
