@@ -29,7 +29,7 @@ class GroupTest {
 
     @Test
     @DisplayName("빈 메모는 저장하지 않는다")
-    void normalizesBlankMemoToNull() {
+    void group_blankMemo_normalizedToNull() {
         Group group = Group.create("여행", "   ", null, 1L, "AB12CD34", NOW);
 
         assertThat(group.memo()).isNull();
