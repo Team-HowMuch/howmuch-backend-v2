@@ -115,7 +115,7 @@ class CommonCodeCreationPersistenceIntegrationTest {
     }
 
     @Test
-    void updateStillChangesDetailsAndDeactivatesRemovedOnes() {
+    void commonCodeUpdate_removedDetails_deactivated() {
         tx.executeWithoutResult(status -> adapter.create(group("before",
                 List.of(detail("KEEP", "original"), detail("REMOVE", "removed")))));
         tx.executeWithoutResult(status -> adapter.update(group("after", List.of(detail("KEEP", "changed")))));
