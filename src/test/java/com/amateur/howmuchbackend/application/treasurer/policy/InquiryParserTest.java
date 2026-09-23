@@ -239,7 +239,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void keepsGuideIntentWhenOnlyEverydayVerbsCompete() {
+    void guideIntent_competingEverydayVerbs_preserved() {
         assertThat(parser.parse("영수증 OCR은 어떻게 처리해야 해?").intent()).isEqualTo(InquiryIntent.GUIDE);
         assertThat(parser.parse("영수증 남은 거 어떻게 해?").intent()).isEqualTo(InquiryIntent.GUIDE);
         assertThat(parser.parse("영수증 정산은 어떻게 처리해야 해?").intent()).isEqualTo(InquiryIntent.GUIDE);
