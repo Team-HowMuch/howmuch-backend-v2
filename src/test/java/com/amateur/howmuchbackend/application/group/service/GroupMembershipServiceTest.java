@@ -170,7 +170,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("사진을 올린 멤버만 파일명 기반 아바타 버전을 반환한다")
-    void marksMembersWithAvatar() {
+    void groupMember_avatarExists_returnsFileVersion() {
         GroupMember owner = activeMember(10L, OWNER_ID, GroupMemberRole.OWNER);
         GroupMember member = activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER);
         when(loadGroupMemberPort.findActiveByGroupId(GROUP_ID)).thenReturn(List.of(owner, member));
