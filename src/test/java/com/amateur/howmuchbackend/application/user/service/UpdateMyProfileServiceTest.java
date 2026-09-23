@@ -66,7 +66,7 @@ class UpdateMyProfileServiceTest {
 
     @Test
     @DisplayName("공개 ID를 소문자로 정규화하고 잠근 사용자 상태에 저장한다")
-    void updatesNormalizedPublicId() {
+    void publicId_update_normalizedAndSaved() {
         when(loadUserPort.existsByPublicId("new.id_1")).thenReturn(false);
         when(saveUserPort.update(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
