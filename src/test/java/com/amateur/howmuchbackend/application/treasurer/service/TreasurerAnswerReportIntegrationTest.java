@@ -111,7 +111,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("남의 답변과 없는 답변은 구분 없이 같은 404다")
-    void hidesWhetherSomeoneElsesAnswerExists() {
+    void answerReport_otherUserOrMissingAnswer_sameNotFound() {
         UUID othersAnswer = saveAnswer(stranger, NOW);
         UUID missingAnswer = UUID.randomUUID();
 
