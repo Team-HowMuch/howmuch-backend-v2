@@ -108,7 +108,7 @@ class AuthSessionRedisIntegrationTest {
     }
 
     @Test
-    void concurrentRefreshHasOneWinnerAndInvalidTokenLosers() throws Exception {
+    void authSession_concurrentRefresh_hasSingleWinner() throws Exception {
         TokenResult initial = service.issueNewSession(user);
         CountDownLatch validated = new CountDownLatch(8);
         CountDownLatch release = new CountDownLatch(1);
