@@ -117,7 +117,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void rejectsWriterWhoseManagedGroupBecameStaleAfterRead() {
+    void commonCodeRevision_managedGroupStaleAfterRead_rejected() {
         var before = read();
         var winner = new AtomicReference<CommonCodeGroup>();
         var delayedLoad = mock(LoadCommonCodeGroupPort.class);
