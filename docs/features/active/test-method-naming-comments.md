@@ -38,7 +38,7 @@
 - 기존 도메인: 테스트 소스 전체에 걸친 표현 규칙이며 도메인 로직 변경은 없다.
 - 적용 파일: 최신 `develop`의 `src/test/java/**/*.java`.
 - 현재 파일 수: Java 테스트 파일 173개.
-- 기준선 탐색: JUnit 테스트 Annotation 969개를 확인했다. 정확한 메서드 수는 변경 전후에 선언부와 Annotation 대응으로 재확인한다.
+- 기준선 탐색: JUnit 테스트 Annotation 969개와 대응하는 테스트 메서드 969개를 확인했다.
 
 ### 용어
 
@@ -111,7 +111,7 @@
 - [x] Migration-only PR: N/A. 데이터 구조 및 애플리케이션 계약을 바꾸지 않는다.
 - [x] UseCase, Command/Result, Ports, Domain, Application, Adapter, API, Infra: N/A. 테스트 명명만 변경한다.
 - [ ] 이 Feature Plan을 별도 문서 커밋으로 추가한다.
-- [ ] Java 테스트 메서드명을 하나씩 변경한다. 메서드 이름, 해당 메서드의 Javadoc, 그 메서드의 잘못된 `@DisplayName` 수정만 같은 커밋에 포함한다. 두 테스트 메서드를 한 커밋에 묶지 않는다.
+- [ ] Java 테스트 메서드명을 하나씩 변경한다. 메서드 이름과 그 메서드의 필요한 Javadoc, 테스트 설명 주석, 내용이 잘못된 `@DisplayName` 수정은 같은 커밋에 포함한다. 두 테스트 메서드의 변경을 한 커밋에 묶지 않는다.
 - [ ] `docs/testing.md`의 규칙 변경은 별도 문서 커밋으로 둔다.
 - [ ] 전체 변경 후 보존 검증을 기록하고 Feature Plan을 `docs/features/completed/`로 이동한다.
 
@@ -155,7 +155,7 @@ gh pr checks <PR_NUMBER>
 
 | 날짜 | 완료 내용 | 다음 작업 | 위험 또는 제한 |
 |---|---|---|---|
-| 2026-09-24 | #411 생성, 최신 `develop`에서 `test/411-test-naming-comments` 준비, `compileTestJava` 기준선 통과 | 메서드 현황 정리와 이름 변경 | 로컬 Docker 데몬 및 격리 DB/Redis 설정 부재 |
+| 2026-09-24 | #411 생성, 최신 `develop`에서 `test/411-test-naming-comments` 준비, 969개 메서드 확인, `compileTestJava` 기준선 통과 | 메서드별 이름과 설명 주석 변경 | 로컬 Docker 데몬 및 격리 DB/Redis 설정 부재 |
 
 ## 9. 결정 기록
 
