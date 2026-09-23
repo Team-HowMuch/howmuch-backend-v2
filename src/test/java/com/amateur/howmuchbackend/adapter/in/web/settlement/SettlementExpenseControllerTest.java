@@ -105,7 +105,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("유니코드 공백만 있는 설명을 UseCase 호출 전에 거부한다")
-    void rejectsUnicodeWhitespaceDescription() throws Exception {
+    void manualExpense_unicodeWhitespaceDescription_rejected() throws Exception {
         mockMvc.perform(post("/api/v2/settlements/{settlementId}/expenses", SETTLEMENT_ID)
                         .contentType("application/json")
                         .content("""
