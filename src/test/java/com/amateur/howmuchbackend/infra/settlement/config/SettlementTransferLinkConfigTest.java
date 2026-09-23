@@ -54,7 +54,7 @@ class SettlementTransferLinkConfigTest {
     }
 
     @Test
-    void configuredBaseUrlReachesMockAdapter() {
+    void transferLinkConfig_baseUrl_passedToMockAdapter() {
         runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", "mock",
                 "SETTLEMENT_MOCK_TRANSFER_BASE_URL", "http://localhost:3000/send"))
                 .run(context -> {
