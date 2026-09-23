@@ -45,7 +45,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("정산 참여자가 2명 미만이면 N빵을 만들지 않는다")
-    void rejectsInsufficientParticipants() {
+    void dutchPay_participantCountBelowTwo_rejected() {
         assertThatThrownBy(() -> policy.calculate(
                 settlement(),
                 List.of(participant(CREATOR_ID, "생성자", 0)),
