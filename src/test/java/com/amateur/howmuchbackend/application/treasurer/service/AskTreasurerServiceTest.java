@@ -923,7 +923,7 @@ class AskTreasurerServiceTest {
 
     @Test
     @DisplayName("사실 검증을 통과한 LLM 문장은 LLM으로 저장한다")
-    void storesLlmAsGenerator() {
+    void answerGenerator_factCheckedLlm_persisted() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         when(generateTreasurerAnswerPort.generate(any()))
                 .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
