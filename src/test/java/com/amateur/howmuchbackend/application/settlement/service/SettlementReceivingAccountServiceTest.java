@@ -148,7 +148,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("요청 확정 뒤에는 계좌 조회 전에 수령 계좌 변경을 거부한다")
-    void rejectsSelectionOutsideDraft() {
+    void receivingAccount_afterRequest_rejectedBeforeLookup() {
         authenticate();
         Settlement requested = draft().request(CREATED_AT.plusMinutes(1));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(requested));
