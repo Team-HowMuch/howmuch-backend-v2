@@ -103,7 +103,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("제출하면 남을 기다리지 않고 내 Share부터 만든다")
-    void createsMyShareBeforeOthersSubmit() {
+    void itemAllocation_submit_createsOwnShareImmediately() {
         arrangeRequestedAccess();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
