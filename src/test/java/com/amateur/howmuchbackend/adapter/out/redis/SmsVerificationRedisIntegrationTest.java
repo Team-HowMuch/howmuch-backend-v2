@@ -125,7 +125,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void concurrentConfirmationsIssueExactlyOneStoredChallenge() throws Exception {
+    void smsOtp_concurrentConfirmations_oneChallengeStored() throws Exception {
         AuthChallengeRedisAdapter challenges = spy(new AuthChallengeRedisAdapter(redis, mapper));
         ConfirmSmsVerificationService service = new ConfirmSmsVerificationService(
                 identity, policy, synchronizedReads(2), challenges);
