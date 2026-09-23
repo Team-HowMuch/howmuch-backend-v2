@@ -769,7 +769,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("그룹 소속을 다시 확인한 활성 회원을 그룹 참여자로 저장한다")
-    void addsGroupMemberParticipant() {
+    void groupParticipant_activeMember_revalidatedAndSaved() {
         Long groupId = 10L;
         User groupMember = user(OTHER_USER_ID, "group.member", "group.png");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
