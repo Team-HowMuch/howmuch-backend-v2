@@ -29,7 +29,7 @@ class TreasurerAnswerFactCheckTest {
     }
 
     @Test
-    void acceptsNumbersPresentInFallbackAnswer() {
+    void fallbackAnswer_presentNumbers_accepted() {
         TreasurerAnswerDraft statusDraft = new TreasurerAnswerDraft(
                 "정산 진행 상태는?",
                 InquiryIntent.SETTLEMENT_STATUS,
