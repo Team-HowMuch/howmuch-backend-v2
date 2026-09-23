@@ -75,7 +75,7 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    void sequentialRefreshRejectsPreviousTokenEvenWithinSameSecond() {
+    void jwt_previousRefreshToken_rejectedWithinSameSecond() {
         when(user.id()).thenReturn(7L);
         when(user.active()).thenReturn(true);
         var current = new AtomicReference<AuthSession>();
