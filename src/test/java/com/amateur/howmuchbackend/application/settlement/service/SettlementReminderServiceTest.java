@@ -122,7 +122,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void remindsRequestedParticipantWithPreservedShareAfterResume() {
+    void reminder_requestedParticipantAfterResume_preservesShare() {
         givenRequestedTargetWithoutShare();
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(share()));
