@@ -97,7 +97,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("실패 응답은 결과 없음이다")
-    void treatsNotOkAsNoResult() {
+    void receiptOcr_notOkResponse_returnsNoResult() {
         String body = "{\"ok\": false, \"error\": \"분석 실패\"}";
 
         assertThat(strict.readValue(body, OcrReceiptApiResponse.class).hasResult()).isFalse();
