@@ -39,7 +39,7 @@ class TitleHintVerificationTest {
             "점심회비, 점심회비"
     })
     @DisplayName("일반어를 걷어내도 이름이 남으면 쓴다")
-    void acceptsHintThatCarriesAName(String hint, String expected) {
+    void titleHint_nameRemainsAfterGenericRemoval_accepted(String hint, String expected) {
         assertThat(policy.verify(all, hint)).isEqualTo(expected);
     }
 
