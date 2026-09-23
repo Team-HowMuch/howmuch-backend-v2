@@ -28,7 +28,7 @@ class SettlementAllocationDraftInvalidatorTest {
 
     @Test
     @DisplayName("선택된 배분 유형과 참여자별 더치페이 초안을 함께 제거한다")
-    void invalidatesSelectedAllocation() {
+    void allocationDraft_selectedType_invalidatesAndClears() {
         var invalidator = new SettlementAllocationDraftInvalidator(allocationStorePort);
         Settlement settlement = settlement(SettlementAllocationType.DUTCH_PAY);
 
