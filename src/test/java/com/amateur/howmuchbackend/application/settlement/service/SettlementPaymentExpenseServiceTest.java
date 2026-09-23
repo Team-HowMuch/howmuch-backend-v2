@@ -245,7 +245,7 @@ class SettlementPaymentExpenseServiceTest {
 
     @Test
     @DisplayName("입금 내역과 원 단위로 표현할 수 없는 내역은 가져오지 않는다")
-    void rejectsNonImportableTransaction() {
+    void paymentExpense_depositOrFractionalAmount_rejected() {
         givenOwnedDraftForUpdate();
         when(loadAccountPort.findActiveByIdAndUserId(ACCOUNT_ID, CREATOR_ID))
                 .thenReturn(Optional.of(account()));
