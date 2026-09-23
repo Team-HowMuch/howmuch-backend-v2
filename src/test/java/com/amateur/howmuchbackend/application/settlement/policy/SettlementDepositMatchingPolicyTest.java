@@ -168,7 +168,7 @@ class SettlementDepositMatchingPolicyTest {
     @ParameterizedTest
     @ValueSource(strings = {"0", "-1", "6000.5", "7000", "9223372036854775808"})
     @DisplayName("전체 이름이 일치해도 유효하지 않은 입금 금액은 거부한다")
-    void rejectsInvalidAmounts(String amount) {
+    void depositMatching_invalidAmount_rejected(String amount) {
         assertThat(policy.match(transaction("민선영", amount), List.of(
                 payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).isEmpty();
