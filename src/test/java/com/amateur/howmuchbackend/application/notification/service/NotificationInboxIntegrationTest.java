@@ -352,7 +352,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void outerStateChangeAndInboxRollBackTogether() {
+    void notificationInbox_outerStateChange_rollsBackTogether() {
         assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
             jdbc.update("UPDATE settlements SET status='SUSPENDED' WHERE id=?", settlement);
             recorder.record(request());
