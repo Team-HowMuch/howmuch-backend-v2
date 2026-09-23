@@ -276,7 +276,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void doesNotNarrowWhenGenericHintHappensToMatchATitle() {
+    void titleHint_genericMatch_doesNotNarrow() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
