@@ -14,7 +14,7 @@ class GroupInviteCodePolicyTest {
 
     @Test
     @DisplayName("초대 코드의 바깥 공백을 제거하고 대문자로 정규화한다")
-    void normalizesInviteCode() {
+    void groupInviteCode_outerWhitespace_removedAndUppercase() {
         assertThat(policy.normalize("  ab12cd34  ")).isEqualTo("AB12CD34");
     }
 
