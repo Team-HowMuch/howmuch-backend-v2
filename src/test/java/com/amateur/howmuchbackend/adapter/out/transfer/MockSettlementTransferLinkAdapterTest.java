@@ -53,7 +53,7 @@ class MockSettlementTransferLinkAdapterTest {
 
     @Test
     @DisplayName("한글·공백·앰퍼샌드·플러스가 쿼리 파라미터를 추가하거나 변형하지 않는다")
-    void encodesQueryValues() {
+    void mockTransferLink_queryValues_encodedWithoutMutation() {
         when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("은행 & +"));
         String url = adapter.create("0020", "000123", 1, "현 승민&sender=다른사람+가").orElseThrow().url();
 
