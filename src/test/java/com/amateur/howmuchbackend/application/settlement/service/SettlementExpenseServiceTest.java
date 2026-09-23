@@ -111,7 +111,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("등록 후 누적액이 long 범위를 넘으면 저장 전에 명시적인 입력 오류를 반환한다")
-    void rejectsCreationThatOverflowsTotal() {
+    void manualExpense_totalOverflow_rejectedBeforeSave() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(1);
         when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID))
