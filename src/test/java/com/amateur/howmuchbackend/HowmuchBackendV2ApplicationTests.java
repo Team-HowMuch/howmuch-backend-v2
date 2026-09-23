@@ -7,7 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 class HowmuchBackendV2ApplicationTests {
 
     @Test
-    void contextLoads() {
+    void applicationContext_loads_successfully() {
     }
 
 }
