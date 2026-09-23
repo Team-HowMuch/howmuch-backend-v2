@@ -146,7 +146,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("화면 복원을 위해 표시 순서 목록과 누적액을 반환한다")
-    void getsExpenseList() throws Exception {
+    void expenseList_request_returnsDisplayOrderAndTotal() throws Exception {
         when(getSettlementExpensesUseCase.get(SETTLEMENT_ID)).thenReturn(
                 new SettlementExpenseListResult(
                         List.of(expenseResult("저녁 식사", 42_000)),
