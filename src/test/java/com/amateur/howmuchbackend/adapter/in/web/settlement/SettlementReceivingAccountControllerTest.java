@@ -55,7 +55,7 @@ class SettlementReceivingAccountControllerTest {
 
     @Test
     @DisplayName("계좌 선택 화면을 구성하도록 후보 표시 정보와 선택 상태를 반환한다")
-    void getsReceivingAccountCandidates() throws Exception {
+    void receivingAccountCandidates_request_returnsSelectionState() throws Exception {
         when(getReceivingAccountsUseCase.get(SETTLEMENT_ID)).thenReturn(List.of(
                 new SettlementReceivingAccountResult(
                         7L,
