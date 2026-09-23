@@ -110,7 +110,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("잘못된 형식의 토큰은 401이다")
-    void rejectsMalformedToken() throws Exception {
+    void protectedApi_malformedToken_rejected() throws Exception {
         assertError(request("GET", PROFILE, "not-a-jwt"), 401, "UNAUTHORIZED");
     }
 
