@@ -154,7 +154,7 @@ class SettlementItemAllocationPersistenceIntegrationTest {
 
     @Test
     @DisplayName("품목 선택을 취소하고 참여자의 제출 완료를 저장한다")
-    void deletesSelectionAndSavesSubmission() {
+    void itemSelection_cancelAndSubmit_persisted() {
         SettlementItemSelection selection = allocationAdapter.saveSelection(
                 SettlementItemSelection.create(
                         settlementId,
