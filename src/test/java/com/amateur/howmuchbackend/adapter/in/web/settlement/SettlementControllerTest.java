@@ -900,7 +900,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("참여자 본인에게는 사용 가능한 내 프로필 이미지 경로를 반환한다")
-    void returnsSelfAvatarUrl() throws Exception {
+    void participantAvatar_self_returnsAvailableProfilePath() throws Exception {
         when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(
                 detailResult(SettlementDetailResult.ViewerRole.PARTICIPANT, true)
         );
