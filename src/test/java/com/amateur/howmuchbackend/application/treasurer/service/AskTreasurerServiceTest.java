@@ -497,7 +497,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void infersThisMonthWhenPeriodIsOmitted() {
+    void askSettlement_periodOmitted_infersCurrentMonth() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
