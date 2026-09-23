@@ -159,7 +159,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("ok가 true여도 result가 비면 읽지 못한 것으로 본다")
-    void treatsMissingResultAsUnreadable() {
+    void receiptOcr_missingResult_returnsUnreadable() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess(
                         "{\"ok\": true, \"elapsed_sec\": 1.0, \"raw\": \"\"}", MediaType.APPLICATION_JSON));
