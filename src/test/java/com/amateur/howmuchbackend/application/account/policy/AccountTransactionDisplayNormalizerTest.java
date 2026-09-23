@@ -65,7 +65,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("대구은행은 분리된 비고 필드를 제목으로 우선 사용한다")
-    void prefersDgbMemoField() {
+    void dgbMemoField_available_usedAsTitle() {
         var display = normalizer.normalize(
                 "0031",
                 "이체 [가맹점명] 대구은행",
