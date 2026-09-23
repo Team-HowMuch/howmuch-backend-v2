@@ -149,7 +149,7 @@ class SettlementRequestServiceTest {
 
     @Test
     @DisplayName("품목별 배분은 Share 없이 계좌와 링크를 고정하고 참여자 선택 상태로 전환한다")
-    void requestsItemAllocationSettlement() {
+    void settlementRequest_itemAllocation_freezesAccountLinkNoShare() {
         arrangeCommon(SettlementAllocationType.ITEM_ALLOCATION);
         UUID expenseId = expenses().getFirst().id();
         when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
