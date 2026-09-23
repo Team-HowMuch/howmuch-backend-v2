@@ -245,7 +245,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("V21 제약은 참여자 출처와 그룹 ID가 일치하지 않는 신규 행을 거부한다")
-    void rejectsInvalidSourceGroupCombinations() {
+    void participantSource_groupIdMismatch_rejectedByConstraint() {
         assertThatThrownBy(() -> insertParticipant(
                 SettlementParticipantSource.GROUP_MEMBER,
                 null
