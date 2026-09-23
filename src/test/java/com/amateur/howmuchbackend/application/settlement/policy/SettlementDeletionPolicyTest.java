@@ -30,7 +30,7 @@ class SettlementDeletionPolicyTest {
 
     @Test
     @DisplayName("Share가 있거나 입금 흐름 상태인 정산은 삭제를 차단한다")
-    void rejectsDeletionAfterTransfer() {
+    void settlementDeletion_afterTransferOrDeposit_rejected() {
         assertThatThrownBy(() -> policy.validate(
                 settlement(SettlementStatus.REQUESTED),
                 true
