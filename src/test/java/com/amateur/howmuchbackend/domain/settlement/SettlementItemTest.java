@@ -42,7 +42,7 @@ class SettlementItemTest {
 
     @Test
     @DisplayName("화면에 빈 품목이 생기지 않도록 유니코드 공백 이름을 거부한다")
-    void rejectsUnicodeWhitespaceName() {
+    void receiptItem_unicodeWhitespaceName_rejected() {
         assertThatThrownBy(() -> item("\u2003", 1, 1_000, 0))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
