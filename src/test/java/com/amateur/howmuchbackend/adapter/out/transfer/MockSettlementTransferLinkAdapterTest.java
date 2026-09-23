@@ -37,7 +37,7 @@ class MockSettlementTransferLinkAdapterTest {
 
     @Test
     @DisplayName("표시용 은행명과 선행 0을 보존한 기관코드·계좌·금액·예금주를 전달한다")
-    void createsMockLinkWithoutTossBankName() {
+    void mockTransferLink_withoutTossName_preservesBankAndPayee() {
         when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("우리은행"));
 
         var link = adapter.create("0020", "100-2239945843", 2_000, "현승민").orElseThrow();
