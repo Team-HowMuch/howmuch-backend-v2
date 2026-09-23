@@ -69,7 +69,7 @@ class CommonCodePersistenceAdapterCacheTest {
 
     @Test
     @DisplayName("활성 단건·목록·존재 여부 조회를 각각 캐시한다")
-    void cachesAllActiveReadPaths() {
+    void commonCodeCache_allActiveReadPaths_cached() {
         CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
                 new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
         );
