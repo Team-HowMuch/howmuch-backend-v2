@@ -93,7 +93,7 @@ class MockSettlementTransferLinkAdapterTest {
 
     @ParameterizedTest
     @ValueSource(longs = {0, -1, Long.MIN_VALUE})
-    void rejectsNonPositiveAmount(long amount) {
+    void mockTransferLink_nonPositiveAmount_rejected(long amount) {
         assertThat(adapter.create("0020", "123", amount, "예금주")).isEmpty();
     }
 
