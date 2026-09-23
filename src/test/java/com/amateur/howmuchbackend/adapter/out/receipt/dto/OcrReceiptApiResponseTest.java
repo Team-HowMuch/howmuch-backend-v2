@@ -12,9 +12,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("OCR 서비스 응답 매핑")
 class OcrReceiptApiResponseTest {
     /**
-     * 모르는 필드에서 일부러 터지는 매퍼.
+     * 모르는 필드에 예외를 발생시키는 매퍼를 사용한다.
      *
-     * <p>Jackson 3은 FAIL_ON_UNKNOWN_PROPERTIES 가 기본으로 꺼져 있다. 기본 매퍼로 검증하면
+     * <p>Jackson 3은 FAIL_ON_UNKNOWN_PROPERTIES를 기본값으로 false로 설정한다. 기본 매퍼로 검증하면
      * {@code @JsonIgnoreProperties} 를 통째로 지워도 테스트가 통과한다. 여기서는 켜 두고,
      * 애노테이션이 실제로 일하는지를 본다.
      */
