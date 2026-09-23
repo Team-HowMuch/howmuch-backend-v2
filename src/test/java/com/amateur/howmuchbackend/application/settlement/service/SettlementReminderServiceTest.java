@@ -177,7 +177,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void respectsExistingCooldown() {
+    void reminder_activeCooldown_refused() {
         givenTarget();
         assertStatus(SettlementStatusCode.SETTLEMENT_REMINDER_COOLDOWN_ACTIVE,
                 () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID));
