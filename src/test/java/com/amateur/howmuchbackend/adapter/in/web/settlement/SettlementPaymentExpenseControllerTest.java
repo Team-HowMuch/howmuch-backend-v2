@@ -88,7 +88,7 @@ class SettlementPaymentExpenseControllerTest {
 
     @Test
     @DisplayName("선택한 결제내역을 정산 지출로 가져온 결과를 반환한다")
-    void importsPaymentExpense() throws Exception {
+    void paymentExpense_selectedPayment_mapsToSettlementExpense() throws Exception {
         when(importExpenseUseCase.importExpense(
                 SETTLEMENT_ID,
                 new ImportSettlementPaymentExpenseCommand(10L, 20L)
