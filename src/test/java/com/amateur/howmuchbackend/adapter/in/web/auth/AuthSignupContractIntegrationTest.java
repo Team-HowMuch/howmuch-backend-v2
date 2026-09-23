@@ -70,7 +70,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("비활성 계정과 가입되지 않은 휴대폰 번호는 false를 반환한다")
-    void returnsNotRegisteredForInactiveAndMissingUsers() throws Exception {
+    void phoneRegistration_inactiveOrMissingUser_returnsFalse() throws Exception {
         String inactivePhoneNumber = randomPhoneNumber();
         String missingPhoneNumber = randomPhoneNumber();
         String clientAddress = randomClientAddress();
