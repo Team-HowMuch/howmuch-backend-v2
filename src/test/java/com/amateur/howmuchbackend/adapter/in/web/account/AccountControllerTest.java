@@ -232,7 +232,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("진행 중 정산이 사용하는 계좌 삭제는 409 계약으로 반환한다")
-    void rejectsAccountUsedByInProgressSettlement() throws Exception {
+    void account_inProgressSettlement_deleteReturnsConflict() throws Exception {
         doThrow(ApplicationException.of(AccountStatusCode.ACCOUNT_IN_USE_BY_SETTLEMENT))
                 .when(deleteAccountUseCase).delete(1L);
 
