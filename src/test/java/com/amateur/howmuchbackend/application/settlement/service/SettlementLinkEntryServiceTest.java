@@ -84,7 +84,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("비로그인 사용자는 표시 순서의 참여자 목록에서 본인을 선택한다")
-    void resolvesBrowserSelection() {
+    void settlementLink_browserUser_selectsParticipantByOrder() {
         arrangeDutchPayAccess();
         when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
 
