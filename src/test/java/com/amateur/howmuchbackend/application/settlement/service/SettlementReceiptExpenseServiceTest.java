@@ -210,7 +210,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("OCR 결과가 없으면 지출 저장을 시작하지 않는다")
-    void rejectsMissingReceiptExtraction() {
+    void receiptExpense_missingOcrResult_rejectedBeforeWrite() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(CREATOR_ID, SettlementStatus.DRAFT)));
