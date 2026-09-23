@@ -337,7 +337,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void paymentArrivingAfterCandidateQueryIsRechecked() {
+    void paymentAfterCandidateQuery_recheckedBeforeReminder() {
         recorder.record(request());
         assertThat(due()).hasSize(1);
         Long transaction = jdbc.queryForObject("""
