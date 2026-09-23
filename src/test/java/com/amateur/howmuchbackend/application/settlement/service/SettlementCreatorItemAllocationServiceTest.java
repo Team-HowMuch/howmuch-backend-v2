@@ -132,7 +132,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("DRAFT에서는 전원이 제출해도 확정하지 않는다")
-    void doesNotFinalizeWhileDraft() {
+    void creatorItemAllocation_draft_neverFinalizes() {
         arrangeCreatorAccess(SettlementStatus.DRAFT);
         when(allocationStorePort.findSubmission(SETTLEMENT_ID, CREATOR_PARTICIPANT_ID))
                 .thenReturn(Optional.empty());
