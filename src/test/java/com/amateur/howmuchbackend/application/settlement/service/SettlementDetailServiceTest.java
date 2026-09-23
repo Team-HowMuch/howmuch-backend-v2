@@ -353,7 +353,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("선택 대기 중인 품목 정산은 Share가 없어도 총액을 미수금으로 반환한다")
-    void returnsTotalAmountBeforeItemShareCreation() {
+    void settlementItemAllocation_noShares_usesTotalAsReceivable() {
         User payer = mock(User.class);
         when(payer.id()).thenReturn(PAYER_ID);
         when(payer.avatarFileName()).thenReturn("payer.png");
