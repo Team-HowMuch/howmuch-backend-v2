@@ -115,7 +115,7 @@ class SettlementItemPersistenceIntegrationTest {
 
     @Test
     @DisplayName("OCR 지출을 삭제하면 하위 품목도 Cascade로 삭제한다")
-    void deletesItemsWithReceiptExpense() {
+    void receiptExpense_deleted_cascadesItems() {
         SettlementExpense expense = saveReceiptExpense("receipt-cascade");
         SettlementItem saved = itemPersistenceAdapter.saveAll(List.of(
                 item(expense.id(), "아메리카노", 2, 30_000, 0)
