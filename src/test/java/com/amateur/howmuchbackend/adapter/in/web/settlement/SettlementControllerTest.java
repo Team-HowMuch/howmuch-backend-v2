@@ -298,7 +298,7 @@ class SettlementControllerTest {
     }
 
     @Test
-    void preservesDefaultsWhenOnlyYearMonthIsProvided() throws Exception {
+    void settlementList_onlyYearMonth_preservesDefaults() throws Exception {
         mockMvc.perform(get("/api/v2/settlements").queryParam("yearMonth", "2026-09"))
                 .andExpect(status().isOk());
         verify(getSettlementsUseCase).get(new GetSettlementsCommand(
