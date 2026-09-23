@@ -66,7 +66,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("항목 배열에 null 원소가 섞여도 변환에서 터지지 않는다")
-    void dropsNullItemElements() {
+    void receiptOcr_nullItems_dropped() {
         String body = """
                 {"ok": true, "result": {"store_name": "가게", "total_verified": false,
                  "items": [null, {"name": "김밥", "quantity": 1, "price": 3500}]}}
