@@ -181,7 +181,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void errorRedispatchReusesIdWithoutCountingTwice() throws Exception {
+    void requestMetrics_errorRedispatch_reusesIdCountsOnce() throws Exception {
         var request = request("/unknown");
         var response = new MockHttpServletResponse();
         filter.doFilter(request, response, (req, res) -> response.sendError(404));
