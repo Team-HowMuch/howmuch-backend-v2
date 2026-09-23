@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TreasurerSummaryTest {
     @Test
-    void prefersSendGuidanceOverReceive() {
+    void treasurerSummary_sendGuidance_preferred() {
         TreasurerSummary summary = TreasurerSummary.from(List.of(
                 settlement(SettlementDirection.SEND, SettlementStatus.REQUESTED, 30_000L),
                 settlement(SettlementDirection.RECEIVE, SettlementStatus.AWAITING_DEPOSIT, 50_000L)
