@@ -101,7 +101,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void usesLlmPhrasingForKnownIntents() {
+    void answer_knownIntent_usesLlmPhrasing() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
