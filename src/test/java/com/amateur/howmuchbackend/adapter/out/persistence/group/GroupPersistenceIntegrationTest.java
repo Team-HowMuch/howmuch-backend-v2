@@ -310,7 +310,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("멤버 탈퇴가 먼저 group row를 잠그면 정산 요청 재검증은 탈퇴 결과를 읽는다")
-    void revalidatesGroupRosterAfterConcurrentMemberExit() throws Exception {
+    void groupRoster_memberExitsConcurrently_revalidatedAfterExit() throws Exception {
         Long memberUserId = insertUser("탈퇴 멤버");
         Group savedGroup = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(
