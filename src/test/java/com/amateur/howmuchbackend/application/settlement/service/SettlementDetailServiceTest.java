@@ -571,7 +571,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("프로필 사진이 없거나 사용자가 없으면 이미지 없음으로 반환한다")
-    void returnsNoAvatarForMissingImageOrUser() {
+    void settlementDetail_missingImageOrUser_returnsNoAvatar() {
         givenSettlement(CREATOR_ID);
         User payer = mock(User.class);
         when(loadUserPort.findAllByIds(java.util.Set.of(PAYER_ID)))
