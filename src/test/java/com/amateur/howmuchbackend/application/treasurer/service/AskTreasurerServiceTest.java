@@ -625,7 +625,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void returnsExamplesWhenIntentIsUnknown() {
+    void unknownIntent_returnsExamples() {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand("푸딩은 어떻게 만드나요?"));
