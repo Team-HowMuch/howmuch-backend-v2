@@ -81,7 +81,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("수동 지출을 등록하고 최신 누적액을 반환한다")
-    void createsManualExpense() throws Exception {
+    void manualExpense_validRequest_returnsUpdatedTotal() throws Exception {
         when(createSettlementExpenseUseCase.create(
                 SETTLEMENT_ID,
                 new CreateSettlementExpenseCommand("저녁 식사", 42_000)
