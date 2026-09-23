@@ -41,7 +41,7 @@ class SettlementAllocationDraftInvalidatorTest {
 
     @Test
     @DisplayName("배분을 선택하지 않은 정산은 불필요한 삭제와 저장 변경을 만들지 않는다")
-    void keepsUnselectedSettlement() {
+    void allocationDraft_unselectedState_preserved() {
         var invalidator = new SettlementAllocationDraftInvalidator(allocationStorePort);
         Settlement settlement = settlement(null);
 
