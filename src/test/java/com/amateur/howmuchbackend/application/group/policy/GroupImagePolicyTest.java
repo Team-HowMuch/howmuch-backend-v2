@@ -23,7 +23,7 @@ class GroupImagePolicyTest {
 
     @Test
     @DisplayName("PNG와 WebP signature를 허용한다")
-    void acceptsPngAndWebp() {
+    void groupImage_pngOrWebpSignature_accepted() {
         assertThat(policy.validate(new byte[]{
                 (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
         }).extension()).isEqualTo("png");
