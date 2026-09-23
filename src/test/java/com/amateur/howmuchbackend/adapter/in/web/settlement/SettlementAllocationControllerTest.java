@@ -115,7 +115,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("더치페이 화면 복원에 필요한 참여자 금액과 합계 상태를 반환한다")
-    void getsDutchPayAllocation() throws Exception {
+    void dutchPayAllocation_request_returnsAmountsAndTotal() throws Exception {
         when(getDutchPayAllocationUseCase.get(SETTLEMENT_ID)).thenReturn(result());
 
         mockMvc.perform(get(
