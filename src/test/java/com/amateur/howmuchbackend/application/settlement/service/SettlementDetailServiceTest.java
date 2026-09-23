@@ -415,7 +415,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("선택 대기 중인 품목 정산은 생성자가 고른 몫을 미수금에서 제외한다")
-    void excludesCreatorItemAllocationFromRequestedTotal() {
+    void settlementItemAllocation_creatorShare_excludedFromReceivable() {
         givenRequestedItemSettlement(List.of(), List.of());
         when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
                 item(CREATOR_ITEM_ID, "생성자 품목", 400, 0),
