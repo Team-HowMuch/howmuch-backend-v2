@@ -73,7 +73,7 @@ class SettlementRequestPolicyTest {
 
     @Test
     @DisplayName("품목별 배분은 품목 합계가 지출과 일치하면 Share 없이 선택 단계를 연다")
-    void validatesItemAllocationWithoutFinalShares() {
+    void settlementRequest_balancedItemAllocation_opensWithoutShares() {
         UUID expenseId = expenses().getFirst().id();
         var shares = policy.prepareShares(
                 settlement(SettlementAllocationType.ITEM_ALLOCATION),
