@@ -36,7 +36,7 @@ class AnalyzeReceiptServiceTest {
     private static final byte[] PNG = withSignature(
             new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A});
 
-    /** 정책이 선언한 형식이 아니라 바이트를 보므로 실제 시그니처가 필요하다. */
+    /** 정책은 선언한 형식이 아니라 바이트를 검사하므로 실제 시그니처를 사용한다. */
     private static byte[] withSignature(byte[] signature) {
         byte[] content = new byte[64];
         System.arraycopy(signature, 0, content, 0, signature.length);
