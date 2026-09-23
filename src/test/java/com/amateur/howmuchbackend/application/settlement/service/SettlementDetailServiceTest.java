@@ -446,7 +446,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("품목 선택을 제출했지만 0원인 참여자는 납부 완료로 반환한다")
-    void returnsPaidForSubmittedParticipantWithoutShare() {
+    void settlementItemAllocation_submittedZeroShare_returnsPaid() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.AWAITING_DEPOSIT)));
