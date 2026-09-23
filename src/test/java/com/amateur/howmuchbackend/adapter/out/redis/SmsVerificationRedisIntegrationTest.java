@@ -355,7 +355,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void otpExpiryBeforeCooldownDoesNotAllowResend() throws Exception {
+    void smsOtp_expiryBeforeCooldown_resendRejected() throws Exception {
         redis.delete(key);
         SmsVerificationPolicy shortOtp = new SmsVerificationPolicy(
                 Duration.ofMillis(30), policy.challengeTtl(), Duration.ofSeconds(60), 5);
