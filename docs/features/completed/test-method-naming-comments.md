@@ -1,9 +1,9 @@
 # 테스트 메서드명·설명 주석 컨벤션 정리
 
-- Status: In progress (PR validation pending)
+- Status: Completed (GitHub CI blocked before test execution)
 - Last updated: 2026-09-24
 - Related issue: #411
-- Related PR: pending
+- Related PR: #416
 - Related ADR: N/A
 
 ## 1. 목적
@@ -149,7 +149,7 @@ gh pr checks <PR_NUMBER>
 - [x] 메서드 수와 JUnit Annotation 수가 기준선과 같다: 969개.
 - [x] 테스트 메서드 선언을 제외한 본문과 assertion이 변경되지 않았다.
 - [x] JavaScript 테스트가 변경되지 않았다.
-- [ ] 전체 격리 테스트 실행 결과와 PR CI 결과를 기록한다.
+- [x] 전체 격리 테스트 실행 결과와 PR CI 결과를 기록한다.
 - [x] 문서 링크와 Git 작성자/커미터 및 Co-authored-by 부재를 확인한다.
 
 ### 현재 결과
@@ -160,14 +160,14 @@ gh pr checks <PR_NUMBER>
 - JavaScript 테스트와 production 코드는 변경하지 않았다. 설명 주석 34곳을 규칙에 맞게 정리했다.
 - `git diff --check`: 통과.
 - `bash scripts/test.sh`: 실행 환경에 격리 PostgreSQL/Redis가 없고 Docker daemon이 실행되지 않아 시작되지 않았다. 필요한 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`도 설정되지 않았다.
-- PR CI 확인은 PR 생성 후 진행한다.
+- `gh pr checks 416`: `Run tests`가 계정 결제 실패 또는 지출 한도 문제로 시작되지 않았다. GitHub Actions job에 실행 단계가 없었고, runner가 할당되지 않았으며, 이미지 빌드와 배포는 건너뛰었다. 이는 테스트 실행 결과가 아니며 통과로 간주하지 않는다.
 
 ## 8. 진행 기록
 
 | 날짜 | 완료 내용 | 다음 작업 | 위험 또는 제한 |
 |---|---|---|---|
 | 2026-09-24 | #411 생성, 최신 `develop`에서 `test/411-test-naming-comments` 준비, 969개 메서드 확인, `compileTestJava` 기준선 통과 | 메서드별 이름과 설명 주석 변경 | 로컬 Docker 데몬 및 격리 DB/Redis 설정 부재 |
-| 2026-09-24 | 969개 메서드 이름·34개 설명 주석 정리, 60자 이내 확인, 본문/Annotation/assertion 보존 검증, `docs/testing.md` 규칙 추가 | PR CI 결과 확인 및 완료 기록 | 로컬 격리 PostgreSQL/Redis 부재로 `scripts/test.sh`를 시작하지 못함 |
+| 2026-09-24 | 969개 메서드 이름·34개 설명 주석 정리, 60자 이내 확인, 본문/Annotation/assertion 보존 검증, `docs/testing.md` 규칙 추가, PR #416 생성 | GitHub 계정 결제 또는 지출 한도 해결 후 CI 재실행 | 로컬 격리 서비스 부재 및 GitHub runner 미할당 |
 
 ## 9. 결정 기록
 
@@ -179,8 +179,9 @@ gh pr checks <PR_NUMBER>
 
 ## 10. 완료 기록
 
-- 완료일: PR 검증 후 기록
+- 완료일: 2026-09-24
 - 최종 동작: N/A. 테스트 동작을 변경하지 않는다.
-- 미검증 사항: 로컬 격리 환경이 없어 전체 테스트를 실행하지 못했다. PR CI는 아직 실행 전이다.
-- 남은 위험: 전체 DB/Redis 통합 테스트 결과는 PR CI에서 확인해야 한다.
-- 후속 작업: PR checks 결과를 기록하고 문서를 완료 폴더로 이동한다.
+- 완료 내용: Java 테스트 메서드명과 설명 주석을 정리하고 `docs/testing.md`에 후속 규칙을 기록했다. 테스트 본문, assertions, Annotation 및 JavaScript 테스트는 보존했다.
+- 검증 결과: 각 테스트 메서드 이름·주석 변경 뒤 `./gradlew compileTestJava`가 통과했다. 원본으로 되돌려 비교한 결과 Java 테스트 파일 173개가 변경된 이름과 설명 주석 외에는 기준선과 일치했다. 최종 메서드명은 모두 60자 이내다.
+- 미실행 사항: 로컬 전체 테스트는 Docker daemon과 격리 PostgreSQL/Redis 설정이 없어 시작하지 못했다. GitHub Actions 테스트도 계정 결제 또는 지출 한도 문제로 runner가 할당되지 않아 실행되지 않았다.
+- 후속 조치: 계정 결제 또는 지출 한도가 해결되면 PR #416의 전체 테스트를 다시 실행한다.
