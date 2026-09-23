@@ -93,7 +93,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void classifiesChatQuickActionsAndMenuChips() {
+    void quickActionsAndMenuChips_classified() {
         assertThat(parser.parse("보낼 정산").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
         assertThat(parser.parse("받을 정산").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
         assertThat(parser.parse("정산 상태").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
