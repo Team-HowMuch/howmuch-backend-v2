@@ -167,7 +167,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void ignoresTitleHintWhenIntentDoesNotFilterByTitle() {
+    void titleHint_nonFilteringIntent_ignored() {
         InquiryParser.ParsedInquiry parsed = parser.parse("OCR 정산은 어떻게 해?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.GUIDE);
