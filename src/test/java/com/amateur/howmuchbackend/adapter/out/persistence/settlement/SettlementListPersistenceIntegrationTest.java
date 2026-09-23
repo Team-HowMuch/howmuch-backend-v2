@@ -407,7 +407,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
-    void monthFilterExcludesUnfinishedStatesAndPreservesStatusIntersection() {
+    void settlementList_monthFilter_excludesUnfinishedPreservesStatus() {
         LocalDateTime completedAt = LocalDateTime.of(2026, 9, 10, 0, 0);
         for (SettlementStatus state : SettlementStatus.values()) {
             jdbcTemplate.update("UPDATE settlements SET status = ?, updated_at = ? WHERE id = ?",
