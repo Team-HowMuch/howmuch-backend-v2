@@ -255,7 +255,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("부분 이름만 맞는 거래는 입금을 저장하거나 정산을 완료하지 않는다")
-    void doesNotConfirmDepositForSubstringName() {
+    void settlementDeposit_substringName_notConfirmed() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("6000"));
         when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
