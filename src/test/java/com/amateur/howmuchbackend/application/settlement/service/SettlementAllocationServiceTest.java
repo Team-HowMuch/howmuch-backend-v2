@@ -229,7 +229,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("한 참여자 금액 수정 후 현재 초과액을 자동 보정하지 않고 그대로 반환한다")
-    void updatesParticipantAmountAndReturnsDifference() {
+    void participantAmount_update_returnsUnadjustedDifference() {
         Settlement settlement = settlement(SettlementAllocationType.DUTCH_PAY, 1_000);
         List<SettlementParticipant> participants = participants();
         List<SettlementDutchPayAllocation> before = allocations(334, 333, 333);
