@@ -107,7 +107,7 @@ class SettlementReceiptExpenseWriterTest {
 
     @Test
     @DisplayName("OCR 총액과 품목 합계가 다르면 어떤 지출도 저장하지 않는다")
-    void rejectsMismatchedExtractionBeforePersistence() {
+    void receiptExpense_totalMismatch_rejectedBeforePersistence() {
         givenOwnedDraft();
 
         assertThatThrownBy(() -> writer.write(
