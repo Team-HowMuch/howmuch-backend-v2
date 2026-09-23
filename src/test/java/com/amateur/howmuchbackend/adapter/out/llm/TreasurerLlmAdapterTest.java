@@ -50,7 +50,7 @@ class TreasurerLlmAdapterTest {
     }
 
     @Test
-    void returnsEmptyWhenDraftIsMissing() {
+    void treasurerLlm_missingDraft_returnsEmpty() {
         TreasurerLlmAdapter adapter = adapter("none");
 
         assertThat(adapter.generate(null)).isEmpty();
