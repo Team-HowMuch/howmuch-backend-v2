@@ -111,7 +111,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("읽지 못한 값은 null 그대로 전달한다")
-    void keepsUnreadValuesAsNull() {
+    void receiptOcr_unreadValues_preservedAsNull() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess("""
                         {"ok": true, "elapsed_sec": 2.0, "raw": "",
