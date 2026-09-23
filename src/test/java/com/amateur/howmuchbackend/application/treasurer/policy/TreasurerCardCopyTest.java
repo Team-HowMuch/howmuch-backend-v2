@@ -121,7 +121,7 @@ class TreasurerCardCopyTest {
     }
 
     @Test
-    void keepsAllocationTypeNullWhenNotDecidedYet() {
+    void settlementCard_allocationUndecided_null() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement notDecided = new PersonalSettlement(
                 UUID.randomUUID(),
