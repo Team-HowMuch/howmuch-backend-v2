@@ -62,7 +62,7 @@ class CodefBankConnectionAdapterTest {
 
     @Test
     @DisplayName("DB 저장 범위를 넘는 계좌 잔액은 없는 값으로 처리한다")
-    void ignoresBalanceOutsideStorageRange() throws Exception {
+    void bankBalance_outsideStorageRange_treatedAsAbsent() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         when(client.post(eq("/v1/kr/bank/p/account/account-list"), any())).thenReturn(
                 objectMapper.readTree("""
