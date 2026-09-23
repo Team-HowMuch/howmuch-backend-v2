@@ -57,7 +57,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("LEFT 멤버는 OWNER 복구 전이를 사용할 수 없다")
-    void rejectsRestoreForLeftMember() {
+    void member_leftOwnerRestore_rejected() {
         assertThatThrownBy(() -> endedMember(GroupMemberStatus.LEFT).restore(REACTIVATED_AT))
                 .isInstanceOf(IllegalStateException.class);
     }
