@@ -145,7 +145,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("내 금액은 남이 더 고르든 말든 바뀌지 않는다")
-    void keepsMyAmountStableWhileOthersSelect() {
+    void itemAllocation_othersSelect_myAmountUnchanged() {
         SettlementItem item = item(5_000);
         SettlementItemSelection mine =
                 selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW);
