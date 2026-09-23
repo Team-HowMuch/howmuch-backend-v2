@@ -62,7 +62,7 @@ class JwtTokenProviderTest {
 
     @ParameterizedTest
     @EnumSource(JwtTokenType.class)
-    void acceptsLegacyTokenWithoutJti(JwtTokenType type) {
+    void jwt_legacyWithoutJti_accepted(JwtTokenType type) {
         String legacy = Jwts.builder().subject("7")
                 .claim("sessionId", "session").claim("tokenType", type.name())
                 .expiration(new Date(System.currentTimeMillis() + 60_000))
