@@ -186,7 +186,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 삭제 성공은 빈 200 응답을 반환한다")
-    void deletesGroup() throws Exception {
+    void groupDeletion_success_returnsEmptyResponse() throws Exception {
         mockMvc.perform(delete("/api/v2/groups/{groupId}", 10L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
