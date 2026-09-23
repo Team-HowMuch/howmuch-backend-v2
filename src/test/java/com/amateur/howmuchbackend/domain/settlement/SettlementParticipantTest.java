@@ -157,7 +157,7 @@ class SettlementParticipantTest {
 
     @Test
     @DisplayName("참여자 표시 순서는 첫 참여자부터 증가하도록 음수를 거부한다")
-    void rejectsNegativeDisplayOrder() {
+    void participant_negativeDisplayOrder_rejected() {
         assertThatThrownBy(() -> SettlementParticipant.registeredUser(
                 SETTLEMENT_ID,
                 1L,
