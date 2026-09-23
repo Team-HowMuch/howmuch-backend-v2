@@ -78,7 +78,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void optionalParameterCanStillBeOmitted() throws Exception {
+    void optionalParameter_missing_accepted() throws Exception {
         when(candidates.get(SETTLEMENT_ID, 1L, null)).thenReturn(List.of());
         mvc.perform(get(CANDIDATES).param("accountId", "1"))
                 .andExpect(status().isOk())
