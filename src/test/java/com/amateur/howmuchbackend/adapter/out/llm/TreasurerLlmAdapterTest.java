@@ -29,7 +29,7 @@ class TreasurerLlmAdapterTest {
     }
 
     @Test
-    void returnsEmptyWhenRestClientCallFails() {
+    void treasurerLlm_clientFailure_returnsEmpty() {
         TreasurerLlmProperties properties = new TreasurerLlmProperties(
                 "openai",
                 Duration.ofSeconds(5),
