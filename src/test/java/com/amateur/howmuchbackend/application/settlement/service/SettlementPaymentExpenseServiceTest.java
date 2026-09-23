@@ -116,7 +116,7 @@ class SettlementPaymentExpenseServiceTest {
 
     @Test
     @DisplayName("계좌 동기화 뒤 출금 내역만 후보로 반환하고 이미 가져온 항목을 표시한다")
-    void getsExpenseCandidatesWithImportedState() {
+    void paymentExpense_candidates_returnsWithdrawalsAndImportState() {
         givenOwnedDraft();
         Transaction imported = transaction(
                 TRANSACTION_ID,
