@@ -431,7 +431,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("두 명인 그룹은 요청자 외 한 이름만 반환하고 인원수는 2를 유지한다")
-    void returnsOneOtherNameForTwoMembers() {
+    void groupSummary_twoMembers_returnsOtherNameAndTotalCount() {
         Group group = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT));
         Long other = insertUser("다른 멤버");
