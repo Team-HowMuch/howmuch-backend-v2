@@ -64,7 +64,7 @@ class AskTreasurerServiceTest {
     private SaveTreasurerAnswerPort saveTreasurerAnswerPort;
 
     @Test
-    void answersOpenSendSettlementsInCurrentMonth() {
+    void openSendSettlements_currentMonth_returned() {
         UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
