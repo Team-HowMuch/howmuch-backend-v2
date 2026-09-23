@@ -155,7 +155,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("부분 수정 결과가 실제 영속 상태가 되도록 Domain 변경값을 저장 Port에 전달한다")
-    void persistsDomainUpdate() {
+    void settlement_domainUpdate_persisted() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(saveSettlementPort.update(any(Settlement.class)))
