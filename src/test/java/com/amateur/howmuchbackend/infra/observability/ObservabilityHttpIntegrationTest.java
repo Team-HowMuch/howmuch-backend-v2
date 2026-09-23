@@ -110,7 +110,7 @@ class ObservabilityHttpIntegrationTest {
     @Autowired private ApplicationContext applicationContext;
 
     @Test
-    void readinessReflectsAvailabilityAndRemainsPrivate() throws Exception {
+    void readiness_dependencyStatus_private() throws Exception {
         assertThat(get(managementPort, "/actuator/health/readiness").statusCode()).isEqualTo(200);
         assertThat(get(port, "/actuator/health/readiness").statusCode()).isBetween(400, 499);
         try {
