@@ -142,7 +142,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("서로 다른 기준으로 배분하지 않도록 기준 총액과 지출 합계 불일치를 거부한다")
-    void rejectsExpenseTotalMismatch() {
+    void allocationType_expenseTotalMismatch_rejected() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(null, 1_000)));
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
