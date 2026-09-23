@@ -110,7 +110,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹과 OWNER를 저장하고 내 그룹 목록·인원수를 조회한다")
-    void savesAndLoadsGroupWithOwner() {
+    void group_ownerSaved_groupAndMemberCountLoaded() {
         Group savedGroup = saveGroup();
         GroupMember savedOwner = groupMemberPersistenceAdapter.save(
                 GroupMember.owner(savedGroup.id(), userId, CREATED_AT)
@@ -124,7 +124,7 @@ class GroupPersistenceIntegrationTest {
             assertThat(loaded).usingRecursiveComparison()
                     .ignoringFields("createdAt", "updatedAt")
                     .isEqualTo(savedGroup);
-            // PostgreSQL timestamps have microsecond precision; Linux clocks may return nanoseconds.
+            // PostgreSQL은 timestamp를 마이크로초 단위로 저장하므로 나노초 차이는 허용한다.
             assertThat(loaded.createdAt()).isCloseTo(savedGroup.createdAt(), within(1, MICROS));
             assertThat(loaded.updatedAt()).isCloseTo(savedGroup.updatedAt(), within(1, MICROS));
         });
