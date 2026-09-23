@@ -261,7 +261,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 멤버 아바타를 private 1일 캐시와 실제 content type으로 반환한다")
-    void getsGroupMemberAvatar() throws Exception {
+    void groupMemberAvatar_request_returnsPrivateContent() throws Exception {
         when(getGroupMemberAvatarUseCase.getMemberAvatar(10L, 20L))
                 .thenReturn(new ProfileImage("image/png", new byte[]{4, 5, 6}));
 
