@@ -255,7 +255,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("결제내역 정산이면 상호명과 결제일을 함께 준다")
-    void exposesPaymentHistoryStoreNameAndPaidAt() {
+    void settlementLink_paymentHistory_returnsStoreAndPaidAt() {
         arrangeItemAllocationAccess();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
                 List.of(SettlementExpense.paymentHistory(
