@@ -78,7 +78,7 @@ class ManageMyPushTargetServiceTest {
 
     @Test
     @DisplayName("현재 사용자를 찾지 못하면 등록을 거부한다")
-    void rejectsMissingUser() {
+    void pushTarget_missingCurrentUser_rejected() {
         givenCurrentActor();
         when(pushTargetStorePort.claim(eq(USER_ID), eq("target"), any(LocalDateTime.class)))
                 .thenReturn(false);
