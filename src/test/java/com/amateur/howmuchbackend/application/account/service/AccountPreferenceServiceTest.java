@@ -38,7 +38,7 @@ class AccountPreferenceServiceTest {
     @Mock private User user;
 
     @Test
-    void setsOwnedActiveAccountAsDefault() {
+    void accountPreference_ownedActiveAccount_setAsDefault() {
         givenAccounts(account(10L, false, 0), account(11L, true, 1));
 
         service().setDefault(10L);
