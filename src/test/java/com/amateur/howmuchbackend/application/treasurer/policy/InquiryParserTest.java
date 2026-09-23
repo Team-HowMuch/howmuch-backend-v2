@@ -12,7 +12,7 @@ class InquiryParserTest {
     private final InquiryParser parser = new InquiryParser();
 
     @Test
-    void classifiesSendIntentAndThisMonth() {
+    void settlementQuery_sendIntentThisMonth_classified() {
         InquiryParser.ParsedInquiry parsed = parser.parse("이번 달 내가 보낼 정산은 얼마야?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
