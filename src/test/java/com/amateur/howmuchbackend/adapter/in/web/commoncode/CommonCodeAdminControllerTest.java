@@ -68,7 +68,7 @@ class CommonCodeAdminControllerTest {
 
     @Test
     @DisplayName("그룹 검색 결과에 그룹 속성과 상세 개수를 반환한다")
-    void searchesGroups() throws Exception {
+    void groupSearch_query_returnsAttributesAndDetailCount() throws Exception {
         when(searchUseCase.search(any())).thenReturn(List.of(
                 new CommonCodeGroupSummaryResult("BANK", "은행 코드", null, true, 1L, 2L)
         ));
