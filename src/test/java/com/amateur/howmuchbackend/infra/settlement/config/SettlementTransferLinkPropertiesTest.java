@@ -30,7 +30,7 @@ class SettlementTransferLinkPropertiesTest {
     @ValueSource(strings = {" ", "/send", "http://example.com/send", "http://localhost.example.com/send",
             "https://example.com/send?sender=x", "https://example.com/send#fragment",
             "https://user@example.com/send", "javascript:alert(1)", "https://invalid host/send"})
-    void rejectsInvalidMockBaseUrl(String url) {
+    void transferLinkProperties_invalidMockBaseUrl_rejected(String url) {
         assertThatThrownBy(() -> new SettlementTransferLinkProperties(MOCK,
                 new SettlementTransferLinkProperties.Mock(url)))
                 .isInstanceOf(IllegalArgumentException.class)
