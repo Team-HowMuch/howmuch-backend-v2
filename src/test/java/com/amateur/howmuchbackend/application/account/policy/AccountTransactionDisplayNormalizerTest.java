@@ -48,7 +48,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("농협은 분리된 거래기록사항 필드를 제목으로 우선 사용한다")
-    void prefersNhDescriptionField() {
+    void nhDescriptionField_available_usedAsTitle() {
         var display = normalizer.normalize(
                 "0011",
                 "실시간이체 [상대방명](카카오 농협 [계좌식별자]",
