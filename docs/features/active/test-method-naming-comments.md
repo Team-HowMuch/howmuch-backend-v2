@@ -1,8 +1,9 @@
 # 테스트 메서드명·설명 주석 컨벤션 정리
 
-- Status: In progress
+- Status: In progress (PR validation pending)
 - Last updated: 2026-09-24
 - Related issue: #411
+- Related PR: pending
 - Related ADR: N/A
 
 ## 1. 목적
@@ -17,12 +18,12 @@
 
 ### 성공 기준
 
-- [ ] 최신 `develop`의 Java JUnit 테스트 메서드를 `<대상>_<핵심 조건>_<기대 결과>`로 정리한다.
-- [ ] 설정·Annotation 테스트에는 `<대상>_<검증 속성>_<기대 상태>`를 적용한다.
-- [ ] 필요한 Javadoc과 테스트 설명 주석은 완전한 동사형 문장(`~한다.`)으로 작성한다.
-- [ ] 코드로 명확한 내용을 반복하는 주석을 추가하지 않으며, `@DisplayName`은 실제 검증과 다를 때만 수정한다.
-- [ ] 테스트 메서드 수, Annotation, 본문, assertion, JavaScript 테스트를 보존한다.
-- [ ] 규칙을 `docs/testing.md`에 기록한다.
+- [x] 최신 `develop`의 Java JUnit 테스트 메서드 969개를 `<대상>_<핵심 조건>_<기대 결과>`로 정리한다.
+- [x] 설정·Annotation 테스트에는 `<대상>_<검증 속성>_<기대 상태>`를 적용한다.
+- [x] 필요한 Javadoc과 테스트 설명 주석은 완전한 동사형 문장(`~한다.`)으로 작성한다.
+- [x] 코드로 명확한 내용을 반복하는 주석을 추가하지 않으며, 기존 `@DisplayName`은 불일치가 확인되지 않아 유지한다.
+- [x] 테스트 메서드 수, Annotation, 본문, assertion, JavaScript 테스트를 보존한다.
+- [x] 규칙을 `docs/testing.md`에 기록한다.
 
 ### 범위 제외
 
@@ -70,7 +71,7 @@
 
 - 설정·Annotation 테스트에는 속성과 기대 상태가 식별되는 형식을 사용한다.
 - 매개변수화된 테스트는 매개변수 하나로 바뀌는 조건을 식별한다.
-- 테스트 메서드 이름은 의미 전달에 필요한 길이로 유지한다. 고정 글자 수 제한은 두지 않고, 중복 대상·세부 구현·불필요한 단어를 제거한다.
+- 테스트 메서드 이름은 의미 전달에 필요한 길이로 유지한다. 고정 글자 수 제한은 두지 않고, 60자 이내를 우선하며 중복 대상·세부 구현·불필요한 단어를 제거한다.
 - 테스트 본문, assertion 및 모든 JUnit/기타 Annotation은 보존한다.
 
 ## 4. 설계 결정
@@ -110,10 +111,10 @@
 
 - [x] Migration-only PR: N/A. 데이터 구조 및 애플리케이션 계약을 바꾸지 않는다.
 - [x] UseCase, Command/Result, Ports, Domain, Application, Adapter, API, Infra: N/A. 테스트 명명만 변경한다.
-- [ ] 이 Feature Plan을 별도 문서 커밋으로 추가한다.
-- [ ] Java 테스트 메서드명을 하나씩 변경한다. 메서드 이름과 그 메서드의 필요한 Javadoc, 테스트 설명 주석, 내용이 잘못된 `@DisplayName` 수정은 같은 커밋에 포함한다. 두 테스트 메서드의 변경을 한 커밋에 묶지 않는다.
-- [ ] `docs/testing.md`의 규칙 변경은 별도 문서 커밋으로 둔다.
-- [ ] 전체 변경 후 보존 검증을 기록하고 Feature Plan을 `docs/features/completed/`로 이동한다.
+- [x] 이 Feature Plan을 별도 문서 커밋으로 추가한다.
+- [x] Java 테스트 메서드명을 하나씩 변경한다. 메서드 이름과 그 메서드의 필요한 설명은 해당 메서드만 변경하는 커밋으로 둔다. 두 테스트 메서드의 변경을 한 커밋에 묶지 않는다.
+- [x] `docs/testing.md`의 규칙 변경은 별도 문서 커밋으로 둔다.
+- [ ] PR 검증 결과를 기록하고 Feature Plan을 `docs/features/completed/`로 이동한다.
 
 예상 커밋 제목:
 
@@ -145,17 +146,28 @@ gh pr checks <PR_NUMBER>
 
 ### 완료 기준
 
-- [ ] 메서드 수와 JUnit Annotation 수가 기준선과 같다.
-- [ ] 테스트 메서드 선언을 제외한 본문과 assertion이 변경되지 않았다.
-- [ ] JavaScript 테스트가 변경되지 않았다.
+- [x] 메서드 수와 JUnit Annotation 수가 기준선과 같다: 969개.
+- [x] 테스트 메서드 선언을 제외한 본문과 assertion이 변경되지 않았다.
+- [x] JavaScript 테스트가 변경되지 않았다.
 - [ ] 전체 격리 테스트 실행 결과와 PR CI 결과를 기록한다.
-- [ ] 문서 링크와 Git 작성자/커미터 및 Co-authored-by 부재를 확인한다.
+- [x] 문서 링크와 Git 작성자/커미터 및 Co-authored-by 부재를 확인한다.
+
+### 현재 결과
+
+- 173개 Java 테스트 파일에서 969개 JUnit 메서드 이름을 정리했다. 최종 이름은 모두 60자 이내다.
+- 각 메서드 변경과 이름 간결화 후 `./gradlew compileTestJava`가 통과했다.
+- 원본 이름과 주석을 되돌려 비교했을 때 변경한 Java 테스트 소스 173개가 최신 `origin/develop`과 정확히 일치한다. 따라서 테스트 수, Annotation, 본문, assertion, fixture, 실행 순서, 기존 `@DisplayName`은 보존됐다.
+- JavaScript 테스트와 production 코드는 변경하지 않았다. 설명 주석 34곳을 규칙에 맞게 정리했다.
+- `git diff --check`: 통과.
+- `bash scripts/test.sh`: 실행 환경에 격리 PostgreSQL/Redis가 없고 Docker daemon이 실행되지 않아 시작되지 않았다. 필요한 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`도 설정되지 않았다.
+- PR CI 확인은 PR 생성 후 진행한다.
 
 ## 8. 진행 기록
 
 | 날짜 | 완료 내용 | 다음 작업 | 위험 또는 제한 |
 |---|---|---|---|
 | 2026-09-24 | #411 생성, 최신 `develop`에서 `test/411-test-naming-comments` 준비, 969개 메서드 확인, `compileTestJava` 기준선 통과 | 메서드별 이름과 설명 주석 변경 | 로컬 Docker 데몬 및 격리 DB/Redis 설정 부재 |
+| 2026-09-24 | 969개 메서드 이름·34개 설명 주석 정리, 60자 이내 확인, 본문/Annotation/assertion 보존 검증, `docs/testing.md` 규칙 추가 | PR CI 결과 확인 및 완료 기록 | 로컬 격리 PostgreSQL/Redis 부재로 `scripts/test.sh`를 시작하지 못함 |
 
 ## 9. 결정 기록
 
@@ -167,8 +179,8 @@ gh pr checks <PR_NUMBER>
 
 ## 10. 완료 기록
 
-- 완료일: 미완료
+- 완료일: PR 검증 후 기록
 - 최종 동작: N/A. 테스트 동작을 변경하지 않는다.
-- 미검증 사항: 격리 환경이 준비되지 않아 전체 테스트 기준선 및 최종 테스트는 아직 실행하지 못했다.
-- 남은 위험: 전체 Java 이름 변경은 한 메서드씩 컴파일 확인해야 하며, DB/Redis 기반 전체 테스트는 전용 서비스가 필요하다.
-- 후속 작업: 구현 후 결과를 기록하고 문서를 완료 폴더로 이동한다.
+- 미검증 사항: 로컬 격리 환경이 없어 전체 테스트를 실행하지 못했다. PR CI는 아직 실행 전이다.
+- 남은 위험: 전체 DB/Redis 통합 테스트 결과는 PR CI에서 확인해야 한다.
+- 후속 작업: PR checks 결과를 기록하고 문서를 완료 폴더로 이동한다.
