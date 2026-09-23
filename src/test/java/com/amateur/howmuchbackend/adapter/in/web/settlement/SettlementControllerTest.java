@@ -723,7 +723,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("연락처 매칭 결과에 공개 정보와 기존 참여 여부만 반환한다")
-    void matchesSettlementContacts() throws Exception {
+    void contactMatch_request_returnsPublicFieldsAndStatus() throws Exception {
         when(matchSettlementContactsUseCase.match(eq(SETTLEMENT_ID), any())).thenReturn(List.of(
                 new SettlementContactCandidateResult(
                         "contact-1",
