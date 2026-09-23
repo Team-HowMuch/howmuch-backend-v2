@@ -141,7 +141,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void missingMultipartPartReturnsInvalidArgument() throws Exception {
+    void multipart_requiredPartMissing_returnsInvalidArgument() throws Exception {
         // 파트 이름이 다르면 컨트롤러에 들어가기 전에 갈린다. 여기가 400이 아니면
         // 컨트롤러 안의 null 검사는 영원히 실행되지 않고 500만 나간다.
         invalidArgument(mvc.perform(multipart("/error-probe/upload")
