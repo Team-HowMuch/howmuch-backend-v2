@@ -475,7 +475,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("연락처를 HMAC으로 일괄 매칭하고 입력 순서와 공개 정보만 반환한다")
-    void matchesSettlementContacts() {
+    void contactMatch_hmacBatch_preservesInputOrderAndPublicInfo() {
         String memberPhone = "010-1111-2222";
         String externalPhone = "010-2222-3333";
         String existingMemberPhone = "010-3333-4444";
