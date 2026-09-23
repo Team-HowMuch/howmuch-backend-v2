@@ -61,7 +61,7 @@ class SettlementRequestPersistenceIntegrationTest {
 
     @Test
     @DisplayName("계좌번호와 공유 토큰은 암호화하고 참여자별 Share와 token hash를 저장한다")
-    void savesEncryptedSnapshotSharesAndHashedLink() {
+    void settlementRequest_accountSnapshotEncryptedAndTokenHashed() {
         SettlementReceivingAccountSnapshot snapshot =
                 SettlementReceivingAccountSnapshot.create(
                         settlementId,
