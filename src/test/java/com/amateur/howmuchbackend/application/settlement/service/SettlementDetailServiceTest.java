@@ -109,7 +109,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자에게 전체 납부자와 실제 입금액 기준 진행률을 반환한다")
-    void returnsAllPaymentStatusesToCreator() {
+    void settlementDetail_creatorView_returnsStatusesAndProgress() {
         givenSettlement(CREATOR_ID);
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
