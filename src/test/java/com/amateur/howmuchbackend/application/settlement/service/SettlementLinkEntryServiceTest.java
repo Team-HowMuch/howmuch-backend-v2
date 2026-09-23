@@ -150,7 +150,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("브라우저 사용자가 고른 참여자가 같은 정산에 있으면 본인 검증 없이 문맥을 발급한다")
-    void selectsTrustedBrowserParticipant() {
+    void settlementLink_browserChoice_issuesTrustedParticipantContext() {
         arrangeDutchPayAccessWithoutParticipants();
         SettlementParticipant payer = participants().get(1);
         when(loadSettlementParticipantPort.findBySettlementIdAndId(
