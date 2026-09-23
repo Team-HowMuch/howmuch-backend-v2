@@ -235,7 +235,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("목록 화면에 원본 상태와 숫자형 요약 필드를 반환한다")
-    void getsSettlementList() throws Exception {
+    void settlementList_request_preservesStatusAndNumericSummary() throws Exception {
         when(getSettlementsUseCase.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
