@@ -95,7 +95,7 @@ class UpdateMyProfileServiceTest {
 
     @Test
     @DisplayName("정규화한 공개 ID와 아바타가 그대로이면 중복 조회와 저장을 생략한다")
-    void skipsUnchangedProfile() {
+    void profile_unchangedNormalizedValues_skipLookupAndSave() {
         var result = updateMyProfileService.update(new UpdateMyProfileCommand(" CURRENT.ID ", null, false));
 
         assertThat(result.publicId()).isEqualTo("current.id");
