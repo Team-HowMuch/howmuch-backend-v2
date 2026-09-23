@@ -91,9 +91,9 @@ class AnalyzeReceiptServiceTest {
     @ParameterizedTest
     @ValueSource(strings = {"application/pdf", "image/heic", "text/plain", "image/", " ", "image/png"})
     @DisplayName("선언한 형식이 무엇이든 실제 바이트가 JPEG면 JPEG로 보낸다")
-    void ignoresTheDeclaredContentType(String declared) {
-        // 멀티파트 Content-Type은 클라이언트가 정하는 값이다. 그대로 실어 보내면
-        // OCR 서비스가 엉뚱한 형식으로 읽는다.
+    void receiptAnalysis_jpegBytes_overrideDeclaredContentType(String declared) {
+        // 멀티파트 Content-Type은 클라이언트가 정하므로 선언값 대신 실제 형식을 보낸다.
+        // 선언값을 그대로 보내면 OCR 서비스가 다른 형식으로 처리한다.
         when(analyzeReceiptImagePort.analyze(any(), eq("image/jpeg"), any())).thenReturn(
                 new ReceiptAnalysisResult(null, null, List.of(), null, null, false));
 
