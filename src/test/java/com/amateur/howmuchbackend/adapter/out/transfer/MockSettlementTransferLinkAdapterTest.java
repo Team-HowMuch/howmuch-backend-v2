@@ -79,7 +79,7 @@ class MockSettlementTransferLinkAdapterTest {
     @NullAndEmptySource
     @ValueSource(strings = {"---", "****1234", "123 456", "123456789012345", "１２３"})
     @DisplayName("유효하지 않은 계좌번호는 링크를 만들지 않는다")
-    void rejectsInvalidAccount(String account) {
+    void mockTransferLink_invalidAccount_rejected(String account) {
         assertThat(adapter.create("0020", account, 1, "예금주")).isEmpty();
     }
 
