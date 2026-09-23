@@ -217,7 +217,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("사진을 올리지 않은 멤버의 아바타 조회는 실패한다")
-    void rejectsAvatarWithoutFile() {
+    void groupMemberAvatar_missingFile_rejected() {
         when(loadGroupMemberPort.findByGroupIdAndId(GROUP_ID, 20L))
                 .thenReturn(Optional.of(activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER)));
         when(loadUserPort.findById(MEMBER_ID))
