@@ -63,7 +63,7 @@ class SettlementReminderControllerTest {
 
     @Test
     @DisplayName("미납 참여자 전체 독촉 후 실제 발송 수와 다음 가능 시각을 반환한다")
-    void remindsAllParticipants() throws Exception {
+    void settlementReminder_allUnpaid_returnsCountAndNextAt() throws Exception {
         when(remindAllUseCase.remindAll(SETTLEMENT_ID)).thenReturn(
                 new SettlementBulkReminderResult(3, REMINDED_AT.plusMinutes(30))
         );
