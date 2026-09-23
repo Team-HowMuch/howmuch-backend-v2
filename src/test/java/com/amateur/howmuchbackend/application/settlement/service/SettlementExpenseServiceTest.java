@@ -178,7 +178,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("요청 금액이 바뀌지 않도록 DRAFT가 아닌 정산의 지출 등록을 거부한다")
-    void rejectsCreationOutsideDraft() {
+    void manualExpense_nonDraftSettlement_rejected() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
