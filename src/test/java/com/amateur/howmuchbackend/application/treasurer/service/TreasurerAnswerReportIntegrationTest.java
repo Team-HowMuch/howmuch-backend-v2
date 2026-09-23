@@ -89,7 +89,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("본인 답변을 신고하고 식별자와 접수 시각을 돌려받는다")
-    void reportsOwnAnswer() {
+    void answerReport_ownAnswer_createdWithReceiptTime() {
         UUID answerId = saveAnswer(owner, NOW);
 
         TreasurerAnswerReportResult result = reports.report(
