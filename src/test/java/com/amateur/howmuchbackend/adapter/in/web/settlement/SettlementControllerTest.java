@@ -404,7 +404,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("생성자가 요청 중인 정산을 수동 중단하고 최신 상태를 받는다")
-    void suspendsSettlement() throws Exception {
+    void settlement_ownerSuspend_returnsLatestState() throws Exception {
         when(suspendSettlementUseCase.suspend(SETTLEMENT_ID)).thenReturn(
                 new SettlementResult(
                         SETTLEMENT_ID,
