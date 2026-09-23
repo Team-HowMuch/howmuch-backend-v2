@@ -165,7 +165,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("결제일을 모르는 결제내역도 생성 시각으로 대체하지 않는다")
-    void keepsUnknownPaymentDateNull() {
+    void paymentDate_unknown_remainsNull() {
         SettlementExpense expense = SettlementExpense.paymentHistory(
                 SETTLEMENT_ID, 1L, "unknown-date", "카드 결제", 42_000, null, 0, NOW
         );
