@@ -196,7 +196,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("초대 코드 가입 결과를 그룹 상세 응답으로 변환한다")
-    void joinsGroup() throws Exception {
+    void groupJoin_inviteCode_returnsGroupDetail() throws Exception {
         when(joinGroupUseCase.join(any())).thenReturn(detail("여행", null, null));
 
         mockMvc.perform(post("/api/v2/groups/join")
