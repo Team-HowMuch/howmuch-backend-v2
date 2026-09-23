@@ -129,7 +129,7 @@ class CommonCodeCreationPersistenceIntegrationTest {
     }
 
     @Test
-    void missingUpdateDoesNotCreateGroup() {
+    void commonCodeUpdate_missingGroup_doesNotCreateGroup() {
         assertThatThrownBy(() -> tx.execute(status -> adapter.update(group("missing", List.of()))))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(CommonCodeStatusCode.COMMON_CODE_GROUP_NOT_FOUND));
