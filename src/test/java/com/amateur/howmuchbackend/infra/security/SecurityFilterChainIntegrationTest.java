@@ -140,7 +140,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("관리자 API는 미인증 401과 일반 사용자 403을 구분한다")
-    void rejectsMissingAdminPermission() throws Exception {
+    void adminApi_missingPermission_unauthenticated401AndUser403() throws Exception {
         assertError(request("GET", ADMIN, null), 401, "UNAUTHORIZED");
         assertError(request("GET", ADMIN, accessToken), 403, "FORBIDDEN");
     }
