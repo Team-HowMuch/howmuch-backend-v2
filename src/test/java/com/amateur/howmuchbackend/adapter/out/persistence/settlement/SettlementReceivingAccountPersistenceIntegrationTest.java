@@ -62,7 +62,7 @@ class SettlementReceivingAccountPersistenceIntegrationTest {
 
     @Test
     @DisplayName("V15 수령 계좌 ID를 저장하고 Domain으로 다시 복원한다")
-    void savesAndLoadsReceivingAccountId() {
+    void settlementReceivingAccountId_saveAndLoad_restored() {
         Settlement selected = settlementPersistenceAdapter.findById(settlementId)
                 .orElseThrow()
                 .selectReceivingAccount(accountId, CREATED_AT.plusMinutes(1));
