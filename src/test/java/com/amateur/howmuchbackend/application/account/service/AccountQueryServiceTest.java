@@ -173,7 +173,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("현재 월 refresh marker가 유효하면 CODEF를 호출하지 않는다")
-    void returnsCurrentMonthSummaryWhenRefreshMarkerIsFresh() {
+    void accountSummary_freshRefreshMarker_doesNotCallCodef() {
         YearMonth currentMonth = SEPTEMBER;
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
