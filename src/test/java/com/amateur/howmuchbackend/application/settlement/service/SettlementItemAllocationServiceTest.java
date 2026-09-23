@@ -128,7 +128,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("마지막 제출에서 품목 배분이 정확하면 입금 대기로 전환한다")
-    void finalizesSharesOnLastExactSubmission() {
+    void itemAllocation_lastExactSubmission_finalizesShares() {
         arrangeRequestedAccess();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
