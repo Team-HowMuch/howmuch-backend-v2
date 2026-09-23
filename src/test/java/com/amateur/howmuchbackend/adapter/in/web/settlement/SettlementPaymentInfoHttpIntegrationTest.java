@@ -57,7 +57,7 @@ class SettlementPaymentInfoHttpIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"2026-08-31T15:05:00", "2026-12-31T15:05:00"})
     @DisplayName("기동 시간대와 관계없이 월말·연말 거래 시각을 저장·상세·링크까지 보존한다")
-    void importsAndReadsTheSamePaymentThroughRealHttp(String paidAt) throws Exception {
+    void paymentExpense_realHttp_preservesMonthEndTransaction(String paidAt) throws Exception {
         assertThat(TimeZone.getDefault().toZoneId().normalized()).isEqualTo(ZoneOffset.UTC);
         String suffix = UUID.randomUUID().toString();
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
@@ -101,7 +101,7 @@ class SettlementPaymentInfoHttpIntegrationTest {
             assertThat(detail.path("storeName").stringValue()).isEqualTo("행복식당");
             assertThat(detail.path("paidAt").stringValue()).isEqualTo(paidAt);
             assertThat(request("GET", path, null, null).statusCode()).isEqualTo(401);
-            // Prepare a valid requested-link fixture without exercising unrelated request/payment setup.
+            // 요청·납부 설정을 다시 구성하지 않고 유효한 공유 링크 테스트 데이터를 준비한다.
             jdbc.update("UPDATE settlements SET status='REQUESTED', allocation_type='ITEM_ALLOCATION' WHERE id=?", settlement);
             var link = links.issue(now);
             jdbc.update("""
