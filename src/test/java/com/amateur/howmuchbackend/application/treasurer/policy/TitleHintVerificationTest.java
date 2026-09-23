@@ -51,7 +51,7 @@ class TitleHintVerificationTest {
 
     @Test
     @DisplayName("이름이 없으면 좁히지 않는다")
-    void keepsEverythingWhenHintIsAbsent() {
+    void titleHint_absent_noFiltering() {
         assertThat(policy.verify(all, null)).isNull();
     }
 
