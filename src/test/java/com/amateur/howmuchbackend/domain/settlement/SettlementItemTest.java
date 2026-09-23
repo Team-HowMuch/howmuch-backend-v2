@@ -52,7 +52,7 @@ class SettlementItemTest {
 
     @Test
     @DisplayName("수량과 행 금액이 양수가 아니면 OCR 품목을 거부한다")
-    void rejectsNonPositiveQuantityAndAmount() {
+    void receiptItem_nonPositiveQuantityOrAmount_rejected() {
         assertThatThrownBy(() -> item("커피", 0, 1_000, 0))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
