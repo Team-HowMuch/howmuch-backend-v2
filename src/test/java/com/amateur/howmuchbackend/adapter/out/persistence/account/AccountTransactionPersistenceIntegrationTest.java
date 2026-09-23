@@ -337,7 +337,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("활성 Account 삭제 뒤에도 Account Record FK로 거래와 월 요약을 조회한다")
-    void loadsHistoryAfterActiveAccountDeletion() {
+    void accountHistory_afterDeletion_loadedByRecordKey() {
         Transaction expense = transaction(
                 "d".repeat(64), AccountTransactionType.EXPENSE, "12500",
                 LocalDateTime.of(2026, 8, 20, 0, 15)
