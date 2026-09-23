@@ -121,7 +121,7 @@ class CodefBankTransactionAdapterTest {
 
     @Test
     @DisplayName("수시입출 요청 계약과 출금·입금·서울 시간을 표준 거래로 변환한다")
-    void fetchesDemandDepositTransactions() throws Exception {
+    void bankTransactions_demandDeposit_mapsFieldsAndSeoulTime() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any())).thenReturn(
                 objectMapper.readTree("""
