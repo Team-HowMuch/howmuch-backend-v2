@@ -25,7 +25,7 @@ class TreasurerSummaryTest {
     }
 
     @Test
-    void usesEmptyGuidanceWhenNothingIsOpen() {
+    void treasurerSummary_noOpenSettlement_emptyGuidance() {
         TreasurerSummary summary = TreasurerSummary.from(List.of(
                 settlement(SettlementDirection.SEND, SettlementStatus.COMPLETED, 10_000L)
         ));
