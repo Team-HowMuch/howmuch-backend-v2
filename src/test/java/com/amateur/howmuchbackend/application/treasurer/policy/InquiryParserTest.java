@@ -198,7 +198,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void limitsTitlePrefixLength() {
+    void titleHint_prefixLength_limited() {
         assertThat("가나다라마바사아자차카타파하거너더러머버".length()).isEqualTo(MAX_TITLE_PREFIX);
         String twenty = "가나다라마바사아자차카타파하거너더러머버";
         String longer = twenty + "서";
