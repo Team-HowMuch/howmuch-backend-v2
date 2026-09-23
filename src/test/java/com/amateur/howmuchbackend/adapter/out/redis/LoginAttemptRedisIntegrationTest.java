@@ -129,7 +129,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void successfulLastAttemptResetsCounterAndAllowsRetry() {
+    void loginAttempt_successOnLastTry_resetsAndAllowsRetry() {
         redis.opsForValue().set(key, "4", LOCK);
         when(encoder.matches(PIN, "synthetic-hash")).thenReturn(true);
         assertThat(login(PIN)).isInstanceOf(TokenResult.class);
