@@ -71,7 +71,7 @@ class SettlementDepositMatchingPolicyTest {
 
     @Test
     @DisplayName("거래 발생 후 시작된 정산 Share는 매칭 후보에서 제외한다")
-    void excludesSettlementStartedAfterTransaction() {
+    void depositMatching_settlementStartsAfterTransaction_excluded() {
         UUID laterShareId = UUID.randomUUID();
         var shares = List.of(
                 payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0)),
