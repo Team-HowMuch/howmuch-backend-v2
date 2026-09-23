@@ -240,7 +240,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("이미 신고한 답변은 409를 반환한다")
-    void returnsConflictForDuplicateReport() throws Exception {
+    void answerReport_duplicate_returnsConflict() throws Exception {
         when(reportTreasurerAnswerUseCase.report(any()))
                 .thenThrow(new ApplicationException(TreasurerStatusCode.TREASURER_ANSWER_ALREADY_REPORTED));
 
