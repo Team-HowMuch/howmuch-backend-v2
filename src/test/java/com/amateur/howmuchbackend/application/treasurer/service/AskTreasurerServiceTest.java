@@ -179,7 +179,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void keepsTitleFilterWhenPeriodAndGroupNameAppearTogether() {
+    void titleAndPeriodFilter_groupNamePresent_preserved() {
         UUID travelId = UUID.fromString("22222222-2222-2222-2222-222222222222");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
