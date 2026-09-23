@@ -125,7 +125,7 @@ class SettlementReceiptExpenseWriterTest {
 
     @Test
     @DisplayName("같은 OCR 결과 참조는 정산 행 잠금 뒤 중복 저장을 거부한다")
-    void rejectsDuplicateReceiptReference() {
+    void receiptExpense_duplicateReference_rejectedAfterLock() {
         givenOwnedDraft();
         when(loadSettlementExpensePort.existsBySettlementIdAndSourceAndSourceReference(
                 SETTLEMENT_ID,
