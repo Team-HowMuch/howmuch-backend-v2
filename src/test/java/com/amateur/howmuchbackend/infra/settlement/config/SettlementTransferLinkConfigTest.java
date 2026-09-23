@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 class SettlementTransferLinkConfigTest {
     @ParameterizedTest
     @CsvSource({"none,toss", "local,mock", "dev,mock", "prod,toss"})
-    void profileDefaultsRegisterExactlyOneAdapter(String profile, String expected) {
+    void transferLinkConfig_profileDefaults_exactlyOneAdapter(String profile, String expected) {
         runner(Map.of()).withPropertyValues("spring.profiles.active=" + profile).run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(SettlementTransferLinkPort.class);
             assertThat(context.getBean(SettlementTransferLinkPort.class))
