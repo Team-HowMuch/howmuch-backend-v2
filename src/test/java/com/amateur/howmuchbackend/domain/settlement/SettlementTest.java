@@ -45,7 +45,7 @@ class SettlementTest {
         @ParameterizedTest
         @ValueSource(longs = {0, -1})
         @DisplayName("실제 비용을 나눌 수 있도록 0원 이하 총액을 허용하지 않는다")
-        void rejectsNonPositiveAmount(long amount) {
+        void settlement_nonPositiveTotal_rejected(long amount) {
             assertThatThrownBy(() -> Settlement.draft(CREATOR_ID, "회식 정산", amount, CREATED_AT))
                     .isInstanceOfSatisfying(ApplicationException.class, exception ->
                             assertThat(exception.getStatusCode())
