@@ -365,7 +365,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("생성자가 아닌 사용자는 회원 후보를 검색할 수 없다")
-    void rejectsCandidateSearchForAnotherUser() {
+    void participantCandidates_otherUserSearch_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
