@@ -66,7 +66,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
 
     @ParameterizedTest(name = "상세 변경 및 오래된 요청 거절: {0}")
     @ValueSource(strings = {"add", "edit", "deactivate", "omit"})
-    void detailOnlyEditAdvancesRevisionAndRejectsStaleRequest(String operation) {
+    void commonCodeRevision_detailEdit_incrementsAndRejectsStale(String operation) {
         var before = read();
         List<CommonCode> details = switch (operation) {
             case "add" -> List.of(before.details().getFirst(), before.details().getLast(), detail("NEW", "added", true));
