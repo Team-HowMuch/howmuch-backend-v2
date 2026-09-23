@@ -134,7 +134,7 @@ class AuthSessionRedisIntegrationTest {
     }
 
     @Test
-    void expirationAfterValidationCannotRestoreSession() throws Exception {
+    void authSession_expiredAfterValidation_notRestored() throws Exception {
         TokenResult initial = service.issueNewSession(user);
         CountDownLatch validated = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
