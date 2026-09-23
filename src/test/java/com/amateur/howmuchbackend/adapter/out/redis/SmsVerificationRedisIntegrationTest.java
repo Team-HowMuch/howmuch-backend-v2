@@ -465,7 +465,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void nonExpiringLegacyOtpDoesNotPermitSend() {
+    void smsOtp_nonExpiringLegacyState_blocksSend() {
         redis.persist(key);
         assertThat(adapter.tryReserve(phoneHash, initial, policy.otpTtl(), policy.resendCooldown())).isFalse();
     }
