@@ -63,7 +63,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsDisplayOrderOutsideActiveAccountRange() {
+    void accountPreference_outOfRangeDisplayOrder_rejected() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         for (int displayOrder : List.of(-1, 2)) {
