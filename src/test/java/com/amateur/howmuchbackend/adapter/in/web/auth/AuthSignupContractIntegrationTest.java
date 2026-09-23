@@ -91,7 +91,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("공백 또는 잘못된 휴대폰 번호는 전용 형식 오류로 거절한다")
-    void rejectsInvalidPhoneNumber() throws Exception {
+    void phoneNumber_blankOrInvalid_returnsFormatError() throws Exception {
         String clientAddress = randomClientAddress();
         try {
             mockMvc.perform(post(PHONE_NUMBER_CHECK_PATH)
