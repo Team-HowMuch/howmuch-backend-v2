@@ -275,7 +275,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("재연결 전 계좌 생명주기에서 이미 연결한 거래는 다시 연결하지 않는다")
-    void rejectsTransactionMatchedBeforeAccountReconnection() {
+    void settlementDeposit_preReconnectTransaction_notMatchedAgain() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         Transaction savedTransaction = transaction("6000");
         arrangeFetchedTransaction(savedTransaction);
