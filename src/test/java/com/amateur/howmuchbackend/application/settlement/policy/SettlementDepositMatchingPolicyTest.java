@@ -41,7 +41,7 @@ class SettlementDepositMatchingPolicyTest {
 
     @Test
     @DisplayName("전체 이름과 부분 이름 후보가 함께 있으면 전체 이름만 연결한다")
-    void matchesFullNameDespiteSubstringCandidate() {
+    void depositMatching_fullName_beatsSubstringMatch() {
         var shares = List.of(
                 payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0)),
                 payable(UUID.randomUUID(), "선영", LocalDateTime.of(2026, 8, 24, 0, 0))
