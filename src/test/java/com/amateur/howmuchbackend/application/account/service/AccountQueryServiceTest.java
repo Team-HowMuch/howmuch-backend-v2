@@ -132,7 +132,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("월 요약이 없으면 CODEF 거래를 중복 Key와 함께 저장하고 요약을 캐시한다")
-    void fetchesTransactionsAndCachesSummary() {
+    void accountTransactions_notCached_savedByKeyAndSummaryCached() {
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary calculated = new AccountMonthlySummary(
                 null, account.id(), AUGUST, new BigDecimal("12500"), 1,
