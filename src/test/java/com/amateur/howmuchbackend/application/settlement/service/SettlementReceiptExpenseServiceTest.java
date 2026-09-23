@@ -139,7 +139,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("OCR 외부 호출은 쓰기 트랜잭션 밖에서 실행하고 저장만 별도 트랜잭션을 사용한다")
-    void keepsExternalExtractionOutsideWriteTransaction() throws NoSuchMethodException {
+    void receiptExpense_ocr_runsOutsideWriteTransaction() throws NoSuchMethodException {
         var importMethod = SettlementReceiptExpenseService.class.getMethod(
                 "importExpense",
                 UUID.class,
