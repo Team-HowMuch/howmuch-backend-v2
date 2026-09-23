@@ -147,7 +147,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void authenticationAndInvalidQueryValidation() throws Exception {
+    void notificationEndpoint_anonymousOrInvalidQuery_returnsErrors() throws Exception {
         mvc.perform(get("/api/v2/notifications")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v2/notifications/unread-count")).andExpect(status().isUnauthorized());
         mvc.perform(patch("/api/v2/notifications/{id}/read", UUID.randomUUID())).andExpect(status().isUnauthorized());
