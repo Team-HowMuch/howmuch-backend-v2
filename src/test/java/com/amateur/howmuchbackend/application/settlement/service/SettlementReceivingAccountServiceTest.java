@@ -66,7 +66,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("송금 가능한 본인 계좌만 기본 계좌 우선으로 반환하고 현재 선택을 표시한다")
-    void returnsEligibleAccountsInDisplayOrder() {
+    void receivingAccounts_eligible_defaultFirstAndCurrentShown() {
         authenticate();
         Settlement settlement = draft().selectReceivingAccount(2L, CREATED_AT.plusMinutes(1));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
