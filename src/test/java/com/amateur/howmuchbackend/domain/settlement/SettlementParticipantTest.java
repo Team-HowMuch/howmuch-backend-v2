@@ -52,7 +52,7 @@ class SettlementParticipantTest {
 
     @Test
     @DisplayName("연락처 회원은 회원 ID로, 비회원 연락처는 전화번호 hash로 식별한다")
-    void createsLinkedAndUnlinkedContacts() {
+    void participant_linkedAndUnlinkedContact_identifiersAssigned() {
         SettlementParticipant linked = SettlementParticipant.linkedContact(
                 SETTLEMENT_ID,
                 1L,
