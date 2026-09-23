@@ -21,7 +21,7 @@ class ApnsConfigTest {
 
     @ParameterizedTest
     @CsvSource({"local,dev", "dev,dev", "prod,prod"})
-    void profileSelectsApnsEnvironment(String profile, String expected) {
+    void apnsConfig_activeProfile_selectsEnvironment(String profile, String expected) {
         runner().withPropertyValues("spring.profiles.active=" + profile).run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getBean(ApnsProperties.class).environment()).isEqualTo(expected);
