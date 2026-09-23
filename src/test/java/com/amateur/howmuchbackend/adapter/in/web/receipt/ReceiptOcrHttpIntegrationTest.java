@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReceiptOcrHttpIntegrationTest {
     private static final String PATH = "/api/v2/receipts/ocr";
     private static final String BOUNDARY = "howmuch-receipt-test-boundary";
-    /** 진짜 JPEG 시그니처다. 정책이 선언한 형식이 아니라 바이트를 보므로 아무 바이트나 쓸 수 없다. */
+    /** 실제 JPEG 시그니처를 사용해 요청 바이트 형식을 검증한다. */
     private static final byte[] SMALL_IMAGE = jpegBytes();
 
     private static byte[] jpegBytes() {
