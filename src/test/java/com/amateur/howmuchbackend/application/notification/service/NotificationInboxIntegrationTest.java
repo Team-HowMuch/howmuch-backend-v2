@@ -399,7 +399,7 @@ class NotificationInboxIntegrationTest {
     }
 
     private void replaceShareCreatedAt(LocalDateTime createdAt) {
-        // Use the production JPA mapping so JDBC and Hibernate timezone handling cannot diverge.
+        // JDBC와 Hibernate의 시간대 처리 차이를 막기 위해 운영 JPA 매핑을 사용한다.
         jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
         shareStore.saveAll(List.of(new com.amateur.howmuchbackend.domain.settlement.SettlementShare(
                 share, settlement, participant, 1000, createdAt)));
