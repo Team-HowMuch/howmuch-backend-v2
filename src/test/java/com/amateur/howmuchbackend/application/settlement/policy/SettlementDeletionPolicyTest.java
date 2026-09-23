@@ -22,7 +22,7 @@ class SettlementDeletionPolicyTest {
 
     @Test
     @DisplayName("송금 전 진행 상태는 Share가 없으면 삭제를 허용한다")
-    void allowsDeletionBeforeTransfer() {
+    void settlementDeletion_beforeTransferWithoutShare_allowed() {
         policy.validate(settlement(SettlementStatus.DRAFT), false);
         policy.validate(settlement(SettlementStatus.REQUESTED), false);
         policy.validate(settlement(SettlementStatus.SUSPENDED), false);
