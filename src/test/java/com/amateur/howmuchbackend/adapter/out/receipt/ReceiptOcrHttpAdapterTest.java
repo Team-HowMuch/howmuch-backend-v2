@@ -146,7 +146,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("ok가 false면 이미지를 읽지 못한 것으로 본다")
-    void treatsNotOkAsUnreadable() {
+    void receiptOcr_notOkResponse_returnsUnreadable() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess(
                         "{\"ok\": false, \"error\": \"분석 실패\"}", MediaType.APPLICATION_JSON));
