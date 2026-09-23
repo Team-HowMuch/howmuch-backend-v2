@@ -389,7 +389,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void openApiDocumentsNotificationEnumsReadStateAndSecurity() throws Exception {
+    void notificationApi_enumsReadStateAndSecurity_documented() throws Exception {
         var response = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn();
         var document = json.readTree(response.getResponse().getContentAsString());
         var item = document.at("/components/schemas/NotificationItem");
