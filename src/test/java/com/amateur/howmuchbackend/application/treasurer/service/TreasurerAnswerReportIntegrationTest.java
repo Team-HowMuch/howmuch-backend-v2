@@ -176,7 +176,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("보관 기간이 지난 답변은 정리되고 신고된 답변은 남는다")
-    void purgesExpiredAnswersButKeepsReportedOnes() {
+    void answerCleanup_expiredUnreportedDeleted_reportedRetained() {
         UUID expiredAndReported = saveAnswer(owner, NOW.minusDays(99));
         UUID expired = saveAnswer(owner, NOW.minusDays(31));
         UUID recent = saveAnswer(owner, NOW.minusDays(1));
