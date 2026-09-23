@@ -234,7 +234,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("이미 가져온 OCR 참조는 외부 OCR을 다시 호출하지 않는다")
-    void rejectsDuplicateBeforeExternalExtraction() {
+    void receiptExpense_duplicateReference_rejectedBeforeOcr() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(CREATOR_ID, SettlementStatus.DRAFT)));
