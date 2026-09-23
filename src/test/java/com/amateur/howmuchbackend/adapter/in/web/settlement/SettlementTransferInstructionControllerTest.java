@@ -47,7 +47,7 @@ class SettlementTransferInstructionControllerTest {
             "https://howmuch-mock-send.vercel.app/send?bankCode=0020&bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89&accountNo=1002123456789&amount=6000&receiver=%EC%B5%9C%EC%88%98%EC%95%84"
     })
     @DisplayName("참여 문맥 헤더로 조회한 Toss와 Mock URL을 변형 없이 전달한다")
-    void getsTransferInstruction(String url) throws Exception {
+    void transferInstruction_participantContext_preservesUrls(String url) throws Exception {
         when(getUseCase.get(TOKEN, CONTEXT_ID)).thenReturn(
                 new SettlementTransferInstructionResult(
                         SETTLEMENT_ID,
