@@ -25,7 +25,7 @@ class LocalReceiptExtractionStubAdapterTest {
 
     @Test
     @DisplayName("빈 참조는 OCR 결과 없음으로 처리한다")
-    void returnsEmptyForBlankReference() {
+    void receiptExtraction_blankReference_returnsEmpty() {
         assertThat(adapter.extract(1L, "  ")).isEmpty();
         assertThat(adapter.extract(null, "receipt-demo")).isEmpty();
     }
