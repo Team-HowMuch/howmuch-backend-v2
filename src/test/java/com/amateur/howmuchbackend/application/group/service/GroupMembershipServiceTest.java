@@ -206,7 +206,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("그룹의 활성 멤버가 아니면 아바타를 조회할 수 없다")
-    void rejectsAvatarOfUnknownMember() {
+    void groupMemberAvatar_unknownOrInactiveMember_rejected() {
         when(loadGroupMemberPort.findByGroupIdAndId(GROUP_ID, 99L)).thenReturn(Optional.empty());
 
         assertStatus(
