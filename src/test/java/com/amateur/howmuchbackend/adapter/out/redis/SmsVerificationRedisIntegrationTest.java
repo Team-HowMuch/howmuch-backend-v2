@@ -247,7 +247,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void ttlExpiryBetweenReadAndTransitionRejectsCorrectCodeDespiteFutureTimestamp() throws Exception {
+    void smsOtp_expiredBeforeTransition_rejectsCorrectCode() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
@@ -509,7 +509,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     private void elapseCooldown() throws InterruptedException {
-        // Advance both Redis lifetimes consistently without waiting the full production minute.
+        // 운영 만료 시간만큼 기다리지 않도록 두 Redis TTL을 같은 간격으로 전진시킨다.
         SmsOtpState state = storedState().orElseThrow();
         long remainingOtp = Duration.between(state.resendAvailableAt(), state.expiresAt()).toMillis();
         redis.expire(key, Duration.ofMillis(remainingOtp));
