@@ -95,7 +95,7 @@ class SettlementParticipantTest {
     @ParameterizedTest
     @ValueSource(strings = {"short", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
     @DisplayName("비회원 연락처에 hash를 주면 64자 소문자 hex만 식별자로 사용한다")
-    void rejectsInvalidPhoneHash(String phoneHash) {
+    void participant_phoneHash_invalidFormat_rejected(String phoneHash) {
         assertThatThrownBy(() -> SettlementParticipant.unlinkedContact(
                 SETTLEMENT_ID,
                 phoneHash,
