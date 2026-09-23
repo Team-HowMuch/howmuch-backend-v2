@@ -96,7 +96,7 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("이미지를 읽지 못하면 422로 다시 촬영을 알린다")
-    void returnsUnprocessableWhenOcrCannotRead() throws Exception {
+    void receiptAnalysis_unreadableImage_returnsUnprocessable() throws Exception {
         when(analyzeReceiptUseCase.analyze(any()))
                 .thenThrow(ApplicationException.of(SettlementStatusCode.RECEIPT_OCR_FAILED));
 
