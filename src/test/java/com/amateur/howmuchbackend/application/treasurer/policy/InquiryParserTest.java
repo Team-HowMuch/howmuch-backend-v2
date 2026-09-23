@@ -53,7 +53,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void extractsTitleHintWhenLastMonthAndSettlementTitleAppearTogether() {
+    void titleHint_lastMonthAndTitle_extracted() {
         InquiryParser.ParsedInquiry parsed = parser.parse("지난달 회식 정산에서 받을 돈 있어?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
