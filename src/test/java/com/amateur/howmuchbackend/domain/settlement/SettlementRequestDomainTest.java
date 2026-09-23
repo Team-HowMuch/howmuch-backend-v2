@@ -62,7 +62,7 @@ class SettlementRequestDomainTest {
 
     @Test
     @DisplayName("수금 계좌 스냅샷은 기관 코드와 원문 계좌번호·예금주를 정규화한다")
-    void validatesReceivingAccountSnapshot() {
+    void receivingAccountSnapshot_valuesNormalized() {
         SettlementReceivingAccountSnapshot snapshot = SettlementReceivingAccountSnapshot.create(
                 SETTLEMENT_ID,
                 7L,
