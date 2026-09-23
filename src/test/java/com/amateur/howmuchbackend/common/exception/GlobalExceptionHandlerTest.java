@@ -110,7 +110,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void unexpectedFailureRemainsInternalServerError() throws Exception {
+    void unexpectedException_returnsInternalServerError() throws Exception {
         var expected = CommonStatusCode.INTERNAL_SERVER_ERROR;
         error(mvc.perform(get("/error-probe/unexpected")), 500,
                 expected.getCode(), expected.getMessage());
