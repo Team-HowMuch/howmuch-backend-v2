@@ -266,7 +266,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void outboxFailureRollsBackNotificationAndOwnedCooldown() {
+    void notificationOutbox_failure_rollsBackInboxAndCooldown() {
         doThrow(new IllegalStateException("injected outbox failure")).when(outbox).saveAll(anyList());
         assertThatThrownBy(() -> writer.manual(settlement, participant, creator)).isInstanceOf(IllegalStateException.class);
         assertThat(notifications.countUnread(recipient)).isZero();
