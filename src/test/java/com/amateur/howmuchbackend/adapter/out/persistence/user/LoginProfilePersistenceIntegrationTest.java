@@ -100,10 +100,10 @@ class LoginProfilePersistenceIntegrationTest {
 
     @ParameterizedTest(name = "프로필 커밋 후 로그인 저장: 기본 이미지 복원={0}")
     @ValueSource(booleans = {false, true})
-    void preservesCommittedProfileAndNeverRestoresDeletedImage(boolean resetAvatar) {
+    void loginProfile_deletedImage_afterCommit_neverRestored(boolean resetAvatar) {
         User before = readUser();
-        // Login has already loaded a managed entity when PIN verification begins.
-        // REQUIRES_NEW commits on another connection while that entity remains cached.
+        // PIN 검증이 시작되기 전에 로그인은 이미 관리 중인 사용자 엔티티를 조회한다.
+        // REQUIRES_NEW는 별도 연결에서 커밋해도 기존 엔티티가 영속성 컨텍스트에 남는 상황을 만든다.
         when(encoder.matches(PIN, "synthetic-pin-hash")).thenAnswer(call -> {
             separateTx.executeWithoutResult(status -> profiles.update(
                     new UpdateMyProfileCommand("changed_301", resetAvatar ? null : PNG, resetAvatar)));
