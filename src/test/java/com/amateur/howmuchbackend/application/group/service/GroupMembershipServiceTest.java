@@ -190,7 +190,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("같은 그룹 멤버의 아바타 파일을 반환한다")
-    void getsMemberAvatar() {
+    void groupMemberAvatar_sameGroupMember_returnsFile() {
         ProfileImage image = new ProfileImage("image/webp", new byte[]{1, 2, 3});
         when(loadGroupMemberPort.findByGroupIdAndId(GROUP_ID, 20L))
                 .thenReturn(Optional.of(activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER)));
