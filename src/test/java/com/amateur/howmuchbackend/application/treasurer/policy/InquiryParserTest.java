@@ -183,7 +183,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void doesNotTreatPronounAsTitle() {
+    void titleHint_pronoun_notExtracted() {
         assertThat(parser.parse("내 정산 중에 뭐가 남았어?").titleHint()).isNull();
         assertThat(parser.parse("우리 모임에서 받을 돈 있어?").titleHint()).isNull();
         assertThat(parser.parse("이 정산 상태 알려줘").titleHint()).isNull();
