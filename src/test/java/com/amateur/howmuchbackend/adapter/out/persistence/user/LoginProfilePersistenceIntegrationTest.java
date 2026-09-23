@@ -155,7 +155,7 @@ class LoginProfilePersistenceIntegrationTest {
     }
 
     @Test
-    void failedPinDoesNotRecordLoginOrIssueTokens() {
+    void login_wrongPin_doesNotRecordOrIssueTokens() {
         User before = readUser();
         when(encoder.matches(PIN, "synthetic-pin-hash")).thenReturn(false);
         assertThatThrownBy(() -> tx.execute(status -> login.login(new LoginCommand(PHONE, PIN))))
