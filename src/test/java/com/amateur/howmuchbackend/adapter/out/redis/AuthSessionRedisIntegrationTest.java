@@ -174,7 +174,7 @@ class AuthSessionRedisIntegrationTest {
     }
 
     @Test
-    void nonRotatingPolicyDoesNotWriteOrExtendSession() {
+    void authSession_nonRotatingPolicy_skipsWriteAndExpiryExtension() {
         service = service(true, false);
         TokenResult initial = service.issueNewSession(user);
         String before = redis.opsForValue().get(key);
