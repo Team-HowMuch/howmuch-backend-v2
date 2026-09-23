@@ -395,7 +395,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void deliveryFailureDiscardsOnlyOtpAndKeepsCooldown() {
+    void smsOtp_deliveryFailure_discardsOtpAndKeepsCooldown() {
         redis.delete(key);
         SmsSenderPort sender = mock(SmsSenderPort.class);
         RuntimeException failure = new IllegalStateException("synthetic delivery failure");
