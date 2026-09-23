@@ -109,7 +109,7 @@ class SettlementParticipantTest {
 
     @Test
     @DisplayName("연락처에 없는 사람은 phone hash 없이 이름만으로 추가할 수 있다")
-    void allowsContactWithoutPhoneHash() {
+    void participant_contactWithoutPhoneHash_allowed() {
         SettlementParticipant participant = SettlementParticipant.unlinkedContact(
                 SETTLEMENT_ID,
                 null,
