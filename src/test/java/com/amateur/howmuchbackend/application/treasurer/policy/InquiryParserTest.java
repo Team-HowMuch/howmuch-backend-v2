@@ -135,7 +135,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void keepsUnrelatedQuestionsUnknown() {
+    void unrelatedQuestion_classifiedUnknown() {
         assertThat(parser.parse("오늘 날씨 어때?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("부담 없이 써도 돼?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("김치찌개 레시피 알려줘").intent()).isEqualTo(InquiryIntent.UNKNOWN);
