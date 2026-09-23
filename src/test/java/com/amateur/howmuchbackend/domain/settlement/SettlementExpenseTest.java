@@ -38,7 +38,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("화면에 빈 지출이 생기지 않도록 유니코드 공백 설명을 거부한다")
-    void rejectsUnicodeWhitespaceDescription() {
+    void manualExpense_unicodeWhitespaceDescription_rejected() {
         assertThatThrownBy(() -> SettlementExpense.manual(
                 SETTLEMENT_ID,
                 "\u2003",
