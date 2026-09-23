@@ -158,7 +158,7 @@ class AuthSessionRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void rotationKeepsPolicyAndSetsNewTokenExpiry(boolean singleSession) {
+    void authSession_rotatingRefresh_setsExpiryAndPreservesPolicy(boolean singleSession) {
         service = service(singleSession, true);
         TokenResult initial = service.issueNewSession(user);
         String originalId = jwt.parsePayload(initial.requestToken()).orElseThrow().sessionId();
