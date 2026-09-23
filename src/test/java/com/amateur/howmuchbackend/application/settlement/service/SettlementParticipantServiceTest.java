@@ -430,7 +430,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("이미 추가된 회원의 공개 ID는 후보 아바타 경로에서도 숨긴다")
-    void rejectsAvatarForExistingParticipantCandidate() {
+    void participantCandidateAvatar_existingMember_rejected() {
         User candidate = user(LINKED_USER_ID, "linked.id", "linked-avatar.png");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
