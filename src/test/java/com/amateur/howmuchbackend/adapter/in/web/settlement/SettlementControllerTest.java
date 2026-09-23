@@ -201,7 +201,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("정산 상세에 생성자 표시 정보와 실제 납부 진행도를 반환한다")
-    void getsSettlement() throws Exception {
+    void settlementDetail_request_returnsCreatorAndPaymentProgress() throws Exception {
         when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(detailResult());
 
         mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
