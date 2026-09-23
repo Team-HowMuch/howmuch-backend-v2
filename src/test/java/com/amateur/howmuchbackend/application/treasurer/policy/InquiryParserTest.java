@@ -175,7 +175,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void doesNotTreatParticleLeftoverAsTitle() {
+    void titleHint_particleRemainder_notExtracted() {
         assertThat(parser.parse("이번 주에는 정산 있어?").titleHint()).isNull();
         assertThat(parser.parse("저번 주에 정산 있어?").titleHint()).isNull();
         assertThat(parser.parse("이번 달 중에 정산 얼마 남았어?").titleHint()).isNull();
