@@ -389,7 +389,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void doesNotLetLlmPhraseStatusAnswerWhenTitleWasDropped() {
+    void statusAnswer_titleDropped_remainsGrounded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
