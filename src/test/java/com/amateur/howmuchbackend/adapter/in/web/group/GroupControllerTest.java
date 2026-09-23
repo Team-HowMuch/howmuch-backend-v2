@@ -173,7 +173,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 이미지를 private 1일 캐시와 실제 content type으로 반환한다")
-    void getsGroupImage() throws Exception {
+    void groupImage_request_returnsPrivateCacheAndContentType() throws Exception {
         when(getGroupImageUseCase.getImage(10L))
                 .thenReturn(new GroupImage("image/webp", new byte[]{1, 2, 3}));
 
