@@ -189,7 +189,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void legacyCountKeepsTtlUntilFinalReservationAndRejectionsDoNotExtendLock() {
+    void loginAttempt_legacyCount_preservesTtlWithoutExtendingLock() {
         redis.opsForValue().set(key, "2", Duration.ofSeconds(10));
         long ttl = redis.getExpire(key, TimeUnit.MILLISECONDS);
         assertThat(attempts.reserve(phoneHash, 5, LOCK).orElseThrow().attemptCount()).isEqualTo(3);
