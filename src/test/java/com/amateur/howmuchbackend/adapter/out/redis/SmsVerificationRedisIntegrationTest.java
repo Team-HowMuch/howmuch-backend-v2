@@ -494,7 +494,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void corruptLegacyStateDoesNotTriggerDelivery() {
+    void smsOtp_corruptLegacyState_noDelivery() {
         redis.opsForValue().set(key, "invalid-json", policy.otpTtl());
         SmsSenderPort sender = mock(SmsSenderPort.class);
         SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender, loadUserPort);
