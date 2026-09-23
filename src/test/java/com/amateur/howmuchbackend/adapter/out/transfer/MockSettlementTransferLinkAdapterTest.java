@@ -69,7 +69,7 @@ class MockSettlementTransferLinkAdapterTest {
     @NullAndEmptySource
     @ValueSource(strings = {" ", "\t"})
     @DisplayName("예금주가 없으면 receiver를 생략한다")
-    void omitsMissingReceiver(String receiver) {
+    void mockTransferLink_missingPayee_omitsReceiver(String receiver) {
         when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("우리은행"));
         assertThat(query(adapter.create("0020", "123", 1, receiver).orElseThrow().url()))
                 .hasSize(4).doesNotContainKey("receiver");
