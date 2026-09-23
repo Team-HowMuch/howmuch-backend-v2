@@ -17,7 +17,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("일반 멤버를 활성 상태로 생성한다")
-    void createsMember() {
+    void member_newMembership_active() {
         GroupMember member = GroupMember.member(10L, 2L, JOINED_AT);
 
         assertThat(member.role()).isEqualTo(GroupMemberRole.MEMBER);
