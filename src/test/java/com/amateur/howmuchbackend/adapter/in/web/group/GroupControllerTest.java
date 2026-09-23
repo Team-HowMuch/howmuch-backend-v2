@@ -291,7 +291,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 소유권 이전 성공은 빈 200 응답을 반환한다")
-    void transfersGroupOwnership() throws Exception {
+    void groupOwnership_transfer_returnsEmptyResponse() throws Exception {
         mockMvc.perform(put("/api/v2/groups/{groupId}/owner", 10L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetMemberId\":20}"))
