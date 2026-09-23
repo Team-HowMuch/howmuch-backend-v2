@@ -133,7 +133,7 @@ class SettlementDepositMatchingPolicyTest {
     @NullAndEmptySource
     @ValueSource(strings = {" ", "　", " ", "\t\n"})
     @DisplayName("null과 정규화 후 빈 이름은 자동 연결하지 않는다")
-    void rejectsMissingNames(String name) {
+    void depositMatching_missingOrBlankName_rejected(String name) {
         assertThat(policy.match(transaction("민선영 입금", "6000"), List.of(
                 payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).isEmpty();
