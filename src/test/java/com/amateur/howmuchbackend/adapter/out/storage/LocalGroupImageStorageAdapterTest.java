@@ -38,7 +38,7 @@ class LocalGroupImageStorageAdapterTest {
 
     @Test
     @DisplayName("경로 이동이 가능한 파일명은 조회하거나 삭제하지 않는다")
-    void rejectsUnsafeFileName() {
+    void groupImage_unsafeFilename_rejected() {
         var adapter = new LocalGroupImageStorageAdapter(
                 new GroupImageProperties(storageDirectory.toString())
         );
