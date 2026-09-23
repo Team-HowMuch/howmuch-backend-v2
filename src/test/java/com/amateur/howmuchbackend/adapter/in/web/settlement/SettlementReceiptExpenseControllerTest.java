@@ -130,7 +130,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("OCR 영수증을 지출과 품목으로 가져온 결과를 반환한다")
-    void importsReceiptExpense() throws Exception {
+    void receiptExpense_ocrImport_returnsExpenseAndItems() throws Exception {
         when(importExpenseUseCase.importExpense(
                 SETTLEMENT_ID,
                 new ImportSettlementReceiptExpenseCommand("receipt-demo")
