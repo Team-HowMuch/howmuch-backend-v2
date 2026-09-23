@@ -91,7 +91,7 @@ class SettlementItemPersistenceIntegrationTest {
 
     @Test
     @DisplayName("V14 스키마에 OCR 품목 순서·수량·행 금액을 저장하고 조회한다")
-    void savesAndLoadsReceiptItems() {
+    void receiptItems_orderQuantityAndAmount_savedAndLoaded() {
         SettlementExpense expense = saveReceiptExpense("receipt-items");
 
         itemPersistenceAdapter.saveAll(List.of(
