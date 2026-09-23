@@ -321,7 +321,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자 초안은 수금 계좌 정보를 반환하지 않는다")
-    void returnsNullReceivingAccountForDraft() {
+    void settlementDraft_receivingAccount_returnsNull() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlementDraft()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
