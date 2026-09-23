@@ -282,7 +282,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("없는 정산은 삭제하지 않는다")
-    void rejectsDeletingMissingSettlement() {
+    void settlement_missing_delete_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.empty());
 
