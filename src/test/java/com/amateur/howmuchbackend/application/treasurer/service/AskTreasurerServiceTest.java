@@ -667,7 +667,7 @@ class AskTreasurerServiceTest {
             "나한테 돈 들어올 거 있어?, RECEIVE",
             "회비 안 낸 사람 알려줘, RECEIVE"
     })
-    void answersColloquialQuestionWithTheSettlementOfThatDirection(String question, SettlementDirection expected) {
+    void colloquialDirection_matchesSettlementDirection(String question, SettlementDirection expected) {
         UUID sendId = UUID.randomUUID();
         UUID receiveId = UUID.randomUUID();
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
