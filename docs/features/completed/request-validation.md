@@ -1,6 +1,6 @@
 # Feature Plan: HTTP 요청값 Validation 보완
 
-- Status: Active
+- Status: Completed
 - Last updated: 2026-09-24
 - Related issue: #414
 - Related ADR: N/A
@@ -30,7 +30,7 @@
 | 그룹 이름·메모·공개 ID | Domain·Application의 전용 오류 코드 | 기존 코드 유지 |
 | 잘못된 enum·날짜 형식 | 변환 예외를 400으로 처리 | 유지 |
 
-메서드 인자 제약은 Controller가 구현하는 Docs 인터페이스에 선언한다. Spring MVC 메서드 검증 오류인 `HandlerMethodValidationException`은 `GlobalExceptionHandler`에서 `INVALID_ARGUMENT` 400으로 변환한다. `@Valid`가 필요한 요청 DTO는 Controller에서 명시하고, 결제내역 Controller의 클래스 수준 `@Validated`는 제거한다.
+메서드 인자 제약은 Controller가 구현하는 Docs 인터페이스에 선언한다. Spring MVC 메서드 검증 오류인 `HandlerMethodValidationException`은 `GlobalExceptionHandler`에서 `INVALID_ARGUMENT` 400으로 변환한다. 같은 메서드의 요청 DTO `@Valid`도 Docs 인터페이스에 둔다. 경로 ID 제약이 없는 그룹 생성과 프로필 수정의 `@Valid`는 Controller에 명시한다. 결제내역 Controller의 클래스 수준 `@Validated`는 제거하고, Docs 인터페이스의 `@Positive`와 `@Valid`는 유지한다.
 
 ## 3. 영향 범위와 결정
 
@@ -64,3 +64,13 @@
 | 날짜 | 내용 | 결과 |
 |---|---|---|
 | 2026-09-24 | 원격 `develop` 확인, 이슈 #414와 작업 브랜치 생성 | 진행 중 |
+| 2026-09-24 | 요청 DTO·경로 ID·공통 예외 처리 변경 | `compileJava` 통과 |
+
+## 7. 완료 기록
+
+- 완료일: 2026-09-24
+- 구현 결과: 목록의 `null` 배분 항목, 음수 `revision`, 0 이하 `Long` 경로 ID에 대한 요청 검증을 추가했다. 메서드 검증 오류를 기존 `INVALID_ARGUMENT` 응답으로 변환한다.
+- 기존 계약: 그룹 이름·메모·공개 ID의 Domain·Application 검증과 전용 오류 코드는 유지했다.
+- 검증 결과: 각 Java 변경 후 `./gradlew compileJava` 통과. 네 번째 변경의 첫 컴파일은 Spring 7 메서드명 차이로 실패했으며 수정 후 재실행하여 통과했다.
+- 수행하지 않은 검증: 사용자 요청에 따라 새 테스트 작성, 테스트 실행 및 실행 중인 서버를 통한 HTTP 호출을 하지 않았다. 응답 시나리오는 코드 경로로 검토했다.
+- 남은 위험: 메서드 검증의 실제 HTTP 응답과 Swagger 노출은 런타임에서 확인하지 않았다.

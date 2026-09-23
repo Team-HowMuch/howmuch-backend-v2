@@ -124,7 +124,7 @@ public interface GroupDocs {
                     description = "GROUP_NOT_FOUND - 그룹이 없거나 삭제됨"
             )
     })
-    ApiResponse<GroupDetailWebResponse> updateGroup(@Positive Long groupId, UpdateGroupWebRequest request);
+    ApiResponse<GroupDetailWebResponse> updateGroup(@Positive Long groupId, @Valid UpdateGroupWebRequest request);
 
     @Operation(
             summary = "그룹 삭제",

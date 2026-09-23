@@ -64,7 +64,7 @@ public class GroupController implements GroupDocs {
     @Override
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<GroupDetailWebResponse> createGroup(
-            @ModelAttribute CreateGroupWebRequest request
+            @Valid @ModelAttribute CreateGroupWebRequest request
     ) {
         return ApiResponse.created(GroupDetailWebResponse.from(
                 createGroupUseCase.create(request.toCommand())

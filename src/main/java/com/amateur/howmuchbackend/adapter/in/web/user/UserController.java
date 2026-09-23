@@ -49,7 +49,7 @@ public class UserController implements UserDocs {
 
     @PatchMapping(value = "/me/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<MyProfileWebResponse> updateMyProfile(
-            @ModelAttribute UpdateMyProfileRequest request
+            @Valid @ModelAttribute UpdateMyProfileRequest request
     ) {
         return ApiResponse.success(MyProfileWebResponse.from(updateMyProfileUseCase.update(request.toCommand())));
     }
