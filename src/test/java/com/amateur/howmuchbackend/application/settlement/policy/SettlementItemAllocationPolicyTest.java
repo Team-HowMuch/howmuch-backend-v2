@@ -177,7 +177,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("수량 2 품목을 1개·1/2개·1/2개로 나눠 확정한다")
-    void finalizesMultiQuantityItem() {
+    void itemAllocation_quantityTwo_finalizesAcrossFractionalUnits() {
         var finalization = policy.finalizeAllocation(
                 SETTLEMENT_ID,
                 10_000,
