@@ -143,7 +143,7 @@ class LoginProfilePersistenceIntegrationTest {
     }
 
     @Test
-    void recordsOnlyLoginTimestampsAndClearsStalePersistenceContext() {
+    void loginSession_success_recordsTimestampsAndClearsContext() {
         User before = readUser();
         LocalDateTime now = BEFORE.plusDays(1);
         tx.executeWithoutResult(status -> {
