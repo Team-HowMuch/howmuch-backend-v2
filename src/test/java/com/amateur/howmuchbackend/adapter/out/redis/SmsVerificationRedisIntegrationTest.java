@@ -412,7 +412,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void delayedDeliveryFailureCannotDeleteNewRequestOrCooldown() throws Exception {
+    void smsOtp_delayedDeliveryFailure_preservesNewRequestAndCooldown() throws Exception {
         redis.delete(key);
         CountDownLatch sending = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
