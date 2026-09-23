@@ -450,7 +450,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("연락처 추가 후 가입한 회원의 아바타도 후보 경로에서 숨긴다")
-    void rejectsCandidateAvatarMatchedByExistingContactHash() {
+    void participantCandidateAvatar_phoneHashMatch_rejected() {
         String phoneHash = "a".repeat(64);
         User candidate = user(OTHER_USER_ID, phoneHash, "sua.contact", "candidate.png");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
