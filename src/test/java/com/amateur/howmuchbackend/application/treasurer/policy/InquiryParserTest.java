@@ -151,7 +151,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void extractsTitleHintAsContiguousTextOfTheQuestion() {
+    void titleHint_contiguousQuestionText_extracted() {
         InquiryParser.ParsedInquiry parsed = parser.parse("제주도 여행 정산 어디까지 됐어?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
