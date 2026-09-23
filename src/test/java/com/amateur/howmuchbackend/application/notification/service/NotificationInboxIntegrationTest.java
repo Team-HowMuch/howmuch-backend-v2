@@ -284,7 +284,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void multipleWorkersAndRestartGenerateOnlyOneAutomaticReminder() throws Exception {
+    void automaticReminder_multipleWorkersAndRestart_createOne() throws Exception {
         recorder.record(request());
         assertThat(due()).containsExactly(candidate());
         assertThat(shareReader.findBySettlementIdAndPayerParticipantId(settlement, participant).orElseThrow().createdAt())
