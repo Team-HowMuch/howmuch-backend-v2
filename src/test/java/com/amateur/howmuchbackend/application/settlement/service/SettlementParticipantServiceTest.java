@@ -755,7 +755,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("양수가 아닌 그룹 ID는 그룹 조회 전에 거부한다")
-    void rejectsInvalidGroupIdForCandidateLookup() {
+    void groupCandidates_nonPositiveGroupId_rejectedBeforeLookup() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
