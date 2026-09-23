@@ -136,7 +136,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void adapterRejectsStaleDetachedRevision() {
+    void commonCodeRevision_detachedStaleEntity_rejected() {
         var before = read();
         tx.executeWithoutResult(status -> adapter.update(withDetails(before, List.of(detail("KEEP", "winner", true)))));
         var winner = read();
