@@ -218,7 +218,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("아직 요청 전인 초안은 링크로 열 수 없다")
-    void rejectsDraftSettlement() {
+    void settlementLink_draft_notOpen() {
         arrangeLink();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
                 settlement(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.DRAFT)
