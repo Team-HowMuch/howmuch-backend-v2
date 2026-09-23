@@ -241,7 +241,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void narrowsByTitleWithoutGenericSuffix() {
+    void titleHint_genericSuffix_strippedBeforeMatching() {
         UUID travelId = UUID.fromString("22222222-2222-2222-2222-222222222244");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
