@@ -120,7 +120,7 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     @Test
     @DisplayName("Firebase가 FCM token을 미등록 대상으로 판정하면 교체 가능한 실패로 반환한다")
-    void returnsInvalidTarget() throws Exception {
+    void firebasePush_unregisteredToken_returnsReplaceableFailure() throws Exception {
         FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
         when(exception.getMessagingErrorCode()).thenReturn(MessagingErrorCode.UNREGISTERED);
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
