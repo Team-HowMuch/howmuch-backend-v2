@@ -82,7 +82,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("검증되지 않은 은행은 합쳐진 설명에서 제목을 추출한다")
-    void fallsBackToJoinedDescriptionForOtherBanks() {
+    void otherBank_joinedDescription_usedAsFallback() {
         var display = normalizer.normalize(
                 "0020",
                 "편의점 생활비 우리은행 1234",
