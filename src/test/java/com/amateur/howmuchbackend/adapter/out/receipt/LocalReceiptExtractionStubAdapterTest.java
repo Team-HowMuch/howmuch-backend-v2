@@ -12,7 +12,7 @@ class LocalReceiptExtractionStubAdapterTest {
 
     @Test
     @DisplayName("유효한 참조에 합계가 일치하는 결정적 영수증 결과를 반환한다")
-    void returnsDeterministicReceiptExtraction() {
+    void receiptExtraction_validReference_returnsDeterministicResult() {
         var extraction = adapter.extract(1L, "receipt-demo").orElseThrow();
 
         assertThat(extraction.description()).isEqualTo("OCR 영수증");
