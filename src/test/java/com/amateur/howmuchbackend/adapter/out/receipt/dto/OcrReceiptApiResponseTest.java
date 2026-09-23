@@ -24,7 +24,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("디버깅용 필드가 섞여 와도 매핑이 깨지지 않는다")
-    void ignoresDebugAndUnknownFields() {
+    void receiptOcr_debugAndUnknownFields_ignored() {
         String body = """
                 {"ok": true, "elapsed_sec": 3.1, "raw": "모델 원본",
                  "ocr_lines": [{"text": "스타필드", "confidence": 0.98}],
