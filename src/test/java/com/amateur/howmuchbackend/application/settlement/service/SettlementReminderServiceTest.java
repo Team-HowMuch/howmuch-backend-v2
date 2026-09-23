@@ -297,7 +297,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void automaticRequestedReminderKeepsShareElapsedMessage() {
+    void automaticReminder_requested_preservesElapsedTime() {
         givenTarget();
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(requestedSettlement()));
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
