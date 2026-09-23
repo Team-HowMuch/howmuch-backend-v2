@@ -71,7 +71,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("앱이 읽은 영수증 품목과 결제 정보를 등록한다")
-    void createsReceiptExpenseFromAppResult() throws Exception {
+    void receiptExpense_appResult_mapsItemsAndPayment() throws Exception {
         CreateSettlementReceiptExpenseCommand command =
                 new CreateSettlementReceiptExpenseCommand(
                         "receipt-app-1",
