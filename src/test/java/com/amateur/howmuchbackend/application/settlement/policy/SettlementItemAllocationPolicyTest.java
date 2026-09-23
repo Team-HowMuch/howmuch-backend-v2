@@ -32,7 +32,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("기존 자기 선택을 교체해도 품목 합이 1을 초과하지 않으면 허용한다")
-    void validatesReplacementWithoutDoubleCountingCurrentParticipant() {
+    void itemAllocation_replacementWithoutDoubleCounting_accepted() {
         SettlementItem item = item();
         List<SettlementItemSelection> selections = List.of(
                 selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF),
