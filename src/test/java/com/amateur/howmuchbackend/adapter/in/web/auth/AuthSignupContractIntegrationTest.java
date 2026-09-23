@@ -116,7 +116,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("같은 휴대폰 번호의 반복 확인은 번호 quota로 제한한다")
-    void limitsRepeatedPhoneNumberChecks() throws Exception {
+    void phoneCheck_sameNumberRepeated_rateLimited() throws Exception {
         String phoneNumber = randomPhoneNumber();
         String firstAddress = randomClientAddress();
         String secondAddress = randomClientAddress();
