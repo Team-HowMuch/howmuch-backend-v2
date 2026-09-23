@@ -93,7 +93,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void savesWholeOrderExactlyAsRequested() {
+    void accountPreference_completeOrder_savedExactly() {
         givenAccounts(
                 account(10L, true, 0),
                 account(11L, false, 1),
