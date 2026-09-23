@@ -111,7 +111,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("APP_DIRECT도 요청자 포함 전체 인원과 미확정 금액 null을 반환한다")
-    void resolvesAuthenticatedParticipantDirectly() {
+    void settlementLink_appDirect_returnsParticipantsAndAmounts() {
         arrangeDutchPayAccess();
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of(shares().getFirst()));
