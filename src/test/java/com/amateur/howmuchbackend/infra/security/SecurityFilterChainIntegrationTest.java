@@ -147,7 +147,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("관리자 API는 DB의 ADMIN 권한을 허용하고 권한 회수 후 403을 반환한다")
-    void checksCurrentDatabaseRole() throws Exception {
+    void adminApi_databaseAdminRole_allowedThenRevocationForbidden() throws Exception {
         jdbc.update("UPDATE users SET role='ADMIN' WHERE id=?", userId);
         assertThat(request("GET", ADMIN, accessToken).statusCode()).isEqualTo(200);
         jdbc.update("UPDATE users SET role='USER' WHERE id=?", userId);
