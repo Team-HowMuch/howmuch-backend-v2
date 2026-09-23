@@ -30,7 +30,7 @@ class CodefBankConnectionAdapterTest {
 
     @Test
     @DisplayName("공식 매핑에 없는 CODEF 오류는 미분류 외부 오류로 구분한다")
-    void mapsUnknownCodefFailureSeparately() throws Exception {
+    void codefFailure_unknownCode_classifiedAsExternal() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         when(rsaEncryptor.encrypt("password")).thenReturn("encrypted-password");
         when(client.post(eq("/v1/account/create"), any())).thenReturn(objectMapper.readTree("""
