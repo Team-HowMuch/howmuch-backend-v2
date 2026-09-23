@@ -121,8 +121,8 @@ class ReceiptOcrHttpIntegrationTest {
 
     @Test
     @DisplayName("image/jpeg라고 선언한 PDF도 바이트를 보고 400으로 거절한다")
-    void rejectsDisguisedPdf() throws Exception {
-        // 파트의 Content-Type은 클라이언트가 정한다. 선언을 믿으면 PDF가 OCR까지 간다.
+    void receiptUpload_pdfDeclaredAsJpeg_returnsBadRequest() throws Exception {
+        // Content-Type은 요청자가 바꿀 수 있으므로 PDF가 OCR로 전달되지 않는지 검증한다.
         byte[] pdf = "%PDF-1.7\nfake".getBytes(StandardCharsets.UTF_8);
 
         assertError(post(accessToken, part("file", "receipt.jpg", "image/jpeg", pdf)),
