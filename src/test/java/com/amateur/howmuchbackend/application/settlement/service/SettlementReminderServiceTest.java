@@ -274,7 +274,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void automaticWaitsTwelveHoursAfterPreviousReminder() {
+    void automaticReminder_previousReminderUnderTwelveHours_skipped() {
         givenOldShare();
         when(automaticTargets.hasRequestNotification(SETTLEMENT_ID, PAYER_ID)).thenReturn(true);
         when(automaticTargets.findLatestAutomaticReminderAt(SHARE_ID, PAYER_ID))
