@@ -504,7 +504,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("화면 재진입 시 공개 참여자 정보와 보호된 아바타 URL을 반환한다")
-    void getsSettlementParticipants() throws Exception {
+    void settlementParticipants_request_returnsPublicData() throws Exception {
         when(getSettlementParticipantsUseCase.get(SETTLEMENT_ID)).thenReturn(List.of(
                 new SettlementParticipantListItemResult(
                         PARTICIPANT_ID,
