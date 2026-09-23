@@ -19,7 +19,7 @@ class SettlementRequestDomainTest {
 
     @Test
     @DisplayName("링크는 lowercase SHA-256 hash와 미래 만료 시각만 허용한다")
-    void validatesLinkHashAndExpiration() {
+    void settlementLink_lowercaseSha256AndFutureExpiry_required() {
         SettlementLink link = SettlementLink.active(
                 SETTLEMENT_ID,
                 "a".repeat(64),
