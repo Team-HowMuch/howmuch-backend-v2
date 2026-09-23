@@ -104,7 +104,7 @@ class CommonCodeCreationPersistenceIntegrationTest {
     }
 
     @Test
-    void duplicateCreateCannotReplaceOrDeactivateDetails() {
+    void commonCodeCreation_duplicateRequest_preservesDetails() {
         tx.executeWithoutResult(status -> adapter.create(group("winner", List.of(detail("KEEP", "original")))));
         var before = read();
 
