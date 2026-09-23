@@ -85,7 +85,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("금융기관 필터와 기본·최근 사용 정렬을 적용한다")
-    void filtersAndSortsAccounts() {
+    void accountList_institutionFilterAndSort_applied() {
         Account first = account(1L, "0020", true, 1);
         Account second = account(2L, "0020", false, 0);
         Account otherBank = account(3L, "0004", false, 2);
