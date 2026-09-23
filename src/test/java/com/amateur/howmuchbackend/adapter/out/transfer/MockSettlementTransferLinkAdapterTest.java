@@ -87,7 +87,7 @@ class MockSettlementTransferLinkAdapterTest {
     @NullAndEmptySource
     @ValueSource(strings = {"20", "00020", "abcd", "00 2"})
     @DisplayName("4자리 숫자 기관코드가 없으면 링크를 만들지 않는다")
-    void rejectsInvalidBankCode(String bankCode) {
+    void mockTransferLink_invalidBankCode_rejected(String bankCode) {
         assertThat(adapter.create(bankCode, "123", 1, "예금주")).isEmpty();
     }
 
