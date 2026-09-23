@@ -112,12 +112,12 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void listCursorOwnershipAndIndividualReadContract() throws Exception {
+    void notificationCursor_equalTimestamp_usesUuidOrder() throws Exception {
         var one = request(); recorder.record(one);
         var two = NotificationMessages.reminder(settlement, recipient, SettlementAllocationType.ITEM_ALLOCATION,
                 "요청 당시 이름", "manual-test", "정산해 주세요", NOW.minusHours(25));
         recorder.record(two);
-        // Same timestamp: PostgreSQL UUID ordering is the authoritative cursor tie breaker.
+        // 같은 시각이면 PostgreSQL UUID 순서가 페이지 cursor의 최종 정렬 기준을 결정한다.
         var ordered = notifications.findPage(recipient, null, null, 10);
         var response = mvc.perform(get("/api/v2/notifications").param("size", "1").with(user("member")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(1))
