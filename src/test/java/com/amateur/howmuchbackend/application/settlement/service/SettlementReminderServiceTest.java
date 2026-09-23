@@ -195,7 +195,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void refusesNonCreator() {
+    void reminder_nonCreator_refused() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(PAYER_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         assertStatus(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED,
