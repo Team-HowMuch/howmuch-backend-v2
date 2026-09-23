@@ -89,7 +89,7 @@ class GroupOwnershipServiceTest {
 
     @Test
     @DisplayName("다른 그룹이거나 비활성인 멤버에게 소유권을 이전하지 않는다")
-    void rejectsInvalidTransferTarget() {
+    void groupOwnership_invalidTarget_rejected() {
         when(groupAccessService.loadActiveForUpdate(GROUP_ID)).thenReturn(group());
         when(groupAccessService.requireOwner(GROUP_ID, OWNER_ID)).thenReturn(
                 member(10L, OWNER_ID, GroupMemberRole.OWNER, GroupMemberStatus.ACTIVE)
