@@ -114,7 +114,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("이 정산의 참여자가 아니면 남의 송금 정보를 볼 수 없다")
-    void rejectsNonParticipant() {
+    void memberTransferInstruction_nonParticipant_rejected() {
         arrangeActor(OTHER_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
