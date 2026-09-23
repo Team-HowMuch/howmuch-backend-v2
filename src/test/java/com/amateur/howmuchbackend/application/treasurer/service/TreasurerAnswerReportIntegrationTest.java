@@ -131,7 +131,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("같은 답변을 두 번 신고하면 409다")
-    void rejectsDuplicateReport() {
+    void answerReport_duplicate_rejected() {
         UUID answerId = saveAnswer(owner, NOW);
         reports.report(new ReportTreasurerAnswerCommand(answerId, TreasurerAnswerReportReason.OTHER, null));
 
