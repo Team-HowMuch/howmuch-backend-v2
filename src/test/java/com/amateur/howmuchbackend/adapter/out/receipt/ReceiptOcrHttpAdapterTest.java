@@ -269,11 +269,10 @@ class ReceiptOcrHttpAdapterTest {
     @ParameterizedTest
     @ValueSource(ints = {401, 403, 404, 405, 408, 429, 501, 502, 503, 504, 507, 520})
     @DisplayName("사진을 다시 찍어도 안 풀리는 상태는 재촬영이 아니라 재시도를 알린다")
-    void treatsUnreachableStatusesAsUnavailable(int status) {
-        // 경로 오타(404)나 내부 인증 오설정(401)을 422로 내보내면, 모든 사용자가 모든
-        // 영수증에서 "더 밝은 곳에서 다시 찍으세요"를 듣고 다시 찍어도 영원히 실패한다.
-        // 501·507이나 프록시 전용 520처럼 처음 보는 상태도 같은 쪽으로 가야 한다.
-        // 분류를 화이트리스트로 두면 새 상태가 조용히 재촬영 안내로 빠진다.
+    void receiptOcr_unreachableStatus_returnsUnavailable(int status) {
+        // 경로 오타(404)나 인증 오류(401)를 422로 바꾸면 사용자가 다시 촬영해도 문제를 해결하지 못한다.
+        // 501·507·520 같은 상태도 재촬영 오류가 아니라 연결 불가로 분류한다.
+        // 화이트리스트는 새 상태를 재촬영 안내로 잘못 분류하므로 응답 분류를 제한하지 않는다.
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withStatus(HttpStatusCode.valueOf(status)));
 
