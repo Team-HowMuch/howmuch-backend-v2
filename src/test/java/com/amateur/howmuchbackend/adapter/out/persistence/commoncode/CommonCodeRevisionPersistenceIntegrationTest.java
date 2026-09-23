@@ -147,7 +147,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void rollbackRestoresRevisionAndAllDetails() {
+    void commonCodeRevision_rollback_restoresRevisionAndDetails() {
         var before = read();
         tx.executeWithoutResult(status -> {
             var updated = adapter.update(withDetails(before, List.of(detail("NEW", "rolled back", true))));
