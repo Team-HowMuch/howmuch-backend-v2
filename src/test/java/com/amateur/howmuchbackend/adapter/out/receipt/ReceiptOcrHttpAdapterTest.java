@@ -256,7 +256,7 @@ class ReceiptOcrHttpAdapterTest {
     @ParameterizedTest
     @ValueSource(ints = {400, 413, 415, 422})
     @DisplayName("서비스가 이미지를 보고 거절한 상태만 재촬영을 안내한다")
-    void treatsImageRejectionsAsUnreadable(int status) {
+    void receiptOcr_imageRejected_returnsUnreadable(int status) {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withStatus(HttpStatusCode.valueOf(status)));
 
