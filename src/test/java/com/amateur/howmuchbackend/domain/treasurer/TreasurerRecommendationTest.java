@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TreasurerRecommendationTest {
     @Test
-    void ordersSendBeforeReceiveAndStaleBeforeFresh() {
+    void recommendations_sendBeforeReceiveAndStaleBeforeFresh() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement staleSend = settlement(
                 SettlementDirection.SEND,
