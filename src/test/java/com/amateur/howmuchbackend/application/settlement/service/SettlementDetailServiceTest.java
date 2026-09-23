@@ -585,7 +585,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("참여자는 다른 연결 참여자의 사진 정보를 조회하지 않는다")
-    void loadsOnlyViewerAvatar() {
+    void settlementDetail_linkedParticipant_loadsOwnAvatarOnly() {
         givenSettlement(PAYER_ID);
         var expandedParticipants = new java.util.ArrayList<>(participants());
         expandedParticipants.add(new SettlementParticipant(
