@@ -197,7 +197,7 @@ class SecurityFilterChainIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"", "{", "{}"})
     @DisplayName("실제 로그인 API의 본문 누락·파싱·검증 오류는 기존 400을 유지한다")
-    void preservesBodyErrorsOverHttp(String body) throws Exception {
+    void login_httpBodyErrors_preserve400(String body) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v2/auth/login"))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")
