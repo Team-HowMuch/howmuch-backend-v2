@@ -30,7 +30,7 @@ class ApnsConfigTest {
 
     @ParameterizedTest
     @CsvSource({"dev,prod", "prod,dev"})
-    void explicitEnvironmentOverridesProfile(String profile, String selected) {
+    void apnsConfig_explicitEnvironment_overridesProfile(String profile, String selected) {
         runner().withPropertyValues("spring.profiles.active=" + profile,
                 "APNS_ENVIRONMENT=" + selected).run(context -> {
             assertThat(context).hasNotFailed();
