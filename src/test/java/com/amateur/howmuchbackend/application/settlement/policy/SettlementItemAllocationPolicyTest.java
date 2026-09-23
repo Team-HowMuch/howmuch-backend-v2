@@ -199,7 +199,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("수량이 1보다 작으면 거부한다")
-    void rejectsNonPositiveUnits() {
+    void itemAllocation_nonPositiveUnits_rejected() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(),
                 List.of(),
