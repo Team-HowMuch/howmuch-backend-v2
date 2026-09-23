@@ -62,7 +62,7 @@ class GroupMemberExitServiceTest {
 
     @Test
     @DisplayName("MEMBER 자기 탈퇴는 LEFT 상태로 저장한다")
-    void leavesGroupAsMember() {
+    void groupMembership_memberSelfLeave_savedAsLeft() {
         GroupMember member = member(MEMBER_ID, MEMBER_USER_ID, GroupMemberRole.MEMBER);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(MEMBER_USER_ID));
         when(groupAccessService.requireActiveMember(GROUP_ID, MEMBER_USER_ID)).thenReturn(member);
