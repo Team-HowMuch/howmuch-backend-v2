@@ -124,7 +124,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("ACTIVE 멤버의 중복 가입을 거절한다")
-    void rejectsAlreadyActiveMember() {
+    void groupJoin_activeMember_rejected() {
         givenJoinGroup();
         when(loadGroupMemberPort.findByGroupIdAndUserIdForUpdate(GROUP_ID, MEMBER_ID))
                 .thenReturn(Optional.of(activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER)));
