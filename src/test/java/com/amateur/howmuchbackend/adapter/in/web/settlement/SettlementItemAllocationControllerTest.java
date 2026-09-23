@@ -64,7 +64,7 @@ class SettlementItemAllocationControllerTest {
 
     @Test
     @DisplayName("참여 문맥 헤더로 품목·선택·예정 금액을 조회한다")
-    void getsAllocationState() throws Exception {
+    void itemAllocation_contextRequest_returnsSelectionAndAmounts() throws Exception {
         when(getUseCase.get(TOKEN, CONTEXT_ID, PARTICIPANT_ID))
                 .thenReturn(result(SettlementItemAllocationPhase.SELECTING));
 
