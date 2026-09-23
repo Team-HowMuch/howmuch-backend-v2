@@ -249,7 +249,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("거래별로 연결된 여러 정산을 반환하고 미연결 거래는 빈 목록을 반환한다")
-    void returnsLinkedSettlementsWithTransactions() {
+    void accountTransactions_linkedSettlements_returnedPerTransaction() {
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
                 10L, account.id(), AUGUST, new BigDecimal("30000"), 2,
