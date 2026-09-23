@@ -907,7 +907,7 @@ class AskTreasurerServiceTest {
 
     @Test
     @DisplayName("LLM이 문장을 만들면 LLM으로, 서버 문구면 SERVER로 저장한다")
-    void storesWhoGeneratedTheAnswer() {
+    void answerGenerator_llmOrServer_persisted() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         when(generateTreasurerAnswerPort.generate(any())).thenReturn(Optional.empty());
         AskTreasurerService service = service();
