@@ -431,7 +431,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
-    void completedMonthFilterPreservesGroupAccess() {
+    void settlementList_completedMonth_preservesGroupAccess() {
         Long groupId = insertGroup("월별 정산 그룹", creatorId);
         insertGroupMember(groupId, creatorId, "ACTIVE");
         jdbcTemplate.update("UPDATE settlement_participants SET source = 'GROUP_MEMBER', source_group_id = ? WHERE id = ?",
