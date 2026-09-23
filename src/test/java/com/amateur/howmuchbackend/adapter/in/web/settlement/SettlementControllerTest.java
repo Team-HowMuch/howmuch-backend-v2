@@ -342,7 +342,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("잘못된 정산 식별자를 서버 오류로 오해하지 않도록 INVALID_ARGUMENT로 거부한다")
-    void rejectsInvalidSettlementId() throws Exception {
+    void settlementId_invalid_returnsInvalidArgument() throws Exception {
         mockMvc.perform(get("/api/v2/settlements/not-a-uuid"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
