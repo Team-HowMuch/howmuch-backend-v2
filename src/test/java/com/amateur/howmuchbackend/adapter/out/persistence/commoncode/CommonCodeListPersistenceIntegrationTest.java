@@ -91,7 +91,7 @@ class CommonCodeListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("조회한 그룹에 상세가 전혀 없어도 개수 0을 반환한다")
-    void returnsZeroWhenEveryMatchingGroupIsEmpty() {
+    void commonCodeCount_allMatchingGroupsEmpty_returnsZero() {
         var expected = insertGroup(prefix + "EMPTY", "빈 그룹", null, true, 1, 0);
         insertGroup(prefix + "OTHER", "검색 제외", null, true, 1, 3);
 
