@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SettlementLinkPropertiesTest {
     @Test
     @DisplayName("외부 정산 링크는 HTTPS 주소만 허용한다")
-    void acceptsHttpsExternalBaseUrl() {
+    void settlementLink_externalHttpsBaseUrl_accepted() {
         SettlementLinkProperties properties = new SettlementLinkProperties(
                 "https://pay.howmuch.example/settlement-links/",
                 Duration.ofDays(30)
