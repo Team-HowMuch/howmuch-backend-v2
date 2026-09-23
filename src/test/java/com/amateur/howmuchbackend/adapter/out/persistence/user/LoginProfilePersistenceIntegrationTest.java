@@ -132,7 +132,7 @@ class LoginProfilePersistenceIntegrationTest {
     }
 
     @Test
-    void profileUpdateAfterLoginPreservesLoginTime() {
+    void loginProfile_updateAfterLogin_preservesLoginTime() {
         tx.executeWithoutResult(status -> login.login(new LoginCommand(PHONE, PIN)));
         LocalDateTime loggedInAt = readUser().lastLoginAt();
         tx.executeWithoutResult(status -> profiles.update(new UpdateMyProfileCommand("changed_301", null, true)));
