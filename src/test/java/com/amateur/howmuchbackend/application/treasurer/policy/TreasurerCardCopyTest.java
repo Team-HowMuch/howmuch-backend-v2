@@ -67,7 +67,7 @@ class TreasurerCardCopyTest {
     }
 
     @Test
-    void carriesAllocationTypeAndStatusOnEveryCardBranch() {
+    void settlementCard_allBranchesIncludeAllocationTypeAndStatus() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement outstandingSend = new PersonalSettlement(
                 UUID.randomUUID(),
