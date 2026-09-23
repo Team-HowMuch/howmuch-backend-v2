@@ -78,7 +78,7 @@ class CommonCodeListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹 이름의 대소문자 무시 부분 검색은 매칭 그룹의 개수와 정렬만 반환한다")
-    void searchesGroupNamesAndExcludesOtherGroups() {
+    void commonCodeSearch_caseInsensitiveName_returnsMatches() {
         String nameKeyword = "Match" + UUID.randomUUID().toString().replace("-", "");
         var last = insertGroup(prefix + "C", "앞 " + nameKeyword, null, false, 9, 2);
         var first = insertGroup(prefix + "A", nameKeyword + " 뒤", "빈 그룹", true, 2, 0);
