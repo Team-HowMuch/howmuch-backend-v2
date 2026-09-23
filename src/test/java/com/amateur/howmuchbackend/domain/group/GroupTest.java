@@ -53,7 +53,7 @@ class GroupTest {
 
     @Test
     @DisplayName("삭제하면 이미지 참조를 비우고 삭제 시각을 기록한다")
-    void softDeletesGroup() {
+    void group_delete_clearsImageAndRecordsTime() {
         Group group = Group.create("여행", null, "image.jpg", 1L, "AB12CD34", NOW);
         LocalDateTime deletedAt = NOW.plusHours(1);
 
