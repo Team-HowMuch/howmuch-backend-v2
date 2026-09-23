@@ -80,7 +80,7 @@ class SettlementItemAllocationControllerTest {
 
     @Test
     @DisplayName("품목 비율 선택을 Application Command로 변환한다")
-    void savesSelection() throws Exception {
+    void itemSelection_validRequest_mapsCommand() throws Exception {
         when(saveUseCase.save(
                 eq(TOKEN),
                 eq(CONTEXT_ID),
