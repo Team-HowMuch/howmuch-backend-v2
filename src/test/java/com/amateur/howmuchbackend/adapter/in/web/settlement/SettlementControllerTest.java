@@ -633,7 +633,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("그룹 ID와 공개 ID를 그룹 참여자 추가 Command로 변환한다")
-    void addsSettlementGroupParticipant() throws Exception {
+    void groupParticipant_addRequest_mapsCommand() throws Exception {
         UUID participantId = UUID.fromString("3b9da522-552a-4168-b052-794be9dbbe53");
         when(addSettlementParticipantUseCase.add(
                 SETTLEMENT_ID,
