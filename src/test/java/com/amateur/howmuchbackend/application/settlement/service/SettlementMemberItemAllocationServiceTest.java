@@ -124,7 +124,7 @@ class SettlementMemberItemAllocationServiceTest {
 
     @Test
     @DisplayName("알림 발송 전 DRAFT에서는 참여자가 볼 수 없다")
-    void hidesDraftFromParticipant() {
+    void memberItemAllocation_draft_hiddenFromMember() {
         arrangeParticipantAccess(SettlementStatus.DRAFT);
 
         assertThatThrownBy(() -> service.getMyAllocation(SETTLEMENT_ID))
