@@ -117,7 +117,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void directCallAlsoIsolatesCleanupFailure(boolean group) {
+    void imageCleanup_directCall_failureIsIsolated(boolean group) {
         var fixture = fixture(group, false);
         fixture.failDelete.accept(OLD);
         assertThatCode(fixture.update::run).doesNotThrowAnyException();
