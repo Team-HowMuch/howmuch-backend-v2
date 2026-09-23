@@ -213,7 +213,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("빈 초대 코드는 INVALID_GROUP_INVITE_CODE로 반환한다")
-    void rejectsBlankInviteCodeWithFeatureError() throws Exception {
+    void groupJoin_blankInviteCode_returnsFeatureError() throws Exception {
         when(joinGroupUseCase.join(any())).thenThrow(
                 ApplicationException.of(GroupStatusCode.INVALID_GROUP_INVITE_CODE)
         );
