@@ -65,7 +65,7 @@ class MyNotificationServiceTest {
                 e -> assertThat(e.getStatusCode()).isEqualTo(NotificationStatusCode.NOTIFICATION_NOT_FOUND));
     }
     @ParameterizedTest @ValueSource(strings={"", "broken!", "dGVzdA"})
-    void invalidCursor(String cursor) {
+    void notificationCursor_invalid_rejected(String cursor) {
         assertThatThrownBy(() -> service.get(new GetMyNotificationsCommand(cursor,20)))
                 .isInstanceOfSatisfying(ApplicationException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(NotificationStatusCode.INVALID_NOTIFICATION_CURSOR));
