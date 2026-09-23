@@ -124,7 +124,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("빈 Firebase installation ID는 요청 경계에서 거부한다")
-    void rejectsBlankPushTarget() throws Exception {
+    void pushTarget_blankInstallationId_rejected() throws Exception {
         mockMvc.perform(put("/api/v2/user/me/push-target")
                         .contentType("application/json")
                         .content("""
