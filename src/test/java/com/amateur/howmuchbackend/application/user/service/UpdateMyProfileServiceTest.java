@@ -81,7 +81,7 @@ class UpdateMyProfileServiceTest {
 
     @Test
     @DisplayName("다른 사용자가 쓰는 공개 ID는 저장하지 않고 409 오류로 거부한다")
-    void rejectsDuplicatePublicId() {
+    void publicId_duplicateOwnedByAnotherUser_rejected() {
         when(loadUserPort.existsByPublicId("taken.id")).thenReturn(true);
 
         assertThatThrownBy(() -> updateMyProfileService.update(
