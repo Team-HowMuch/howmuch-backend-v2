@@ -40,7 +40,7 @@ class AuthRecordMaskingTest {
 
     @ParameterizedTest(name = "{0}: masks sensitive fields and preserves safe fields")
     @MethodSource("contracts")
-    void masksValues(Class<?> type) throws Exception {
+    void authRecord_sensitiveValues_masked(Class<?> type) throws Exception {
         Object record = fixture(type, false);
         String rendered = record.toString();
         assertThat(rendered.startsWith(type.getSimpleName() + "[")).isTrue();
