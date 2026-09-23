@@ -233,7 +233,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void acceptsPunctuationAsTitleBoundary() {
+    void punctuation_titleBoundary_accepted() {
         assertThat(parser.parse("\"여행 모임\"에서 받을 돈 있어?").titleHint()).isEqualTo("여행모임");
         assertThat(parser.parse("(여행 모임)에서 받을 돈 있어?").titleHint()).isEqualTo("여행모임");
     }
