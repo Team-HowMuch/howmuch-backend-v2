@@ -110,7 +110,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("Firebase installation ID를 앱 푸시 대상으로 등록한다")
-    void registersPushTarget() throws Exception {
+    void pushTarget_validInstallationId_registered() throws Exception {
         mockMvc.perform(put("/api/v2/user/me/push-target")
                         .contentType("application/json")
                         .content("""
