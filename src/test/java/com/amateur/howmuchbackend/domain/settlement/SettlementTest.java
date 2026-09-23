@@ -81,7 +81,7 @@ class SettlementTest {
 
         @Test
         @DisplayName("정산 요청 이후 참여 기준이 바뀌지 않도록 DRAFT에서만 기본 정보를 수정한다")
-        void rejectsUpdateAfterRequest() {
+        void settlement_afterRequest_update_rejected() {
             Settlement requested = draft().request(CREATED_AT.plusMinutes(1));
 
             assertThatThrownBy(() -> requested.updateDraft("변경된 제목", null, CREATED_AT.plusMinutes(2)))
