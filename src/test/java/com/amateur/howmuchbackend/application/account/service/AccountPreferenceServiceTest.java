@@ -111,7 +111,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void keepsDefaultAccountWhereTheUserPutIt() {
+    void accountPreference_defaultAccountPosition_preserved() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         service().replaceDisplayOrders(
