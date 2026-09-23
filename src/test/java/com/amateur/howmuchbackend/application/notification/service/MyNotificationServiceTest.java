@@ -58,7 +58,7 @@ class MyNotificationServiceTest {
         when(read.markRead(id,2L,now)).thenReturn(Optional.of(now.minusHours(1)));
         assertThat(service.read(id).readAt()).isEqualTo(now.minusHours(1));
     }
-    @Test void missingOrForeignNotificationReturnsSame404() {
+    @Test void notificationLookup_missingOrForeign_returnsSame404() {
         UUID id=UUID.randomUUID();
         when(read.markRead(id,2L,now)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.read(id)).isInstanceOfSatisfying(ApplicationException.class,
