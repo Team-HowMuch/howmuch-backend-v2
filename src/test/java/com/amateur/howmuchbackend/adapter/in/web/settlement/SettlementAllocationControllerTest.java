@@ -76,7 +76,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("배분 유형을 Command로 변환하고 다음 더치페이 단계를 반환한다")
-    void selectsAllocationType() throws Exception {
+    void allocationType_validSelection_mapsCommandAndReturnsNextStep() throws Exception {
         when(selectAllocationTypeUseCase.select(
                 SETTLEMENT_ID,
                 new SelectSettlementAllocationTypeCommand(SettlementAllocationType.DUTCH_PAY)
