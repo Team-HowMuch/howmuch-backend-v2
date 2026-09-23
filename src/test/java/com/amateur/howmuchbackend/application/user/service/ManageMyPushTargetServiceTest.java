@@ -94,7 +94,7 @@ class ManageMyPushTargetServiceTest {
 
     @Test
     @DisplayName("빈 Firebase installation ID를 거부한다")
-    void rejectsBlankTarget() {
+    void pushTarget_blankInstallationId_rejected() {
         assertThatThrownBy(() -> service.register("  "))
                 .isInstanceOf(ApplicationException.class);
 
