@@ -126,7 +126,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void malformedMultipartReturnsInvalidArgument() throws Exception {
+    void multipart_malformed_returnsInvalidArgument() throws Exception {
         invalidArgument(mvc.perform(get("/error-probe/malformed-multipart")));
     }
 
