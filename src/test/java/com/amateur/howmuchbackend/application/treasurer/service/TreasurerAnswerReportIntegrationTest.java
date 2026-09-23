@@ -217,7 +217,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("조회 직후 답변이 정리되어도 500이 아니라 404다")
-    void mapsForeignKeyViolationToNotFound() {
+    void answerReport_concurrentPurge_mapsToNotFound() {
         UUID expired = saveAnswer(owner, NOW.minusDays(31));
         // 응용 계층 조회는 통과했는데 저장 직전에 정리가 지나간 상황을 만든다.
         jdbc.update("DELETE FROM treasurer_answers WHERE id=?", expired);
