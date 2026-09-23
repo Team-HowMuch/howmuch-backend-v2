@@ -81,7 +81,7 @@ class SettlementShareLinkServiceTest {
 
     @Test
     @DisplayName("기존 hash만 있는 링크는 새 토큰으로 재발급하고 저장한다")
-    void reissuesLegacyHashOnlyLink() {
+    void shareLink_legacyHashOnly_reissuedAndSaved() {
         SettlementLink link = activeLink(TOKEN_HASH);
         LocalDateTime expiresAt = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
         when(shareLinkStorePort.findBySettlementId(SETTLEMENT_ID)).thenReturn(Optional.of(
