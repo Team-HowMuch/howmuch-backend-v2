@@ -77,7 +77,7 @@ class AccountDeletionServiceTest {
 
     @Test
     @DisplayName("타인 또는 삭제된 계좌는 연결 잠금 전에 404로 거부한다")
-    void rejectsUnknownAccount() {
+    void accountDeletion_unknownOwnerOrId_rejectedBeforeLock() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(user.active()).thenReturn(true);
         when(loadUserPort.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
