@@ -728,7 +728,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void carriesAllocationTypeAndStatusOnAnswerItems() {
+    void answerItems_includeAllocationTypeAndStatus() {
         UUID id = UUID.fromString("33333333-3333-3333-3333-333333333333");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
