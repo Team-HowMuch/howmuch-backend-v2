@@ -218,7 +218,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("활성 계좌가 빠진 순서는 INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST로 거절한다")
-    void rejectsIncompleteDisplayOrderRequest() throws Exception {
+    void accountOrder_missingActiveAccount_invalidRequest() throws Exception {
         doThrow(ApplicationException.of(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST))
                 .when(replaceAccountDisplayOrdersUseCase)
                 .replaceDisplayOrders(new ReplaceAccountDisplayOrdersCommand(List.of(10L)));
