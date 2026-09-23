@@ -103,7 +103,7 @@ class AccountTransactionDisplayNormalizerTest {
             "0088, 알 수 없는 거래, OTHER"
     })
     @DisplayName("거래 유형을 안전한 공통 규칙으로 판별한다")
-    void classifiesCommonKinds(String organization, String description, AccountTransactionResult.Display.Kind kind) {
+    void transactionKind_commonValues_classified(String organization, String description, AccountTransactionResult.Display.Kind kind) {
         assertThat(normalizer.normalize(organization, description, AccountTransactionType.EXPENSE).kind())
                 .isEqualTo(kind);
     }
