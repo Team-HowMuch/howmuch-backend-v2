@@ -52,7 +52,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void missingRequiredHeaderReturnsInvalidArgument() throws Exception {
+    void requiredHeader_missing_returnsInvalidArgument() throws Exception {
         invalidArgument(mvc.perform(get(TRANSFER)));
         verifyNoInteractions(transfer);
     }
