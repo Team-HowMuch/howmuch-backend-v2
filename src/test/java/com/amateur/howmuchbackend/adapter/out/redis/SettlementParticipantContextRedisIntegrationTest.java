@@ -42,7 +42,7 @@ class SettlementParticipantContextRedisIntegrationTest {
 
     @Test
     @DisplayName("동일 링크와 참여자의 동시 요청은 하나의 context token을 재사용한다")
-    void reusesOneContextForConcurrentRequests() throws Exception {
+    void participantContext_concurrentRequest_reusesToken() throws Exception {
         UUID settlementId = UUID.randomUUID();
         UUID participantId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.of(2026, 8, 24, 12, 0);
