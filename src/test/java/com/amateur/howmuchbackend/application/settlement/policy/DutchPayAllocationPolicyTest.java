@@ -148,7 +148,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("정산에 없는 참여자가 오면 저장을 거부한다")
-    void rejectsUnknownParticipant() {
+    void dutchPayAllocation_unknownParticipant_rejected() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friend = participant(2L, "친구 1", 1);
         SettlementParticipant outsider = participant(9L, "남", 0);
