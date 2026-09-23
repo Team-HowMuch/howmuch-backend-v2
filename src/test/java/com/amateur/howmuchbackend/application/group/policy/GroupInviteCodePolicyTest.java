@@ -20,7 +20,7 @@ class GroupInviteCodePolicyTest {
 
     @Test
     @DisplayName("8자리 영숫자가 아닌 초대 코드를 거절한다")
-    void rejectsInvalidInviteCode() {
+    void groupInviteCode_invalidFormat_rejected() {
         assertThatThrownBy(() -> policy.normalize("AB12-CD3"))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
