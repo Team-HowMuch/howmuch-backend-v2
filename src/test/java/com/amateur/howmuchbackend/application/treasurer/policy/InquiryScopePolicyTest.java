@@ -24,7 +24,7 @@ class InquiryScopePolicyTest {
             "여행 모임에서 내가 뭘 내야 해?",
             "영수증으로 정산 만들 수 있어?"
     })
-    void treatsSettlementAndServiceQuestionsAsRelated(String question) {
+    void inScopeSettlementOrServiceQuestion_related(String question) {
         assertThat(policy.classify(question)).isEqualTo(InquiryScope.RELATED);
     }
 
