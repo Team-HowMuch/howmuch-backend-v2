@@ -169,7 +169,7 @@ class SettlementTest {
 
         @Test
         @DisplayName("요청되지 않은 정산이나 완료된 정산은 수동 중단·재개하지 않는다")
-        void rejectsManualStatusTransitionsOutsideAllowedStates() {
+        void settlement_manualTransitionOutsideAllowedStates_rejected() {
             assertThatThrownBy(() -> draft().suspendManually(CREATED_AT.plusMinutes(1)))
                     .isInstanceOfSatisfying(ApplicationException.class, exception ->
                             assertThat(exception.getStatusCode())
