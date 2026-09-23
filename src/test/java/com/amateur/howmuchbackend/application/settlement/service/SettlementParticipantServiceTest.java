@@ -695,7 +695,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("그룹 구성원 순서를 유지하고 이미 추가된 동일인을 제외해 후보를 반환한다")
-    void getsGroupParticipantCandidates() {
+    void groupCandidates_creator_preservesOrderAndExcludesExisting() {
         Long groupId = 10L;
         String convertedContactHash = "a".repeat(64);
         User available = user(OTHER_USER_ID, "group.available", "group.png");
