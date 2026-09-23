@@ -107,7 +107,7 @@ class UpdateGroupServiceTest {
 
     @Test
     @DisplayName("이미지 업로드와 초기화를 동시에 요청하면 거절한다")
-    void rejectsImageAndResetConflict() {
+    void groupUpdate_uploadAndResetTogether_rejected() {
         assertThatThrownBy(() -> service.update(10L, new UpdateGroupCommand(
                 null, null, false, new byte[]{1}, true
         ))).isInstanceOfSatisfying(ApplicationException.class, exception ->
