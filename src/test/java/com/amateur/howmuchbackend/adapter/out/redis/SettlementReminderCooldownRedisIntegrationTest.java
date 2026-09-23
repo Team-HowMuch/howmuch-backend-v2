@@ -41,7 +41,7 @@ class SettlementReminderCooldownRedisIntegrationTest {
 
     @Test
     @DisplayName("첫 요청만 예약하고 일치하는 실패 요청만 예약을 해제한다")
-    void reservesAndConditionallyReleasesCooldown() {
+    void reminderCooldown_firstRequest_reservesAndFailureReleases() {
         Duration cooldown = Duration.ofMinutes(30);
 
         assertThat(cooldownPort.reserve(
