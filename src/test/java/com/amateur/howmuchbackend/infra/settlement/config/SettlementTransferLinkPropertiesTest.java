@@ -19,7 +19,7 @@ class SettlementTransferLinkPropertiesTest {
     @ParameterizedTest
     @ValueSource(strings = {"https://howmuch-mock-send.vercel.app/send", "http://localhost:3000/send",
             "http://127.0.0.1:3000/send", "http://[::1]:3000/send"})
-    void acceptsHttpsAndLoopback(String url) {
+    void transferLinkProperties_httpsOrLoopbackBaseUrl_accepted(String url) {
         var properties = new SettlementTransferLinkProperties(MOCK,
                 new SettlementTransferLinkProperties.Mock(url));
         assertThat(properties.mock().baseUrl()).isEqualTo(url);
