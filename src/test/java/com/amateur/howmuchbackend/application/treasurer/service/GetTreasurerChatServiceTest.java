@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class GetTreasurerChatServiceTest {
     @Test
-    void returnsGreetingQuickActionsAndMenuSuggestions() {
+    void treasurerChat_greetingAndSuggestions_returned() {
         GetTreasurerChatService service = new GetTreasurerChatService(new TreasurerCardCopy());
 
         var result = service.getChat();
