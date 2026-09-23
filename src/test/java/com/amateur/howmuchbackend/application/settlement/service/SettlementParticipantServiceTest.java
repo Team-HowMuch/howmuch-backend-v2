@@ -619,7 +619,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("원본 길이 제한을 초과한 휴대폰 번호를 정규화 전에 거부한다")
-    void rejectsOversizedRawContactPhoneNumber() {
+    void contactMatch_rawPhoneTooLong_rejectedBeforeNormalization() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
