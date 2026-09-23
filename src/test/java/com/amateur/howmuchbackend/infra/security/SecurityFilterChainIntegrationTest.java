@@ -164,7 +164,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("공개 관리자 화면은 인증 없이 접근 가능하다")
-    void preservesPublicPage() throws Exception {
+    void adminPage_publicAccess_allowed() throws Exception {
         assertThat(request("GET", "/admin/common-codes", null).statusCode()).isEqualTo(200);
     }
 
