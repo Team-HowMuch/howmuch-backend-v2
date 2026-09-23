@@ -255,7 +255,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("단일 영수증 정산의 총액과 상호명과 결제일을 반환한다")
-    void returnsReceiptPaymentInfo() {
+    void settlementReceipt_singleExpense_returnsStoreDateAndTotal() {
         LocalDateTime paidAt = LocalDateTime.of(2026, 8, 25, 19, 30);
         givenSettlement(CREATOR_ID);
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
