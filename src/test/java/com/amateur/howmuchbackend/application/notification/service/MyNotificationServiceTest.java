@@ -72,7 +72,7 @@ class MyNotificationServiceTest {
         verifyNoInteractions(load,read);
     }
     @ParameterizedTest @ValueSource(ints={0,51,-1})
-    void invalidSize(int size) {
+    void notificationSize_invalid_rejected(int size) {
         assertThatThrownBy(() -> service.get(new GetMyNotificationsCommand(null,size)))
                 .isInstanceOf(ApplicationException.class);
     }
