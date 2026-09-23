@@ -275,7 +275,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void absentPushTokenKeepsInboxAndCooldown() {
+    void pushToken_absent_preservesInboxAndCooldown() {
         writer.manual(settlement, participant, creator);
         jdbc.update("UPDATE settlement_notification_outbox SET next_attempt_at=? WHERE settlement_id=?", NOW.minusDays(2), settlement);
         assertThat(worker.processBatch(1).failed()).isOne();
