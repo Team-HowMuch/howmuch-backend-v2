@@ -43,9 +43,9 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("PDF를 image/jpeg라고 선언해도 바이트를 보고 거절한다")
-    void rejectsPdfDisguisedAsImage() {
-        // 멀티파트 Content-Type은 클라이언트가 정한다. 선언을 믿으면 PDF 한 장이
-        // GPU 한 대짜리 OCR 장비의 수 초를 쓴다.
+    void receiptImage_pdfClaimedAsJpeg_rejectedBySignature() {
+        // 멀티파트 Content-Type은 요청자가 정하므로 바이트로 이미지 형식을 판별한다.
+        // 선언을 신뢰하면 PDF를 OCR로 보내 GPU 자원을 낭비한다.
         byte[] pdf = "%PDF-1.7\nfake".getBytes(StandardCharsets.UTF_8);
 
         assertThatThrownBy(() -> policy.detectMediaType(pdf))
