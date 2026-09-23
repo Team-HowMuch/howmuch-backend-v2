@@ -59,7 +59,7 @@ class GroupOwnershipServiceTest {
 
     @Test
     @DisplayName("현재 OWNER를 강등하고 활성 MEMBER에게 소유권을 이전한다")
-    void transfersOwnershipToActiveMember() {
+    void groupOwnership_activeMember_transferredFromCurrentOwner() {
         GroupMember owner = member(10L, OWNER_ID, GroupMemberRole.OWNER, GroupMemberStatus.ACTIVE);
         GroupMember target = member(
                 TARGET_MEMBER_ID,
