@@ -79,7 +79,7 @@ class GroupMemberExitServiceTest {
 
     @Test
     @DisplayName("OWNER가 활성 MEMBER를 제거하면 REMOVED 상태로 저장한다")
-    void removesMemberAsOwner() {
+    void groupMembership_ownerRemoval_savedAsRemoved() {
         GroupMember owner = member(10L, OWNER_ID, GroupMemberRole.OWNER);
         GroupMember target = member(MEMBER_ID, MEMBER_USER_ID, GroupMemberRole.MEMBER);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OWNER_ID));
