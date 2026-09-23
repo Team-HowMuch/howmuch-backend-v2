@@ -50,7 +50,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("REMOVED 멤버는 초대 코드 재가입 전이를 사용할 수 없다")
-    void rejectsRejoinForRemovedMember() {
+    void member_removedInviteRejoin_rejected() {
         assertThatThrownBy(() -> endedMember(GroupMemberStatus.REMOVED).rejoin(REACTIVATED_AT))
                 .isInstanceOf(IllegalStateException.class);
     }
