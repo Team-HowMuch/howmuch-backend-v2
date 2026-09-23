@@ -200,7 +200,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("유효하지 않은 달력 날짜를 회원가입 요청에서 거부한다")
-    void rejectsInvalidCalendarDate() throws Exception {
+    void signup_invalidCalendarDate_rejected() throws Exception {
         mockMvc.perform(post("/api/v2/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
