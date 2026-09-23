@@ -317,7 +317,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹 필터는 해당 그룹 출처 참여자가 있는 정산만 조회한다")
-    void filtersByParticipantSourceGroup() {
+    void settlementList_sourceGroupFilter_returnsMatchingParticipants() {
         Long groupId = insertGroup("목록 필터 그룹", creatorId);
         Long unauthorizedGroupId = insertGroup("탈퇴한 그룹", otherUserId);
         insertGroupMember(groupId, creatorId, "ACTIVE");
