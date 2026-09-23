@@ -204,7 +204,7 @@ class SettlementRequestServiceTest {
 
     @Test
     @DisplayName("정산 요청 시 탈퇴한 그룹 출처 참여자가 있으면 발행을 거부한다")
-    void rejectsInactiveGroupMemberParticipant() {
+    void settlementRequest_inactiveGroupMember_rejected() {
         authenticate();
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementAllocationType.DUTCH_PAY)));
