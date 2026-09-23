@@ -110,7 +110,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("OCR 영수증 지출은 원본 참조와 출처를 보존한다")
-    void createsReceiptOcrExpense() {
+    void receiptExpense_ocrSourceAndReference_preserved() {
         SettlementExpense expense = SettlementExpense.receiptOcr(
                 SETTLEMENT_ID,
                 "  receipt-demo  ",
