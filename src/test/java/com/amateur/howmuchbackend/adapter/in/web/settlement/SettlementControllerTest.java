@@ -823,7 +823,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("휴대폰 번호가 비어 있는 연락처 항목을 INVALID_ARGUMENT로 거부한다")
-    void rejectsContactWithoutPhoneNumber() throws Exception {
+    void settlementContactMatch_missingPhone_returnsInvalidArgument() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
                         SETTLEMENT_ID
