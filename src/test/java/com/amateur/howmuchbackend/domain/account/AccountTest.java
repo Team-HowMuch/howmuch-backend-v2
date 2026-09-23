@@ -20,7 +20,7 @@ class AccountTest {
 
     @Test
     @DisplayName("비활성·외화·비입출금 계좌를 원화 입출금 계좌로 분류하지 않는다")
-    void rejectsAccountsWithoutDemandDepositFacts() {
+    void account_inactiveOrUnsupported_transferIneligible() {
         List<Account> unsupported = List.of(
                 account(false, AccountType.DEPOSIT_TRUST, "11", "KRW"),
                 account(true, AccountType.FOREIGN_CURRENCY, "11", "KRW"),
