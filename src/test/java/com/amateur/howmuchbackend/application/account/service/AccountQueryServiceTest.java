@@ -313,7 +313,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("타인 또는 비활성 계좌는 없는 계좌와 같은 오류를 반환한다")
-    void rejectsUnknownOwnedAccount() {
+    void accountLookup_unknownOrInactive_returnsNotFound() {
         when(loadAccountPort.findActiveByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getAccountDetail(99L, AUGUST))
