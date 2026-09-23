@@ -321,7 +321,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void sentOtpExhaustionPreservesCooldownAndNextSendCanBeConfirmed() throws Exception {
+    void smsOtp_sendLimitReached_keepsCooldownAndAllowsNextConfirm() throws Exception {
         redis.delete(key);
         SmsSenderPort sender = mock(SmsSenderPort.class);
         List<String> codes = new ArrayList<>();
