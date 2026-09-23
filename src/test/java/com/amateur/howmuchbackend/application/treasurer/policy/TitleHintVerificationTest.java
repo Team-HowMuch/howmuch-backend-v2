@@ -69,7 +69,7 @@ class TitleHintVerificationTest {
 
     @Test
     @DisplayName("이름 대조는 공백을 무시하고 대소문자를 가리지 않는다")
-    void matchesIgnoringWhitespaceAndCase() {
+    void titleMatch_whitespaceAndCase_ignored() {
         assertThat(policy.matchesTitle(settlement("MT 정산"), "mt정산")).isTrue();
         assertThat(policy.matchesTitle(settlement("여행 정산"), "여행정산")).isTrue();
         assertThat(policy.matchesTitle(settlement("여행 정산"), "회식")).isFalse();
