@@ -217,7 +217,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("RECEIVE는 실제 완납 참여자 수와 링크 생성 시각을 조회한다")
-    void loadsCompletedParticipantCountAndRequestedAt() {
+    void receiveSettlement_completedMembersAndLinkTime_loaded() {
         RequestFixture request = insertReceiveRequest(600L);
         insertDeposit(request.shareId(), 300L);
 
@@ -246,7 +246,7 @@ class SettlementListPersistenceIntegrationTest {
         );
 
         assertThat(fullyPaid).singleElement().satisfies(item -> {
-            // 분모와 분자가 같은 기준이라 전원 납부 시 100%가 된다.
+            // 모든 참여자를 동일한 분모와 분자로 계산해 전원 납부 시 진행률을 100%로 반환한다.
             assertThat(item.payableParticipantCount()).isEqualTo(1);
             assertThat(item.completedParticipantCount()).isEqualTo(1);
         });
