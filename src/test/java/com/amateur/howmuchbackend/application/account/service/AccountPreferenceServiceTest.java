@@ -81,7 +81,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsUnknownOrInactiveAccount() {
+    void accountPreference_unknownOrInactiveAccount_rejected() {
         givenAccounts(account(10L, true, 0));
 
         assertThatThrownBy(() -> service().setDefault(99L))
