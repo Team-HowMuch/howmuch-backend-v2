@@ -109,7 +109,7 @@ class SettlementRequestServiceTest {
 
     @Test
     @DisplayName("더치페이는 Share와 계좌 스냅샷을 고정하고 입금 대기 상태로 전환한다")
-    void requestsDutchPaySettlement() {
+    void settlementRequest_dutchPay_freezesSharesAndAccountSnapshot() {
         arrangeCommon(SettlementAllocationType.DUTCH_PAY);
         when(allocationStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
                 allocation(CREATOR_PARTICIPANT_ID, 4_000),
