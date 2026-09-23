@@ -223,7 +223,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void invalidFormatDoesNotReserve() {
+    void loginAttempt_invalidFormat_notReserved() {
         assertThat(login("bad")).isEqualTo(AuthStatusCode.INVALID_PIN_FORMAT);
         assertThat(redis.hasKey(key)).isFalse();
         verifyNoInteractions(users, encoder);
