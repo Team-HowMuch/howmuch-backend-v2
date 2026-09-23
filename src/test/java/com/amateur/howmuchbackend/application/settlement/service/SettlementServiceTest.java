@@ -252,7 +252,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("송금 Share가 있는 정산은 삭제하지 않는다")
-    void rejectsDeletionAfterTransferStage() {
+    void settlement_afterTransfer_delete_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(requested()));
