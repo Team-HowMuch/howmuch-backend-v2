@@ -285,7 +285,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("비활성 사용자는 직접 추가 후보로 사용하지 않는다")
-    void rejectsInactiveCandidate() {
+    void groupMember_inactiveCandidate_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OWNER_ID));
         when(loadUserPort.findByPublicId("member.test"))
                 .thenReturn(Optional.of(user(MEMBER_ID, "member.test", "멤버", false)));
