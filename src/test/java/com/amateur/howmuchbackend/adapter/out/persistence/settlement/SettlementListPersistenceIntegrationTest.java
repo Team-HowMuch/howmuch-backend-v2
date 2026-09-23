@@ -360,7 +360,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
-    void acceptedYearMonthExtremesCanBeQueried() {
+    void settlementList_yearMonthExtremes_queryable() {
         for (YearMonth month : java.util.List.of(YearMonth.of(1, 1), YearMonth.of(9999, 12))) {
             assertThat(settlementPersistenceAdapter.findAll(
                     creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
