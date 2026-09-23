@@ -224,7 +224,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("허용되지 않은 재개 요청은 제출 완료 표시를 삭제하지 않는다")
-    void rejectsResumeWithoutClearingSubmissions() {
+    void settlement_resumeWithoutClearingSubmissions_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(requested()));
