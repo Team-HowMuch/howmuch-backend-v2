@@ -144,7 +144,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("동시에 두 번 신고해도 한 건만 접수된다")
-    void concurrentReportsProduceExactlyOne() throws Exception {
+    void answerReport_concurrentDuplicate_exactlyOneCreated() throws Exception {
         UUID answerId = saveAnswer(owner, NOW);
 
         List<Throwable> outcomes = concurrent(
