@@ -180,7 +180,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("생년월일이 없으면 회원가입 요청을 거부한다")
-    void requiresBirthDate() throws Exception {
+    void signup_missingBirthDate_rejected() throws Exception {
         mockMvc.perform(post("/api/v2/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
