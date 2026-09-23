@@ -254,7 +254,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("질문 흐름은 LLM을 부르는 동안 트랜잭션을 쥐지 않는다")
-    void doesNotHoldATransactionWhileCallingTheLlm() {
+    void askTreasurer_llmCall_runsWithoutTransaction() {
         AtomicBoolean transactionWasActive = new AtomicBoolean(true);
         when(generateTreasurerAnswerPort.generate(any())).thenAnswer(invocation -> {
             // 여기서 트랜잭션이 살아 있으면 커넥션 하나를 LLM 호출 내내 쥐고 있다는 뜻이다.
