@@ -17,7 +17,7 @@ class SettlementAutomaticReminderConfigurationTest {
                     () -> mock(SendAutomaticSettlementRemindersUseCase.class));
 
     @Test
-    void disabledByDefaultWithOneMinuteAndFiftyDefaults() {
+    void automaticReminder_defaults_disabledOneMinuteAndBatch50() {
         context.run(app -> {
             assertThat(app).doesNotHaveBean(SettlementAutomaticReminderScheduler.class);
             var properties = app.getBean(SettlementAutomaticReminderProperties.class);
