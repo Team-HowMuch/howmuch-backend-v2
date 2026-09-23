@@ -172,7 +172,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("정산 삭제 시 하위 지출도 함께 삭제한다")
-    void deletesExpenseWithSettlement() {
+    void settlementDeletion_expenses_cascaded() {
         SettlementExpense saved = settlementExpensePersistenceAdapter.save(
                 manualExpense("저녁 식사", 42_000, 0)
         );
