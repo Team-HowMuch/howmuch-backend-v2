@@ -101,7 +101,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("배분 유형 누락을 UseCase 호출 전에 거부한다")
-    void rejectsMissingAllocationType() throws Exception {
+    void allocationType_missing_returnsBadRequest() throws Exception {
         mockMvc.perform(put(
                         "/api/v2/settlements/{settlementId}/allocation-type",
                         SETTLEMENT_ID
