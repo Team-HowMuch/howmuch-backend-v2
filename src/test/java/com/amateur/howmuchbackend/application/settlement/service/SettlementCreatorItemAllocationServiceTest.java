@@ -182,7 +182,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("확정된 정산은 더 이상 고칠 수 없다")
-    void rejectsEditAfterDeposit() {
+    void creatorItemAllocation_afterDeposit_editRejected() {
         arrangeCreatorAccess(SettlementStatus.AWAITING_DEPOSIT);
 
         assertThatThrownBy(() -> service.removeMyItem(SETTLEMENT_ID, ITEM_ID))
