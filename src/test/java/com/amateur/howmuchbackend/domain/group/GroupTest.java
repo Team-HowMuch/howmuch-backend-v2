@@ -16,7 +16,7 @@ class GroupTest {
 
     @Test
     @DisplayName("이름과 메모를 정규화해 활성 그룹을 생성한다")
-    void createsNormalizedGroup() {
+    void group_creation_nameAndMemoNormalized() {
         Group group = Group.create("  여행 모임  ", "  여름 휴가  ", null, 1L, "AB12CD34", NOW);
 
         assertThat(group.name()).isEqualTo("여행 모임");
