@@ -18,7 +18,7 @@ class TreasurerLlmResponseParserTest {
     }
 
     @Test
-    void readsGeminiTextParts() throws Exception {
+    void geminiResponse_textParts_parsed() throws Exception {
         String content = TreasurerLlmResponseParser.geminiContent(objectMapper.readTree("""
                 {"candidates":[{"content":{"parts":[{"text":"이번 달 지출은 12,000원입니다."}]}}]}
                 """));
