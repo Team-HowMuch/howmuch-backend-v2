@@ -355,7 +355,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void doesNotNarrowByGenericWordLeftAfterStrippingSuffix() {
+    void titleHint_genericWordAfterSuffixStripping_doesNotNarrow() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
