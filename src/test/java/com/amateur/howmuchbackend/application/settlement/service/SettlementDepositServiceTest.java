@@ -400,7 +400,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("조회 범위를 KST 달력의 월 경계로 나눈다")
-    void splitsQueryByKstMonth() {
+    void settlementDeposit_multipleKstMonths_queriedSeparately() {
         assertQueryPeriods("2026-12-31T14:59:59", "2026-12-31T15:00:01",
                 List.of(LocalDate.of(2026, 12, 31), LocalDate.of(2027, 1, 1)),
                 List.of(LocalDate.of(2026, 12, 31), LocalDate.of(2027, 1, 1)));
