@@ -124,7 +124,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("생성자 참여자의 식별 정보와 표시 순서를 V9 스키마에 저장한다")
-    void savesCreatorParticipant() {
+    void settlementCreatorParticipation_identityAndOrder_persisted() {
         SettlementParticipant participant = SettlementParticipant.registeredUser(
                 settlementId,
                 creatorId,
