@@ -116,7 +116,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("활성 세션의 Refresh 토큰으로 보호 API에 접근할 수 없다")
-    void rejectsRefreshTokenAsAccessToken() throws Exception {
+    void protectedApi_refreshTokenAsAccessToken_rejected() throws Exception {
         assertError(request("GET", PROFILE, tokens.createRefreshToken(user, sessionId)), 401, "UNAUTHORIZED");
     }
 
