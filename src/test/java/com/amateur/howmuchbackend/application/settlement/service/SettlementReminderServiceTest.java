@@ -267,7 +267,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void automaticDoesNotBackfillLegacySettlements() {
+    void automaticReminder_legacySettlement_notBackfilled() {
         givenOldShare();
         assertThat(writer.automatic(candidate())).isFalse();
         verifyNoInteractions(recorder, cooldownPort);
