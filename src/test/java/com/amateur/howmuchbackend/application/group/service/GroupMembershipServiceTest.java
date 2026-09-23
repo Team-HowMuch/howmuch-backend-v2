@@ -102,7 +102,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("LEFT 멤버가 초대 코드로 재가입하면 가입 시각을 갱신한다")
-    void rejoinsLeftMember() {
+    void groupRejoin_leftMember_updatesJoinTime() {
         givenJoinGroup();
         givenInviteLink();
         GroupMember leftMember = endedMember(GroupMemberStatus.LEFT);
