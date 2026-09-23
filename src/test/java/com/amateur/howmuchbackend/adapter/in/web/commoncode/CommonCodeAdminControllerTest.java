@@ -147,7 +147,7 @@ class CommonCodeAdminControllerTest {
 
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 3})
-    void rejectsEachOversizedAttributeBeforeSaving(int attribute) throws Exception {
+    void commonCodeAttribute_oversizedEach_rejectedBeforeSave(int attribute) throws Exception {
         String[] values = {"valid", "valid", "valid"};
         values[attribute - 1] = "가".repeat(256);
         var result = mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
