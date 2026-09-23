@@ -104,7 +104,7 @@ class ReceiptOcrHttpIntegrationTest {
 
     @Test
     @DisplayName("업로드 한도를 넘으면 500이 아니라 413이다")
-    void rejectsOversizeUpload() throws Exception {
+    void receiptUpload_oversized_returnsPayloadTooLarge() throws Exception {
         // 한도는 5MB다. 문서가 413이라고 적어 둔 값을 실제로 지키는지 본다.
         byte[] tooBig = new byte[(int) (5.5 * 1024 * 1024)];
 
