@@ -157,7 +157,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("빈 memo 파트를 전달한 수정 요청은 메모 제거 지시로 변환한다")
-    void updatesAndClearsMemo() throws Exception {
+    void groupUpdate_emptyMemo_mapsToRemoval() throws Exception {
         when(updateGroupUseCase.update(any(), any())).thenReturn(detail("여행", null, null));
 
         mockMvc.perform(multipart(HttpMethod.PATCH, "/api/v2/groups/{groupId}", 10L)
