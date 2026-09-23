@@ -231,7 +231,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("모든 품목이 정확히 배분되면 양수 Share를 생성한다")
-    void finalizesExactAllocation() {
+    void itemAllocation_exactCoverage_createsPositiveShares() {
         var finalization = policy.finalizeAllocation(
                 SETTLEMENT_ID,
                 1_000,
