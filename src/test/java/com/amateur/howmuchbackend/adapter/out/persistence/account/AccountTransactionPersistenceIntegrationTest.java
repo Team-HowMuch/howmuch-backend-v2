@@ -140,7 +140,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("중복 거래를 한 번만 저장하고 출금만 월 소비로 집계한다")
-    void storesTransactionsAndSummaryWithoutDuplicates() {
+    void accountTransactions_duplicateRows_storeOnceAndSumDebits() {
         Transaction expense = transaction(
                 "a".repeat(64), AccountTransactionType.EXPENSE, "12500", LocalDateTime.of(2026, 8, 20, 0, 15)
         );
