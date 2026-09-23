@@ -151,7 +151,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("저장에 실패한 답변은 answerId가 null이다")
-    void exposesNullAnswerIdWhenStoringFailed() throws Exception {
+    void treasurerAnswer_saveFailure_returnsNullAnswerId() throws Exception {
         when(askTreasurerUseCase.ask(any())).thenReturn(answerResult().withAnswerId(null));
 
         mockMvc.perform(post("/api/v2/treasurer/questions")
@@ -160,8 +160,7 @@ class TreasurerControllerTest {
                                 {"question":"보낼 정산"}
                                 """))
                 .andExpect(status().isOk())
-                // doesNotExist()는 필드가 없을 때도 null일 때도 통과한다. 앱이 신고 버튼을
-                // 숨기는 기준이 "null"이므로 값이 실제로 null인지를 본다.
+                // doesNotExist()는 필드가 없어도 통과하므로, 신고 버튼을 숨기는 기준인 null을 직접 확인한다.
                 .andExpect(jsonPath("$.data.answerId").value(nullValue()))
                 .andExpect(content().string(containsString("\"answerId\":null")));
     }
