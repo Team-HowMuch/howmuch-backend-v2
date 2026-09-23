@@ -112,7 +112,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("DRAFT에서 생성자가 자기 몫 비율을 저장한다")
-    void savesOwnSelectionWhileDraft() {
+    void creatorItemSelection_draft_savesOwnFraction() {
         arrangeCreatorAccess(SettlementStatus.DRAFT);
         when(allocationStorePort.findSubmission(SETTLEMENT_ID, CREATOR_PARTICIPANT_ID))
                 .thenReturn(Optional.empty());
