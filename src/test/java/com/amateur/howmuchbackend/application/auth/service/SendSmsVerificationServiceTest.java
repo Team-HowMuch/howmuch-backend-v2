@@ -49,7 +49,7 @@ class SendSmsVerificationServiceTest {
     }
 
     @Test
-    void rejectsRegisteredPhoneBeforeReservingOrSending() {
+    void smsVerification_registeredPhone_rejectedBeforeReservation() {
         when(loadUserPort.findByPhoneNumber(PHONE_NUMBER)).thenReturn(Optional.of(mock(User.class)));
 
         assertThatThrownBy(() -> service.send(new SendSmsVerificationCommand("010-1234-5678")))
