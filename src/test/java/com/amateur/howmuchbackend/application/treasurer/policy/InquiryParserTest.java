@@ -159,7 +159,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void keepsOriginalLetterCaseInTitleHint() {
+    void titleHint_originalLetterCase_preserved() {
         InquiryParser.ParsedInquiry parsed = parser.parse("MT 정산에서 받을 돈 있어?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
