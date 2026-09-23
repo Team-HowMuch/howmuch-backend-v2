@@ -79,7 +79,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("자기 탈퇴와 OWNER 제거는 종료 상태를 구분해 기록한다")
-    void recordsDifferentExitStatuses() {
+    void member_selfLeaveAndOwnerRemoval_exitStatusesDistinguished() {
         GroupMember member = GroupMember.member(10L, 2L, JOINED_AT);
 
         GroupMember left = member.leave(REACTIVATED_AT);
