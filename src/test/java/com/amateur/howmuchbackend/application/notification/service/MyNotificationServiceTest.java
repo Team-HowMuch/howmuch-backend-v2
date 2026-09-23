@@ -53,7 +53,7 @@ class MyNotificationServiceTest {
         when(load.countUnread(2L)).thenReturn(4L);
         assertThat(service.countUnread().count()).isEqualTo(4);
     }
-    @Test void usesFirstReadTimestamp() {
+    @Test void notification_read_usesFirstReadTimestamp() {
         UUID id=UUID.randomUUID();
         when(read.markRead(id,2L,now)).thenReturn(Optional.of(now.minusHours(1)));
         assertThat(service.read(id).readAt()).isEqualTo(now.minusHours(1));
