@@ -83,7 +83,7 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("시그니처보다 짧은 바이트에서 터지지 않는다")
-    void rejectsTruncatedSignature() {
+    void receiptImage_truncatedSignature_rejectedWithoutException() {
         assertThatThrownBy(() -> policy.detectMediaType(new byte[]{(byte) 0xFF, (byte) 0xD8}))
                 .isInstanceOf(ApplicationException.class);
         assertThatThrownBy(() -> policy.detectMediaType(new byte[]{(byte) 0x89, 0x50}))
