@@ -350,7 +350,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("계좌 잠금 대기 중 완료된 정산은 잠금 후 상태를 재검증해 저장하지 않는다")
-    void rechecksCompletedStatusAfterAccountLock() {
+    void settlementDeposit_completedWhileWaitingForLock_notSaved() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.COMPLETED)));
