@@ -84,7 +84,7 @@ class SettlementReceivingAccountControllerTest {
 
     @Test
     @DisplayName("선택 결과를 정산 조회 계약으로 반환해 다음 단계가 현재 계좌를 알 수 있게 한다")
-    void selectsReceivingAccount() throws Exception {
+    void receivingAccount_selection_returnsCurrentAccount() throws Exception {
         when(selectReceivingAccountUseCase.select(
                 eq(SETTLEMENT_ID),
                 eq(new SelectSettlementReceivingAccountCommand(7L))
