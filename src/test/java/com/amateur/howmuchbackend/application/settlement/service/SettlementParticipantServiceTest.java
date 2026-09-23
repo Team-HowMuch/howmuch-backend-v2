@@ -678,7 +678,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("참여자를 변경할 수 없는 정산에서는 연락처 매칭도 거부한다")
-    void rejectsContactMatchingForRequestedSettlement() {
+    void contactMatch_lockedSettlement_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
 
