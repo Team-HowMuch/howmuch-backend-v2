@@ -22,7 +22,7 @@ class SettlementItemSelectionTest {
 
     @Test
     @DisplayName("수량만큼 곱한 단위를 계산한다")
-    void multipliesUnitsByQuantity() {
+    void itemSelection_quantity_multipliesUnits() {
         SettlementItemSelection selection = selection(
                 SettlementItemAllocationFraction.THIRD, 2
         );
