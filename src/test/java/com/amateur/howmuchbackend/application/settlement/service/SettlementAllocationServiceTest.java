@@ -120,7 +120,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("네트워크 재시도로 같은 유형을 선택해도 사용자가 수정한 금액을 다시 N빵하지 않는다")
-    void preservesExistingAllocationForIdempotentSelection() {
+    void allocationType_idempotentSelection_preservesEditedAmount() {
         Settlement settlement = settlement(SettlementAllocationType.DUTCH_PAY, 1_000);
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement));
