@@ -49,7 +49,7 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("분석 결과를 반환한다")
-    void returnsAnalysis() throws Exception {
+    void receiptAnalysis_request_returnsAnalysis() throws Exception {
         when(analyzeReceiptUseCase.analyze(any())).thenReturn(new ReceiptAnalysisResult(
                 "스타필드", "2026-09-16 16:47",
                 List.of(new ReceiptAnalysisResult.Item("참치김밥", 1, 3_500L)),
