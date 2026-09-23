@@ -35,7 +35,7 @@ class TreasurerLlmResponseParserTest {
     }
 
     @Test
-    void sanitizesMarkdownAndTruncates() {
+    void llmDraft_markdownRemovedAndLengthLimited() {
         assertThat(TreasurerLlmResponseParser.sanitize("```답변```")).isEqualTo("답변");
         assertThat(TreasurerLlmResponseParser.sanitize("**보낼 정산이 있어요.**")).isEqualTo("보낼 정산이 있어요.");
         assertThat(TreasurerLlmResponseParser.sanitize("# 안내\n보낼 정산이 있어요.")).isEqualTo("안내\n보낼 정산이 있어요.");
