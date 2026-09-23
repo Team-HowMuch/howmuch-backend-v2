@@ -131,7 +131,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("세션 교체 시 이전 토큰은 401이고 현재 세션 토큰은 200이다")
-    void rejectsSupersededSession() throws Exception {
+    void protectedApi_replacedSession_oldRejectedCurrentAccepted() throws Exception {
         String replacement = UUID.randomUUID().toString();
         saveSession(replacement);
         assertError(request("GET", PROFILE, accessToken), 401, "UNAUTHORIZED");
