@@ -232,7 +232,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("동시 소유권 이전 요청은 직렬화되어 활성 OWNER를 한 명만 유지한다")
-    void serializesConcurrentOwnershipTransfers() throws Exception {
+    void groupOwnership_concurrentTransfers_serializedWithOneOwner() throws Exception {
         Long targetUserId = insertUser("새 OWNER");
         Group savedGroup = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(
