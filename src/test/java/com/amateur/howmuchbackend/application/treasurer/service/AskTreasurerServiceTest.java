@@ -123,7 +123,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void fallsBackWhenLlmInventedAmounts() {
+    void answer_llmInventsAmounts_usesFallback() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
