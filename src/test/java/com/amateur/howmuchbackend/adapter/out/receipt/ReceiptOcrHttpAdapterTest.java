@@ -172,9 +172,8 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("서비스가 500으로 분석 실패를 알리면 재촬영을 안내한다")
-    void treatsServerErrorAsUnreadable() {
-        // 이 서비스는 분석 실패를 500 + {"ok": false, "error"} 로 알린다. 그래서 500은
-        // 닿지 못한 것이 아니라 읽지 못한 것이다.
+    void receiptOcr_serverError_returnsUnreadable() {
+        // 이 서비스는 분석 실패를 500으로 알리므로, 500은 연결 실패가 아니라 읽기 실패로 분류한다.
         server.expect(requestTo(BASE_URL + "/ocr/receipt")).andRespond(withServerError());
 
         assertThatThrownBy(() -> adapter.analyze("a.jpg", "image/jpeg", IMAGE))
