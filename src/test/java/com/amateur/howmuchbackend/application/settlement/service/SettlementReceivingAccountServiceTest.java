@@ -90,7 +90,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("본인의 활성 원화 입출금 계좌를 잠근 초안에 저장한다")
-    void selectsOwnedEligibleAccount() {
+    void receivingAccount_ownedActiveKrw_savedToDraft() {
         authenticate();
         Settlement settlement = draft();
         Account account = account(7L, true, 0, AccountType.DEPOSIT_TRUST, "11", "KRW");
