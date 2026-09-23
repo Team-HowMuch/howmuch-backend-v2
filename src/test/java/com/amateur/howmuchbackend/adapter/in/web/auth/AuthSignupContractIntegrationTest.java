@@ -135,7 +135,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("같은 IP의 61번째 확인은 IP quota로 제한한다")
-    void limitsAddressAfterSixtyChecks() throws Exception {
+    void signupCheck_61stSameIpRequest_rateLimited() throws Exception {
         String clientAddress = randomClientAddress();
         List<String> phoneNumbers = new ArrayList<>();
         try {
