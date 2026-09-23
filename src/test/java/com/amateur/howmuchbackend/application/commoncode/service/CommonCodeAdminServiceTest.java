@@ -131,7 +131,7 @@ class CommonCodeAdminServiceTest {
 
     @Test
     @DisplayName("오래된 revision으로 저장하지 않는다")
-    void rejectsStaleRevision() {
+    void commonCodeGroup_staleRevision_rejected() {
         CommonCodeGroup current = new CommonCodeGroup(
                 "BANK", "은행 코드", null, null, null, null, true, 4L, List.of()
         );
