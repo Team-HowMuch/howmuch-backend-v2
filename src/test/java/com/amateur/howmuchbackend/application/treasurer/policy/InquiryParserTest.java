@@ -128,7 +128,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void classifiesColloquialStatusExpressions() {
+    void colloquialStatusPhrase_classified() {
         assertThat(parser.parse("아직 안 끝난 정산 있어?").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
         assertThat(parser.parse("남은 정산 뭐 있어?").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
         assertThat(parser.parse("처리해야 할 정산 알려줘").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
