@@ -44,7 +44,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void extractsTitleHintWhenPeriodAndGroupNameAppearTogether() {
+    void titleHint_periodAndGroupName_extracted() {
         InquiryParser.ParsedInquiry parsed = parser.parse("이번 달 여행 모임에서 받을 돈이 있어?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
