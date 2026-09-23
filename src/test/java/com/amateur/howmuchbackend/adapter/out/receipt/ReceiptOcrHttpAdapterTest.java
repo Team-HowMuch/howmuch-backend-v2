@@ -134,7 +134,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("모르는 필드가 늘어도 깨지지 않는다")
-    void toleratesUnknownFields() {
+    void receiptOcr_unknownFields_ignored() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess("""
                         {"ok": true, "elapsed_sec": 1.0, "raw": "", "brand_new_field": {"x": 1},
