@@ -25,7 +25,7 @@ class GroupMemberExitPolicyTest {
 
     @Test
     @DisplayName("관련 정산이 없거나 DRAFT와 COMPLETED뿐이면 종료를 허용한다")
-    void allowsWithoutBlockingSettlement() {
+    void groupMemberExit_noBlockingSettlement_allowed() {
         GroupMember member = activeMember(2L, GroupMemberRole.MEMBER);
 
         assertThatCode(() -> policy.validate(
