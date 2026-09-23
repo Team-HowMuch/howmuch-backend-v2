@@ -39,7 +39,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("REMOVED 멤버의 가입 시각을 갱신해 OWNER 복구 상태로 만든다")
-    void restoresRemovedMember() {
+    void member_removedOwnerRestore_joinTimeUpdated() {
         GroupMember restored = endedMember(GroupMemberStatus.REMOVED).restore(REACTIVATED_AT);
 
         assertThat(restored.status()).isEqualTo(GroupMemberStatus.ACTIVE);
