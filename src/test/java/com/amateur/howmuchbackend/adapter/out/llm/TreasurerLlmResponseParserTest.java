@@ -27,7 +27,7 @@ class TreasurerLlmResponseParserTest {
     }
 
     @Test
-    void returnsNullWhenGeminiPartsAreMissing() throws Exception {
+    void geminiResponse_missingParts_returnsNull() throws Exception {
         assertThat(TreasurerLlmResponseParser.geminiContent(objectMapper.readTree("""
                 {"candidates":[{"content":{"parts":[]}}]}
                 """))).isNull();
