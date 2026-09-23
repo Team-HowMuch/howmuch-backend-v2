@@ -156,7 +156,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("생성된 정산을 후속 단계에서 식별할 수 있도록 UUID와 기본 정보를 반환한다")
-    void createsSettlement() throws Exception {
+    void settlementCreation_validRequest_returnsUuidAndDefaults() throws Exception {
         when(createSettlementUseCase.create(any(CreateSettlementCommand.class))).thenReturn(result());
 
         mockMvc.perform(post("/api/v2/settlements")
