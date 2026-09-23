@@ -693,7 +693,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("빈 공개 ID 검색어는 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
-    void rejectsBlankParticipantCandidateSearch() throws Exception {
+    void participantSearch_blankPublicId_returnsInvalidArgument() throws Exception {
         mockMvc.perform(get(
                         "/api/v2/settlements/{settlementId}/participant-candidates/users",
                         SETTLEMENT_ID
