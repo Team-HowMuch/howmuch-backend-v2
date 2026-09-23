@@ -24,7 +24,7 @@ class GetTreasurerRecommendationsServiceTest {
     private TreasurerSettlementQuery treasurerSettlementQuery;
 
     @Test
-    void returnsEmptyMessageWhenThereIsNothingToProcess() {
+    void recommendations_noPendingWork_returnsEmptyMessage() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         GetTreasurerRecommendationsService service = service();
 
