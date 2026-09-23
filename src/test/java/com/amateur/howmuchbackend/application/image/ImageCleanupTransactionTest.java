@@ -93,7 +93,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void unknownCompletionPreservesBothImages(boolean group) {
+    void imageCompletion_unknownOutcome_preservesBothImages(boolean group) {
         var fixture = fixture(group, false);
         TransactionSynchronizationManager.initSynchronization();
         try {
