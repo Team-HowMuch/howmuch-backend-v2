@@ -138,7 +138,7 @@ class TreasurerCardCopyTest {
     }
 
     @Test
-    void buildsStatusSummaryCard() {
+    void settlementStatus_buildsSummaryCard() {
         var card = copy.statusCard(
                 List.of(
                         new PersonalSettlement(
