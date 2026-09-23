@@ -214,7 +214,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersFromAllSettlementsWhenTitleMatchesNothing() {
+    void titleFilter_noMatches_returnsAllSettlements() {
         UUID dinnerId = UUID.fromString("22222222-2222-2222-2222-222222222233");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
