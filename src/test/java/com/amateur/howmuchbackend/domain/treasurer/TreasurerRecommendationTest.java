@@ -37,7 +37,7 @@ class TreasurerRecommendationTest {
     }
 
     @Test
-    void ignoresCompletedSettlements() {
+    void recommendations_completedSettlement_ignored() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement completed = new PersonalSettlement(
                 UUID.randomUUID(),
