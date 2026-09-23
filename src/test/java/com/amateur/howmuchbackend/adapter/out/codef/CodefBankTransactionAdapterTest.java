@@ -96,7 +96,7 @@ class CodefBankTransactionAdapterTest {
             "20270101,000000,2026-12-31T15:00:00"
     })
     @DisplayName("KST 거래 벽시계를 자정·월말·연말에도 정확한 UTC로 복원한다")
-    void convertsKstWallClockToUtc(String date, String time, String expectedUtc) {
+    void bankTransaction_kstTimestamp_yearMonthBoundaries_toUtc(String date, String time, String expectedUtc) {
         var response = new ObjectMapper().valueToTree(Map.of(
                 "result", Map.of("code", "CF-00000"),
                 "data", Map.of("resTrHistoryList", java.util.List.of(Map.of(
