@@ -562,7 +562,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("일일 연락처 조회 한도를 초과하면 회원 조회를 거부한다")
-    void rejectsContactMatchingOverContactQuota() {
+    void contactMatch_dailyQuotaExceeded_rejectedBeforeLookup() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
         when(trackSettlementContactMatchUsagePort.recordUsage(
