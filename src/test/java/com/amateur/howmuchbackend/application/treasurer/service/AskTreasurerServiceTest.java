@@ -556,7 +556,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersSettlementStatusWithOpenAndCompletedCounts() {
+    void settlementStatus_openAndCompletedCounts_returned() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
