@@ -62,7 +62,7 @@ class SendSmsVerificationServiceTest {
     }
 
     @Test
-    void sendsOtpForUnregisteredPhone() {
+    void smsVerification_unregisteredPhone_sendsOtp() {
         when(loadUserPort.findByPhoneNumber(PHONE_NUMBER)).thenReturn(Optional.empty());
         when(smsVerificationStorePort.tryReserve(any(), any(), any(), any())).thenReturn(true);
 
