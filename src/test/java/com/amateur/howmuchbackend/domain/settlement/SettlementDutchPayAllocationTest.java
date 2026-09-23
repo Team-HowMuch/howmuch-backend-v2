@@ -19,7 +19,7 @@ class SettlementDutchPayAllocationTest {
 
     @Test
     @DisplayName("0원도 직접 배분할 수 있도록 음수가 아닌 금액을 허용한다")
-    void allowsZeroAmount() {
+    void dutchPay_zeroAmount_allowed() {
         var allocation = SettlementDutchPayAllocation.create(
                 SETTLEMENT_ID,
                 PARTICIPANT_ID,
