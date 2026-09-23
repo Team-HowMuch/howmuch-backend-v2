@@ -163,7 +163,7 @@ class SettlementPaymentExpenseServiceTest {
     @ParameterizedTest
     @CsvSource(value = {"NULL,결제내역", "'  행복식당  ',행복식당"}, nullValues = "NULL")
     @DisplayName("소유한 출금의 상호명과 UTC 거래 시각을 저장하고 최신 누적액을 반환한다")
-    void importsOwnedExpenseTransaction(String description, String expectedDescription) {
+    void paymentExpense_ownedWithdrawal_savesMerchantAndUtcTime(String description, String expectedDescription) {
         givenOwnedDraftForUpdate();
         Transaction transaction = transaction(
                 TRANSACTION_ID,
