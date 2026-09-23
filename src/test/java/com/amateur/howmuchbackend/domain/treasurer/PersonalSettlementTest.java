@@ -31,7 +31,7 @@ class PersonalSettlementTest {
     }
 
     @Test
-    void doesNotMarkDraftOrCompletedAsStale() {
+    void personalSettlement_draftOrCompleted_notStale() {
         LocalDateTime old = LocalDateTime.ofInstant(NOW.minus(PersonalSettlement.STALE_AFTER).minusSeconds(60), ZoneOffset.UTC);
 
         assertThat(settlement(SettlementStatus.REQUESTED, old).isStale(NOW)).isTrue();
