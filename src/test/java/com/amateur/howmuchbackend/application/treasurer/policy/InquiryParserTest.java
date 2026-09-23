@@ -215,7 +215,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void requiresSettlementContextForEverydayWords() {
+    void everydayWord_requiresSettlementContext() {
         assertThat(parser.parse("밥 남았어?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("치킨 남은 거 있어?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("언제 들어와?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
