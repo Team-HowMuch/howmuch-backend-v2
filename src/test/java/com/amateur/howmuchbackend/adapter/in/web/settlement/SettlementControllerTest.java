@@ -375,7 +375,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("부분 수정 의도를 보존하도록 전달된 필드만 Command로 변환해 결과를 반환한다")
-    void updatesSettlementDraft() throws Exception {
+    void settlementDraft_partialUpdate_mapsCommandAndReturnsResult() throws Exception {
         SettlementResult updated = new SettlementResult(
                 SETTLEMENT_ID,
                 1L,
