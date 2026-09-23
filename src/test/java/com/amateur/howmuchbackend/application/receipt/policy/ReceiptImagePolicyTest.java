@@ -63,7 +63,7 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("WebP는 받지 않는다. OCR 서비스가 JPEG·PNG만 받는다")
-    void rejectsWebp() {
+    void receiptImage_webp_unsupportedByOcrContract() {
         byte[] webp = new byte[16];
         System.arraycopy("RIFF".getBytes(StandardCharsets.US_ASCII), 0, webp, 0, 4);
         System.arraycopy("WEBP".getBytes(StandardCharsets.US_ASCII), 0, webp, 8, 4);
