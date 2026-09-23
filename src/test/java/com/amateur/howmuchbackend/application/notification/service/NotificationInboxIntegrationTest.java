@@ -364,7 +364,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void staleOutboxRecoveryPreservesNotificationAndSupportsAnotherClaim() {
+    void notificationOutbox_staleClaim_recoveredForNextWorker() {
         var n = request(); recorder.record(n);
         var claimed = outbox.claimNextReady(NOW).orElseThrow();
         assertThat(claimed.notificationId()).isEqualTo(n.id());
