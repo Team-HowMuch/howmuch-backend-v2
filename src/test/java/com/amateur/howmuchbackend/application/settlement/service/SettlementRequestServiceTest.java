@@ -179,7 +179,7 @@ class SettlementRequestServiceTest {
 
     @Test
     @DisplayName("수령 계좌가 없으면 토큰과 요청 데이터를 만들기 전에 거부한다")
-    void rejectsMissingReceivingAccount() {
+    void settlementRequest_missingAccount_rejectedEarly() {
         authenticate();
         Settlement settlement = new Settlement(
                 SETTLEMENT_ID,
