@@ -231,7 +231,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("밀린 분량은 한 주기 안에서 배치를 이어 붙여 정리한다")
-    void drainsBacklogWithinOneCycle() {
+    void answerCleanup_backlog_drainedWithinOneCycle() {
         for (int i = 0; i < 7; i++) {
             saveAnswer(owner, NOW.minusDays(31 + i));
         }
