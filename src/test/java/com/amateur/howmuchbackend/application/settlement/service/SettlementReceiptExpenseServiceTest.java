@@ -193,7 +193,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("다른 사용자는 비용이 발생하는 OCR 호출 전에 거부한다")
-    void rejectsOtherUserBeforeExternalExtraction() {
+    void receiptExpense_otherUser_rejectedBeforeOcr() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(2L));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(CREATOR_ID, SettlementStatus.DRAFT)));
