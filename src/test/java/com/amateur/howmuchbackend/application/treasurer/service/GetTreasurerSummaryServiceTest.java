@@ -21,7 +21,7 @@ class GetTreasurerSummaryServiceTest {
     private TreasurerSettlementQuery treasurerSettlementQuery;
 
     @Test
-    void aggregatesPersonalOpenAmounts() {
+    void summary_personalOpenAmounts_aggregated() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
