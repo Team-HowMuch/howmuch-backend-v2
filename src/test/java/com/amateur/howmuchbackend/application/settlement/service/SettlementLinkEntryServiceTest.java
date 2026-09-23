@@ -279,7 +279,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("링크 생성 시각이 없으면 정산 생성 시각을 요청 시각으로 사용한다")
-    void fallsBackToSettlementCreatedAtWhenLinkCreatedAtIsMissing() {
+    void settlementLink_missingCreatedAt_usesSettlementCreatedAt() {
         arrangeItemAllocationAccess();
         SettlementLink link = mock(SettlementLink.class);
         when(link.isUsableAt(any())).thenReturn(true);
