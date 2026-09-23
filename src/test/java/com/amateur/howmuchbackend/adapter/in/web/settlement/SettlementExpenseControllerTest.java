@@ -176,7 +176,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("금액만 부분 수정해 수정된 지출과 최신 누적액을 반환한다")
-    void updatesExpenseAmount() throws Exception {
+    void expenseAmount_update_returnsUpdatedExpenseAndTotal() throws Exception {
         when(updateSettlementExpenseUseCase.update(
                 eq(SETTLEMENT_ID),
                 eq(EXPENSE_ID),
