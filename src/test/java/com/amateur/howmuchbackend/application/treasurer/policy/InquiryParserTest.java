@@ -143,7 +143,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void doesNotBuildTitleFromGrammarLeftovers() {
+    void titleHint_grammarRemainder_notExtracted() {
         InquiryParser.ParsedInquiry parsed = parser.parse("보낼 정산이랑 받을 정산은 각각 얼마야?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
