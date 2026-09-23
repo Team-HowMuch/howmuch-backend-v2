@@ -100,7 +100,7 @@ class CommonCodeListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("검색 결과가 없으면 개수 집계 없이 한 쿼리로 빈 목록을 반환한다")
-    void skipsCountQueryWhenNoGroupsMatch() {
+    void commonCodeSearch_noMatches_skipsCountQuery() {
         insertGroup(prefix + "OTHER", "검색 제외", null, true, 1, 2);
 
         assertThat(findAllWithQueryCount(prefix + "MISSING", 1)).isEmpty();
