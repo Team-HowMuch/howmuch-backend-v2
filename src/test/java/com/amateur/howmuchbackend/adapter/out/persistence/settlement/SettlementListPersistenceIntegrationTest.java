@@ -153,7 +153,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("RECEIVE는 생성자 정산의 총액과 참여자 수를 조회한다")
-    void loadsReceiveSettlementSummary() {
+    void receiveSettlement_creatorAmountAndMemberCount_loaded() {
         var result = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
@@ -170,7 +170,7 @@ class SettlementListPersistenceIntegrationTest {
             // Share가 아직 없어도 납부 대상은 생성자를 뺀 실제 인원이어야 한다.
             assertThat(item.payableParticipantCount()).isEqualTo(1);
             assertThat(item.completedParticipantCount()).isZero();
-            // JDBC rounds nanosecond audit timestamps to PostgreSQL microsecond precision.
+            // PostgreSQL은 감사 시각을 마이크로초 단위로 저장하므로 나노초 차이는 허용한다.
             assertThat(item.requestedAt()).isCloseTo(receiveCreatedAt, within(1, MICROS));
             assertThat(item.amountToPay()).isNull();
             assertThat(item.groups()).isEmpty();
