@@ -150,7 +150,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("활성 멤버 목록을 OWNER 우선 순서와 현재 사용자 정보로 반환한다")
-    void getsActiveMembers() {
+    void groupMembers_activeList_ownerFirstAndCurrentUserIncluded() {
         GroupMember owner = activeMember(10L, OWNER_ID, GroupMemberRole.OWNER);
         GroupMember member = activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER);
         when(loadGroupMemberPort.findActiveByGroupId(GROUP_ID)).thenReturn(List.of(owner, member));
