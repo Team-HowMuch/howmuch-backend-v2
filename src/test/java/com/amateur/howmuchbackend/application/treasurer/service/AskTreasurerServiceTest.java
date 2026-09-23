@@ -433,7 +433,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void keepsAnswerTruthfulWhenUserHasNoSettlementAtAll() {
+    void answer_noSettlements_remainsTruthful() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         AskTreasurerService service = service();
 
