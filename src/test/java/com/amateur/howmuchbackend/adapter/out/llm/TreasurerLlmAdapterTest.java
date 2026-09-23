@@ -21,7 +21,7 @@ class TreasurerLlmAdapterTest {
     private RestClient restClient;
 
     @Test
-    void returnsEmptyWhenProviderIsDisabled() {
+    void treasurerLlm_disabledProvider_returnsEmpty() {
         TreasurerLlmAdapter adapter = adapter("none");
         TreasurerAnswerDraft draft = draft();
 
