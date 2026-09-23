@@ -117,7 +117,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void oversizeUploadReturnsPayloadTooLarge() throws Exception {
+    void upload_overLimit_returnsPayloadTooLarge() throws Exception {
         // 업로드 한도 초과가 500이면 클라이언트는 서버가 고장난 줄 안다. 413은 영수증
         // OCR뿐 아니라 그룹·프로필 이미지 업로드에도 함께 적용된다.
         var expected = CommonStatusCode.PAYLOAD_TOO_LARGE;
