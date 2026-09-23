@@ -151,7 +151,7 @@ class AccountDeletionPersistenceIntegrationTest {
     @ParameterizedTest
     @EnumSource(value = SettlementStatus.class, names = {"DRAFT", "REQUESTED", "AWAITING_DEPOSIT", "SUSPENDED"})
     @DisplayName("진행 중 정산이 수령 계좌로 사용하면 계좌 삭제를 거부한다")
-    void rejectsAccountUsedByInProgressSettlement(SettlementStatus status) {
+    void accountDeletion_inProgressSettlement_reference_rejected(SettlementStatus status) {
         jdbcTemplate.update("UPDATE settlements SET status = ? WHERE id = ?", status.name(), settlementId);
 
         assertThatThrownBy(() -> deleteAccountUseCase.delete(deletedAccountId))
