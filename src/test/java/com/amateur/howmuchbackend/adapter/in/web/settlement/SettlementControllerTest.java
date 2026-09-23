@@ -465,7 +465,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("클라이언트가 최신 상태를 다시 조회하도록 동시 수정 충돌을 409 CONCURRENT_UPDATE로 반환한다")
-    void returnsConflictForConcurrentUpdate() throws Exception {
+    void settlementUpdate_concurrentModification_returnsConflict() throws Exception {
         when(updateSettlementDraftUseCase.update(eq(SETTLEMENT_ID), any(UpdateSettlementDraftCommand.class)))
                 .thenThrow(new OptimisticLockingFailureException("stale settlement"));
 
