@@ -108,7 +108,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void unchangedImageIsNotDeleted(boolean group) {
+    void imageUpdate_unchangedImage_notDeleted(boolean group) {
         var fixture = fixture(group, true);
         new TransactionTemplate(new TestTransactionManager()).executeWithoutResult(status -> fixture.update.run());
         fixture.verifyNotDeleted.accept(OLD);
