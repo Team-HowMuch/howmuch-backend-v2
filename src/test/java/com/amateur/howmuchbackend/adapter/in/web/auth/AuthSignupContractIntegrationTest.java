@@ -158,7 +158,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("OpenAPI에 휴대폰 번호 가입 여부 확인 API를 공개한다")
-    void documentsPhoneNumberRegistrationCheck() throws Exception {
+    void phoneRegistrationCheck_openApiRoute_documented() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andReturn()
