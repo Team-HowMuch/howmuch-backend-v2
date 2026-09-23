@@ -174,7 +174,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void expiryAllowsRetryAndOldSuccessCannotResetNewLock() throws Exception {
+    void loginAttempt_expiryAllowsRetry_oldSuccessCannotResetNewLock() throws Exception {
         var old = attempts.reserve(phoneHash, 1, Duration.ofMillis(100)).orElseThrow();
         assertThat(attempts.reserve(phoneHash, 1, LOCK)).isEmpty();
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
