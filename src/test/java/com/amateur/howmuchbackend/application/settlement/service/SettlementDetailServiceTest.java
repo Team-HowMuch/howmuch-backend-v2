@@ -302,7 +302,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("연결 참여자에게 전체 요약과 자신의 납부 행만 반환한다")
-    void limitsParticipantDetailsToSelf() {
+    void settlementDetail_linkedParticipant_seesOwnPaymentRow() {
         givenSettlement(PAYER_ID);
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
