@@ -108,7 +108,7 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("분석 서비스에 닿지 못하면 503으로 재시도를 알린다")
-    void returnsServiceUnavailableWhenOcrIsDown() throws Exception {
+    void receiptAnalysis_unavailableService_returnsRetryResponse() throws Exception {
         when(analyzeReceiptUseCase.analyze(any()))
                 .thenThrow(ApplicationException.of(SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE));
 
