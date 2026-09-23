@@ -75,7 +75,7 @@ class SettlementReminderCooldownReaderTest {
 
     @Test
     @DisplayName("활성 쿨다운이 없으면 다음 가능 시각을 반환하지 않는다")
-    void returnsEmptyWithoutActiveCooldown() {
+    void reminderCooldown_noActiveTtl_returnsEmpty() {
         when(cooldownPort.findRemainingCooldown(SETTLEMENT_ID, FIRST_PARTICIPANT_ID))
                 .thenReturn(Optional.empty());
         when(cooldownPort.findRemainingCooldown(SETTLEMENT_ID, SECOND_PARTICIPANT_ID))
