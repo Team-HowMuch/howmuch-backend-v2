@@ -20,7 +20,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void extractsTitleHintForGroupName() {
+    void titleHint_groupName_extracted() {
         InquiryParser.ParsedInquiry parsed = parser.parse("여행 모임에서 받을 돈이 있어?");
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
