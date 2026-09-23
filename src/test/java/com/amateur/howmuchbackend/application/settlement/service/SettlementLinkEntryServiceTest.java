@@ -201,7 +201,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("중단 후 재개해 REQUESTED로 돌아온 더치페이도 송금 안내로 연다")
-    void opensResumedDutchPayAsTransferReady() {
+    void settlementLink_resumedDutchPay_opensTransferInstructions() {
         arrangeLink();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
                 settlement(SettlementAllocationType.DUTCH_PAY, SettlementStatus.REQUESTED)
