@@ -23,7 +23,7 @@ class PersonalSettlementTest {
     }
 
     @Test
-    void countsOnlyIssuedSendSettlementsAsExpense() {
+    void personalSettlement_issuedSendOnly_countsAsExpense() {
         assertThat(send(SettlementStatus.REQUESTED).countsAsExpense()).isTrue();
         assertThat(send(SettlementStatus.COMPLETED).countsAsExpense()).isTrue();
         assertThat(send(SettlementStatus.DRAFT).countsAsExpense()).isFalse();
