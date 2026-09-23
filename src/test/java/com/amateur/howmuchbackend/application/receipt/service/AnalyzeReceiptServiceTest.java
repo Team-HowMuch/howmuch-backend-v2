@@ -124,7 +124,7 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("빈 이미지는 OCR까지 보내지 않는다")
-    void rejectsEmptyImage() {
+    void receiptAnalysis_emptyBytes_rejectedBeforeOcr() {
         assertThatThrownBy(() -> service().analyze(
                 new AnalyzeReceiptCommand("a.jpg", "image/jpeg", new byte[0])))
                 .isInstanceOf(ApplicationException.class)
