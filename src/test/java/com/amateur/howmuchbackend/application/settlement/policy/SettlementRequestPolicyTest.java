@@ -50,7 +50,7 @@ class SettlementRequestPolicyTest {
 
     @Test
     @DisplayName("누락·0원·총액 불일치 더치페이 배분은 요청 확정하지 않는다")
-    void rejectsInvalidDutchPayAllocations() {
+    void settlementRequest_dutchPayInvalidAllocation_rejected() {
         assertStatus(
                 List.of(allocation(CREATOR_PARTICIPANT_ID, 10_000)),
                 SettlementStatusCode.SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE
