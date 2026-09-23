@@ -226,7 +226,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("완료된 정산은 남아 있는 참여 문맥으로 품목 화면을 다시 열 수 없다")
-    void rejectsCompletedSettlementAccess() {
+    void itemAllocation_completedSettlement_rejectsOldContext() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
                 context(FIRST_PARTICIPANT_ID)
