@@ -939,7 +939,7 @@ class AskTreasurerServiceTest {
 
     @Test
     @DisplayName("의도를 못 알아들은 답변도 저장한다")
-    void storesUnmatchedAnswerToo() {
+    void answer_unknownIntent_persisted() {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand("오늘 날씨 어때"));
