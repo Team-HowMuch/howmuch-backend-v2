@@ -143,7 +143,7 @@ class CommonCodePersistenceAdapterCacheTest {
 
     @Test
     @DisplayName("그룹 저장 트랜잭션 롤백 시 기존 활성 CommonCode 캐시를 유지한다")
-    void keepsCachesAfterRollback() {
+    void commonCodeCache_saveRolledBack_preserved() {
         CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
                 new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
         );
