@@ -231,7 +231,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("회원 참여자의 저장된 아바타 바이트와 Content-Type을 반환한다")
-    void getsLinkedParticipantAvatar() {
+    void participantAvatar_linkedMember_returnsStoredBytesAndType() {
         byte[] content = {(byte) 0x89, 0x50, 0x4E, 0x47};
         ProfileImage image = new ProfileImage("image/png", content);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
