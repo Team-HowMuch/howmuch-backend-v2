@@ -694,7 +694,7 @@ class AskTreasurerServiceTest {
             "내 정산 중에 뭐가 남았어?, SETTLEMENT_STATUS",
             "아직 안 낸 정산 있어?, SEND_SETTLEMENTS"
     })
-    void answersColloquialSettlementQuestionInsteadOfClarifying(String question, InquiryIntent expected) {
+    void colloquialSettlementQuestion_answeredWithoutClarification(String question, InquiryIntent expected) {
         when(generateTreasurerAnswerPort.generate(any()))
                 .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
                         .fallbackAnswer()));
