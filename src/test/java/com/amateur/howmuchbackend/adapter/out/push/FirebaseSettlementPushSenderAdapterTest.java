@@ -41,7 +41,7 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     @Test
     @DisplayName("참여와 독촉 알림은 개인정보 없이 앱 라우팅 데이터만 전달한다")
-    void sendsPrivacySafeSettlementPayloads() throws Exception {
+    void settlementPush_joinAndReminderPayloads_excludePrivateData() throws Exception {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
         when(firebaseMessaging.send(any(Message.class))).thenReturn("message-id");
         var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
