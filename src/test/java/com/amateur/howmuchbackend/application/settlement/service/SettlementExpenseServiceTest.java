@@ -269,7 +269,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("잘못 가져온 결제내역 지출도 초안에서 삭제할 수 있다")
-    void removesImportedExpense() {
+    void importedExpense_draftDelete_allowed() {
         givenOwnedDraftForUpdate();
         SettlementExpense expense = SettlementExpense.paymentHistory(
                 SETTLEMENT_ID,
