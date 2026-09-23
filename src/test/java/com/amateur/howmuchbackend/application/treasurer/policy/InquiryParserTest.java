@@ -86,7 +86,7 @@ class InquiryParserTest {
     }
 
     @Test
-    void rejectsBlankAndUnknownQuestions() {
+    void blankOrUnknownQuestion_classifiedUnknown() {
         assertThat(parser.parse(" ").intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse(null).intent()).isEqualTo(InquiryIntent.UNKNOWN);
         assertThat(parser.parse("푸딩은 어떻게 만드나요?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
