@@ -912,7 +912,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("사진 없는 행은 avatarUrl 필드를 null로 반환한다")
-    void returnsNullAvatarUrl() throws Exception {
+    void participantAvatar_missingPhoto_returnsNullUrl() throws Exception {
         when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(
                 detailResult(SettlementDetailResult.ViewerRole.CREATOR, false)
         );
