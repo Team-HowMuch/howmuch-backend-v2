@@ -146,7 +146,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("외부에서 유입된 지출 목록의 합계가 long 범위를 넘으면 500 대신 명시적인 오류를 반환한다")
-    void rejectsExpenseListThatOverflowsTotal() {
+    void settlementExpenseTotal_externalOverflow_returnsExplicitError() {
         givenOwnedDraft();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
                 expense(EXPENSE_ID, "최대 금액", Long.MAX_VALUE, 0),
