@@ -278,7 +278,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("단일 결제내역 정산의 총액과 상호명과 결제일을 반환한다")
-    void returnsPaymentHistoryPaymentInfo() {
+    void settlementHistory_singleImport_returnsStoreDateAndTotal() {
         LocalDateTime paidAt = LocalDateTime.of(2026, 8, 25, 19, 30);
         givenSettlement(CREATOR_ID);
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
