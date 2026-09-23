@@ -229,7 +229,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void registeredPhoneIsRejectedBeforeRedisReservation() {
+    void smsOtp_registeredPhone_rejectedBeforeRedisReservation() {
         redis.delete(key);
         redis.delete(cooldownKey());
         when(loadUserPort.findByPhoneNumber(initial.phoneNumber())).thenReturn(Optional.of(mock(User.class)));
