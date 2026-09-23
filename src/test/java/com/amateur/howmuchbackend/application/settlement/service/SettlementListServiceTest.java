@@ -36,7 +36,7 @@ class SettlementListServiceTest {
     private LoadSettlementListPort loadSettlementListPort;
 
     @Test
-    void loadsListForCurrentUserAndPreservesNumericFieldsAndRawStatus() {
+    void settlementList_currentUser_preservesNumbersAndRawStatus() {
         SettlementListService service = new SettlementListService(currentActorPort, loadSettlementListPort);
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID,
