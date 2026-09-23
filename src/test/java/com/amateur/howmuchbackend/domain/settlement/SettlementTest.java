@@ -96,7 +96,7 @@ class SettlementTest {
     class ReceivingAccountPolicy {
         @Test
         @DisplayName("송금 안내에 사용할 수 있도록 초안에 수령 계좌를 선택한다")
-        void selectsReceivingAccount() {
+        void settlement_draftReceivingAccount_selected() {
             Settlement selected = draft().selectReceivingAccount(7L, CREATED_AT.plusMinutes(1));
 
             assertThat(selected.receivingAccountId()).isEqualTo(7L);
