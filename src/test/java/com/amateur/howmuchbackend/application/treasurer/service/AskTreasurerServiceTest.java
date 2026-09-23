@@ -859,7 +859,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersOcrGuideWithoutCallingLlm() {
+    void ocrGuide_answeredWithoutLlm() {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand("OCR 정산은 어떻게 해?"));
