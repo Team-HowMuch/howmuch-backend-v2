@@ -90,7 +90,7 @@ class SettlementReminderServiceTest {
     void clearTransaction() { TransactionSynchronizationManager.clearSynchronization(); }
 
     @Test
-    void storesReminderAndKeepsCooldownOnCommitWithoutFcmToken() {
+    void reminder_missingFcmToken_storedAndCooldownCommitted() {
         givenTarget();
         when(cooldownPort.reserve(any(), any(), anyString(), eq(Duration.ofMinutes(30)))).thenReturn(true);
         when(recorder.record(any())).thenReturn(true);
