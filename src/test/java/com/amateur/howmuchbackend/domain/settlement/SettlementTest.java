@@ -135,7 +135,7 @@ class SettlementTest {
     class StatusTransitionPolicy {
         @Test
         @DisplayName("입금 확인 절차를 보장하기 위해 정의된 순서대로만 완료 상태에 도달한다")
-        void followsDepositConfirmationFlow() {
+        void settlement_depositFlow_validTransitions_complete() {
             Settlement requested = draft().request(CREATED_AT.plusMinutes(1));
             Settlement awaitingDeposit = requested.awaitDeposit(CREATED_AT.plusMinutes(2));
             Settlement completed = awaitingDeposit.complete(CREATED_AT.plusMinutes(3));
