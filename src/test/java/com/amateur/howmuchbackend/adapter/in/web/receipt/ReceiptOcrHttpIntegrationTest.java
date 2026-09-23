@@ -114,7 +114,7 @@ class ReceiptOcrHttpIntegrationTest {
 
     @Test
     @DisplayName("file 파트가 없으면 500이 아니라 400이다")
-    void rejectsMissingFilePart() throws Exception {
+    void receiptUpload_missingFilePart_returnsBadRequest() throws Exception {
         assertError(post(accessToken, part("image", "receipt.jpg", "image/jpeg", SMALL_IMAGE)),
                 400, "INVALID_ARGUMENT");
     }
