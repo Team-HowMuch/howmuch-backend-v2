@@ -171,7 +171,7 @@ class SecurityFilterChainIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"missing", "", "not-a-uuid"})
     @DisplayName("실제 공개 API에서 필수 헤더 누락·빈 값·형식 오류는 400이다")
-    void rejectsInvalidRequiredHeaderOverHttp(String value) throws Exception {
+    void requiredHeader_httpMissingOrMalformed_returns400(String value) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
                 + "/api/v2/settlement-links/" + "x".repeat(43) + "/transfer-instruction"))
                 .timeout(Duration.ofSeconds(10));
