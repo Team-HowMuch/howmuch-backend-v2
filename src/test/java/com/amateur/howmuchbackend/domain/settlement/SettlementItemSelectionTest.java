@@ -42,7 +42,7 @@ class SettlementItemSelectionTest {
 
     @Test
     @DisplayName("비율과 수량을 함께 바꾼다")
-    void changesFractionAndUnits() {
+    void itemSelection_fractionAndUnits_changedTogether() {
         SettlementItemSelection changed = selection(SettlementItemAllocationFraction.THIRD, 1)
                 .change(SettlementItemAllocationFraction.QUARTER, 3, NOW.plusMinutes(1));
 
