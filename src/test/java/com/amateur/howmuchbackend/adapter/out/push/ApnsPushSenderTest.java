@@ -71,7 +71,7 @@ class ApnsPushSenderTest {
     }
 
     @Test
-    void rejectsUnknownEnvironment() {
+    void apnsPush_unknownEnvironment_rejected() {
         assertThatThrownBy(() -> new ApnsPushSender(
                 new ApnsProperties("key", "team", "path", "unknown"),
                 new ObjectMapper(), mock(HttpClient.class)))
