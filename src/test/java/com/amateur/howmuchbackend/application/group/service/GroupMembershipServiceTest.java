@@ -137,7 +137,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("REMOVED 멤버의 초대 코드 가입을 거절한다")
-    void rejectsRemovedMemberJoin() {
+    void groupJoin_removedMember_rejected() {
         givenJoinGroup();
         when(loadGroupMemberPort.findByGroupIdAndUserIdForUpdate(GROUP_ID, MEMBER_ID))
                 .thenReturn(Optional.of(endedMember(GroupMemberStatus.REMOVED)));
