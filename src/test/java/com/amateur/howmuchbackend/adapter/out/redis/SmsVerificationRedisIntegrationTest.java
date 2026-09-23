@@ -373,7 +373,7 @@ class SmsVerificationRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void simultaneousSendsReserveAndDeliverExactlyOnce(boolean legacyExists) throws Exception {
+    void smsOtp_concurrentSends_reservedAndDeliveredOnce(boolean legacyExists) throws Exception {
         redis.delete(key);
         if (legacyExists) {
             saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(), initial.codeHash(),
