@@ -216,7 +216,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("부분 입금은 확인 금액만 누적하고 정산을 입금 대기 상태로 유지한다")
-    void keepsAwaitingDepositAfterPartialPayment() {
+    void settlementDeposit_partialPayment_remainsAwaiting() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("3000"));
 
