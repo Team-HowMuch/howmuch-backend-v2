@@ -139,7 +139,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void refusesRequestedParticipantWhoSubmittedEvenWithPreservedShare() {
+    void reminder_submittedParticipantAfterResume_refused() {
         givenRequestedTargetWithoutShare();
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(share()));
