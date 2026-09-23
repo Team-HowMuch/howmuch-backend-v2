@@ -95,7 +95,7 @@ class SettlementDepositPersistenceIntegrationTest {
 
     @Test
     @DisplayName("삭제 후 재연결된 같은 수금 계좌의 미완료 Share도 함께 조회한다")
-    void loadsCompetingCandidatesAcrossAccountLifecycles() {
+    void depositCandidates_reconnectedAccount_includesPendingShares() {
         var candidates = adapter.findUnfinishedPayableCandidatesByReceivingAccount(
                 creatorId,
                 sourceAccountId,
