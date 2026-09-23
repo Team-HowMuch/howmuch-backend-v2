@@ -444,7 +444,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("정산 수명주기 권한·상태 오류를 기존 Application 오류 계약으로 반환한다")
-    void returnsSettlementLifecycleErrors() throws Exception {
+    void settlementLifecycle_invalidTransition_returnsError() throws Exception {
         when(suspendSettlementUseCase.suspend(SETTLEMENT_ID))
                 .thenThrow(ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
         when(resumeSettlementUseCase.resume(SETTLEMENT_ID))
