@@ -184,7 +184,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("연결하지 못하면 잠시 후 다시 시도하도록 알린다")
-    void treatsConnectionFailureAsUnavailable() {
+    void receiptOcr_connectionFailure_returnsUnavailable() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(request -> {
                     throw new java.net.ConnectException("connection refused");
