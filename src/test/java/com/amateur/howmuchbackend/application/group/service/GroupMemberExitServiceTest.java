@@ -97,7 +97,7 @@ class GroupMemberExitServiceTest {
 
     @Test
     @DisplayName("차단 정산이 있으면 멤버 상태를 변경하지 않는다")
-    void blocksExitWithOngoingSettlement() {
+    void groupMemberExit_ongoingSettlement_keepsMembershipUnchanged() {
         GroupMember target = member(MEMBER_ID, MEMBER_USER_ID, GroupMemberRole.MEMBER);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(MEMBER_USER_ID));
         when(groupAccessService.requireActiveMember(GROUP_ID, MEMBER_USER_ID)).thenReturn(target);
