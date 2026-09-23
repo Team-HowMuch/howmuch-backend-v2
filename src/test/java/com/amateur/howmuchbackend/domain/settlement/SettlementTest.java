@@ -58,7 +58,7 @@ class SettlementTest {
     class DraftUpdatePolicy {
         @Test
         @DisplayName("PATCH에서 전달하지 않은 필드는 기존 정산 내용을 유지한다")
-        void preservesFieldsOmittedFromPatch() {
+        void settlementPatch_omittedFields_preserved() {
             Settlement draft = draft();
 
             Settlement titleUpdated = draft.updateDraft("최종 회식 정산", null, CREATED_AT.plusMinutes(1));
