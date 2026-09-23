@@ -30,7 +30,7 @@ class SettlementRequestPolicyTest {
 
     @Test
     @DisplayName("더치페이 참여자별 배분이 총액과 일치하면 같은 순서의 불변 Share를 만든다")
-    void preparesDutchPayShares() {
+    void settlementRequest_dutchPayTotalMatches_createsOrderedShares() {
         var shares = policy.prepareShares(
                 settlement(SettlementAllocationType.DUTCH_PAY),
                 participants(),
