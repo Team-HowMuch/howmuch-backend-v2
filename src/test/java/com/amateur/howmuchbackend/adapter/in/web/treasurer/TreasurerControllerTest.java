@@ -214,7 +214,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("answerId 형식이 잘못되면 400을 반환한다")
-    void rejectsMalformedAnswerId() throws Exception {
+    void answerReport_malformedId_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v2/treasurer/answers/not-a-uuid/reports")
                         .contentType("application/json")
                         .content("""
