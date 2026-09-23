@@ -131,7 +131,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("정산이 없으면 참여자를 찾기 전에 거부한다")
-    void rejectsMissingSettlement() {
+    void memberTransferInstruction_missingSettlement_rejected() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.empty());
 
