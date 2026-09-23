@@ -232,7 +232,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("Share가 없어도 품목 선택을 제출한 참여자는 독촉 쿨다운 복원 대상에서 제외한다")
-    void excludesSubmittedParticipantWithoutShareFromReminderCooldown() {
+    void settlementReminder_submittedWithoutShare_noCooldown() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
