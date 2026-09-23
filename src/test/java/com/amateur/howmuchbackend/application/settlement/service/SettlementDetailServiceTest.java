@@ -158,7 +158,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("품목 선택 대기 상세는 Share가 없는 연결 참여자의 다음 독촉 가능 시각을 반환한다")
-    void restoresItemSelectionReminderCooldownForCreator() {
+    void settlementDetail_itemSelectionWithoutShare_restoresCooldown() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
