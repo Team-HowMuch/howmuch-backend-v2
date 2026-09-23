@@ -267,7 +267,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("생성자가 아닌 사용자는 정산을 삭제하지 않는다")
-    void rejectsDeletionByAnotherUser() {
+    void settlement_otherUserDelete_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(draft()));
