@@ -116,7 +116,7 @@ class AccountDeletionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("삭제 기록을 보존하고 같은 후보를 새 Account ID로 다시 연결한다")
-    void deletesAccountAndPreservesRecord() {
+    void accountDeletion_recordPreserved_reconnectsWithNewId() {
         deleteAccountUseCase.delete(deletedAccountId);
 
         Account reconnected = saveAccountPort.saveAll(List.of(new Account(
