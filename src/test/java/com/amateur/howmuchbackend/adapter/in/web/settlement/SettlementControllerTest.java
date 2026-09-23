@@ -332,7 +332,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("그룹 필터의 잘못된 식별자를 INVALID_ARGUMENT로 거부한다")
-    void rejectsNonPositiveSettlementListGroupId() throws Exception {
+    void settlementList_nonPositiveGroupId_returnsInvalidArgument() throws Exception {
         mockMvc.perform(get("/api/v2/settlements").queryParam("groupId", "0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
