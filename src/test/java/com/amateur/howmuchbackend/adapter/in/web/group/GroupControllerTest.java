@@ -274,7 +274,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("OWNER 직접 추가 결과를 201로 반환한다")
-    void addsGroupMember() throws Exception {
+    void groupMember_ownerAddition_returnsCreated() throws Exception {
         when(addGroupMemberUseCase.add(any(), any())).thenReturn(memberResult());
 
         mockMvc.perform(post("/api/v2/groups/{groupId}/members", 10L)
