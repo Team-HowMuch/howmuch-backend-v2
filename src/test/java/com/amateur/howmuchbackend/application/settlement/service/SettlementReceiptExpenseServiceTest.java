@@ -112,7 +112,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("앱 영수증 품목 합계 overflow를 잘못된 요청으로 거부한다")
-    void rejectsSubmittedReceiptTotalOverflow() {
+    void receiptExpense_totalOverflow_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         CreateSettlementReceiptExpenseCommand command =
                 new CreateSettlementReceiptExpenseCommand(
