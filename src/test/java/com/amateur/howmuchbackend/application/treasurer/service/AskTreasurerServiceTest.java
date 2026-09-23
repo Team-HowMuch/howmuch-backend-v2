@@ -950,7 +950,7 @@ class AskTreasurerServiceTest {
 
     @Test
     @DisplayName("저장이 실패해도 답변은 나가고 answerId만 비어 있다")
-    void stillAnswersWhenStoringFails() {
+    void answerPersistenceFailure_responseReturnedWithoutId() {
         doThrow(new RuntimeException("저장 실패"))
                 .when(saveTreasurerAnswerPort).save(any(SavedTreasurerAnswer.class));
         AskTreasurerService service = service();
