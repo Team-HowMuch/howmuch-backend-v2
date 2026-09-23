@@ -227,7 +227,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("확정 Share 또는 수금 계좌가 누락되면 불완전한 송금 정보를 반환하지 않는다")
-    void rejectsIncompleteTransferInstruction() {
+    void transferInstruction_missingShareOrAccount_rejected() {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
