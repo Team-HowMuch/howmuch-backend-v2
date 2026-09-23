@@ -84,7 +84,7 @@ class LoginAttemptRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 4})
-    void concurrentRequestsCannotVerifyMoreThanRemainingAttempts(int failures) throws Exception {
+    void loginAttempt_concurrentRequests_cannotExceedRemaining(int failures) throws Exception {
         if (failures > 0) redis.opsForValue().set(key, String.valueOf(failures), LOCK);
         int allowed = 5 - failures;
         var entered = new CountDownLatch(allowed);
@@ -109,7 +109,7 @@ class LoginAttemptRedisIntegrationTest {
             try {
                 start.countDown();
                 await(entered);
-                // Excess requests must finish while all permitted PIN checks are still paused.
+                // 허용된 PIN 검증이 모두 대기 중이어도 초과 요청은 그보다 먼저 끝나야 한다.
                 await(rejected);
                 verify(encoder, times(allowed)).matches(PIN, "synthetic-hash");
                 release.countDown();
