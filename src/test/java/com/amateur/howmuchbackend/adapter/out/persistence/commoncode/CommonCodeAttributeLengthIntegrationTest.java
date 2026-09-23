@@ -27,7 +27,7 @@ class CommonCodeAttributeLengthIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(ints = {100, 101, 255})
-    void addsReadsAndUpdatesAttributesWithoutTruncation(int length) {
+    void commonCodeAttributes_maxLength_savedWithoutTruncation(int length) {
         String groupCode = "ATTR_" + UUID.randomUUID().toString().replace("-", "");
         var empty = adapter.create(CommonCodeGroup.create(groupCode, "속성 길이", null,
                 null, null, null, true));
