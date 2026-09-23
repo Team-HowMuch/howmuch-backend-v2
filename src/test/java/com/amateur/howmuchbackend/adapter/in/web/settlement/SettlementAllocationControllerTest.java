@@ -194,7 +194,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("참여자 전원의 금액을 Command로 변환해 한 번에 저장한다")
-    void replacesDutchPayAllocations() throws Exception {
+    void dutchPayAllocations_allParticipants_savedOnce() throws Exception {
         when(replaceDutchPayAllocationsUseCase.replace(
                 SETTLEMENT_ID,
                 new ReplaceSettlementDutchPayAllocationsCommand(List.of(
