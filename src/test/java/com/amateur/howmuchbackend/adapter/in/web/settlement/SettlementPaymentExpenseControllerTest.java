@@ -62,7 +62,7 @@ class SettlementPaymentExpenseControllerTest {
 
     @Test
     @DisplayName("월별 출금 후보와 기존 가져오기 여부를 반환한다")
-    void getsPaymentExpenseCandidates() throws Exception {
+    void paymentExpenseCandidates_monthly_returnsImportState() throws Exception {
         when(getCandidatesUseCase.get(
                 SETTLEMENT_ID,
                 10L,
@@ -88,7 +88,7 @@ class SettlementPaymentExpenseControllerTest {
 
     @Test
     @DisplayName("선택한 결제내역을 정산 지출로 가져온 결과를 반환한다")
-    void importsPaymentExpense() throws Exception {
+    void paymentExpense_selectedPayment_mapsToSettlementExpense() throws Exception {
         when(importExpenseUseCase.importExpense(
                 SETTLEMENT_ID,
                 new ImportSettlementPaymentExpenseCommand(10L, 20L)
@@ -124,7 +124,7 @@ class SettlementPaymentExpenseControllerTest {
 
     @Test
     @DisplayName("양수가 아닌 계좌 ID와 결제내역 ID를 UseCase 호출 전에 거부한다")
-    void rejectsInvalidImportRequest() throws Exception {
+    void paymentExpenseImport_invalidIds_rejectedBeforeUseCase() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/expenses/payment-history",
                         SETTLEMENT_ID

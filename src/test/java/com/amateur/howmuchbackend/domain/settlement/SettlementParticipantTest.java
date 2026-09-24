@@ -23,7 +23,7 @@ class SettlementParticipantTest {
 
     @Test
     @DisplayName("등록 사용자와 그룹 구성원은 회원 ID로 식별한다")
-    void createsParticipantsLinkedToUsers() {
+    void participant_registeredUserAndGroupMember_identifiedByUserId() {
         SettlementParticipant registered = SettlementParticipant.registeredUser(
                 SETTLEMENT_ID,
                 1L,
@@ -52,7 +52,7 @@ class SettlementParticipantTest {
 
     @Test
     @DisplayName("연락처 회원은 회원 ID로, 비회원 연락처는 전화번호 hash로 식별한다")
-    void createsLinkedAndUnlinkedContacts() {
+    void participant_linkedAndUnlinkedContact_identifiersAssigned() {
         SettlementParticipant linked = SettlementParticipant.linkedContact(
                 SETTLEMENT_ID,
                 1L,
@@ -80,7 +80,7 @@ class SettlementParticipantTest {
     @NullSource
     @ValueSource(strings = {"", "   ", "\u2003", "\u3000"})
     @DisplayName("브라우저에서 참여자를 구분할 수 있도록 빈 표시 이름을 거부한다")
-    void rejectsBlankDisplayName(String displayName) {
+    void participant_blankDisplayName_rejected(String displayName) {
         assertThatThrownBy(() -> SettlementParticipant.registeredUser(
                 SETTLEMENT_ID,
                 1L,
@@ -95,7 +95,7 @@ class SettlementParticipantTest {
     @ParameterizedTest
     @ValueSource(strings = {"short", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
     @DisplayName("비회원 연락처에 hash를 주면 64자 소문자 hex만 식별자로 사용한다")
-    void rejectsInvalidPhoneHash(String phoneHash) {
+    void participant_phoneHash_invalidFormat_rejected(String phoneHash) {
         assertThatThrownBy(() -> SettlementParticipant.unlinkedContact(
                 SETTLEMENT_ID,
                 phoneHash,
@@ -109,7 +109,7 @@ class SettlementParticipantTest {
 
     @Test
     @DisplayName("연락처에 없는 사람은 phone hash 없이 이름만으로 추가할 수 있다")
-    void allowsContactWithoutPhoneHash() {
+    void participant_contactWithoutPhoneHash_allowed() {
         SettlementParticipant participant = SettlementParticipant.unlinkedContact(
                 SETTLEMENT_ID,
                 null,
@@ -127,7 +127,7 @@ class SettlementParticipantTest {
     @ParameterizedTest
     @ValueSource(longs = {0, -1})
     @DisplayName("등록 참여자는 양수 회원 ID가 있어야 한다")
-    void rejectsInvalidLinkedUserId(long linkedUserId) {
+    void participant_linkedUserId_nonPositive_rejected(long linkedUserId) {
         assertThatThrownBy(() -> SettlementParticipant.registeredUser(
                 SETTLEMENT_ID,
                 linkedUserId,
@@ -142,7 +142,7 @@ class SettlementParticipantTest {
     @ParameterizedTest
     @ValueSource(longs = {0, -1})
     @DisplayName("그룹 참여자는 양수 출처 그룹 ID가 있어야 한다")
-    void rejectsInvalidSourceGroupId(long sourceGroupId) {
+    void participant_sourceGroupId_nonPositive_rejected(long sourceGroupId) {
         assertThatThrownBy(() -> SettlementParticipant.groupMember(
                 SETTLEMENT_ID,
                 sourceGroupId,
@@ -157,7 +157,7 @@ class SettlementParticipantTest {
 
     @Test
     @DisplayName("참여자 표시 순서는 첫 참여자부터 증가하도록 음수를 거부한다")
-    void rejectsNegativeDisplayOrder() {
+    void participant_negativeDisplayOrder_rejected() {
         assertThatThrownBy(() -> SettlementParticipant.registeredUser(
                 SETTLEMENT_ID,
                 1L,

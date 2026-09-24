@@ -99,7 +99,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("multipart 그룹 생성 결과를 201로 반환한다")
-    void createsGroup() throws Exception {
+    void groupCreation_multipartRequest_returnsCreated() throws Exception {
         when(createGroupUseCase.create(any())).thenReturn(detail("여행", "메모", "/api/v2/groups/10/image"));
         MockMultipartFile image = new MockMultipartFile(
                 "image", "group.png", "image/png", new byte[]{1, 2, 3}
@@ -118,7 +118,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("내 그룹 목록을 응답 DTO로 변환한다")
-    void getsMyGroups() throws Exception {
+    void groupList_currentUser_returnsResponseDtos() throws Exception {
         when(getMyGroupsUseCase.getMyGroups()).thenReturn(List.of(
                 new GroupSummaryResult(
                         20L,
@@ -147,7 +147,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 상세에 생성일을 반환한다")
-    void getsGroupWithCreatedAt() throws Exception {
+    void groupDetail_createdAt_included() throws Exception {
         when(getGroupUseCase.get(10L)).thenReturn(detail("여행", "메모", null));
 
         mockMvc.perform(get("/api/v2/groups/{groupId}", 10L))
@@ -157,7 +157,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("빈 memo 파트를 전달한 수정 요청은 메모 제거 지시로 변환한다")
-    void updatesAndClearsMemo() throws Exception {
+    void groupUpdate_emptyMemo_mapsToRemoval() throws Exception {
         when(updateGroupUseCase.update(any(), any())).thenReturn(detail("여행", null, null));
 
         mockMvc.perform(multipart(HttpMethod.PATCH, "/api/v2/groups/{groupId}", 10L)
@@ -173,7 +173,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 이미지를 private 1일 캐시와 실제 content type으로 반환한다")
-    void getsGroupImage() throws Exception {
+    void groupImage_request_returnsPrivateCacheAndContentType() throws Exception {
         when(getGroupImageUseCase.getImage(10L))
                 .thenReturn(new GroupImage("image/webp", new byte[]{1, 2, 3}));
 
@@ -186,7 +186,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 삭제 성공은 빈 200 응답을 반환한다")
-    void deletesGroup() throws Exception {
+    void groupDeletion_success_returnsEmptyResponse() throws Exception {
         mockMvc.perform(delete("/api/v2/groups/{groupId}", 10L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -196,7 +196,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("초대 코드 가입 결과를 그룹 상세 응답으로 변환한다")
-    void joinsGroup() throws Exception {
+    void groupJoin_inviteCode_returnsGroupDetail() throws Exception {
         when(joinGroupUseCase.join(any())).thenReturn(detail("여행", null, null));
 
         mockMvc.perform(post("/api/v2/groups/join")
@@ -213,7 +213,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("빈 초대 코드는 INVALID_GROUP_INVITE_CODE로 반환한다")
-    void rejectsBlankInviteCodeWithFeatureError() throws Exception {
+    void groupJoin_blankInviteCode_returnsFeatureError() throws Exception {
         when(joinGroupUseCase.join(any())).thenThrow(
                 ApplicationException.of(GroupStatusCode.INVALID_GROUP_INVITE_CODE)
         );
@@ -230,7 +230,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("활성 그룹 멤버 목록을 응답 DTO로 변환한다")
-    void getsGroupMembers() throws Exception {
+    void groupMembers_activeOnly_returnsResponseDtos() throws Exception {
         when(getGroupMembersUseCase.getMembers(10L)).thenReturn(List.of(memberResult()));
 
         mockMvc.perform(get("/api/v2/groups/{groupId}/members", 10L))
@@ -244,7 +244,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("사진이 없는 멤버는 avatarUrl이 null이다")
-    void getsGroupMembersWithoutAvatar() throws Exception {
+    void groupMember_withoutAvatar_returnsNullUrl() throws Exception {
         when(getGroupMembersUseCase.getMembers(10L)).thenReturn(List.of(new GroupMemberResult(
                 20L,
                 "sua.test",
@@ -261,7 +261,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 멤버 아바타를 private 1일 캐시와 실제 content type으로 반환한다")
-    void getsGroupMemberAvatar() throws Exception {
+    void groupMemberAvatar_request_returnsPrivateContent() throws Exception {
         when(getGroupMemberAvatarUseCase.getMemberAvatar(10L, 20L))
                 .thenReturn(new ProfileImage("image/png", new byte[]{4, 5, 6}));
 
@@ -274,7 +274,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("OWNER 직접 추가 결과를 201로 반환한다")
-    void addsGroupMember() throws Exception {
+    void groupMember_ownerAddition_returnsCreated() throws Exception {
         when(addGroupMemberUseCase.add(any(), any())).thenReturn(memberResult());
 
         mockMvc.perform(post("/api/v2/groups/{groupId}/members", 10L)
@@ -291,7 +291,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 소유권 이전 성공은 빈 200 응답을 반환한다")
-    void transfersGroupOwnership() throws Exception {
+    void groupOwnership_transfer_returnsEmptyResponse() throws Exception {
         mockMvc.perform(put("/api/v2/groups/{groupId}/owner", 10L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetMemberId\":20}"))
@@ -309,7 +309,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("그룹 자기 탈퇴 성공은 빈 200 응답을 반환한다")
-    void leavesGroup() throws Exception {
+    void groupMembership_selfLeave_returnsEmptyResponse() throws Exception {
         mockMvc.perform(delete("/api/v2/groups/{groupId}/members/me", 10L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -319,7 +319,7 @@ class GroupControllerTest {
 
     @Test
     @DisplayName("OWNER 멤버 제거 성공은 빈 200 응답을 반환한다")
-    void removesGroupMember() throws Exception {
+    void groupMember_ownerRemoval_returnsEmptyResponse() throws Exception {
         mockMvc.perform(delete(
                         "/api/v2/groups/{groupId}/members/{memberId}",
                         10L,

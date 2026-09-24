@@ -90,7 +90,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void concurrentFailuresFromSameSnapshotAreBothCountedAndKeepTtl() throws Exception {
+    void smsOtp_concurrentFailures_sameSnapshotCountedAndTtlKept() throws Exception {
         long ttl = redis.getExpire(key, TimeUnit.MILLISECONDS);
         SmsVerificationRedisAdapter racing = synchronizedReads(2);
         assertThat(race(List.of(() -> fail(racing), () -> fail(racing))))
@@ -100,7 +100,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void concurrentFailuresStopAtLimitAndRejectCorrectCode() throws Exception {
+    void smsOtp_concurrentFailures_atLimitRejectsCorrectCode() throws Exception {
         SmsVerificationRedisAdapter racing = synchronizedReads(8);
         List<Callable<SmsOtpState.Outcome>> calls = new ArrayList<>();
         for (int i = 0; i < 8; i++) calls.add(() -> fail(racing));
@@ -113,7 +113,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void successRacingFailureCannotRestoreConsumedOtp() throws Exception {
+    void smsOtp_successRacesFailure_consumedOtpNotRestored() throws Exception {
         SmsVerificationRedisAdapter racing = synchronizedReads(2);
         List<SmsOtpState.Outcome> results = race(List.of(() -> succeed(racing), () -> fail(racing)));
         assertThat(results.getFirst()).isEqualTo(VERIFIED);
@@ -125,7 +125,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void concurrentConfirmationsIssueExactlyOneStoredChallenge() throws Exception {
+    void smsOtp_concurrentConfirmations_oneChallengeStored() throws Exception {
         AuthChallengeRedisAdapter challenges = spy(new AuthChallengeRedisAdapter(redis, mapper));
         ConfirmSmsVerificationService service = new ConfirmSmsVerificationService(
                 identity, policy, synchronizedReads(2), challenges);
@@ -149,7 +149,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void staleFailureCannotOverwriteReplacementRequest() throws Exception {
+    void smsOtp_staleFailure_doesNotOverwriteReplacement() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         SmsVerificationRedisAdapter delayed = delayedRead(read, release);
@@ -170,7 +170,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void delayedFailureCannotRestoreAlreadyConsumedOtp() throws Exception {
+    void smsOtp_delayedFailure_consumedOtpNotRestored() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         SmsVerificationRedisAdapter delayed = delayedRead(read, release);
@@ -191,7 +191,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void redisExpiryBetweenReadAndTransitionDoesNotRecreateKey() throws Exception {
+    void smsOtp_expiresBetweenReadAndTransition_keyNotRecreated() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         SmsVerificationRedisAdapter delayed = delayedRead(read, release);
@@ -212,7 +212,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void consumedStateAllowsResendAfterOriginalCooldown() {
+    void smsOtp_consumedAfterCooldown_resendAllowed() {
         saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
                 initial.codeHash(), 0, now().minusSeconds(1), now().plusMinutes(3)), Duration.ofMinutes(3));
         assertThat(succeed(adapter)).isEqualTo(VERIFIED);
@@ -229,7 +229,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void registeredPhoneIsRejectedBeforeRedisReservation() {
+    void smsOtp_registeredPhone_rejectedBeforeRedisReservation() {
         redis.delete(key);
         redis.delete(cooldownKey());
         when(loadUserPort.findByPhoneNumber(initial.phoneNumber())).thenReturn(Optional.of(mock(User.class)));
@@ -247,7 +247,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void ttlExpiryBetweenReadAndTransitionRejectsCorrectCodeDespiteFutureTimestamp() throws Exception {
+    void smsOtp_expiredBeforeTransition_rejectsCorrectCode() throws Exception {
         CountDownLatch read = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
@@ -271,7 +271,7 @@ class SmsVerificationRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(longs = {-3600, 3600})
-    void validTtlIsIndependentOfApplicationClockOffset(long offsetSeconds) {
+    void smsOtp_redisTtl_independentOfClockOffset(long offsetSeconds) {
         saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(),
                 initial.codeHash(), 0, now().plusSeconds(offsetSeconds), now().plusSeconds(offsetSeconds)),
                 Duration.ofMinutes(3));
@@ -282,7 +282,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void keyWithoutExpiryCannotBeConsumed() {
+    void smsOtp_nonExpiringKey_cannotBeConsumed() {
         redis.persist(key);
         assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isEqualTo(-1);
         assertThat(succeed(adapter)).isEqualTo(EXPIRED);
@@ -290,7 +290,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void missingKeyAndWrongRequestDoNotIssueSuccess() {
+    void smsOtp_missingKeyOrWrongRequest_noSuccess() {
         assertThat(adapter.verifyAndConsume(phoneHash, "old-request", initial.codeHash(), 5))
                 .isEqualTo(CODE_MISMATCH);
         assertThat(storedState()).contains(initial);
@@ -300,7 +300,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void legacyJsonWithoutConsumedCanBeVerifiedOnce() {
+    void smsOtp_legacyJson_verifiedOnce() {
         String legacy = mapper.writeValueAsString(initial).replace(",\"consumed\":false", "");
         assertThat(legacy).doesNotContain("consumed");
         redis.opsForValue().set(key, legacy, Duration.ofMinutes(3));
@@ -309,7 +309,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void challengeSaveFailureDoesNotRestoreOtp() {
+    void smsOtp_challengeSaveFailure_doesNotRestoreOtp() {
         AuthChallengeRedisAdapter challenges = mock(AuthChallengeRedisAdapter.class);
         doThrow(new IllegalStateException("synthetic storage failure")).when(challenges).save(any(), any());
         ConfirmSmsVerificationService service = new ConfirmSmsVerificationService(identity, policy, adapter, challenges);
@@ -321,7 +321,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void sentOtpExhaustionPreservesCooldownAndNextSendCanBeConfirmed() throws Exception {
+    void smsOtp_sendLimitReached_keepsCooldownAndAllowsNextConfirm() throws Exception {
         redis.delete(key);
         SmsSenderPort sender = mock(SmsSenderPort.class);
         List<String> codes = new ArrayList<>();
@@ -355,7 +355,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void otpExpiryBeforeCooldownDoesNotAllowResend() throws Exception {
+    void smsOtp_expiryBeforeCooldown_resendRejected() throws Exception {
         redis.delete(key);
         SmsVerificationPolicy shortOtp = new SmsVerificationPolicy(
                 Duration.ofMillis(30), policy.challengeTtl(), Duration.ofSeconds(60), 5);
@@ -373,7 +373,7 @@ class SmsVerificationRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void simultaneousSendsReserveAndDeliverExactlyOnce(boolean legacyExists) throws Exception {
+    void smsOtp_concurrentSends_reservedAndDeliveredOnce(boolean legacyExists) throws Exception {
         redis.delete(key);
         if (legacyExists) {
             saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(), initial.codeHash(),
@@ -395,7 +395,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void deliveryFailureDiscardsOnlyOtpAndKeepsCooldown() {
+    void smsOtp_deliveryFailure_discardsOtpAndKeepsCooldown() {
         redis.delete(key);
         SmsSenderPort sender = mock(SmsSenderPort.class);
         RuntimeException failure = new IllegalStateException("synthetic delivery failure");
@@ -412,7 +412,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void delayedDeliveryFailureCannotDeleteNewRequestOrCooldown() throws Exception {
+    void smsOtp_delayedDeliveryFailure_preservesNewRequestAndCooldown() throws Exception {
         redis.delete(key);
         CountDownLatch sending = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -448,7 +448,7 @@ class SmsVerificationRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(longs = {-3600, 3600})
-    void legacyCooldownUsesRedisLifetimeDespiteClockOffset(long offset) {
+    void smsOtp_legacyCooldown_usesRedisLifetime(long offset) {
         saveState(new SmsOtpState(initial.verificationRequestId(), initial.phoneNumber(), initial.codeHash(),
                 5, now().plusSeconds(offset + 60), now().plusSeconds(offset + 180)), Duration.ofMinutes(3));
         assertCooldown();
@@ -456,7 +456,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void consumedOtpKeepsIndependentCooldown() {
+    void smsOtp_consumedState_keepsIndependentCooldown() {
         redis.delete(key);
         assertThat(adapter.tryReserve(phoneHash, initial, policy.otpTtl(), policy.resendCooldown())).isTrue();
         assertThat(succeed(adapter)).isEqualTo(VERIFIED);
@@ -465,13 +465,13 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void nonExpiringLegacyOtpDoesNotPermitSend() {
+    void smsOtp_nonExpiringLegacyState_blocksSend() {
         redis.persist(key);
         assertThat(adapter.tryReserve(phoneHash, initial, policy.otpTtl(), policy.resendCooldown())).isFalse();
     }
 
     @Test
-    void realCooldownExpiryAllowsReplacementWhileOtpRemains() throws Exception {
+    void smsOtp_cooldownExpiresBeforeOtp_allowsReplacement() throws Exception {
         redis.delete(key);
         SmsVerificationPolicy shortCooldown = new SmsVerificationPolicy(
                 policy.otpTtl(), policy.challengeTtl(), Duration.ofMillis(80), 5);
@@ -486,7 +486,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void legacyJsonWithoutConsumedRetainsCooldown() {
+    void smsOtp_legacyJson_withoutConsumed_keepsCooldown() {
         redis.opsForValue().set(key, mapper.writeValueAsString(initial).replace(",\"consumed\":false", ""),
                 policy.otpTtl());
         assertCooldown();
@@ -494,7 +494,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     @Test
-    void corruptLegacyStateDoesNotTriggerDelivery() {
+    void smsOtp_corruptLegacyState_noDelivery() {
         redis.opsForValue().set(key, "invalid-json", policy.otpTtl());
         SmsSenderPort sender = mock(SmsSenderPort.class);
         SendSmsVerificationService service = new SendSmsVerificationService(identity, policy, adapter, sender, loadUserPort);
@@ -509,7 +509,7 @@ class SmsVerificationRedisIntegrationTest {
     }
 
     private void elapseCooldown() throws InterruptedException {
-        // Advance both Redis lifetimes consistently without waiting the full production minute.
+        // 운영 만료 시간만큼 기다리지 않도록 두 Redis TTL을 같은 간격으로 전진시킨다.
         SmsOtpState state = storedState().orElseThrow();
         long remainingOtp = Duration.between(state.resendAvailableAt(), state.expiresAt()).toMillis();
         redis.expire(key, Duration.ofMillis(remainingOtp));

@@ -76,7 +76,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("배분 유형을 Command로 변환하고 다음 더치페이 단계를 반환한다")
-    void selectsAllocationType() throws Exception {
+    void allocationType_validSelection_mapsCommandAndReturnsNextStep() throws Exception {
         when(selectAllocationTypeUseCase.select(
                 SETTLEMENT_ID,
                 new SelectSettlementAllocationTypeCommand(SettlementAllocationType.DUTCH_PAY)
@@ -101,7 +101,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("배분 유형 누락을 UseCase 호출 전에 거부한다")
-    void rejectsMissingAllocationType() throws Exception {
+    void allocationType_missing_returnsBadRequest() throws Exception {
         mockMvc.perform(put(
                         "/api/v2/settlements/{settlementId}/allocation-type",
                         SETTLEMENT_ID
@@ -115,7 +115,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("더치페이 화면 복원에 필요한 참여자 금액과 합계 상태를 반환한다")
-    void getsDutchPayAllocation() throws Exception {
+    void dutchPayAllocation_request_returnsAmountsAndTotal() throws Exception {
         when(getDutchPayAllocationUseCase.get(SETTLEMENT_ID)).thenReturn(result());
 
         mockMvc.perform(get(
@@ -133,7 +133,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("0원은 허용하고 수정 뒤 최신 불균형 상태를 반환한다")
-    void updatesDutchPayAmountToZero() throws Exception {
+    void dutchPayAllocation_zeroAmount_updatesAndReturnsLatestState() throws Exception {
         SettlementDutchPayResult updated = new SettlementDutchPayResult(
                 SETTLEMENT_ID,
                 1_000,
@@ -177,7 +177,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("음수 금액을 UseCase 호출 전에 거부한다")
-    void rejectsNegativeDutchPayAmount() throws Exception {
+    void dutchPayAmount_negative_returnsBadRequest() throws Exception {
         mockMvc.perform(patch(
                         "/api/v2/settlements/{settlementId}/dutch-pay-allocations/{participantId}",
                         SETTLEMENT_ID,
@@ -194,7 +194,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("참여자 전원의 금액을 Command로 변환해 한 번에 저장한다")
-    void replacesDutchPayAllocations() throws Exception {
+    void dutchPayAllocations_allParticipants_savedOnce() throws Exception {
         when(replaceDutchPayAllocationsUseCase.replace(
                 SETTLEMENT_ID,
                 new ReplaceSettlementDutchPayAllocationsCommand(List.of(
@@ -226,7 +226,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("빈 배분 목록을 UseCase 호출 전에 거부한다")
-    void rejectsEmptyAllocations() throws Exception {
+    void dutchPayAllocations_empty_returnsBadRequest() throws Exception {
         mockMvc.perform(put(
                         "/api/v2/settlements/{settlementId}/dutch-pay-allocations",
                         SETTLEMENT_ID
@@ -242,7 +242,7 @@ class SettlementAllocationControllerTest {
 
     @Test
     @DisplayName("참여자 ID 누락을 UseCase 호출 전에 거부한다")
-    void rejectsAllocationWithoutParticipantId() throws Exception {
+    void dutchPayAllocation_missingParticipantId_returnsBadRequest() throws Exception {
         mockMvc.perform(put(
                         "/api/v2/settlements/{settlementId}/dutch-pay-allocations",
                         SETTLEMENT_ID

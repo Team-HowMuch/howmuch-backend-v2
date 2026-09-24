@@ -78,7 +78,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void usesActiveTraceIdAndDoesNotTrustRequestHeadersOrMutateMdc() throws Exception {
+    void requestTrace_activeSpan_headersIgnoredMdcUnchanged() throws Exception {
         MDC.put("traceId", TRACE_ID);
         MDC.put("spanId", SPAN_ID);
         MDC.put("unrelated", "preserved");
@@ -103,7 +103,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void doesNotCreateTraceHeaderWithoutAnActiveSpan() throws Exception {
+    void requestObservability_noActiveSpan_noTraceHeader() throws Exception {
         when(tracer.currentSpan()).thenReturn(null);
         var response = new MockHttpServletResponse();
         filter.doFilter(request("/api/v2/auth/login"), response, (req, res) -> {});
@@ -120,7 +120,7 @@ class RequestObservabilityTest {
             "/api/v2/treasurer/questions, treasurer",
             "/api/v2/admin/common-codes, admin"
     })
-    void classifiesOperationalAreas(String path, String area) throws Exception {
+    void requestObservability_operationalArea_fixedCategory(String path, String area) throws Exception {
         filter.doFilter(request(path), new MockHttpServletResponse(), (req, res) -> {});
 
         assertThat(count(area, "200")).isEqualTo(1);
@@ -129,7 +129,7 @@ class RequestObservabilityTest {
 
     @ParameterizedTest
     @ValueSource(ints = {400, 401, 403, 404, 409, 429, 500, 503})
-    void failuresUseFixedTagsAndCorrelateLogsWithoutRequestValues(int status) throws Exception {
+    void requestFailure_fixedTagsAndSafeLogCorrelation(int status) throws Exception {
         var request = request("/api/v2/settlement-links/" + SECRET + "/resource");
         request.addHeader("Authorization", SECRET);
         request.setQueryString("otp=" + SECRET);
@@ -143,7 +143,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void adviceAndFilterExceptionsNeverLogMessagesCausesOrSuppressedValues() throws Exception {
+    void requestFailure_exceptionDetails_notLogged() throws Exception {
         var failure = new IllegalStateException(SECRET, new IllegalArgumentException(SECRET));
         failure.addSuppressed(new IllegalStateException(SECRET));
         var response = new MockHttpServletResponse();
@@ -166,7 +166,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void committedAndIoFailuresDoNotEscapeWithSensitiveCause() {
+    void requestFailure_commitOrIoCause_notExposed() {
         var response = new MockHttpServletResponse();
         assertThatThrownBy(() -> filter.doFilter(request("/io"), response, (req, res) -> {
             throw new IOException(SECRET);
@@ -181,7 +181,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void errorRedispatchReusesIdWithoutCountingTwice() throws Exception {
+    void requestMetrics_errorRedispatch_reusesIdCountsOnce() throws Exception {
         var request = request("/unknown");
         var response = new MockHttpServletResponse();
         filter.doFilter(request, response, (req, res) -> response.sendError(404));
@@ -193,7 +193,7 @@ class RequestObservabilityTest {
     }
 
     @Test
-    void asyncRedispatchReusesIdAndCountsOnlyCompletion() throws Exception {
+    void requestMetrics_asyncRedispatch_reusesIdCountsOnce() throws Exception {
         var request = request("/async");
         var response = new MockHttpServletResponse();
         filter.doFilter(request, response, (req, res) -> request.setAsyncStarted(true));

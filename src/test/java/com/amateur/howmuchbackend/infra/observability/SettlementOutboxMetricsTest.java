@@ -12,7 +12,7 @@ import static org.mockito.Mockito.*;
 
 class SettlementOutboxMetricsTest {
     @Test
-    void reusesBatchOutcomesAndCountsPollingFailure() {
+    void outboxMetrics_batchOutcomesReusedAndPollingFailureCounted() {
         var worker = mock(SettlementNotificationOutboxWorker.class);
         var registry = new SimpleMeterRegistry();
         var observations = ObservationRegistry.create();

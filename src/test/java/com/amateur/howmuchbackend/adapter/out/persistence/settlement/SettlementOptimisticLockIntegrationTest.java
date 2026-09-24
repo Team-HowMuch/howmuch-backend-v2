@@ -101,7 +101,7 @@ class SettlementOptimisticLockIntegrationTest {
 
     @Test
     @DisplayName("앞선 변경을 잃지 않도록 같은 version에서 시작한 두 저장 중 후속 저장을 거부한다")
-    void rejectsStaleConcurrentUpdate() throws Exception {
+    void settlementUpdate_staleConcurrentWrite_rejected() throws Exception {
         CyclicBarrier bothLoaded = new CyclicBarrier(2);
         CountDownLatch titleCommitted = new CountDownLatch(1);
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);

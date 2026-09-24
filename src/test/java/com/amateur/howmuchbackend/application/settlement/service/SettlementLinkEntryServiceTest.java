@@ -84,7 +84,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("비로그인 사용자는 표시 순서의 참여자 목록에서 본인을 선택한다")
-    void resolvesBrowserSelection() {
+    void settlementLink_browserUser_selectsParticipantByOrder() {
         arrangeDutchPayAccess();
         when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
 
@@ -111,7 +111,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("APP_DIRECT도 요청자 포함 전체 인원과 미확정 금액 null을 반환한다")
-    void resolvesAuthenticatedParticipantDirectly() {
+    void settlementLink_appDirect_returnsParticipantsAndAmounts() {
         arrangeDutchPayAccess();
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of(shares().getFirst()));
@@ -133,7 +133,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("로그인했어도 연결된 참여자가 없으면 신뢰 기반 이름 선택으로 전환한다")
-    void fallsBackToBrowserSelectionWhenUserIsNotLinked() {
+    void settlementLink_unlinkedUser_fallsBackToBrowserSelection() {
         arrangeItemAllocationAccess();
         when(currentActorPort.findCurrentActor()).thenReturn(Optional.of(new CurrentActor(99L)));
 
@@ -150,7 +150,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("브라우저 사용자가 고른 참여자가 같은 정산에 있으면 본인 검증 없이 문맥을 발급한다")
-    void selectsTrustedBrowserParticipant() {
+    void settlementLink_browserChoice_issuesTrustedParticipantContext() {
         arrangeDutchPayAccessWithoutParticipants();
         SettlementParticipant payer = participants().get(1);
         when(loadSettlementParticipantPort.findBySettlementIdAndId(
@@ -169,7 +169,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("완료된 정산의 링크는 활성 상태여도 공개하지 않는다")
-    void rejectsCompletedSettlementLink() {
+    void settlementLink_completedSettlement_notPublic() {
         arrangeLink();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
                 settlement(SettlementAllocationType.DUTCH_PAY, SettlementStatus.COMPLETED)
@@ -184,7 +184,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("전원 제출로 중단된 뒤에도 링크로 송금 안내를 다시 볼 수 있다")
-    void keepsLinkOpenAfterEverySubmission() {
+    void settlementLink_allSubmitted_remainsOpenForTransfer() {
         arrangeLink();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
                 settlement(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.SUSPENDED)
@@ -201,7 +201,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("중단 후 재개해 REQUESTED로 돌아온 더치페이도 송금 안내로 연다")
-    void opensResumedDutchPayAsTransferReady() {
+    void settlementLink_resumedDutchPay_opensTransferInstructions() {
         arrangeLink();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
                 settlement(SettlementAllocationType.DUTCH_PAY, SettlementStatus.REQUESTED)
@@ -218,7 +218,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("아직 요청 전인 초안은 링크로 열 수 없다")
-    void rejectsDraftSettlement() {
+    void settlementLink_draft_notOpen() {
         arrangeLink();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
                 settlement(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.DRAFT)
@@ -232,7 +232,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("영수증 정산이면 상호명과 결제일을 함께 준다")
-    void exposesReceiptStoreNameAndPaidAt() {
+    void settlementLink_receiptExpense_returnsStoreAndPaidAt() {
         arrangeItemAllocationAccess();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
                 List.of(SettlementExpense.receiptOcr(
@@ -255,7 +255,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("결제내역 정산이면 상호명과 결제일을 함께 준다")
-    void exposesPaymentHistoryStoreNameAndPaidAt() {
+    void settlementLink_paymentHistory_returnsStoreAndPaidAt() {
         arrangeItemAllocationAccess();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
                 List.of(SettlementExpense.paymentHistory(
@@ -279,7 +279,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("링크 생성 시각이 없으면 정산 생성 시각을 요청 시각으로 사용한다")
-    void fallsBackToSettlementCreatedAtWhenLinkCreatedAtIsMissing() {
+    void settlementLink_missingCreatedAt_usesSettlementCreatedAt() {
         arrangeItemAllocationAccess();
         SettlementLink link = mock(SettlementLink.class);
         when(link.isUsableAt(any())).thenReturn(true);
@@ -295,7 +295,7 @@ class SettlementLinkEntryServiceTest {
 
     @Test
     @DisplayName("영수증이 두 건 이상이면 어느 가게인지 정할 수 없어 비운다")
-    void leavesReceiptInfoEmptyWhenAmbiguous() {
+    void settlementLink_ambiguousReceipts_paymentInfoEmpty() {
         arrangeItemAllocationAccess();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
                 List.of(

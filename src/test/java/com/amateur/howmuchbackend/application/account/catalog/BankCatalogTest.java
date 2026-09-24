@@ -16,7 +16,7 @@ import static org.mockito.Mockito.when;
 
 class BankCatalogTest {
     @Test
-    void exposesAndAcceptsOnlyBetaIdPasswordBanks() {
+    void bankCatalog_betaBanks_requireIdAndPassword() {
         LoadCommonCodePort port = mock(LoadCommonCodePort.class);
         when(port.findActiveByGroupCode("BANK")).thenReturn(List.of(
                 bank("0003", "기업은행"),

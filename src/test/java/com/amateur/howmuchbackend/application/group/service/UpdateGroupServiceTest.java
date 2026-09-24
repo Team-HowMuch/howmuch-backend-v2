@@ -61,7 +61,7 @@ class UpdateGroupServiceTest {
 
     @Test
     @DisplayName("OWNER가 메모를 제거하고 이미지를 교체한다")
-    void updatesSettingsAndSchedulesImageReplacement() {
+    void groupSettings_ownerRequest_removesMemoAndReplacesImage() {
         Group group = group();
         GroupMember owner = owner();
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(1L));
@@ -95,7 +95,7 @@ class UpdateGroupServiceTest {
 
     @Test
     @DisplayName("변경 지시가 없는 요청을 조회 전에 거절한다")
-    void rejectsEmptyUpdate() {
+    void groupUpdate_emptyRequest_rejectedBeforeLookup() {
         assertThatThrownBy(() -> service.update(10L, new UpdateGroupCommand(
                 null, null, false, null, false
         ))).isInstanceOfSatisfying(ApplicationException.class, exception ->
@@ -107,7 +107,7 @@ class UpdateGroupServiceTest {
 
     @Test
     @DisplayName("이미지 업로드와 초기화를 동시에 요청하면 거절한다")
-    void rejectsImageAndResetConflict() {
+    void groupUpdate_uploadAndResetTogether_rejected() {
         assertThatThrownBy(() -> service.update(10L, new UpdateGroupCommand(
                 null, null, false, new byte[]{1}, true
         ))).isInstanceOfSatisfying(ApplicationException.class, exception ->

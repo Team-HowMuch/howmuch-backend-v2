@@ -52,33 +52,33 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void missingRequiredHeaderReturnsInvalidArgument() throws Exception {
+    void requiredHeader_missing_returnsInvalidArgument() throws Exception {
         invalidArgument(mvc.perform(get(TRANSFER)));
         verifyNoInteractions(transfer);
     }
 
     @Test
-    void missingRequiredParameterReturnsInvalidArgument() throws Exception {
+    void requiredParameter_missing_returnsInvalidArgument() throws Exception {
         invalidArgument(mvc.perform(get(CANDIDATES)));
         verifyNoInteractions(candidates, importer);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "not-a-uuid"})
-    void emptyOrMalformedHeaderReturnsInvalidArgument(String value) throws Exception {
+    void header_emptyOrMalformed_returnsInvalidArgument(String value) throws Exception {
         invalidArgument(mvc.perform(get(TRANSFER).header("Link-Participant-Context", value)));
         verifyNoInteractions(transfer);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "not-a-number"})
-    void emptyOrMalformedParameterReturnsInvalidArgument(String value) throws Exception {
+    void parameter_emptyOrMalformed_returnsInvalidArgument(String value) throws Exception {
         invalidArgument(mvc.perform(get(CANDIDATES).param("accountId", value)));
         verifyNoInteractions(candidates, importer);
     }
 
     @Test
-    void optionalParameterCanStillBeOmitted() throws Exception {
+    void optionalParameter_missing_accepted() throws Exception {
         when(candidates.get(SETTLEMENT_ID, 1L, null)).thenReturn(List.of());
         mvc.perform(get(CANDIDATES).param("accountId", "1"))
                 .andExpect(status().isOk())
@@ -89,13 +89,13 @@ class GlobalExceptionHandlerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "{", "{\"name\":{}}"})
-    void missingOrMalformedBodyPreservesInvalidArgument(String body) throws Exception {
+    void requestBody_missingOrMalformed_returnsInvalidArgument(String body) throws Exception {
         invalidArgument(mvc.perform(post("/error-probe/body")
                 .contentType(MediaType.APPLICATION_JSON).content(body)));
     }
 
     @Test
-    void validationPreservesFieldDetails() throws Exception {
+    void requestValidation_fieldDetails_preserved() throws Exception {
         invalidArgument(mvc.perform(post("/error-probe/body")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}")))
                 .andExpect(jsonPath("$.error.details.name").value("이름은 필수입니다."));
@@ -103,21 +103,21 @@ class GlobalExceptionHandlerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"UNAUTHORIZED", "FORBIDDEN"})
-    void applicationAuthenticationAndAuthorizationErrorsArePreserved(String code) throws Exception {
+    void authenticationOrAuthorizationError_statusPreserved(String code) throws Exception {
         var expected = CommonStatusCode.valueOf(code);
         error(mvc.perform(get("/error-probe/application").param("code", code)),
                 expected.getStatus(), code, expected.getMessage());
     }
 
     @Test
-    void unexpectedFailureRemainsInternalServerError() throws Exception {
+    void unexpectedException_returnsInternalServerError() throws Exception {
         var expected = CommonStatusCode.INTERNAL_SERVER_ERROR;
         error(mvc.perform(get("/error-probe/unexpected")), 500,
                 expected.getCode(), expected.getMessage());
     }
 
     @Test
-    void oversizeUploadReturnsPayloadTooLarge() throws Exception {
+    void upload_overLimit_returnsPayloadTooLarge() throws Exception {
         // 업로드 한도 초과가 500이면 클라이언트는 서버가 고장난 줄 안다. 413은 영수증
         // OCR뿐 아니라 그룹·프로필 이미지 업로드에도 함께 적용된다.
         var expected = CommonStatusCode.PAYLOAD_TOO_LARGE;
@@ -126,12 +126,12 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void malformedMultipartReturnsInvalidArgument() throws Exception {
+    void multipart_malformed_returnsInvalidArgument() throws Exception {
         invalidArgument(mvc.perform(get("/error-probe/malformed-multipart")));
     }
 
     @Test
-    void serverSideMultipartFailureRemainsRetryable() throws Exception {
+    void multipart_serverFailure_remainsRetryable() throws Exception {
         // 임시 업로드 디렉터리가 꽉 찼거나 쓸 수 없을 때도 컨테이너는 같은 예외로 감싼다.
         // 그걸 400으로 돌려주면 클라이언트는 자기 요청을 고치려 들고 재시도하지 않는다.
         var expected = CommonStatusCode.TEMPORARILY_UNAVAILABLE;
@@ -141,7 +141,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void missingMultipartPartReturnsInvalidArgument() throws Exception {
+    void multipart_requiredPartMissing_returnsInvalidArgument() throws Exception {
         // 파트 이름이 다르면 컨트롤러에 들어가기 전에 갈린다. 여기가 400이 아니면
         // 컨트롤러 안의 null 검사는 영원히 실행되지 않고 500만 나간다.
         invalidArgument(mvc.perform(multipart("/error-probe/upload")
@@ -149,7 +149,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void presentMultipartPartStillReachesTheController() throws Exception {
+    void multipart_partPresent_controllerInvoked() throws Exception {
         mvc.perform(multipart("/error-probe/upload")
                         .file(new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1})))
                 .andExpect(status().isOk());

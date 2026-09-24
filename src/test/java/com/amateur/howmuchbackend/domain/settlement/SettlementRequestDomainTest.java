@@ -19,7 +19,7 @@ class SettlementRequestDomainTest {
 
     @Test
     @DisplayName("링크는 lowercase SHA-256 hash와 미래 만료 시각만 허용한다")
-    void validatesLinkHashAndExpiration() {
+    void settlementLink_lowercaseSha256AndFutureExpiry_required() {
         SettlementLink link = SettlementLink.active(
                 SETTLEMENT_ID,
                 "a".repeat(64),
@@ -47,7 +47,7 @@ class SettlementRequestDomainTest {
 
     @Test
     @DisplayName("확정 Share는 1원 이상의 송금 의무만 생성한다")
-    void requiresPositiveShareAmount() {
+    void settlementShare_nonPositiveAmount_rejected() {
         assertThat(SettlementShare.create(
                 SETTLEMENT_ID, PARTICIPANT_ID, 5_000, NOW
         ).amount()).isEqualTo(5_000);
@@ -62,7 +62,7 @@ class SettlementRequestDomainTest {
 
     @Test
     @DisplayName("수금 계좌 스냅샷은 기관 코드와 원문 계좌번호·예금주를 정규화한다")
-    void validatesReceivingAccountSnapshot() {
+    void receivingAccountSnapshot_valuesNormalized() {
         SettlementReceivingAccountSnapshot snapshot = SettlementReceivingAccountSnapshot.create(
                 SETTLEMENT_ID,
                 7L,

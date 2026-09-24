@@ -80,49 +80,49 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("미인증 요청은 보호 API에서 401 JSON을 받는다")
-    void rejectsUnauthenticatedRequest() throws Exception {
+    void protectedApi_unauthenticated_returns401Json() throws Exception {
         assertError(request("GET", PROFILE, null), 401, "UNAUTHORIZED");
     }
 
     @Test
     @DisplayName("유효한 Access 토큰과 활성 Redis 세션은 본인 프로필을 조회한다")
-    void acceptsActiveAccessToken() throws Exception {
+    void protectedApi_activeAccessTokenAndSession_returnsOwnProfile() throws Exception {
         var response = request("GET", PROFILE, accessToken);
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(json.readTree(response.body()).path("data").path("userId").longValue()).isEqualTo(userId);
-        // A later anonymous request must not inherit the preceding request's authentication.
+        // 뒤따르는 익명 요청이 앞선 인증 요청의 사용자 정보를 물려받지 않는지 확인한다.
         assertError(request("GET", PROFILE, null), 401, "UNAUTHORIZED");
     }
 
     @Test
     @DisplayName("Redis 세션이 활성 상태여도 만료된 JWT는 401이다")
-    void rejectsExpiredAccessToken() throws Exception {
+    void protectedApi_expiredAccessToken_rejectedDespiteActiveSession() throws Exception {
         var expiredIssuer = new JwtTokenProvider(new JwtProperties(jwtProperties.secret(), -60, 600));
         assertError(request("GET", PROFILE, expiredIssuer.createAccessToken(user, sessionId)), 401, "UNAUTHORIZED");
     }
 
     @Test
     @DisplayName("다른 키로 서명한 JWT는 401이다")
-    void rejectsInvalidSignature() throws Exception {
+    void protectedApi_invalidSignature_rejected() throws Exception {
         var otherIssuer = new JwtTokenProvider(new JwtProperties("other-test-only-signing-key-never-for-production-307", 600, 600));
         assertError(request("GET", PROFILE, otherIssuer.createAccessToken(user, sessionId)), 401, "UNAUTHORIZED");
     }
 
     @Test
     @DisplayName("잘못된 형식의 토큰은 401이다")
-    void rejectsMalformedToken() throws Exception {
+    void protectedApi_malformedToken_rejected() throws Exception {
         assertError(request("GET", PROFILE, "not-a-jwt"), 401, "UNAUTHORIZED");
     }
 
     @Test
     @DisplayName("활성 세션의 Refresh 토큰으로 보호 API에 접근할 수 없다")
-    void rejectsRefreshTokenAsAccessToken() throws Exception {
+    void protectedApi_refreshTokenAsAccessToken_rejected() throws Exception {
         assertError(request("GET", PROFILE, tokens.createRefreshToken(user, sessionId)), 401, "UNAUTHORIZED");
     }
 
     @Test
     @DisplayName("실제 로그아웃 이후 서명이 유효한 기존 Access 토큰도 401이다")
-    void rejectsTokenRevokedByLogout() throws Exception {
+    void protectedApi_loggedOutAccessToken_revoked() throws Exception {
         assertThat(request("GET", PROFILE, accessToken).statusCode()).isEqualTo(200);
         assertThat(request("POST", "/api/v2/auth/logout", accessToken).statusCode()).isEqualTo(200);
         assertThat(sessions.findByUserId(userId)).isEmpty();
@@ -131,7 +131,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("세션 교체 시 이전 토큰은 401이고 현재 세션 토큰은 200이다")
-    void rejectsSupersededSession() throws Exception {
+    void protectedApi_replacedSession_oldRejectedCurrentAccepted() throws Exception {
         String replacement = UUID.randomUUID().toString();
         saveSession(replacement);
         assertError(request("GET", PROFILE, accessToken), 401, "UNAUTHORIZED");
@@ -140,14 +140,14 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("관리자 API는 미인증 401과 일반 사용자 403을 구분한다")
-    void rejectsMissingAdminPermission() throws Exception {
+    void adminApi_missingPermission_unauthenticated401AndUser403() throws Exception {
         assertError(request("GET", ADMIN, null), 401, "UNAUTHORIZED");
         assertError(request("GET", ADMIN, accessToken), 403, "FORBIDDEN");
     }
 
     @Test
     @DisplayName("관리자 API는 DB의 ADMIN 권한을 허용하고 권한 회수 후 403을 반환한다")
-    void checksCurrentDatabaseRole() throws Exception {
+    void adminApi_databaseAdminRole_allowedThenRevocationForbidden() throws Exception {
         jdbc.update("UPDATE users SET role='ADMIN' WHERE id=?", userId);
         assertThat(request("GET", ADMIN, accessToken).statusCode()).isEqualTo(200);
         jdbc.update("UPDATE users SET role='USER' WHERE id=?", userId);
@@ -156,7 +156,7 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("유효한 API 인증으로도 서비스 포트의 관리 지표에 접근할 수 없다")
-    void rejectsManagementAccessWithValidApiToken() throws Exception {
+    void managementMetrics_validApiToken_servicePortAccessRejected() throws Exception {
         jdbc.update("UPDATE users SET role='ADMIN' WHERE id=?", userId);
         assertThat(request("GET", "/actuator/metrics", accessToken).statusCode()).isEqualTo(403);
         assertThat(request("GET", "/actuator/prometheus", accessToken).statusCode()).isEqualTo(403);
@@ -164,14 +164,14 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     @DisplayName("공개 관리자 화면은 인증 없이 접근 가능하다")
-    void preservesPublicPage() throws Exception {
+    void adminPage_publicAccess_allowed() throws Exception {
         assertThat(request("GET", "/admin/common-codes", null).statusCode()).isEqualTo(200);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"missing", "", "not-a-uuid"})
     @DisplayName("실제 공개 API에서 필수 헤더 누락·빈 값·형식 오류는 400이다")
-    void rejectsInvalidRequiredHeaderOverHttp(String value) throws Exception {
+    void requiredHeader_httpMissingOrMalformed_returns400(String value) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
                 + "/api/v2/settlement-links/" + "x".repeat(43) + "/transfer-instruction"))
                 .timeout(Duration.ofSeconds(10));
@@ -184,20 +184,20 @@ class SecurityFilterChainIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"", "?accountId=", "?accountId=not-a-number"})
     @DisplayName("실제 JWT·Redis 인증을 통과한 요청의 필수 파라미터 오류는 400이다")
-    void rejectsInvalidRequiredParameterOverHttp(String query) throws Exception {
+    void requiredParameter_httpInvalidAfterAuthentication_returns400(String query) throws Exception {
         assertInvalidArgument(request("GET", paymentCandidatesPath() + query, accessToken));
     }
 
     @Test
     @DisplayName("필수 파라미터가 누락되어도 미인증 보호 API는 먼저 401로 거절한다")
-    void preservesAuthenticationBeforeParameterBinding() throws Exception {
+    void authentication_missingParameter_preservedBeforeBindingError() throws Exception {
         assertError(request("GET", paymentCandidatesPath(), null), 401, "UNAUTHORIZED");
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "{", "{}"})
     @DisplayName("실제 로그인 API의 본문 누락·파싱·검증 오류는 기존 400을 유지한다")
-    void preservesBodyErrorsOverHttp(String body) throws Exception {
+    void login_httpBodyErrors_preserve400(String body) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v2/auth/login"))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")

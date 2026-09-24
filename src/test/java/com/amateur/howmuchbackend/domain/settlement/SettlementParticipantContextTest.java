@@ -16,7 +16,7 @@ class SettlementParticipantContextTest {
 
     @Test
     @DisplayName("링크 hash와 정산·참여자를 묶은 불투명 UUID token을 발급한다")
-    void issuesOpaqueContext() {
+    void participantContext_linkedIds_opaqueTokenIssued() {
         UUID settlementId = UUID.randomUUID();
         UUID participantId = UUID.randomUUID();
 
@@ -32,7 +32,7 @@ class SettlementParticipantContextTest {
 
     @Test
     @DisplayName("만료 시각이 생성 시각보다 늦지 않으면 거부한다")
-    void rejectsExpiredContext() {
+    void participantContext_expirationNotAfterCreation_rejected() {
         assertThatThrownBy(() -> SettlementParticipantContext.issue(
                 "a".repeat(64), UUID.randomUUID(), UUID.randomUUID(), NOW, NOW
         )).isInstanceOf(ApplicationException.class);

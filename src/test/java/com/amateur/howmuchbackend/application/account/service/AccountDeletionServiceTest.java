@@ -46,7 +46,7 @@ class AccountDeletionServiceTest {
 
     @Test
     @DisplayName("기본 계좌를 삭제하면 정산 참조를 분리하고 다음 계좌를 기본으로 승격한다")
-    void deletesDefaultAccountAndPromotesNext() {
+    void defaultAccount_deleted_referencesDetachedAndNextPromoted() {
         Account deleted = account(10L, true, 2);
         Account next = account(12L, false, 1);
         Account later = account(11L, false, 3);
@@ -61,7 +61,7 @@ class AccountDeletionServiceTest {
 
     @Test
     @DisplayName("진행 중 정산이 수령 계좌로 사용하면 아무것도 변경하지 않고 409로 거부한다")
-    void rejectsAccountUsedByInProgressSettlement() {
+    void accountDeletion_inProgressSettlement_noChangeAndConflict() {
         Account account = account(10L, true, 0);
         givenOwnedLockedAccount(account);
         when(settlementUsagePort.existsInProgressByReceivingAccountId(account.id())).thenReturn(true);
@@ -77,7 +77,7 @@ class AccountDeletionServiceTest {
 
     @Test
     @DisplayName("타인 또는 삭제된 계좌는 연결 잠금 전에 404로 거부한다")
-    void rejectsUnknownAccount() {
+    void accountDeletion_unknownOwnerOrId_rejectedBeforeLock() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(user.active()).thenReturn(true);
         when(loadUserPort.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
@@ -92,7 +92,7 @@ class AccountDeletionServiceTest {
 
     @Test
     @DisplayName("기본 계좌가 아니면 기본 계좌 승격 없이 삭제한다")
-    void deletesNonDefaultAccountWithoutPromotion() {
+    void accountDeletion_nonDefault_noPromotion() {
         Account account = account(10L, false, 2);
         givenOwnedLockedAccount(account);
 

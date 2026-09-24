@@ -127,7 +127,7 @@ class TreasurerSettlementPersistenceIntegrationTest {
 
     @Test
     @DisplayName("RECEIVE는 생성자 본인 Share를 제외한 금액을 집계한다")
-    void loadsReceivableAmountExcludingCreatorShare() {
+    void receivableAmount_creatorShare_excluded() {
         var result = treasurerSettlementPersistenceAdapter.findAll(creatorId);
 
         assertThat(result)
@@ -145,7 +145,7 @@ class TreasurerSettlementPersistenceIntegrationTest {
 
     @Test
     @DisplayName("SEND는 현재 사용자의 Share 금액을 선택한다")
-    void loadsAmountToPayForLinkedParticipant() {
+    void linkedParticipant_currentUserShare_selected() {
         var result = treasurerSettlementPersistenceAdapter.findAll(payerId);
 
         assertThat(result)

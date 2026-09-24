@@ -64,7 +64,7 @@ class AskTreasurerServiceTest {
     private SaveTreasurerAnswerPort saveTreasurerAnswerPort;
 
     @Test
-    void answersOpenSendSettlementsInCurrentMonth() {
+    void openSendSettlements_currentMonth_returned() {
         UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
@@ -101,7 +101,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void usesLlmPhrasingForKnownIntents() {
+    void answer_knownIntent_usesLlmPhrasing() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -123,7 +123,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void fallsBackWhenLlmInventedAmounts() {
+    void answer_llmInventsAmounts_usesFallback() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -145,7 +145,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void excludesReceiveSettlementsFromExpenseSummary() {
+    void expenseSummary_receiveSettlements_excluded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -179,7 +179,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void keepsTitleFilterWhenPeriodAndGroupNameAppearTogether() {
+    void titleAndPeriodFilter_groupNamePresent_preserved() {
         UUID travelId = UUID.fromString("22222222-2222-2222-2222-222222222222");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
@@ -214,7 +214,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersFromAllSettlementsWhenTitleMatchesNothing() {
+    void titleFilter_noMatches_returnsAllSettlements() {
         UUID dinnerId = UUID.fromString("22222222-2222-2222-2222-222222222233");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
@@ -241,7 +241,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void narrowsByTitleWithoutGenericSuffix() {
+    void titleHint_genericSuffix_strippedBeforeMatching() {
         UUID travelId = UUID.fromString("22222222-2222-2222-2222-222222222244");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
@@ -276,7 +276,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void doesNotNarrowWhenGenericHintHappensToMatchATitle() {
+    void titleHint_genericMatch_doesNotNarrow() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -320,7 +320,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void narrowsWhenHintCarriesANameBesidesGenericWords() {
+    void titleHint_containsName_narrowsResults() {
         UUID travelId = UUID.randomUUID();
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
@@ -355,7 +355,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void doesNotNarrowByGenericWordLeftAfterStrippingSuffix() {
+    void titleHint_genericWordAfterSuffixStripping_doesNotNarrow() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -389,7 +389,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void doesNotLetLlmPhraseStatusAnswerWhenTitleWasDropped() {
+    void statusAnswer_titleDropped_remainsGrounded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -411,7 +411,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void doesNotLetLlmPhraseDueAnswerWhenTitleWasDropped() {
+    void dueAnswer_titleDropped_remainsGrounded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -433,7 +433,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void keepsAnswerTruthfulWhenUserHasNoSettlementAtAll() {
+    void answer_noSettlements_remainsTruthful() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         AskTreasurerService service = service();
 
@@ -446,7 +446,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void keepsTitleFilterWhenTitleExistsOutsideRequestedPeriod() {
+    void titleOutsidePeriod_periodFilter_keepsTitleFilter() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -472,7 +472,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void excludesDraftFromReceiveAnswers() {
+    void receiveAnswers_draft_excluded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -497,7 +497,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void infersThisMonthWhenPeriodIsOmitted() {
+    void askSettlement_periodOmitted_infersCurrentMonth() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -521,7 +521,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersLastMonthSendSettlements() {
+    void sendSettlements_lastMonth_returned() {
         UUID lastMonthId = UUID.fromString("33333333-3333-3333-3333-333333333333");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
@@ -556,7 +556,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersSettlementStatusWithOpenAndCompletedCounts() {
+    void settlementStatus_openAndCompletedCounts_returned() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -592,7 +592,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void includesCompletedSendInExpenseAndExcludesDraft() {
+    void expenseSummary_completedSendIncludedAndDraftExcluded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -625,7 +625,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void returnsExamplesWhenIntentIsUnknown() {
+    void unknownIntent_returnsExamples() {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand("푸딩은 어떻게 만드나요?"));
@@ -646,7 +646,7 @@ class AskTreasurerServiceTest {
             "정산 기한이 지나면 어떻게 돼?",
             "이 서비스는 어떻게 사용하는 거야?"
     })
-    void clarifiesServiceRelatedQuestionInsteadOfGuidingScope(String question) {
+    void serviceQuestion_asksForClarification(String question) {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand(question));
@@ -667,7 +667,7 @@ class AskTreasurerServiceTest {
             "나한테 돈 들어올 거 있어?, RECEIVE",
             "회비 안 낸 사람 알려줘, RECEIVE"
     })
-    void answersColloquialQuestionWithTheSettlementOfThatDirection(String question, SettlementDirection expected) {
+    void colloquialDirection_matchesSettlementDirection(String question, SettlementDirection expected) {
         UUID sendId = UUID.randomUUID();
         UUID receiveId = UUID.randomUUID();
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
@@ -694,7 +694,7 @@ class AskTreasurerServiceTest {
             "내 정산 중에 뭐가 남았어?, SETTLEMENT_STATUS",
             "아직 안 낸 정산 있어?, SEND_SETTLEMENTS"
     })
-    void answersColloquialSettlementQuestionInsteadOfClarifying(String question, InquiryIntent expected) {
+    void colloquialSettlementQuestion_answeredWithoutClarification(String question, InquiryIntent expected) {
         when(generateTreasurerAnswerPort.generate(any()))
                 .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
                         .fallbackAnswer()));
@@ -715,7 +715,7 @@ class AskTreasurerServiceTest {
             "영화 추천해줘.",
             "주식 추천해줘."
     })
-    void guidesScopeForQuestionUnrelatedToService(String question) {
+    void outOfScopeQuestion_returnsScopeGuide(String question) {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand(question));
@@ -728,7 +728,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void carriesAllocationTypeAndStatusOnAnswerItems() {
+    void answerItems_includeAllocationTypeAndStatus() {
         UUID id = UUID.fromString("33333333-3333-3333-3333-333333333333");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
@@ -759,7 +759,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersQuickActionSendAsListCard() {
+    void quickSendAction_returnsListCard() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.fromString("11111111-1111-1111-1111-111111111111"),
@@ -790,7 +790,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersQuickActionReceiveAsListCard() {
+    void quickReceiveAction_returnsListCard() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.fromString("44444444-4444-4444-4444-444444444444"),
@@ -821,7 +821,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersQuickActionStatusAsSummaryCard() {
+    void quickStatusAction_returnsSummaryCard() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -859,7 +859,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersOcrGuideWithoutCallingLlm() {
+    void ocrGuide_answeredWithoutLlm() {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand("OCR 정산은 어떻게 해?"));
@@ -871,7 +871,7 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    void answersDueSettlementsByDeadlineInThisWeek() {
+    void dueSettlements_thisWeek_returnsByDeadline() {
         UUID dueThisWeekId = UUID.fromString("55555555-5555-5555-5555-555555555555");
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
@@ -907,7 +907,7 @@ class AskTreasurerServiceTest {
 
     @Test
     @DisplayName("LLM이 문장을 만들면 LLM으로, 서버 문구면 SERVER로 저장한다")
-    void storesWhoGeneratedTheAnswer() {
+    void answerGenerator_llmOrServer_persisted() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         when(generateTreasurerAnswerPort.generate(any())).thenReturn(Optional.empty());
         AskTreasurerService service = service();
@@ -923,7 +923,7 @@ class AskTreasurerServiceTest {
 
     @Test
     @DisplayName("사실 검증을 통과한 LLM 문장은 LLM으로 저장한다")
-    void storesLlmAsGenerator() {
+    void answerGenerator_factCheckedLlm_persisted() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         when(generateTreasurerAnswerPort.generate(any()))
                 .thenAnswer(invocation -> Optional.of(invocation.getArgument(0, TreasurerAnswerDraft.class)
@@ -939,7 +939,7 @@ class AskTreasurerServiceTest {
 
     @Test
     @DisplayName("의도를 못 알아들은 답변도 저장한다")
-    void storesUnmatchedAnswerToo() {
+    void answer_unknownIntent_persisted() {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand("오늘 날씨 어때"));
@@ -950,7 +950,7 @@ class AskTreasurerServiceTest {
 
     @Test
     @DisplayName("저장이 실패해도 답변은 나가고 answerId만 비어 있다")
-    void stillAnswersWhenStoringFails() {
+    void answerPersistenceFailure_responseReturnedWithoutId() {
         doThrow(new RuntimeException("저장 실패"))
                 .when(saveTreasurerAnswerPort).save(any(SavedTreasurerAnswer.class));
         AskTreasurerService service = service();

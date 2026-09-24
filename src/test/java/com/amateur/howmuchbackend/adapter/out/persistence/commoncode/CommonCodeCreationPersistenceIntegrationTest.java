@@ -61,13 +61,13 @@ class CommonCodeCreationPersistenceIntegrationTest {
 
     @ParameterizedTest(name = "미존재 검사 이후 선행 커밋: 상세 포함={0}")
     @ValueSource(booleans = {false, true})
-    void rejectsLateCreateAfterAnotherRequestCommits(boolean withDetails) {
+    void commonCodeCreation_staleAbsenceRead_rejectedAfterCommit(boolean withDetails) {
         var snapshot = new AtomicReference<CommonCodeGroup>();
         var delayedLoad = mock(LoadCommonCodeGroupPort.class);
         when(delayedLoad.findByGroupCode(groupCode)).thenAnswer(call -> {
             var absent = adapter.findByGroupCode(groupCode);
             assertThat(absent).isEmpty();
-            // B has read absence. A now reads absence and commits on another connection.
+            // B는 행이 없다고 조회했다. 이제 A가 별도 연결에서 같은 부재 상태를 읽고 커밋한다.
             separateTx.executeWithoutResult(status -> {
                 service(adapter).create(command("winner"));
                 if (withDetails) adapter.update(group("winner", List.of(detail("KEEP", "original"))));
@@ -82,7 +82,7 @@ class CommonCodeCreationPersistenceIntegrationTest {
     }
 
     @Test
-    void concurrentInsertsHaveExactlyOneWinner() throws Exception {
+    void commonCodeCreation_concurrentInserts_haveOneWinner() throws Exception {
         var barrier = new CyclicBarrier(2);
         var synchronizedLoad = mock(LoadCommonCodeGroupPort.class);
         when(synchronizedLoad.findByGroupCode(groupCode)).thenAnswer(call -> {
@@ -104,7 +104,7 @@ class CommonCodeCreationPersistenceIntegrationTest {
     }
 
     @Test
-    void duplicateCreateCannotReplaceOrDeactivateDetails() {
+    void commonCodeCreation_duplicateRequest_preservesDetails() {
         tx.executeWithoutResult(status -> adapter.create(group("winner", List.of(detail("KEEP", "original")))));
         var before = read();
 
@@ -115,7 +115,7 @@ class CommonCodeCreationPersistenceIntegrationTest {
     }
 
     @Test
-    void updateStillChangesDetailsAndDeactivatesRemovedOnes() {
+    void commonCodeUpdate_removedDetails_deactivated() {
         tx.executeWithoutResult(status -> adapter.create(group("before",
                 List.of(detail("KEEP", "original"), detail("REMOVE", "removed")))));
         tx.executeWithoutResult(status -> adapter.update(group("after", List.of(detail("KEEP", "changed")))));
@@ -129,7 +129,7 @@ class CommonCodeCreationPersistenceIntegrationTest {
     }
 
     @Test
-    void missingUpdateDoesNotCreateGroup() {
+    void commonCodeUpdate_missingGroup_doesNotCreateGroup() {
         assertThatThrownBy(() -> tx.execute(status -> adapter.update(group("missing", List.of()))))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(CommonCodeStatusCode.COMMON_CODE_GROUP_NOT_FOUND));

@@ -66,7 +66,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
 
     @ParameterizedTest(name = "상세 변경 및 오래된 요청 거절: {0}")
     @ValueSource(strings = {"add", "edit", "deactivate", "omit"})
-    void detailOnlyEditAdvancesRevisionAndRejectsStaleRequest(String operation) {
+    void commonCodeRevision_detailEdit_incrementsAndRejectsStale(String operation) {
         var before = read();
         List<CommonCode> details = switch (operation) {
             case "add" -> List.of(before.details().getFirst(), before.details().getLast(), detail("NEW", "added", true));
@@ -91,7 +91,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void concurrentDetailWritersHaveOneWinner() throws Exception {
+    void commonCodeRevision_concurrentDetailWrites_haveOneWinner() throws Exception {
         var before = read();
         var barrier = new CyclicBarrier(2);
         var synchronizedLoad = mock(LoadCommonCodeGroupPort.class);
@@ -117,7 +117,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void rejectsWriterWhoseManagedGroupBecameStaleAfterRead() {
+    void commonCodeRevision_managedGroupStaleAfterRead_rejected() {
         var before = read();
         var winner = new AtomicReference<CommonCodeGroup>();
         var delayedLoad = mock(LoadCommonCodeGroupPort.class);
@@ -136,7 +136,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void adapterRejectsStaleDetachedRevision() {
+    void commonCodeRevision_detachedStaleEntity_rejected() {
         var before = read();
         tx.executeWithoutResult(status -> adapter.update(withDetails(before, List.of(detail("KEEP", "winner", true)))));
         var winner = read();
@@ -147,7 +147,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void rollbackRestoresRevisionAndAllDetails() {
+    void commonCodeRevision_rollback_restoresRevisionAndDetails() {
         var before = read();
         tx.executeWithoutResult(status -> {
             var updated = adapter.update(withDetails(before, List.of(detail("NEW", "rolled back", true))));
@@ -158,7 +158,7 @@ class CommonCodeRevisionPersistenceIntegrationTest {
     }
 
     @Test
-    void metadataAndDetailEditReturnsCommittedRevisionAndAllowsNextEdit() {
+    void commonCodeRevision_committedDetailEdit_allowsNextEdit() {
         var before = read();
         var response = tx.execute(status -> adapter.update(before.update("renamed", "description",
                 "attr1", null, null, false, List.of(detail("KEEP", "changed", true)))));

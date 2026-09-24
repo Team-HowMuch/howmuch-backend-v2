@@ -121,7 +121,7 @@ class SettlementDutchPayAllocationPersistenceIntegrationTest {
 
     @Test
     @DisplayName("V12 스키마에 참여자별 초안을 교체·조회·수정한다")
-    void replacesLoadsAndUpdatesAllocations() {
+    void dutchPayDraft_participantAmounts_replacedLoadedAndUpdated() {
         List<SettlementDutchPayAllocation> saved = adapter.replaceAll(
                 settlementId,
                 List.of(
@@ -144,7 +144,7 @@ class SettlementDutchPayAllocationPersistenceIntegrationTest {
 
     @Test
     @DisplayName("참여자가 제거되면 복합 외래키의 Cascade로 해당 배분 초안도 제거한다")
-    void cascadesWhenParticipantIsDeleted() {
+    void participant_deleted_cascadesAllocationDraft() {
         adapter.replaceAll(
                 settlementId,
                 List.of(

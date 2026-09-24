@@ -17,7 +17,7 @@ class SettlementAutomaticReminderConfigurationTest {
                     () -> mock(SendAutomaticSettlementRemindersUseCase.class));
 
     @Test
-    void disabledByDefaultWithOneMinuteAndFiftyDefaults() {
+    void automaticReminder_defaults_disabledOneMinuteAndBatch50() {
         context.run(app -> {
             assertThat(app).doesNotHaveBean(SettlementAutomaticReminderScheduler.class);
             var properties = app.getBean(SettlementAutomaticReminderProperties.class);
@@ -28,7 +28,7 @@ class SettlementAutomaticReminderConfigurationTest {
     }
 
     @Test
-    void explicitEnableRegistersSchedulerAndOverridesBatch() {
+    void automaticReminder_enabled_registersSchedulerAndBatchSize() {
         context.withPropertyValues("howmuch.settlement.automatic-reminder.enabled=true",
                 "howmuch.settlement.automatic-reminder.batch-size=10").run(app -> {
             assertThat(app).hasSingleBean(SettlementAutomaticReminderScheduler.class);
@@ -37,7 +37,7 @@ class SettlementAutomaticReminderConfigurationTest {
     }
 
     @Test
-    void invalidIntervalFailsStartup() {
+    void automaticReminder_invalidInterval_startupRejected() {
         context.withPropertyValues("howmuch.settlement.automatic-reminder.poll-interval=-1s")
                 .run(app -> assertThat(app).hasFailed());
     }

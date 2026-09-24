@@ -38,7 +38,7 @@ class AccountPreferenceServiceTest {
     @Mock private User user;
 
     @Test
-    void setsOwnedActiveAccountAsDefault() {
+    void accountPreference_ownedActiveAccount_setAsDefault() {
         givenAccounts(account(10L, false, 0), account(11L, true, 1));
 
         service().setDefault(10L);
@@ -47,7 +47,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void movesAccountAndNormalizesDisplayOrders() {
+    void accountPreference_move_normalizesDisplayOrder() {
         givenAccounts(
                 account(10L, true, 0),
                 account(11L, false, 1),
@@ -63,7 +63,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsDisplayOrderOutsideActiveAccountRange() {
+    void accountPreference_outOfRangeDisplayOrder_rejected() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         for (int displayOrder : List.of(-1, 2)) {
@@ -81,7 +81,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsUnknownOrInactiveAccount() {
+    void accountPreference_unknownOrInactiveAccount_rejected() {
         givenAccounts(account(10L, true, 0));
 
         assertThatThrownBy(() -> service().setDefault(99L))
@@ -93,7 +93,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void savesWholeOrderExactlyAsRequested() {
+    void accountPreference_completeOrder_savedExactly() {
         givenAccounts(
                 account(10L, true, 0),
                 account(11L, false, 1),
@@ -111,7 +111,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void keepsDefaultAccountWhereTheUserPutIt() {
+    void accountPreference_defaultAccountPosition_preserved() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         service().replaceDisplayOrders(
@@ -122,7 +122,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsOrderMissingAnActiveAccount() {
+    void accountPreference_missingActiveAccount_rejected() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         assertThatThrownBy(() -> service().replaceDisplayOrders(
@@ -138,7 +138,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsDuplicatedAccountInOrder() {
+    void accountPreference_duplicateAccount_rejected() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         assertThatThrownBy(() -> service().replaceDisplayOrders(
@@ -154,7 +154,7 @@ class AccountPreferenceServiceTest {
     }
 
     @Test
-    void rejectsOrderContainingAccountTheUserDoesNotOwn() {
+    void accountPreference_unownedAccount_rejected() {
         givenAccounts(account(10L, true, 0), account(11L, false, 1));
 
         assertThatThrownBy(() -> service().replaceDisplayOrders(

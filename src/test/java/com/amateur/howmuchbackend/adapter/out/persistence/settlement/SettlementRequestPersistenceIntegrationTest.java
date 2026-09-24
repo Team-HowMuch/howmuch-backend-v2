@@ -61,7 +61,7 @@ class SettlementRequestPersistenceIntegrationTest {
 
     @Test
     @DisplayName("계좌번호와 공유 토큰은 암호화하고 참여자별 Share와 token hash를 저장한다")
-    void savesEncryptedSnapshotSharesAndHashedLink() {
+    void settlementRequest_accountSnapshotEncryptedAndTokenHashed() {
         SettlementReceivingAccountSnapshot snapshot =
                 SettlementReceivingAccountSnapshot.create(
                         settlementId,
@@ -131,7 +131,7 @@ class SettlementRequestPersistenceIntegrationTest {
 
     @Test
     @DisplayName("기존 Account 기준으로 암호화된 계좌 스냅샷도 호환 조회한다")
-    void loadsLegacyAccountBoundSnapshot() {
+    void legacyAccountSnapshot_encryptedWithAccount_restored() {
         String legacyCiphertext = cipher.encryptAccountKey(
                 creatorId,
                 connectionId,
@@ -158,7 +158,7 @@ class SettlementRequestPersistenceIntegrationTest {
 
     @Test
     @DisplayName("정산 root 삭제가 Share·수령 계좌 스냅샷·링크를 함께 cascade한다")
-    void deletesRequestChildrenWithSettlement() {
+    void settlementDeletion_requestChildren_cascaded() {
         SettlementReceivingAccountSnapshot snapshot = SettlementReceivingAccountSnapshot.create(
                 settlementId,
                 accountId,

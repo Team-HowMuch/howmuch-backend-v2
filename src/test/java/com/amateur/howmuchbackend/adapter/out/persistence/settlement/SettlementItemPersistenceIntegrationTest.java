@@ -91,7 +91,7 @@ class SettlementItemPersistenceIntegrationTest {
 
     @Test
     @DisplayName("V14 스키마에 OCR 품목 순서·수량·행 금액을 저장하고 조회한다")
-    void savesAndLoadsReceiptItems() {
+    void receiptItems_orderQuantityAndAmount_savedAndLoaded() {
         SettlementExpense expense = saveReceiptExpense("receipt-items");
 
         itemPersistenceAdapter.saveAll(List.of(
@@ -115,7 +115,7 @@ class SettlementItemPersistenceIntegrationTest {
 
     @Test
     @DisplayName("OCR 지출을 삭제하면 하위 품목도 Cascade로 삭제한다")
-    void deletesItemsWithReceiptExpense() {
+    void receiptExpense_deleted_cascadesItems() {
         SettlementExpense expense = saveReceiptExpense("receipt-cascade");
         SettlementItem saved = itemPersistenceAdapter.saveAll(List.of(
                 item(expense.id(), "아메리카노", 2, 30_000, 0)
@@ -128,7 +128,7 @@ class SettlementItemPersistenceIntegrationTest {
 
     @Test
     @DisplayName("같은 OCR 참조를 동일 정산에 두 번 저장하면 전용 충돌 오류로 변환한다")
-    void rejectsDuplicateReceiptReference() {
+    void receiptReference_duplicateInSettlement_returnsConflict() {
         saveReceiptExpense("receipt-duplicate");
 
         assertThatThrownBy(() -> saveReceiptExpense("receipt-duplicate"))

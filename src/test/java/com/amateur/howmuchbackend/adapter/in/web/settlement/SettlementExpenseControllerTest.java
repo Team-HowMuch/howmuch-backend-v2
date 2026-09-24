@@ -81,7 +81,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("수동 지출을 등록하고 최신 누적액을 반환한다")
-    void createsManualExpense() throws Exception {
+    void manualExpense_validRequest_returnsUpdatedTotal() throws Exception {
         when(createSettlementExpenseUseCase.create(
                 SETTLEMENT_ID,
                 new CreateSettlementExpenseCommand("저녁 식사", 42_000)
@@ -105,7 +105,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("유니코드 공백만 있는 설명을 UseCase 호출 전에 거부한다")
-    void rejectsUnicodeWhitespaceDescription() throws Exception {
+    void manualExpense_unicodeWhitespaceDescription_rejected() throws Exception {
         mockMvc.perform(post("/api/v2/settlements/{settlementId}/expenses", SETTLEMENT_ID)
                         .contentType("application/json")
                         .content("""
@@ -122,7 +122,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("지출 누적액이 long 범위를 넘으면 500이 아닌 400 오류 계약을 반환한다")
-    void returnsBadRequestForExpenseTotalOverflow() throws Exception {
+    void expenseTotal_overflow_returnsBadRequest() throws Exception {
         when(createSettlementExpenseUseCase.create(
                 SETTLEMENT_ID,
                 new CreateSettlementExpenseCommand("추가 지출", 1)
@@ -146,7 +146,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("화면 복원을 위해 표시 순서 목록과 누적액을 반환한다")
-    void getsExpenseList() throws Exception {
+    void expenseList_request_returnsDisplayOrderAndTotal() throws Exception {
         when(getSettlementExpensesUseCase.get(SETTLEMENT_ID)).thenReturn(
                 new SettlementExpenseListResult(
                         List.of(expenseResult("저녁 식사", 42_000)),
@@ -162,7 +162,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("수정 필드가 없는 PATCH를 거부한다")
-    void rejectsPatchWithoutFields() throws Exception {
+    void expensePatch_noFields_returnsBadRequest() throws Exception {
         mockMvc.perform(patch(
                         "/api/v2/settlements/{settlementId}/expenses/{expenseId}",
                         SETTLEMENT_ID,
@@ -176,7 +176,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("금액만 부분 수정해 수정된 지출과 최신 누적액을 반환한다")
-    void updatesExpenseAmount() throws Exception {
+    void expenseAmount_update_returnsUpdatedExpenseAndTotal() throws Exception {
         when(updateSettlementExpenseUseCase.update(
                 eq(SETTLEMENT_ID),
                 eq(EXPENSE_ID),
@@ -199,7 +199,7 @@ class SettlementExpenseControllerTest {
 
     @Test
     @DisplayName("삭제 뒤 남은 지출 누적액을 반환한다")
-    void removesExpense() throws Exception {
+    void expenseDeletion_request_returnsRemainingTotal() throws Exception {
         when(removeSettlementExpenseUseCase.remove(SETTLEMENT_ID, EXPENSE_ID))
                 .thenReturn(new SettlementExpenseTotalResult(8_000));
 

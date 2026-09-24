@@ -84,7 +84,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("참여 문맥이 가리키는 참여자의 확정 금액과 수금 계좌만 반환한다")
-    void getsTransferInstructionForSelectedParticipant() {
+    void transferInstruction_selected_returnsAmountAndAccount() {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -113,7 +113,7 @@ class SettlementTransferInstructionServiceTest {
         assertThat(result.participantId()).isEqualTo(PARTICIPANT_ID);
         assertThat(result.shareId()).isEqualTo(SHARE_ID);
         assertThat(result.amount()).isEqualTo(6_000);
-        // 화면이 "OO님에게 N원을 보내주세요"를 그리려면 예금주와 은행 이름이 필요하다.
+        // 송금 화면에 수취인 이름과 은행 이름을 표시하도록 결과에 함께 담는다.
         assertThat(result.recipientName()).isEqualTo("최수아");
         assertThat(result.recipientBankCode()).isEqualTo("0020");
         assertThat(result.recipientBankName()).isEqualTo("우리은행");
@@ -129,7 +129,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("은행 이름을 찾지 못하면 코드를 그대로 돌려준다")
-    void fallsBackToBankCodeWhenNameIsUnknown() {
+    void transferInstruction_unknownBankName_returnsBankCode() {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -159,7 +159,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("지원하는 송금 앱 링크가 없으면 원계좌번호만 반환하지 않는다")
-    void rejectsUnsupportedTransferLink() {
+    void transferInstruction_noSupportedAppLink_rejected() {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -187,7 +187,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("다른 링크에서 발급된 참여 문맥으로는 송금 정보를 조회할 수 없다")
-    void rejectsContextIssuedForAnotherLink() {
+    void transferInstruction_contextFromAnotherLink_rejected() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
                 new SettlementParticipantContext(
@@ -211,7 +211,7 @@ class SettlementTransferInstructionServiceTest {
     @ParameterizedTest(name = "{0} 상태")
     @EnumSource(value = SettlementStatus.class, names = {"DRAFT", "COMPLETED"})
     @DisplayName("보낼 수 없는 상태면 확정 송금 정보를 노출하지 않는다")
-    void rejectsSettlementBeforeTransferReady(SettlementStatus status) {
+    void transferInstruction_notReadySettlement_rejected(SettlementStatus status) {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(status)));
@@ -227,7 +227,7 @@ class SettlementTransferInstructionServiceTest {
 
     @Test
     @DisplayName("확정 Share 또는 수금 계좌가 누락되면 불완전한 송금 정보를 반환하지 않는다")
-    void rejectsIncompleteTransferInstruction() {
+    void transferInstruction_missingShareOrAccount_rejected() {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -255,7 +255,7 @@ class SettlementTransferInstructionServiceTest {
             "SUSPENDED, 4000, 6000"
     })
     @DisplayName("본인 Share의 확인된 입금만 차감하고 완납이면 링크를 생성하지 않는다")
-    void reflectsRemainingAmount(SettlementStatus status, long confirmedAmount, long expectedAmount) {
+    void transferInstruction_partialDeposit_subtractsConfirmedAmount(SettlementStatus status, long confirmedAmount, long expectedAmount) {
         arrangeLinkAndContext();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(status)));

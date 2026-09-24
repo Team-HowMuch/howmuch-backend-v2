@@ -124,7 +124,7 @@ class SettlementItemAllocationPersistenceIntegrationTest {
 
     @Test
     @DisplayName("참여자의 품목 선택을 저장하고 같은 선택의 비율을 변경한다")
-    void savesAndUpdatesSelection() {
+    void itemSelection_participantAmounts_savedAndUpdated() {
         SettlementItemSelection half = SettlementItemSelection.create(
                 settlementId,
                 item.id(),
@@ -154,7 +154,7 @@ class SettlementItemAllocationPersistenceIntegrationTest {
 
     @Test
     @DisplayName("품목 선택을 취소하고 참여자의 제출 완료를 저장한다")
-    void deletesSelectionAndSavesSubmission() {
+    void itemSelection_cancelAndSubmit_persisted() {
         SettlementItemSelection selection = allocationAdapter.saveSelection(
                 SettlementItemSelection.create(
                         settlementId,

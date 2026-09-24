@@ -31,7 +31,7 @@ class MyNotificationServiceTest {
         service = new MyNotificationService(actor, load, read, clock);
         when(actor.getCurrentActor()).thenReturn(new CurrentActor(2L));
     }
-    @Test void paginatesAndDoesNotMarkRead() {
+    @Test void notificationList_pageRequest_doesNotMarkRead() {
         var first = notification(UUID.randomUUID());
         when(load.findPage(2L,null,null,2)).thenReturn(List.of(first, notification(null)));
         var result = service.get(new GetMyNotificationsCommand(null,1));
@@ -47,32 +47,32 @@ class MyNotificationServiceTest {
         assertThat(last.items().getFirst().action().enabled()).isFalse();
         verifyNoInteractions(read);
     }
-    @Test void emptyPageAndCount() {
+    @Test void notificationList_emptyPage_returnsEmptyAndCount() {
         when(load.findPage(2L,null,null,21)).thenReturn(List.of());
         assertThat(service.get(new GetMyNotificationsCommand(null,null)).items()).isEmpty();
         when(load.countUnread(2L)).thenReturn(4L);
         assertThat(service.countUnread().count()).isEqualTo(4);
     }
-    @Test void usesFirstReadTimestamp() {
+    @Test void notification_read_usesFirstReadTimestamp() {
         UUID id=UUID.randomUUID();
         when(read.markRead(id,2L,now)).thenReturn(Optional.of(now.minusHours(1)));
         assertThat(service.read(id).readAt()).isEqualTo(now.minusHours(1));
     }
-    @Test void missingOrForeignNotificationReturnsSame404() {
+    @Test void notificationLookup_missingOrForeign_returnsSame404() {
         UUID id=UUID.randomUUID();
         when(read.markRead(id,2L,now)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.read(id)).isInstanceOfSatisfying(ApplicationException.class,
                 e -> assertThat(e.getStatusCode()).isEqualTo(NotificationStatusCode.NOTIFICATION_NOT_FOUND));
     }
     @ParameterizedTest @ValueSource(strings={"", "broken!", "dGVzdA"})
-    void invalidCursor(String cursor) {
+    void notificationCursor_invalid_rejected(String cursor) {
         assertThatThrownBy(() -> service.get(new GetMyNotificationsCommand(cursor,20)))
                 .isInstanceOfSatisfying(ApplicationException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(NotificationStatusCode.INVALID_NOTIFICATION_CURSOR));
         verifyNoInteractions(load,read);
     }
     @ParameterizedTest @ValueSource(ints={0,51,-1})
-    void invalidSize(int size) {
+    void notificationSize_invalid_rejected(int size) {
         assertThatThrownBy(() -> service.get(new GetMyNotificationsCommand(null,size)))
                 .isInstanceOf(ApplicationException.class);
     }

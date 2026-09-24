@@ -22,7 +22,7 @@ class SettlementItemSelectionTest {
 
     @Test
     @DisplayName("수량만큼 곱한 단위를 계산한다")
-    void multipliesUnitsByQuantity() {
+    void itemSelection_quantity_multipliesUnits() {
         SettlementItemSelection selection = selection(
                 SettlementItemAllocationFraction.THIRD, 2
         );
@@ -32,7 +32,7 @@ class SettlementItemSelectionTest {
 
     @Test
     @DisplayName("수량을 주지 않던 기존 저장과 같은 1개는 그대로 한 몫이다")
-    void keepsSingleUnitBehaviour() {
+    void itemSelection_oneUnit_preservesDefaultBehavior() {
         SettlementItemSelection selection = selection(
                 SettlementItemAllocationFraction.HALF, 1
         );
@@ -42,7 +42,7 @@ class SettlementItemSelectionTest {
 
     @Test
     @DisplayName("비율과 수량을 함께 바꾼다")
-    void changesFractionAndUnits() {
+    void itemSelection_fractionAndUnits_changedTogether() {
         SettlementItemSelection changed = selection(SettlementItemAllocationFraction.THIRD, 1)
                 .change(SettlementItemAllocationFraction.QUARTER, 3, NOW.plusMinutes(1));
 
@@ -55,7 +55,7 @@ class SettlementItemSelectionTest {
     @ParameterizedTest
     @ValueSource(ints = {0, -1})
     @DisplayName("1개 미만인 수량은 거부한다")
-    void rejectsInvalidUnits(int units) {
+    void itemSelection_quantityBelowOne_rejected(int units) {
         assertThatThrownBy(() -> selection(SettlementItemAllocationFraction.HALF, units))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
@@ -64,7 +64,7 @@ class SettlementItemSelectionTest {
 
     @Test
     @DisplayName("품목 한 개 분량을 넘는 수량도 도메인에서는 허용한다")
-    void allowsUnitsBeyondSingleItem() {
+    void itemSelection_quantityAboveOneItem_allowed() {
         assertThat(selection(SettlementItemAllocationFraction.ONE, 3).allocatedUnits())
                 .isEqualTo(SettlementItemAllocationFraction.WHOLE_UNITS * 3);
     }

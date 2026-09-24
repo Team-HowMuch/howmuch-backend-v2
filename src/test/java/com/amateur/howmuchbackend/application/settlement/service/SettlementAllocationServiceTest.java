@@ -90,7 +90,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("기준 총액과 지출 합계가 같으면 기본 N빵을 만들고 잔여금을 생성자에게 배분한다")
-    void selectsDutchPayAndCreatesDefaultAllocation() {
+    void allocationType_balancedExpenses_createsDutchPayShares() {
         Settlement settlement = settlement(null, 1_000);
         List<SettlementParticipant> participants = participants();
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
@@ -120,7 +120,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("네트워크 재시도로 같은 유형을 선택해도 사용자가 수정한 금액을 다시 N빵하지 않는다")
-    void preservesExistingAllocationForIdempotentSelection() {
+    void allocationType_idempotentSelection_preservesEditedAmount() {
         Settlement settlement = settlement(SettlementAllocationType.DUTCH_PAY, 1_000);
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement));
@@ -142,7 +142,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("서로 다른 기준으로 배분하지 않도록 기준 총액과 지출 합계 불일치를 거부한다")
-    void rejectsExpenseTotalMismatch() {
+    void allocationType_expenseTotalMismatch_rejected() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(null, 1_000)));
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
@@ -160,7 +160,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("저장된 OCR 품목이 없으면 품목별 할당 선택을 거부한다")
-    void rejectsItemAllocationWithoutReceiptItems() {
+    void allocationType_missingReceiptItems_rejected() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(null, 1_000)));
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
@@ -181,7 +181,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("OCR 품목 합계가 전체 지출과 같으면 품목별 할당을 선택한다")
-    void selectsItemAllocationWithBalancedReceiptItems() {
+    void allocationType_receiptTotalMatches_selectsItemAllocation() {
         Settlement settlement = settlement(null, 1_000);
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement));
@@ -207,7 +207,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("OCR 품목 합계가 전체 지출보다 작으면 품목별 할당 선택을 거부한다")
-    void rejectsItemAllocationTotalMismatch() {
+    void allocationType_receiptTotalMismatch_rejected() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(null, 1_000)));
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
@@ -229,7 +229,7 @@ class SettlementAllocationServiceTest {
 
     @Test
     @DisplayName("한 참여자 금액 수정 후 현재 초과액을 자동 보정하지 않고 그대로 반환한다")
-    void updatesParticipantAmountAndReturnsDifference() {
+    void participantAmount_update_returnsUnadjustedDifference() {
         Settlement settlement = settlement(SettlementAllocationType.DUTCH_PAY, 1_000);
         List<SettlementParticipant> participants = participants();
         List<SettlementDutchPayAllocation> before = allocations(334, 333, 333);

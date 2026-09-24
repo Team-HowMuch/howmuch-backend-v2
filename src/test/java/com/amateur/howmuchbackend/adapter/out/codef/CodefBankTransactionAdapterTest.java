@@ -43,13 +43,13 @@ class CodefBankTransactionAdapterTest {
             "CF-09999, CODEF_UPSTREAM_UNAVAILABLE",
             "CF-04000, BANK_CONNECTION_FAILED"
     })
-    void mapsOfficialFailureCodes(String code, ExternalConnectionStatusCode expected) {
+    void bankTransactions_officialFailureCodes_mapped(String code, ExternalConnectionStatusCode expected) {
         assertThat(CodefFailureMapper.map(code, ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, null)
                 .getStatusCode()).isEqualTo(expected);
     }
 
     @Test
-    void preservesFallbackAndCauseForUnknownFailureCode() {
+    void bankTransactions_unknownFailure_preservesFallbackAndCause() {
         IllegalStateException cause = new IllegalStateException("upstream failed");
 
         var failure = CodefFailureMapper.map(
@@ -60,7 +60,7 @@ class CodefBankTransactionAdapterTest {
     }
 
     @Test
-    void classifiesMissingCodefFailureCodeAsInvalidResponse() {
+    void bankTransactions_missingFailureCode_invalidResponse() {
         var failure = CodefFailureMapper.map(
                 null, ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID, null);
 
@@ -72,7 +72,7 @@ class CodefBankTransactionAdapterTest {
             "503, CODEF_UPSTREAM_UNAVAILABLE",
             "400, CODEF_RESPONSE_INVALID"
     })
-    void classifiesCodeLessHttpResponsesByTransportStatus(int httpStatus, ExternalConnectionStatusCode expected)
+    void bankTransactions_codeLessHttpStatus_classifiedByTransport(int httpStatus, ExternalConnectionStatusCode expected)
             throws Exception {
         when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any()))
                 .thenThrow(new CodefClient.CodefHttpException(httpStatus, "", null));
@@ -96,7 +96,7 @@ class CodefBankTransactionAdapterTest {
             "20270101,000000,2026-12-31T15:00:00"
     })
     @DisplayName("KST 거래 벽시계를 자정·월말·연말에도 정확한 UTC로 복원한다")
-    void convertsKstWallClockToUtc(String date, String time, String expectedUtc) {
+    void bankTransaction_kstTimestamp_yearMonthBoundaries_toUtc(String date, String time, String expectedUtc) {
         var response = new ObjectMapper().valueToTree(Map.of(
                 "result", Map.of("code", "CF-00000"),
                 "data", Map.of("resTrHistoryList", java.util.List.of(Map.of(
@@ -121,7 +121,7 @@ class CodefBankTransactionAdapterTest {
 
     @Test
     @DisplayName("수시입출 요청 계약과 출금·입금·서울 시간을 표준 거래로 변환한다")
-    void fetchesDemandDepositTransactions() throws Exception {
+    void bankTransactions_demandDeposit_mapsFieldsAndSeoulTime() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any())).thenReturn(
                 objectMapper.readTree("""

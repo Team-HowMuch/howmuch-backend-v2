@@ -108,7 +108,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자에게 전체 납부자와 실제 입금액 기준 진행률을 반환한다")
-    void returnsAllPaymentStatusesToCreator() {
+    void settlementDetail_creatorView_returnsStatusesAndProgress() {
         givenSettlement(CREATOR_ID);
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
@@ -142,7 +142,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자 상세에 연결된 미납 참여자의 다음 독촉 가능 시각을 반환한다")
-    void restoresReminderCooldownForCreator() {
+    void settlementDetail_creatorView_restoresReminderCooldown() {
         givenSettlement(CREATOR_ID, List.of());
         LocalDateTime nextAvailableAt = NOW.plusMinutes(30);
         when(cooldownReader.findLatestNextAvailableAt(
@@ -157,7 +157,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("품목 선택 대기 상세는 Share가 없는 연결 참여자의 다음 독촉 가능 시각을 반환한다")
-    void restoresItemSelectionReminderCooldownForCreator() {
+    void settlementDetail_itemSelectionWithoutShare_restoresCooldown() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
@@ -195,7 +195,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("재개 후 Share가 남아 있어도 미제출 참여자의 다음 독촉 가능 시각을 반환한다")
-    void restoresItemSelectionReminderCooldownWithPreservedShareAfterResume() {
+    void settlementDetail_resume_restoresPendingCooldown() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
@@ -231,7 +231,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("Share가 없어도 품목 선택을 제출한 참여자는 독촉 쿨다운 복원 대상에서 제외한다")
-    void excludesSubmittedParticipantWithoutShareFromReminderCooldown() {
+    void settlementReminder_submittedWithoutShare_noCooldown() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.REQUESTED)));
@@ -254,7 +254,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("단일 영수증 정산의 총액과 상호명과 결제일을 반환한다")
-    void returnsReceiptPaymentInfo() {
+    void settlementReceipt_singleExpense_returnsStoreDateAndTotal() {
         LocalDateTime paidAt = LocalDateTime.of(2026, 8, 25, 19, 30);
         givenSettlement(CREATOR_ID);
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
@@ -277,7 +277,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("단일 결제내역 정산의 총액과 상호명과 결제일을 반환한다")
-    void returnsPaymentHistoryPaymentInfo() {
+    void settlementHistory_singleImport_returnsStoreDateAndTotal() {
         LocalDateTime paidAt = LocalDateTime.of(2026, 8, 25, 19, 30);
         givenSettlement(CREATOR_ID);
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
@@ -301,7 +301,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("연결 참여자에게 전체 요약과 자신의 납부 행만 반환한다")
-    void limitsParticipantDetailsToSelf() {
+    void settlementDetail_linkedParticipant_seesOwnPaymentRow() {
         givenSettlement(PAYER_ID);
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
@@ -320,7 +320,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자 초안은 수금 계좌 정보를 반환하지 않는다")
-    void returnsNullReceivingAccountForDraft() {
+    void settlementDraft_receivingAccount_returnsNull() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlementDraft()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
@@ -339,7 +339,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("진행 중 정산의 수금 계좌 스냅샷이 없으면 404를 반환한다")
-    void rejectsMissingReceivingAccountSnapshot() {
+    void settlementDetail_missingAccountSnapshot_returnsNotFound() {
         givenSettlement(CREATOR_ID);
         lenient().when(loadReceivingAccountSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.empty());
@@ -352,7 +352,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("선택 대기 중인 품목 정산은 Share가 없어도 총액을 미수금으로 반환한다")
-    void returnsTotalAmountBeforeItemShareCreation() {
+    void settlementItemAllocation_noShares_usesTotalAsReceivable() {
         User payer = mock(User.class);
         when(payer.id()).thenReturn(PAYER_ID);
         when(payer.avatarFileName()).thenReturn("payer.png");
@@ -376,7 +376,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("선택 대기 중인 품목 정산은 일부 확인 입금만 총 미수금에서 뺀다")
-    void subtractsConfirmedPartialShareFromRequestedItemTotal() {
+    void settlementItemAllocation_partialDeposit_deductsPaidAmount() {
         givenRequestedItemSettlement(
                 List.of(new SettlementShare(
                         PAYER_SHARE_ID,
@@ -414,7 +414,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("선택 대기 중인 품목 정산은 생성자가 고른 몫을 미수금에서 제외한다")
-    void excludesCreatorItemAllocationFromRequestedTotal() {
+    void settlementItemAllocation_creatorShare_excludedFromReceivable() {
         givenRequestedItemSettlement(List.of(), List.of());
         when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
                 item(CREATOR_ITEM_ID, "생성자 품목", 400, 0),
@@ -445,7 +445,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("품목 선택을 제출했지만 0원인 참여자는 납부 완료로 반환한다")
-    void returnsPaidForSubmittedParticipantWithoutShare() {
+    void settlementItemAllocation_submittedZeroShare_returnsPaid() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -492,7 +492,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("품목 선택이 끝나면 기존처럼 납부 대상 Share 합계를 기준으로 계산한다")
-    void usesPayableShareTotalAfterItemSelection() {
+    void settlementItemAllocation_completed_usesPayableShareTotal() {
         givenSettlement(CREATOR_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(itemSettlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -506,7 +506,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자도 연결 참여자도 아닌 사용자의 조회를 거부한다")
-    void rejectsUnrelatedUser() {
+    void settlementDetail_unrelatedUser_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
@@ -526,7 +526,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("생성자 참여자 백필 전 정산도 사용자 이름으로 상세 조회한다")
-    void supportsSettlementWithoutCreatorParticipant() {
+    void settlementDetail_missingCreatorParticipant_usesUserName() {
         User creator = mock(User.class);
         when(creator.name()).thenReturn("기존 생성자");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
@@ -549,7 +549,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("표시 대상 사용자를 일괄 조회해 파일명 기반 사진 버전을 반환한다")
-    void returnsAvatarPresenceForLinkedUsersOnly() {
+    void settlementDetail_linkedUsers_returnsAvatarVersions() {
         givenSettlement(CREATOR_ID);
         User payer = mock(User.class);
         when(payer.id()).thenReturn(PAYER_ID);
@@ -570,7 +570,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("프로필 사진이 없거나 사용자가 없으면 이미지 없음으로 반환한다")
-    void returnsNoAvatarForMissingImageOrUser() {
+    void settlementDetail_missingImageOrUser_returnsNoAvatar() {
         givenSettlement(CREATOR_ID);
         User payer = mock(User.class);
         when(loadUserPort.findAllByIds(java.util.Set.of(PAYER_ID)))
@@ -584,7 +584,7 @@ class SettlementDetailServiceTest {
 
     @Test
     @DisplayName("참여자는 다른 연결 참여자의 사진 정보를 조회하지 않는다")
-    void loadsOnlyViewerAvatar() {
+    void settlementDetail_linkedParticipant_loadsOwnAvatarOnly() {
         givenSettlement(PAYER_ID);
         var expandedParticipants = new java.util.ArrayList<>(participants());
         expandedParticipants.add(new SettlementParticipant(

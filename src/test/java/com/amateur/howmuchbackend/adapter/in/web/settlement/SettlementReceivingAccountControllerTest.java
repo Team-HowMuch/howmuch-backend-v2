@@ -55,7 +55,7 @@ class SettlementReceivingAccountControllerTest {
 
     @Test
     @DisplayName("계좌 선택 화면을 구성하도록 후보 표시 정보와 선택 상태를 반환한다")
-    void getsReceivingAccountCandidates() throws Exception {
+    void receivingAccountCandidates_request_returnsSelectionState() throws Exception {
         when(getReceivingAccountsUseCase.get(SETTLEMENT_ID)).thenReturn(List.of(
                 new SettlementReceivingAccountResult(
                         7L,
@@ -84,7 +84,7 @@ class SettlementReceivingAccountControllerTest {
 
     @Test
     @DisplayName("선택 결과를 정산 조회 계약으로 반환해 다음 단계가 현재 계좌를 알 수 있게 한다")
-    void selectsReceivingAccount() throws Exception {
+    void receivingAccount_selection_returnsCurrentAccount() throws Exception {
         when(selectReceivingAccountUseCase.select(
                 eq(SETTLEMENT_ID),
                 eq(new SelectSettlementReceivingAccountCommand(7L))
@@ -113,7 +113,7 @@ class SettlementReceivingAccountControllerTest {
 
     @Test
     @DisplayName("DB 조회 전에 0 이하 수령 계좌 ID를 INVALID_ARGUMENT로 거부한다")
-    void rejectsInvalidReceivingAccountId() throws Exception {
+    void receivingAccount_nonPositiveId_returnsInvalidArgument() throws Exception {
         mockMvc.perform(put(
                         "/api/v2/settlements/{settlementId}/receiving-account",
                         SETTLEMENT_ID

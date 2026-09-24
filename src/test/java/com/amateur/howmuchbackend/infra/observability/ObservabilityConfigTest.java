@@ -12,7 +12,7 @@ class ObservabilityConfigTest {
             new ObservabilityConfig().safeObservationHandler();
 
     @Test
-    void removesSensitiveAttributesAndErrorsBeforeObservationStops() {
+    void observability_sensitiveAttributesAndErrors_removedBeforeStop() {
         var context = new Observation.Context();
         context.addLowCardinalityKeyValue(KeyValue.of("http.method", "POST"));
         context.addLowCardinalityKeyValue(KeyValue.of("http.url", "https://provider.test?token=secret"));

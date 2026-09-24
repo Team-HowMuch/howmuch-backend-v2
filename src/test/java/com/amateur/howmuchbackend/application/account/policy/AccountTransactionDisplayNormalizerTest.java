@@ -15,7 +15,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("농협 카드 원문에서 거래처명과 카드 유형을 추출한다")
-    void normalizesNhCardDescription() {
+    void nhCardDescription_merchantAndCardType_extracted() {
         var display = normalizer.normalize(
                 "0011", "NH체크 쿠팡(쿠페이) 농협 723110", AccountTransactionType.EXPENSE
         );
@@ -26,7 +26,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("인식된 NH 체크 방식 토큰만 있어도 일반 가맹점을 카드로 분류한다")
-    void classifiesNhCheckMethodAsCard() {
+    void nhCheckMethod_recognizedToken_classifiedAsCard() {
         var display = normalizer.normalize(
                 "0011", "NH체크 이마트 농협 723110", AccountTransactionType.EXPENSE
         );
@@ -37,7 +37,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("입금 설명에서 상대방 이름과 이체 유형을 추출한다")
-    void normalizesTransferDescription() {
+    void transferDescription_counterpartyAndType_extracted() {
         var display = normalizer.normalize(
                 "0011", "실시간이체 민선영 입금 농협 001191", AccountTransactionType.INCOME
         );
@@ -48,7 +48,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("농협은 분리된 거래기록사항 필드를 제목으로 우선 사용한다")
-    void prefersNhDescriptionField() {
+    void nhDescriptionField_available_usedAsTitle() {
         var display = normalizer.normalize(
                 "0011",
                 "실시간이체 [상대방명](카카오 농협 [계좌식별자]",
@@ -65,7 +65,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("대구은행은 분리된 비고 필드를 제목으로 우선 사용한다")
-    void prefersDgbMemoField() {
+    void dgbMemoField_available_usedAsTitle() {
         var display = normalizer.normalize(
                 "0031",
                 "이체 [가맹점명] 대구은행",
@@ -82,7 +82,7 @@ class AccountTransactionDisplayNormalizerTest {
 
     @Test
     @DisplayName("검증되지 않은 은행은 합쳐진 설명에서 제목을 추출한다")
-    void fallsBackToJoinedDescriptionForOtherBanks() {
+    void otherBank_joinedDescription_usedAsFallback() {
         var display = normalizer.normalize(
                 "0020",
                 "편의점 생활비 우리은행 1234",
@@ -103,14 +103,14 @@ class AccountTransactionDisplayNormalizerTest {
             "0088, 알 수 없는 거래, OTHER"
     })
     @DisplayName("거래 유형을 안전한 공통 규칙으로 판별한다")
-    void classifiesCommonKinds(String organization, String description, AccountTransactionResult.Display.Kind kind) {
+    void transactionKind_commonValues_classified(String organization, String description, AccountTransactionResult.Display.Kind kind) {
         assertThat(normalizer.normalize(organization, description, AccountTransactionType.EXPENSE).kind())
                 .isEqualTo(kind);
     }
 
     @Test
     @DisplayName("빈 설명은 null 제목과 OTHER로 fallback한다")
-    void fallsBackForBlankDescription() {
+    void transactionDescription_blank_usesNullTitleAndOtherKind() {
         assertThat(normalizer.normalize("0011", "  ", AccountTransactionType.EXPENSE))
                 .isEqualTo(new AccountTransactionResult.Display(null, AccountTransactionResult.Display.Kind.OTHER));
     }

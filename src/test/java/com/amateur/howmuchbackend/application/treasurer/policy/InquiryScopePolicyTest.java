@@ -24,7 +24,7 @@ class InquiryScopePolicyTest {
             "여행 모임에서 내가 뭘 내야 해?",
             "영수증으로 정산 만들 수 있어?"
     })
-    void treatsSettlementAndServiceQuestionsAsRelated(String question) {
+    void inScopeSettlementOrServiceQuestion_related(String question) {
         assertThat(policy.classify(question)).isEqualTo(InquiryScope.RELATED);
     }
 
@@ -37,12 +37,12 @@ class InquiryScopePolicyTest {
             "주식 추천해줘.",
             "공원이 어디야?"
     })
-    void treatsQuestionsWithoutServiceVocabularyAsUnrelated(String question) {
+    void questionWithoutServiceVocabulary_unrelated(String question) {
         assertThat(policy.classify(question)).isEqualTo(InquiryScope.UNRELATED);
     }
 
     @Test
-    void treatsBlankQuestionAsUnrelated() {
+    void blankQuestion_unrelated() {
         assertThat(policy.classify(null)).isEqualTo(InquiryScope.UNRELATED);
         assertThat(policy.classify(" ")).isEqualTo(InquiryScope.UNRELATED);
     }

@@ -153,7 +153,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("RECEIVE는 생성자 정산의 총액과 참여자 수를 조회한다")
-    void loadsReceiveSettlementSummary() {
+    void receiveSettlement_creatorAmountAndMemberCount_loaded() {
         var result = settlementPersistenceAdapter.findAll(
                 creatorId,
                 SettlementListTab.RECEIVE,
@@ -170,7 +170,7 @@ class SettlementListPersistenceIntegrationTest {
             // Share가 아직 없어도 납부 대상은 생성자를 뺀 실제 인원이어야 한다.
             assertThat(item.payableParticipantCount()).isEqualTo(1);
             assertThat(item.completedParticipantCount()).isZero();
-            // JDBC rounds nanosecond audit timestamps to PostgreSQL microsecond precision.
+            // PostgreSQL은 감사 시각을 마이크로초 단위로 저장하므로 나노초 차이는 허용한다.
             assertThat(item.requestedAt()).isCloseTo(receiveCreatedAt, within(1, MICROS));
             assertThat(item.amountToPay()).isNull();
             assertThat(item.groups()).isEmpty();
@@ -179,7 +179,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("작성하다 만 초안은 목록에 나오지 않는다")
-    void hidesDraftSettlement() {
+    void settlementList_draft_excluded() {
         UUID draftId = UUID.randomUUID();
         settlementJpaRepository.saveAndFlush(new SettlementJpaEntity(new Settlement(
                 draftId,
@@ -217,7 +217,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("RECEIVE는 실제 완납 참여자 수와 링크 생성 시각을 조회한다")
-    void loadsCompletedParticipantCountAndRequestedAt() {
+    void receiveSettlement_completedMembersAndLinkTime_loaded() {
         RequestFixture request = insertReceiveRequest(600L);
         insertDeposit(request.shareId(), 300L);
 
@@ -246,7 +246,7 @@ class SettlementListPersistenceIntegrationTest {
         );
 
         assertThat(fullyPaid).singleElement().satisfies(item -> {
-            // 분모와 분자가 같은 기준이라 전원 납부 시 100%가 된다.
+            // 모든 참여자를 동일한 분모와 분자로 계산해 전원 납부 시 진행률을 100%로 반환한다.
             assertThat(item.payableParticipantCount()).isEqualTo(1);
             assertThat(item.completedParticipantCount()).isEqualTo(1);
         });
@@ -254,7 +254,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("RECEIVE 완료 인원에서 생성자 본인 Share를 제외한다")
-    void excludesCreatorShareFromCompletedParticipantCount() {
+    void receiveSettlement_completedCount_excludesCreatorShare() {
         RequestFixture request = insertReceiveRequest(600L);
         UUID creatorShareId = UUID.randomUUID();
         settlementShareJpaRepository.saveAndFlush(new SettlementShareJpaEntity(
@@ -295,7 +295,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("PAY는 연결 참여자의 Share 금액과 요청자 이름을 조회한다")
-    void loadsPaySettlementSummary() {
+    void paySettlement_linkedParticipantShareAndRequester_loaded() {
         var result = settlementPersistenceAdapter.findAll(
                 payerId,
                 SettlementListTab.PAY,
@@ -317,7 +317,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹 필터는 해당 그룹 출처 참여자가 있는 정산만 조회한다")
-    void filtersByParticipantSourceGroup() {
+    void settlementList_sourceGroupFilter_returnsMatchingParticipants() {
         Long groupId = insertGroup("목록 필터 그룹", creatorId);
         Long unauthorizedGroupId = insertGroup("탈퇴한 그룹", otherUserId);
         insertGroupMember(groupId, creatorId, "ACTIVE");
@@ -360,7 +360,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
-    void acceptedYearMonthExtremesCanBeQueried() {
+    void settlementList_yearMonthExtremes_queryable() {
         for (YearMonth month : java.util.List.of(YearMonth.of(1, 1), YearMonth.of(9999, 12))) {
             assertThat(settlementPersistenceAdapter.findAll(
                     creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED,
@@ -369,7 +369,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
-    void filtersCompletedMonthAtKoreanMonthBoundariesForBothTabs() {
+    void settlementList_koreanMonthBoundaries_filtersBothTabs() {
         YearMonth month = YearMonth.of(2026, 9);
         LocalDateTime start = LocalDateTime.of(2026, 8, 31, 15, 0);
         LocalDateTime end = LocalDateTime.of(2026, 9, 30, 15, 0);
@@ -390,7 +390,7 @@ class SettlementListPersistenceIntegrationTest {
                 assertThat(receive).singleElement().satisfies(item -> {
                     assertThat(item.settlementId()).isEqualTo(receiveSettlementId);
                     assertThat(item.completedAt()).isEqualTo(completedAt);
-                    // Existing requestedAt projection is outside this change; completedAt must use UTC.
+                    // 기존 requestedAt projection은 유지하고 completedAt을 UTC 기준으로 검증한다.
                 });
                 assertThat(pay).singleElement().satisfies(item -> {
                     assertThat(item.settlementId()).isEqualTo(paySettlementId);
@@ -407,7 +407,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
-    void monthFilterExcludesUnfinishedStatesAndPreservesStatusIntersection() {
+    void settlementList_monthFilter_excludesUnfinishedPreservesStatus() {
         LocalDateTime completedAt = LocalDateTime.of(2026, 9, 10, 0, 0);
         for (SettlementStatus state : SettlementStatus.values()) {
             jdbcTemplate.update("UPDATE settlements SET status = ?, updated_at = ? WHERE id = ?",
@@ -431,7 +431,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @Test
-    void completedMonthFilterPreservesGroupAccess() {
+    void settlementList_completedMonth_preservesGroupAccess() {
         Long groupId = insertGroup("월별 정산 그룹", creatorId);
         insertGroupMember(groupId, creatorId, "ACTIVE");
         jdbcTemplate.update("UPDATE settlement_participants SET source = 'GROUP_MEMBER', source_group_id = ? WHERE id = ?",

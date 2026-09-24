@@ -84,7 +84,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("기관 필터와 최근 정렬 결과를 공개 계좌번호 없이 반환한다")
-    void getsAccounts() throws Exception {
+    void accounts_byInstitutionAndRecentOrder_hidePublicNumber() throws Exception {
         var query = new GetAccountsQuery("0020", AccountSort.RECENT);
         when(getAccountsUseCase.getAccounts(query)).thenReturn(List.of(new AccountSummaryResult(
                 1L, "0020", "우리은행", "woori.png", "생활비 통장", "****6789",
@@ -102,7 +102,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("요청 월 소비 요약을 YYYY-MM 계약으로 반환한다")
-    void getsAccountDetail() throws Exception {
+    void accountDetail_requestedMonth_returnsSpendSummary() throws Exception {
         YearMonth august = YearMonth.of(2026, 8);
         when(getAccountDetailUseCase.getAccountDetail(1L, august)).thenReturn(new AccountDetailResult(
                 1L, "0020", "우리은행", "woori.png", "생활비 통장", "****6789",
@@ -119,7 +119,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("거래내역에 연결 정산 배열을 반환한다")
-    void getsAccountTransactionsWithSettlements() throws Exception {
+    void transactions_withSettlementLinks_includeArray() throws Exception {
         YearMonth august = YearMonth.of(2026, 8);
         UUID settlementId = UUID.fromString("13000000-0000-4000-8000-000000001001");
         when(getAccountTransactionsUseCase.getAccountTransactions(1L, august)).thenReturn(List.of(
@@ -152,7 +152,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("잘못된 요청 월 형식은 INVALID_ARGUMENT로 거절한다")
-    void rejectsInvalidYearMonth() throws Exception {
+    void yearMonth_invalidFormat_returnsInvalidArgument() throws Exception {
         mockMvc.perform(get("/api/v2/accounts/1").param("yearMonth", "2026-8"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
@@ -160,7 +160,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("계좌를 삭제하고 빈 성공 응답을 반환한다")
-    void deletesAccount() throws Exception {
+    void account_delete_returnsEmptySuccess() throws Exception {
         mockMvc.perform(delete("/api/v2/accounts/1"))
                 .andExpect(status().isOk());
 
@@ -169,7 +169,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("기본 결제수단을 설정하고 빈 성공 응답을 반환한다")
-    void setsDefaultAccount() throws Exception {
+    void defaultPaymentMethod_setAsDefault_returnsEmptySuccess() throws Exception {
         mockMvc.perform(patch("/api/v2/accounts/1/default"))
                 .andExpect(status().isOk());
 
@@ -178,7 +178,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("계좌 표시 순서를 변경하고 빈 성공 응답을 반환한다")
-    void updatesAccountDisplayOrder() throws Exception {
+    void accountDisplayOrder_update_returnsEmptySuccess() throws Exception {
         mockMvc.perform(patch("/api/v2/accounts/1/display-order")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"displayOrder\":2}"))
@@ -191,7 +191,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("음수 표시 순서는 INVALID_ACCOUNT_DISPLAY_ORDER로 거절한다")
-    void rejectsNegativeDisplayOrder() throws Exception {
+    void accountDisplayOrder_negative_returnsInvalidOrder() throws Exception {
         doThrow(ApplicationException.of(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER))
                 .when(updateAccountDisplayOrderUseCase)
                 .updateDisplayOrder(new UpdateAccountDisplayOrderCommand(1L, -1));
@@ -205,7 +205,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("일괄 저장 경로가 단건 이동 경로와 겹치지 않고 순서 배열을 Command로 전달한다")
-    void replacesAccountDisplayOrders() throws Exception {
+    void accountDisplayOrders_bulkSave_mapsToCommand() throws Exception {
         mockMvc.perform(patch("/api/v2/accounts/display-order")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accountIds\":[11,12,10]}"))
@@ -218,7 +218,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("활성 계좌가 빠진 순서는 INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST로 거절한다")
-    void rejectsIncompleteDisplayOrderRequest() throws Exception {
+    void accountOrder_missingActiveAccount_invalidRequest() throws Exception {
         doThrow(ApplicationException.of(AccountStatusCode.INVALID_ACCOUNT_DISPLAY_ORDER_REQUEST))
                 .when(replaceAccountDisplayOrdersUseCase)
                 .replaceDisplayOrders(new ReplaceAccountDisplayOrdersCommand(List.of(10L)));
@@ -232,7 +232,7 @@ class AccountControllerTest {
 
     @Test
     @DisplayName("진행 중 정산이 사용하는 계좌 삭제는 409 계약으로 반환한다")
-    void rejectsAccountUsedByInProgressSettlement() throws Exception {
+    void account_inProgressSettlement_deleteReturnsConflict() throws Exception {
         doThrow(ApplicationException.of(AccountStatusCode.ACCOUNT_IN_USE_BY_SETTLEMENT))
                 .when(deleteAccountUseCase).delete(1L);
 

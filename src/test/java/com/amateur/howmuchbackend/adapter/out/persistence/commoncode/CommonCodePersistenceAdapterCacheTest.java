@@ -69,7 +69,7 @@ class CommonCodePersistenceAdapterCacheTest {
 
     @Test
     @DisplayName("활성 단건·목록·존재 여부 조회를 각각 캐시한다")
-    void cachesAllActiveReadPaths() {
+    void commonCodeCache_allActiveReadPaths_cached() {
         CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
                 new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
         );
@@ -96,7 +96,7 @@ class CommonCodePersistenceAdapterCacheTest {
 
     @Test
     @DisplayName("TTL 만료 후 활성 CommonCode를 다시 조회한다")
-    void reloadsAfterTtl() {
+    void commonCodeCache_ttlExpired_reloadsActiveCode() {
         CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
                 new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
         );
@@ -114,7 +114,7 @@ class CommonCodePersistenceAdapterCacheTest {
 
     @Test
     @DisplayName("그룹 저장 성공 후 트랜잭션 커밋 시 활성 CommonCode 캐시를 비운다")
-    void evictsCachesAfterCommit() {
+    void commonCodeCache_saveCommitted_evictedAfterCommit() {
         CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
                 new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
         );
@@ -143,7 +143,7 @@ class CommonCodePersistenceAdapterCacheTest {
 
     @Test
     @DisplayName("그룹 저장 트랜잭션 롤백 시 기존 활성 CommonCode 캐시를 유지한다")
-    void keepsCachesAfterRollback() {
+    void commonCodeCache_saveRolledBack_preserved() {
         CommonCodeJpaEntity detail = new CommonCodeJpaEntity(
                 new CommonCode("BANK", "0020", "우리은행", null, 1, null, null, null, true)
         );

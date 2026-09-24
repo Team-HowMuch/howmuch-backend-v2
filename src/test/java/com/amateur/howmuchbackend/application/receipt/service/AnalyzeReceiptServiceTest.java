@@ -36,7 +36,7 @@ class AnalyzeReceiptServiceTest {
     private static final byte[] PNG = withSignature(
             new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A});
 
-    /** 정책이 선언한 형식이 아니라 바이트를 보므로 실제 시그니처가 필요하다. */
+    /** 정책은 선언한 형식이 아니라 바이트를 검사하므로 실제 시그니처를 사용한다. */
     private static byte[] withSignature(byte[] signature) {
         byte[] content = new byte[64];
         System.arraycopy(signature, 0, content, 0, signature.length);
@@ -64,7 +64,7 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("이미지를 분석 포트에 넘기고 결과를 그대로 돌려준다")
-    void delegatesToThePort() {
+    void receiptAnalysis_imageRequest_returnsPortResult() {
         ReceiptAnalysisResult analysis = new ReceiptAnalysisResult(
                 "가게", "2026-09-16 12:00",
                 List.of(new ReceiptAnalysisResult.Item("김밥", 1, 3_500L)),
@@ -77,7 +77,7 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("OCR 호출 전에 현재 사용자를 먼저 확인한다")
-    void checksTheActorBeforeReachingOcr() {
+    void receiptAnalysis_currentActor_checkedBeforeOcr() {
         when(analyzeReceiptImagePort.analyze(any(), any(), any())).thenReturn(
                 new ReceiptAnalysisResult(null, null, List.of(), null, null, false));
 
@@ -91,9 +91,9 @@ class AnalyzeReceiptServiceTest {
     @ParameterizedTest
     @ValueSource(strings = {"application/pdf", "image/heic", "text/plain", "image/", " ", "image/png"})
     @DisplayName("선언한 형식이 무엇이든 실제 바이트가 JPEG면 JPEG로 보낸다")
-    void ignoresTheDeclaredContentType(String declared) {
-        // 멀티파트 Content-Type은 클라이언트가 정하는 값이다. 그대로 실어 보내면
-        // OCR 서비스가 엉뚱한 형식으로 읽는다.
+    void receiptAnalysis_jpegBytes_overrideDeclaredContentType(String declared) {
+        // 멀티파트 Content-Type은 클라이언트가 정하므로 선언값 대신 실제 형식을 보낸다.
+        // 선언값을 그대로 보내면 OCR 서비스가 다른 형식으로 처리한다.
         when(analyzeReceiptImagePort.analyze(any(), eq("image/jpeg"), any())).thenReturn(
                 new ReceiptAnalysisResult(null, null, List.of(), null, null, false));
 
@@ -102,7 +102,7 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("PNG 바이트는 image/png로 보낸다")
-    void sendsDetectedPngType() {
+    void receiptAnalysis_pngBytes_sentAsImagePng() {
         when(analyzeReceiptImagePort.analyze(any(), eq("image/png"), any())).thenReturn(
                 new ReceiptAnalysisResult(null, null, List.of(), null, null, false));
 
@@ -111,8 +111,8 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("image/jpeg라고 선언한 PDF는 OCR까지 보내지 않는다")
-    void rejectsDisguisedPdfBeforeCallingOcr() {
-        // OCR 한 건은 수 초짜리 GPU 작업이다. 읽지 못할 것이 뻔한 요청을 보내면 안 된다.
+    void receiptAnalysis_pdfClaimedAsJpeg_rejectedBeforeOcr() {
+        // OCR 요청은 수 초의 GPU 자원을 사용하므로 읽을 수 없는 파일은 전송 전에 거부한다.
         byte[] pdf = "%PDF-1.7\nfake".getBytes(StandardCharsets.UTF_8);
 
         assertThatThrownBy(() -> service().analyze(new AnalyzeReceiptCommand("a.jpg", "image/jpeg", pdf)))
@@ -124,7 +124,7 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("빈 이미지는 OCR까지 보내지 않는다")
-    void rejectsEmptyImage() {
+    void receiptAnalysis_emptyBytes_rejectedBeforeOcr() {
         assertThatThrownBy(() -> service().analyze(
                 new AnalyzeReceiptCommand("a.jpg", "image/jpeg", new byte[0])))
                 .isInstanceOf(ApplicationException.class)
@@ -135,9 +135,8 @@ class AnalyzeReceiptServiceTest {
 
     @Test
     @DisplayName("미인증이면 401 그대로 올리고 바이트를 보지도 않는다")
-    void doesNotReachOcrWhenActorIsMissing() {
-        // 실제 구현(SpringSecurityAdapter)이 던지는 예외다. 임의의 RuntimeException 으로
-        // 검증하면 이 경로가 401이 아니라 500이 되어도 테스트가 통과한다.
+    void receiptAnalysis_missingActor_returnsUnauthorizedWithoutOcr() {
+        // 실제 SpringSecurityAdapter가 던지는 예외를 사용해 이 경로가 401을 반환하는지 검증한다.
         when(currentActorPort.getCurrentActor())
                 .thenThrow(new ApplicationException(CommonStatusCode.UNAUTHORIZED));
         AnalyzeReceiptService service = new AnalyzeReceiptService(

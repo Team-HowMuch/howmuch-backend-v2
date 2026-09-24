@@ -103,7 +103,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void concurrentRequestDeduplicationCreatesOneOutbox() throws Exception {
+    void notificationRecord_sameRequest_concurrently_createsOneOutbox() throws Exception {
         var first = request(); var second = request();
         var results = concurrent(() -> recorder.record(first), () -> recorder.record(second));
         assertThat(results).containsExactlyInAnyOrder(true, false);
@@ -112,12 +112,12 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void listCursorOwnershipAndIndividualReadContract() throws Exception {
+    void notificationCursor_equalTimestamp_usesUuidOrder() throws Exception {
         var one = request(); recorder.record(one);
         var two = NotificationMessages.reminder(settlement, recipient, SettlementAllocationType.ITEM_ALLOCATION,
                 "요청 당시 이름", "manual-test", "정산해 주세요", NOW.minusHours(25));
         recorder.record(two);
-        // Same timestamp: PostgreSQL UUID ordering is the authoritative cursor tie breaker.
+        // 같은 시각이면 PostgreSQL UUID 순서가 페이지 cursor의 최종 정렬 기준을 결정한다.
         var ordered = notifications.findPage(recipient, null, null, 10);
         var response = mvc.perform(get("/api/v2/notifications").param("size", "1").with(user("member")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(1))
@@ -147,7 +147,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void authenticationAndInvalidQueryValidation() throws Exception {
+    void notificationEndpoint_anonymousOrInvalidQuery_returnsErrors() throws Exception {
         mvc.perform(get("/api/v2/notifications")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v2/notifications/unread-count")).andExpect(status().isUnauthorized());
         mvc.perform(patch("/api/v2/notifications/{id}/read", UUID.randomUUID())).andExpect(status().isUnauthorized());
@@ -156,7 +156,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void concurrentReadRetainsFirstTimestamp() throws Exception {
+    void notificationRead_concurrentRequests_keepsFirstTimestamp() throws Exception {
         var n = request(); recorder.record(n);
         var results = concurrent(() -> reads.markRead(n.id(), recipient, NOW),
                 () -> reads.markRead(n.id(), recipient, NOW.plusSeconds(1)));
@@ -166,7 +166,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void deletedSettlementRetainsMessageAndDisablesAction() throws Exception {
+    void settlementDeleted_notificationMessageKeptActionDisabled() throws Exception {
         var n = request(); recorder.record(n);
         jdbc.update("DELETE FROM settlements WHERE id=?", settlement);
         mvc.perform(get("/api/v2/notifications").with(user("member")))
@@ -188,7 +188,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void requestedItemAllocationReminderPersistsSelectionMessageWithoutShare() {
+    void itemReminder_requestedWithoutShare_persistsSelectionMessage() {
         jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
         jdbc.update("UPDATE settlements SET allocation_type='ITEM_ALLOCATION', status='REQUESTED' WHERE id=?", settlement);
 
@@ -206,7 +206,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void requestedItemAllocationReminderExcludesSubmittedParticipantWithoutShare() {
+    void itemAllocationReminder_submittedWithoutShare_excluded() {
         jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
         jdbc.update("UPDATE settlements SET allocation_type='ITEM_ALLOCATION', status='REQUESTED' WHERE id=?", settlement);
         itemAllocations.saveSubmission(SettlementItemSubmission.submit(
@@ -222,7 +222,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void automaticReminderDefersQuietHoursAndRepeatsFromActualDelivery() {
+    void automaticReminder_quietHoursDeferred_repeatsFromDeliveryTime() {
         recorder.record(request());
         LocalDateTime quietStart = LocalDateTime.of(2026, 9, 5, 18, 0); // KST 03:00
         replaceShareCreatedAt(quietStart.minusHours(12));
@@ -253,7 +253,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void existingReminderMessageIsNotRewritten() throws Exception {
+    void reminder_existingMessage_notRewritten() throws Exception {
         var old = NotificationMessages.reminder(settlement, recipient, SettlementAllocationType.DUTCH_PAY,
                 "요청자", "legacy-message", "정산을 요청받았어요. 지금 정산을 완료해 주세요.", NOW.minusDays(1));
         recorder.record(old);
@@ -266,7 +266,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void outboxFailureRollsBackNotificationAndOwnedCooldown() {
+    void notificationOutbox_failure_rollsBackInboxAndCooldown() {
         doThrow(new IllegalStateException("injected outbox failure")).when(outbox).saveAll(anyList());
         assertThatThrownBy(() -> writer.manual(settlement, participant, creator)).isInstanceOf(IllegalStateException.class);
         assertThat(notifications.countUnread(recipient)).isZero();
@@ -275,7 +275,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void absentPushTokenKeepsInboxAndCooldown() {
+    void pushToken_absent_preservesInboxAndCooldown() {
         writer.manual(settlement, participant, creator);
         jdbc.update("UPDATE settlement_notification_outbox SET next_attempt_at=? WHERE settlement_id=?", NOW.minusDays(2), settlement);
         assertThat(worker.processBatch(1).failed()).isOne();
@@ -284,7 +284,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void multipleWorkersAndRestartGenerateOnlyOneAutomaticReminder() throws Exception {
+    void automaticReminder_multipleWorkersAndRestart_createOne() throws Exception {
         recorder.record(request());
         assertThat(due()).containsExactly(candidate());
         assertThat(shareReader.findBySettlementIdAndPayerParticipantId(settlement, participant).orElseThrow().createdAt())
@@ -297,7 +297,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void concurrentManualAndAutomaticShareCooldown() throws Exception {
+    void reminder_manualAndAutomatic_shareCooldown() throws Exception {
         recorder.record(request());
         concurrent(() -> attemptAutomatic(), () -> {
             try { writer.manual(settlement, participant, creator); return true; }
@@ -311,7 +311,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void automaticCandidateSelectionFiltersIneligibleAndOrdersByNextDueAt() {
+    void automaticReminder_candidates_filteredAndOrderedByDueTime() {
         assertThat(due()).isEmpty();
         recorder.record(request());
         assertThat(due()).hasSize(1);
@@ -337,7 +337,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void paymentArrivingAfterCandidateQueryIsRechecked() {
+    void paymentAfterCandidateQuery_recheckedBeforeReminder() {
         recorder.record(request());
         assertThat(due()).hasSize(1);
         Long transaction = jdbc.queryForObject("""
@@ -352,7 +352,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void outerStateChangeAndInboxRollBackTogether() {
+    void notificationInbox_outerStateChange_rollsBackTogether() {
         assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
             jdbc.update("UPDATE settlements SET status='SUSPENDED' WHERE id=?", settlement);
             recorder.record(request());
@@ -364,7 +364,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void staleOutboxRecoveryPreservesNotificationAndSupportsAnotherClaim() {
+    void notificationOutbox_staleClaim_recoveredForNextWorker() {
         var n = request(); recorder.record(n);
         var claimed = outbox.claimNextReady(NOW).orElseThrow();
         assertThat(claimed.notificationId()).isEqualTo(n.id());
@@ -376,12 +376,12 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void recentManualReminderDefersAutomaticUntilCooldownPasses() {
+    void automaticReminder_afterManualReminder_defersToCooldown() {
         recorder.record(request());
         writer.manual(settlement, participant, creator);
         assertThat(due()).isEmpty();
         when(clock.instant()).thenReturn(NOW.plusMinutes(31).toInstant(ZoneOffset.UTC));
-        // Simulate Redis TTL expiration without sleeping or modifying other test keys.
+        // 실제 대기하거나 다른 테스트 키를 변경하지 않고 Redis TTL 만료를 재현한다.
         redis.delete("settlement:reminder:" + settlement + ":" + participant);
         assertThat(targets.findDue(NOW.plusMinutes(31).minusHours(12), NOW.plusMinutes(1), 50)).hasSize(1);
         assertThat(writer.automatic(candidate())).isTrue();
@@ -389,7 +389,7 @@ class NotificationInboxIntegrationTest {
     }
 
     @Test
-    void openApiDocumentsNotificationEnumsReadStateAndSecurity() throws Exception {
+    void notificationApi_enumsReadStateAndSecurity_documented() throws Exception {
         var response = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn();
         var document = json.readTree(response.getResponse().getContentAsString());
         var item = document.at("/components/schemas/NotificationItem");
@@ -399,7 +399,7 @@ class NotificationInboxIntegrationTest {
     }
 
     private void replaceShareCreatedAt(LocalDateTime createdAt) {
-        // Use the production JPA mapping so JDBC and Hibernate timezone handling cannot diverge.
+        // JDBC와 Hibernate의 시간대 처리 차이를 막기 위해 운영 JPA 매핑을 사용한다.
         jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
         shareStore.saveAll(List.of(new com.amateur.howmuchbackend.domain.settlement.SettlementShare(
                 share, settlement, participant, 1000, createdAt)));

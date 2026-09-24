@@ -85,7 +85,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("금융기관 필터와 기본·최근 사용 정렬을 적용한다")
-    void filtersAndSortsAccounts() {
+    void accountList_institutionFilterAndSort_applied() {
         Account first = account(1L, "0020", true, 1);
         Account second = account(2L, "0020", false, 0);
         Account otherBank = account(3L, "0004", false, 2);
@@ -111,7 +111,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("월 요약이 있으면 CODEF를 호출하지 않고 상세를 반환한다")
-    void returnsCachedSummary() {
+    void accountSummary_cached_doesNotCallCodef() {
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
                 10L, account.id(), AUGUST, new BigDecimal("12500.0000"), 1,
@@ -132,7 +132,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("월 요약이 없으면 CODEF 거래를 중복 Key와 함께 저장하고 요약을 캐시한다")
-    void fetchesTransactionsAndCachesSummary() {
+    void accountTransactions_notCached_savedByKeyAndSummaryCached() {
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary calculated = new AccountMonthlySummary(
                 null, account.id(), AUGUST, new BigDecimal("12500"), 1,
@@ -173,7 +173,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("현재 월 refresh marker가 유효하면 CODEF를 호출하지 않는다")
-    void returnsCurrentMonthSummaryWhenRefreshMarkerIsFresh() {
+    void accountSummary_freshRefreshMarker_doesNotCallCodef() {
         YearMonth currentMonth = SEPTEMBER;
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
@@ -195,7 +195,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("현재 월 refresh marker가 만료되면 CODEF를 다시 조회한다")
-    void refreshesCurrentMonthWhenRefreshMarkerIsExpired() {
+    void accountSummary_expiredRefreshMarker_refreshedFromCodef() {
         YearMonth currentMonth = SEPTEMBER;
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
@@ -249,7 +249,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("거래별로 연결된 여러 정산을 반환하고 미연결 거래는 빈 목록을 반환한다")
-    void returnsLinkedSettlementsWithTransactions() {
+    void accountTransactions_linkedSettlements_returnedPerTransaction() {
         Account account = account(1L, "0020", true, 0);
         AccountMonthlySummary summary = new AccountMonthlySummary(
                 10L, account.id(), AUGUST, new BigDecimal("30000"), 2,
@@ -296,7 +296,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("연결 잠금 전에 계좌가 삭제되면 CODEF 조회 없이 404로 종료한다")
-    void rejectsAccountDeletedBeforeTransactionFetch() {
+    void accountTransactions_deletedBeforeFetch_notFoundWithoutCodef() {
         Account account = account(1L, "0020", true, 0);
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
         when(loadTransactionPort.findSummary(account.id(), AUGUST)).thenReturn(Optional.empty());
@@ -313,7 +313,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("타인 또는 비활성 계좌는 없는 계좌와 같은 오류를 반환한다")
-    void rejectsUnknownOwnedAccount() {
+    void accountLookup_unknownOrInactive_returnsNotFound() {
         when(loadAccountPort.findActiveByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getAccountDetail(99L, AUGUST))
@@ -328,7 +328,7 @@ class AccountQueryServiceTest {
 
     @Test
     @DisplayName("미래 월은 외부 조회 전에 거절한다")
-    void rejectsFutureMonth() {
+    void accountTransactions_futureMonth_rejectedBeforeCodef() {
         Account account = account(1L, "0020", true, 0);
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
         YearMonth future = SEPTEMBER.plusMonths(1);

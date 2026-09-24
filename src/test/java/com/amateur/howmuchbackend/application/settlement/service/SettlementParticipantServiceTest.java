@@ -156,7 +156,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("화면 복원에 필요한 공개 정보만 표시 순서대로 조립한다")
-    void getsParticipantListWithPublicUserInformation() {
+    void participantList_creator_returnsOrderedPublicInfo() {
         List<SettlementParticipant> participants = List.of(
                 registeredCreator(),
                 linkedContact(),
@@ -187,7 +187,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("생성자만 참여자 목록을 볼 수 있도록 다른 사용자의 조회를 거부한다")
-    void rejectsParticipantListForAnotherUser() {
+    void participantList_otherUser_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
 
@@ -200,7 +200,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("생성자만 참여자 아바타를 볼 수 있도록 다른 사용자의 조회를 거부한다")
-    void rejectsParticipantAvatarForAnotherUser() {
+    void participantAvatar_otherUser_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
 
@@ -218,7 +218,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("없는 정산의 참여자 목록은 SETTLEMENT_NOT_FOUND로 거부한다")
-    void rejectsParticipantListForMissingSettlement() {
+    void participantList_missingSettlement_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.empty());
 
@@ -231,7 +231,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("회원 참여자의 저장된 아바타 바이트와 Content-Type을 반환한다")
-    void getsLinkedParticipantAvatar() {
+    void participantAvatar_linkedMember_returnsStoredBytesAndType() {
         byte[] content = {(byte) 0x89, 0x50, 0x4E, 0x47};
         ProfileImage image = new ProfileImage("image/png", content);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
@@ -251,7 +251,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("정산에 속하지 않은 참여자의 아바타 요청은 PARTICIPANT_NOT_FOUND로 거부한다")
-    void rejectsAvatarForMissingParticipant() {
+    void participantAvatar_missingParticipant_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findBySettlementIdAndId(
@@ -270,7 +270,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("아바타 파일이 유실된 경우 PROFILE_IMAGE_NOT_FOUND를 반환한다")
-    void rejectsMissingStoredAvatar() {
+    void participantAvatar_missingFile_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findBySettlementIdAndId(
@@ -290,7 +290,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("비회원 연락처는 연결된 회원 정보 없이 PROFILE_IMAGE_NOT_FOUND를 반환한다")
-    void rejectsAvatarForUnlinkedContact() {
+    void participantAvatar_unlinkedContact_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findBySettlementIdAndId(
@@ -309,7 +309,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("공개 ID prefix를 정규화하고 이미 추가된 회원을 제외해 후보 공개 정보만 반환한다")
-    void searchesPublicIdCandidates() {
+    void participantCandidates_normalizedPrefix_excludesExisting() {
         User firstCandidate = user(OTHER_USER_ID, "sua.alpha", "candidate.png");
         User secondCandidate = user(4L, "sua.beta", null);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
@@ -340,7 +340,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("연락처 추가 후 가입한 회원은 phoneHash가 일치하면 공개 ID 후보에서 제외한다")
-    void excludesCandidateMatchedByExistingContactHash() {
+    void participantCandidates_phoneHashMatch_excluded() {
         String phoneHash = "a".repeat(64);
         User convertedContact = user(OTHER_USER_ID, phoneHash, "sua.contact", null);
         User availableCandidate = user(4L, "sua.available", null);
@@ -365,7 +365,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("생성자가 아닌 사용자는 회원 후보를 검색할 수 없다")
-    void rejectsCandidateSearchForAnotherUser() {
+    void participantCandidates_otherUserSearch_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
@@ -380,7 +380,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("참여자를 변경할 수 없는 정산에서는 회원 후보 검색도 거부한다")
-    void rejectsCandidateSearchForRequestedSettlement() {
+    void participantCandidates_lockedSettlementSearch_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
 
@@ -395,7 +395,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("유효하지 않은 공개 ID prefix는 사용자 저장소를 조회하기 전에 거부한다")
-    void rejectsInvalidCandidateSearchPrefix() {
+    void participantCandidates_invalidPrefix_rejectedBeforeLookup() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
@@ -410,7 +410,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("미추가 활성 회원 후보의 저장된 아바타를 반환한다")
-    void getsParticipantCandidateAvatar() {
+    void participantCandidateAvatar_activeMember_returnsStored() {
         ProfileImage image = new ProfileImage("image/png", new byte[]{1, 2, 3});
         User candidate = user(OTHER_USER_ID, "sua.alpha", "candidate.png");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
@@ -430,7 +430,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("이미 추가된 회원의 공개 ID는 후보 아바타 경로에서도 숨긴다")
-    void rejectsAvatarForExistingParticipantCandidate() {
+    void participantCandidateAvatar_existingMember_rejected() {
         User candidate = user(LINKED_USER_ID, "linked.id", "linked-avatar.png");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
@@ -450,7 +450,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("연락처 추가 후 가입한 회원의 아바타도 후보 경로에서 숨긴다")
-    void rejectsCandidateAvatarMatchedByExistingContactHash() {
+    void participantCandidateAvatar_phoneHashMatch_rejected() {
         String phoneHash = "a".repeat(64);
         User candidate = user(OTHER_USER_ID, phoneHash, "sua.contact", "candidate.png");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
@@ -475,7 +475,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("연락처를 HMAC으로 일괄 매칭하고 입력 순서와 공개 정보만 반환한다")
-    void matchesSettlementContacts() {
+    void contactMatch_hmacBatch_preservesInputOrderAndPublicInfo() {
         String memberPhone = "010-1111-2222";
         String externalPhone = "010-2222-3333";
         String existingMemberPhone = "010-3333-4444";
@@ -540,7 +540,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("분당 연락처 매칭 요청 한도를 초과하면 회원 조회를 거부한다")
-    void rejectsContactMatchingOverRequestQuota() {
+    void contactMatch_requestQuotaExceeded_rejectedBeforeLookup() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
         when(trackSettlementContactMatchUsagePort.recordUsage(
@@ -562,7 +562,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("일일 연락처 조회 한도를 초과하면 회원 조회를 거부한다")
-    void rejectsContactMatchingOverContactQuota() {
+    void contactMatch_dailyQuotaExceeded_rejectedBeforeLookup() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
         when(trackSettlementContactMatchUsagePort.recordUsage(
@@ -584,7 +584,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("같은 연락처 ID가 여러 전화번호를 가리키는 매칭 요청을 거부한다")
-    void rejectsDuplicateContactIds() {
+    void contactMatch_duplicateContactIds_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
@@ -603,7 +603,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("잘못된 휴대폰 번호가 포함된 연락처 매칭 요청을 거부한다")
-    void rejectsInvalidContactPhoneNumber() {
+    void contactMatch_invalidPhone_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
@@ -619,7 +619,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("원본 길이 제한을 초과한 휴대폰 번호를 정규화 전에 거부한다")
-    void rejectsOversizedRawContactPhoneNumber() {
+    void contactMatch_rawPhoneTooLong_rejectedBeforeNormalization() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
@@ -641,7 +641,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("한 요청에서 500개를 초과한 연락처 매칭을 거부한다")
-    void rejectsTooManyContacts() {
+    void contactMatch_over500Contacts_rejected() {
         List<SettlementContactCommand> contacts = new ArrayList<>();
         for (int index = 0; index < 501; index++) {
             contacts.add(contact("contact-" + index, "연락처 " + index, "01011112222"));
@@ -661,7 +661,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("생성자가 아닌 사용자는 주소록 연락처를 매칭할 수 없다")
-    void rejectsContactMatchingForAnotherUser() {
+    void contactMatch_otherUser_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
@@ -678,7 +678,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("참여자를 변경할 수 없는 정산에서는 연락처 매칭도 거부한다")
-    void rejectsContactMatchingForRequestedSettlement() {
+    void contactMatch_lockedSettlement_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
 
@@ -695,7 +695,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("그룹 구성원 순서를 유지하고 이미 추가된 동일인을 제외해 후보를 반환한다")
-    void getsGroupParticipantCandidates() {
+    void groupCandidates_creator_preservesOrderAndExcludesExisting() {
         Long groupId = 10L;
         String convertedContactHash = "a".repeat(64);
         User available = user(OTHER_USER_ID, "group.available", "group.png");
@@ -725,7 +725,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("정산 생성자가 그룹 구성원이 아니면 후보 조회를 거부한다")
-    void rejectsGroupCandidatesForNonMemberCreator() {
+    void groupCandidates_nonMemberCreator_rejected() {
         Long groupId = 10L;
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
@@ -743,7 +743,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("연결된 그룹 정보가 없으면 다른 참여자 경로를 위해 빈 후보를 반환한다")
-    void returnsEmptyGroupCandidatesWhenRosterIsUnavailable() {
+    void groupCandidates_missingRoster_returnsEmpty() {
         Long groupId = 10L;
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
@@ -755,7 +755,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("양수가 아닌 그룹 ID는 그룹 조회 전에 거부한다")
-    void rejectsInvalidGroupIdForCandidateLookup() {
+    void groupCandidates_nonPositiveGroupId_rejectedBeforeLookup() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draftSettlement()));
 
@@ -769,7 +769,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("그룹 소속을 다시 확인한 활성 회원을 그룹 참여자로 저장한다")
-    void addsGroupMemberParticipant() {
+    void groupParticipant_activeMember_revalidatedAndSaved() {
         Long groupId = 10L;
         User groupMember = user(OTHER_USER_ID, "group.member", "group.png");
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
@@ -807,7 +807,7 @@ class SettlementParticipantServiceTest {
 
     @Test
     @DisplayName("그룹에 속하지 않은 회원은 참여자로 추가하지 않는다")
-    void rejectsUserOutsideSelectedGroup() {
+    void groupParticipant_nonMember_rejected() {
         Long groupId = 10L;
         User outsider = user(OTHER_USER_ID, "group.outsider", null);
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));

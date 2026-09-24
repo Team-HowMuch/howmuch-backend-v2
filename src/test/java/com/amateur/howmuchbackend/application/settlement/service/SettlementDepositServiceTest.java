@@ -124,7 +124,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("생성자 본인 Share를 제외한 납부가 모두 확인되면 정산을 완료한다")
-    void completesWhenEveryExternalPayerIsConfirmed() {
+    void settlementDeposit_allExternalPayersConfirmed_completes() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         Transaction savedTransaction = transaction("6000");
         arrangeFetchedTransaction(savedTransaction);
@@ -153,8 +153,8 @@ class SettlementDepositServiceTest {
                 loadSettlementPort,
                 saveTransactionPort
         );
-        // 은행 조회는 스냅샷 생성일부터 현재까지를 월 단위로 나눠 부르므로 호출 횟수가
-        // 실행 시점 달력에 따라 달라진다. 여기서 볼 것은 계좌 갱신보다 먼저 일어나는 순서다.
+        // 은행 조회는 스냅샷 생성일부터 현재까지를 월 단위로 나누므로 호출 횟수는 실행 시점에 따라 달라진다.
+        // 이 테스트에서는 계좌 갱신보다 먼저 조회하는 순서를 확인한다.
         accountUpdateOrder.verify(bankTransactionPort, atLeastOnce()).fetch(
                 eq("CID-1"),
                 eq("0020"),
@@ -186,7 +186,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("삭제된 수취 계좌는 잠금 대상 없이 불변 스냅샷으로 입금 대조를 완료한다")
-    void reconcilesDeletedReceivingAccountFromSnapshot() {
+    void settlementDeposit_deletedAccount_reconcilesFromSnapshot() {
         Settlement awaitingSettlement = settlement(SettlementStatus.AWAITING_DEPOSIT);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(awaitingSettlement));
@@ -216,7 +216,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("부분 입금은 확인 금액만 누적하고 정산을 입금 대기 상태로 유지한다")
-    void keepsAwaitingDepositAfterPartialPayment() {
+    void settlementDeposit_partialPayment_remainsAwaiting() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("3000"));
 
@@ -231,7 +231,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("같은 계좌의 다른 정산 Share에도 맞는 거래는 어느 정산에도 자동 연결하지 않는다")
-    void rejectsTransactionAmbiguousAcrossSettlements() {
+    void settlementDeposit_ambiguousTransaction_notMatched() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("6000"));
         when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
@@ -255,7 +255,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("부분 이름만 맞는 거래는 입금을 저장하거나 정산을 완료하지 않는다")
-    void doesNotConfirmDepositForSubstringName() {
+    void settlementDeposit_substringName_notConfirmed() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("6000"));
         when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
@@ -275,7 +275,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("재연결 전 계좌 생명주기에서 이미 연결한 거래는 다시 연결하지 않는다")
-    void rejectsTransactionMatchedBeforeAccountReconnection() {
+    void settlementDeposit_preReconnectTransaction_notMatchedAgain() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         Transaction savedTransaction = transaction("6000");
         arrangeFetchedTransaction(savedTransaction);
@@ -297,7 +297,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("완료된 정산의 재대조는 CODEF를 재호출하거나 입금을 중복 저장하지 않는다")
-    void returnsCompletedSummaryIdempotently() {
+    void settlementDeposit_completedStatus_reconciliationIdempotent() {
         arrangeSettlement(SettlementStatus.COMPLETED);
         Transaction transaction = transaction("6000");
         SettlementDeposit deposit = new SettlementDeposit(
@@ -323,7 +323,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("외부 거래 조회 장애는 계좌와 정산 잠금을 획득하기 전에 전파한다")
-    void externalFailureDoesNotAcquireDatabaseLocks() {
+    void settlementDeposit_externalFailure_beforeDatabaseLocks() {
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
@@ -350,7 +350,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("계좌 잠금 대기 중 완료된 정산은 잠금 후 상태를 재검증해 저장하지 않는다")
-    void rechecksCompletedStatusAfterAccountLock() {
+    void settlementDeposit_completedWhileWaitingForLock_notSaved() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.COMPLETED)));
@@ -394,13 +394,13 @@ class SettlementDepositServiceTest {
             "2026-12-31T15:00:00,2026-12-31T16:00:00,2027-01-01,2027-01-01"
     })
     @DisplayName("KST 00~09시와 월·연 경계에도 UTC 날짜 대신 KST 날짜로 조회한다")
-    void queriesKstCalendarDay(String snapshotUtc, String nowUtc, String start, String end) {
+    void settlementDeposit_kstBoundaries_usesKstCalendarDate(String snapshotUtc, String nowUtc, String start, String end) {
         assertQueryPeriods(snapshotUtc, nowUtc, List.of(LocalDate.parse(start)), List.of(LocalDate.parse(end)));
     }
 
     @Test
     @DisplayName("조회 범위를 KST 달력의 월 경계로 나눈다")
-    void splitsQueryByKstMonth() {
+    void settlementDeposit_multipleKstMonths_queriedSeparately() {
         assertQueryPeriods("2026-12-31T14:59:59", "2026-12-31T15:00:01",
                 List.of(LocalDate.of(2026, 12, 31), LocalDate.of(2027, 1, 1)),
                 List.of(LocalDate.of(2026, 12, 31), LocalDate.of(2027, 1, 1)));
@@ -434,7 +434,7 @@ class SettlementDepositServiceTest {
 
     @Test
     @DisplayName("생성 2시간 이내 입금으로 완료되고 재대조가 중복 입금을 만들지 않는다")
-    void completesRecentSettlementAndDoesNotDuplicateOnRetry() {
+    void settlementDeposit_recentSettlementRetry_noDuplicateDeposit() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         Transaction saved = transaction("6000");
         arrangeFetchedTransaction(saved);

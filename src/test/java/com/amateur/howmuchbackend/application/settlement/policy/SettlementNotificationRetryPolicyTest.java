@@ -16,7 +16,7 @@ class SettlementNotificationRetryPolicyTest {
 
     @Test
     @DisplayName("Application이 최대 시도 횟수와 지수 backoff를 소유한다")
-    void ownsRetryRulesInApplication() {
+    void notificationRetryPolicy_retryRules_ownedByApplication() {
         assertThat(policy.canRetry(4)).isTrue();
         assertThat(policy.canRetry(5)).isFalse();
         assertThat(policy.maxAttempts()).isEqualTo(5);

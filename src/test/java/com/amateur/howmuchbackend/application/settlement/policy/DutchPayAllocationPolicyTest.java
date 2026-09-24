@@ -25,7 +25,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("나누어떨어지지 않는 원 단위 잔여금을 생성자에게 더한다")
-    void assignsRemainderToCreator() {
+    void dutchPay_remainderAssignedToCreator() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friendOne = participant(2L, "친구 1", 1);
         SettlementParticipant friendTwo = participant(3L, "친구 2", 2);
@@ -45,7 +45,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("정산 참여자가 2명 미만이면 N빵을 만들지 않는다")
-    void rejectsInsufficientParticipants() {
+    void dutchPay_participantCountBelowTwo_rejected() {
         assertThatThrownBy(() -> policy.calculate(
                 settlement(),
                 List.of(participant(CREATOR_ID, "생성자", 0)),
@@ -59,7 +59,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("잔여금을 임의 참여자에게 넘기지 않도록 생성자 참여자가 없으면 거부한다")
-    void rejectsMissingCreatorParticipant() {
+    void dutchPay_creatorMissing_rejected() {
         assertThatThrownBy(() -> policy.calculate(
                 settlement(),
                 List.of(
@@ -76,7 +76,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("참여자 전원의 금액 합계가 총액과 같으면 참여자별 금액을 돌려준다")
-    void acceptsBalancedReplacement() {
+    void dutchPayAllocation_balancedReplacement_accepted() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friendOne = participant(2L, "친구 1", 1);
         SettlementParticipant friendTwo = participant(3L, "친구 2", 2);
@@ -100,7 +100,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("합계가 정산 총액과 다르면 저장을 거부한다")
-    void rejectsUnbalancedReplacement() {
+    void dutchPayAllocation_totalMismatch_rejected() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friend = participant(2L, "친구 1", 1);
 
@@ -116,7 +116,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("참여자가 빠지면 저장을 거부한다")
-    void rejectsMissingParticipant() {
+    void dutchPayAllocation_missingParticipant_rejected() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friend = participant(2L, "친구 1", 1);
 
@@ -132,7 +132,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("같은 참여자가 두 번 오면 합계가 맞아도 저장을 거부한다")
-    void rejectsDuplicateParticipant() {
+    void dutchPayAllocation_duplicateParticipant_rejected() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friend = participant(2L, "친구 1", 1);
 
@@ -148,7 +148,7 @@ class DutchPayAllocationPolicyTest {
 
     @Test
     @DisplayName("정산에 없는 참여자가 오면 저장을 거부한다")
-    void rejectsUnknownParticipant() {
+    void dutchPayAllocation_unknownParticipant_rejected() {
         SettlementParticipant creator = participant(CREATOR_ID, "생성자", 0);
         SettlementParticipant friend = participant(2L, "친구 1", 1);
         SettlementParticipant outsider = participant(9L, "남", 0);

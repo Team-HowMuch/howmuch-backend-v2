@@ -33,7 +33,7 @@ class ApnsPushSenderTest {
 
     @ParameterizedTest
     @CsvSource({"dev,api.sandbox.push.apple.com", "prod,api.push.apple.com"})
-    void sendsToConfiguredEnvironmentAndHandlesApnsResponse(String environment, String host) throws Exception {
+    void apnsPush_configuredEnvironment_sendsAndHandlesResponse(String environment, String host) throws Exception {
         var generator = KeyPairGenerator.getInstance("EC");
         generator.initialize(new ECGenParameterSpec("secp256r1"));
         var key = generator.generateKeyPair().getPrivate();
@@ -71,7 +71,7 @@ class ApnsPushSenderTest {
     }
 
     @Test
-    void rejectsUnknownEnvironment() {
+    void apnsPush_unknownEnvironment_rejected() {
         assertThatThrownBy(() -> new ApnsPushSender(
                 new ApnsProperties("key", "team", "path", "unknown"),
                 new ObjectMapper(), mock(HttpClient.class)))

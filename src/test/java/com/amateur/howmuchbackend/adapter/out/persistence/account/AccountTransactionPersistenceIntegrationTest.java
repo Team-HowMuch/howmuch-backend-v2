@@ -140,7 +140,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("중복 거래를 한 번만 저장하고 출금만 월 소비로 집계한다")
-    void storesTransactionsAndSummaryWithoutDuplicates() {
+    void accountTransactions_duplicateRows_storeOnceAndSumDebits() {
         Transaction expense = transaction(
                 "a".repeat(64), AccountTransactionType.EXPENSE, "12500", LocalDateTime.of(2026, 8, 20, 0, 15)
         );
@@ -177,7 +177,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("CODEF 설명 슬롯을 분리된 값으로 저장하고 다시 읽는다")
-    void preservesCodefDescriptionFields() {
+    void codefDescriptionFields_saveAndReload_inSeparateSlots() {
         Transaction transaction = new Transaction(
                 null,
                 accountId,
@@ -208,7 +208,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("거래 Key에 연결된 여러 정산을 원본 계좌 범위에서 조회한다")
-    void loadsLinkedSettlementsForTransactions() {
+    void transactionSettlements_linkedKey_scopedToSourceAccount() {
         String transactionKey = "g".repeat(64);
         UUID olderSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001001");
         UUID newerSettlementId = UUID.fromString("13000000-0000-4000-8000-000000001002");
@@ -271,7 +271,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("입금·납부 거래로 연결된 정산을 함께 조회하고 작성 중 정산은 제외한다")
-    void loadsSettlementsLinkedByDepositAndPayment() {
+    void settlements_depositOrPaymentLinked_loadedWithoutDrafts() {
         String incomeKey = "d".repeat(64);
         String expenseKey = "e".repeat(64);
         String draftKey = "f".repeat(64);
@@ -314,7 +314,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("새 거래가 실제 저장된 월만 기존 월 요약을 무효화한다")
-    void invalidatesOnlyChangedMonthlySummary() {
+    void monthlySummary_newTransactions_invalidateOnlyWrittenMonths() {
         Transaction first = transaction(
                 "e".repeat(64), AccountTransactionType.EXPENSE, "1000",
                 LocalDateTime.of(2026, 8, 20, 0, 15)
@@ -337,7 +337,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("활성 Account 삭제 뒤에도 Account Record FK로 거래와 월 요약을 조회한다")
-    void loadsHistoryAfterActiveAccountDeletion() {
+    void accountHistory_afterDeletion_loadedByRecordKey() {
         Transaction expense = transaction(
                 "d".repeat(64), AccountTransactionType.EXPENSE, "12500",
                 LocalDateTime.of(2026, 8, 20, 0, 15)
@@ -370,7 +370,7 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("잠금 조회가 쓰기 가능한 트랜잭션에서 연결 ID를 복호화한다")
-    void loadsConnectionWithPessimisticLock() {
+    void bankConnection_lockedLookup_decryptsConnectionId() {
         assertThat(connectionAdapter.findActiveByIdAndUserId(connectionId, userId))
                 .hasValueSatisfying(connection -> assertThat(connection.connectedId()).isEqualTo("CID-TEST"));
     }

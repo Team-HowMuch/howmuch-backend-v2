@@ -52,7 +52,7 @@ class GroupQueryServiceTest {
 
     @Test
     @DisplayName("Persistence가 제공한 최근 가입 순서를 유지하고 이미지 URL을 조립한다")
-    void getsMyGroupsInPersistenceOrder() {
+    void groupList_persistenceOrder_preservedAndImagesMapped() {
         when(loadGroupMemberPort.findActiveGroupSummariesByUserId(1L)).thenReturn(List.of(
                 new GroupSummaryReadModel(20L, "최근 그룹", "image.jpg", 4, List.of("그룹장", "동명이인", "동명이인")),
                 new GroupSummaryReadModel(10L, "이전 그룹", null, 1, List.of())
@@ -74,7 +74,7 @@ class GroupQueryServiceTest {
 
     @Test
     @DisplayName("활성 멤버에게 그룹 상세와 활성 인원수를 반환한다")
-    void getsGroupDetail() {
+    void groupDetail_activeMember_returnsDetailsAndCount() {
         Group group = group();
         GroupMember member = member();
         when(groupAccessService.loadActive(10L)).thenReturn(group);
@@ -92,7 +92,7 @@ class GroupQueryServiceTest {
 
     @Test
     @DisplayName("활성 멤버가 저장된 그룹 이미지를 조회한다")
-    void getsGroupImage() {
+    void groupImage_activeMember_returnsStoredImage() {
         when(groupAccessService.loadActive(10L)).thenReturn(group());
         when(groupAccessService.requireActiveMember(10L, 1L)).thenReturn(member());
         when(groupImageStoragePort.load("image.jpg"))

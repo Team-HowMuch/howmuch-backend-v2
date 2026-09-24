@@ -41,7 +41,7 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     @Test
     @DisplayName("참여와 독촉 알림은 개인정보 없이 앱 라우팅 데이터만 전달한다")
-    void sendsPrivacySafeSettlementPayloads() throws Exception {
+    void settlementPush_joinAndReminderPayloads_excludePrivateData() throws Exception {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
         when(firebaseMessaging.send(any(Message.class))).thenReturn("message-id");
         var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
@@ -105,7 +105,7 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     @Test
     @DisplayName("Firebase가 비활성화된 환경은 성공으로 가장하지 않는다")
-    void rejectsWhenFirebaseIsDisabled() {
+    void firebasePush_disabled_returnsFailure() {
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(null);
         var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);
 
@@ -120,7 +120,7 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     @Test
     @DisplayName("Firebase가 FCM token을 미등록 대상으로 판정하면 교체 가능한 실패로 반환한다")
-    void returnsInvalidTarget() throws Exception {
+    void firebasePush_unregisteredToken_returnsReplaceableFailure() throws Exception {
         FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
         when(exception.getMessagingErrorCode()).thenReturn(MessagingErrorCode.UNREGISTERED);
         when(firebaseMessagingProvider.getIfAvailable()).thenReturn(firebaseMessaging);
@@ -133,7 +133,7 @@ class FirebaseSettlementPushSenderAdapterTest {
 
     @Test
     @DisplayName("iOS APNs 토큰은 Firebase 대신 APNs로 발송한다")
-    void routesNativeIosTokenToApns() throws Exception {
+    void iosApnsToken_delivery_routesToApns() throws Exception {
         String apnsToken = "a1".repeat(48);
         when(apnsPushSender.send(any(), any(), any(), any())).thenReturn(SettlementPushSenderPort.SendResult.SENT);
         var adapter = new FirebaseSettlementPushSenderAdapter(firebaseMessagingProvider, apnsPushSender);

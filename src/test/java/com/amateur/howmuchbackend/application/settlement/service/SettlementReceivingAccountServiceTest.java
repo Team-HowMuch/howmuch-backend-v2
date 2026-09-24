@@ -66,7 +66,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("송금 가능한 본인 계좌만 기본 계좌 우선으로 반환하고 현재 선택을 표시한다")
-    void returnsEligibleAccountsInDisplayOrder() {
+    void receivingAccounts_eligible_defaultFirstAndCurrentShown() {
         authenticate();
         Settlement settlement = draft().selectReceivingAccount(2L, CREATED_AT.plusMinutes(1));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
@@ -90,7 +90,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("본인의 활성 원화 입출금 계좌를 잠근 초안에 저장한다")
-    void selectsOwnedEligibleAccount() {
+    void receivingAccount_ownedActiveKrw_savedToDraft() {
         authenticate();
         Settlement settlement = draft();
         Account account = account(7L, true, 0, AccountType.DEPOSIT_TRUST, "11", "KRW");
@@ -114,7 +114,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("타인 또는 비활성 계좌를 노출하지 않도록 없는 계좌와 같은 오류로 거부한다")
-    void rejectsUnknownOwnedAccount() {
+    void receivingAccount_unknownOrIneligible_rejected() {
         authenticate();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(loadAccountPort.findActiveByIdAndUserIdForUpdate(99L, USER_ID)).thenReturn(Optional.empty());
@@ -128,7 +128,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("목록 요청을 우회해도 외화 계좌를 수령 계좌로 저장하지 않는다")
-    void rejectsUnsupportedAccount() {
+    void receivingAccount_foreignCurrency_rejected() {
         authenticate();
         Account foreignAccount = account(
                 7L, true, 0, AccountType.FOREIGN_CURRENCY, "11", "USD"
@@ -148,7 +148,7 @@ class SettlementReceivingAccountServiceTest {
 
     @Test
     @DisplayName("요청 확정 뒤에는 계좌 조회 전에 수령 계좌 변경을 거부한다")
-    void rejectsSelectionOutsideDraft() {
+    void receivingAccount_afterRequest_rejectedBeforeLookup() {
         authenticate();
         Settlement requested = draft().request(CREATED_AT.plusMinutes(1));
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(requested));

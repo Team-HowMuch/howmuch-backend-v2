@@ -50,7 +50,7 @@ class SettlementParticipantContextRedisAdapterTest {
 
     @Test
     @DisplayName("링크와 참여자가 같은 유효 문맥을 원자 발급하고 재사용한다")
-    void issuesOrReusesContextAtomically() throws Exception {
+    void participantContext_sameRequest_issuedOrReused() throws Exception {
         UUID settlementId = UUID.randomUUID();
         UUID participantId = UUID.randomUUID();
         var storedContext = new SettlementParticipantContext(
@@ -102,7 +102,7 @@ class SettlementParticipantContextRedisAdapterTest {
 
     @Test
     @DisplayName("문맥 토큰으로 저장된 참여 문맥을 조회한다")
-    void loadsContextByToken() throws Exception {
+    void participantContext_token_lookupLoadsContext() throws Exception {
         UUID contextToken = UUID.randomUUID();
         var storedContext = new SettlementParticipantContext(
                 contextToken,
@@ -131,7 +131,7 @@ class SettlementParticipantContextRedisAdapterTest {
 
     @Test
     @DisplayName("문맥 토큰이 없거나 만료되어 Redis에 없으면 빈 결과를 반환한다")
-    void returnsEmptyWhenContextDoesNotExist() {
+    void participantContext_missingOrExpired_returnsEmpty() {
         UUID contextToken = UUID.randomUUID();
         when(redis.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(

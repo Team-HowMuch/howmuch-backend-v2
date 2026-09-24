@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>OCR 주소는 프로퍼티로 직접 비운다. yaml 기본값도 비어 있지만, RECEIPT_OCR_BASE_URL 을
  * 내보낸 개발자 셸에서 이 테스트가 실제 홈서버 장비를 때리는 일은 없어야 한다. 그 대가로
- * 컨텍스트 캐시 항목이 하나 늘지만, 테스트가 외부 장비에 닿는 것보다는 그게 낫다.
+ * 외부 장비 호출을 막기 위해 컨텍스트 캐시 항목 하나를 추가한다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused",
@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReceiptOcrHttpIntegrationTest {
     private static final String PATH = "/api/v2/receipts/ocr";
     private static final String BOUNDARY = "howmuch-receipt-test-boundary";
-    /** 진짜 JPEG 시그니처다. 정책이 선언한 형식이 아니라 바이트를 보므로 아무 바이트나 쓸 수 없다. */
+    /** 실제 JPEG 시그니처를 사용해 요청 바이트 형식을 검증한다. */
     private static final byte[] SMALL_IMAGE = jpegBytes();
 
     private static byte[] jpegBytes() {
@@ -97,14 +97,14 @@ class ReceiptOcrHttpIntegrationTest {
 
     @Test
     @DisplayName("미인증 업로드는 내부 서비스에 닿기 전에 401이다")
-    void rejectsUnauthenticatedUpload() throws Exception {
+    void receiptUpload_unauthenticated_returns401BeforeService() throws Exception {
         assertError(post(null, part("file", "receipt.jpg", "image/jpeg", SMALL_IMAGE)),
                 401, "UNAUTHORIZED");
     }
 
     @Test
     @DisplayName("업로드 한도를 넘으면 500이 아니라 413이다")
-    void rejectsOversizeUpload() throws Exception {
+    void receiptUpload_oversized_returnsPayloadTooLarge() throws Exception {
         // 한도는 5MB다. 문서가 413이라고 적어 둔 값을 실제로 지키는지 본다.
         byte[] tooBig = new byte[(int) (5.5 * 1024 * 1024)];
 
@@ -114,15 +114,15 @@ class ReceiptOcrHttpIntegrationTest {
 
     @Test
     @DisplayName("file 파트가 없으면 500이 아니라 400이다")
-    void rejectsMissingFilePart() throws Exception {
+    void receiptUpload_missingFilePart_returnsBadRequest() throws Exception {
         assertError(post(accessToken, part("image", "receipt.jpg", "image/jpeg", SMALL_IMAGE)),
                 400, "INVALID_ARGUMENT");
     }
 
     @Test
     @DisplayName("image/jpeg라고 선언한 PDF도 바이트를 보고 400으로 거절한다")
-    void rejectsDisguisedPdf() throws Exception {
-        // 파트의 Content-Type은 클라이언트가 정한다. 선언을 믿으면 PDF가 OCR까지 간다.
+    void receiptUpload_pdfDeclaredAsJpeg_returnsBadRequest() throws Exception {
+        // Content-Type은 요청자가 바꿀 수 있으므로 PDF가 OCR로 전달되지 않는지 검증한다.
         byte[] pdf = "%PDF-1.7\nfake".getBytes(StandardCharsets.UTF_8);
 
         assertError(post(accessToken, part("file", "receipt.jpg", "image/jpeg", pdf)),
@@ -131,14 +131,14 @@ class ReceiptOcrHttpIntegrationTest {
 
     @Test
     @DisplayName("빈 파일은 400으로 거절한다")
-    void rejectsEmptyFile() throws Exception {
+    void receiptUpload_emptyFile_returnsBadRequest() throws Exception {
         assertError(post(accessToken, part("file", "receipt.jpg", "image/jpeg", new byte[0])),
                 400, "INVALID_RECEIPT_IMAGE");
     }
 
     @Test
     @DisplayName("OCR 주소가 비어 있으면 503으로 재시도를 알린다")
-    void answersUnavailableWhenIntegrationIsOff() throws Exception {
+    void receiptOcr_missingBaseUrl_returnsUnavailableForRetry() throws Exception {
         assertError(post(accessToken, part("file", "receipt.jpg", "image/jpeg", SMALL_IMAGE)),
                 503, "RECEIPT_OCR_UNAVAILABLE");
     }

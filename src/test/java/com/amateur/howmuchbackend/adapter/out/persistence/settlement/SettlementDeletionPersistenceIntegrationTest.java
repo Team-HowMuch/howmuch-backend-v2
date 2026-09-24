@@ -143,7 +143,7 @@ class SettlementDeletionPersistenceIntegrationTest {
 
     @Test
     @DisplayName("정산 root 삭제가 모든 정산 소유 하위 행을 cascade로 제거한다")
-    void deletesSettlementOwnedRowsWithCascade() {
+    void settlementDeletion_rootRemoved_cascadesOwnedRows() {
         settlementPersistenceAdapter.delete(settlementId);
         settlementJpaRepository.flush();
 

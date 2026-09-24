@@ -17,7 +17,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("일반 멤버를 활성 상태로 생성한다")
-    void createsMember() {
+    void member_newMembership_active() {
         GroupMember member = GroupMember.member(10L, 2L, JOINED_AT);
 
         assertThat(member.role()).isEqualTo(GroupMemberRole.MEMBER);
@@ -28,7 +28,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("LEFT 멤버의 가입 시각을 갱신해 재가입시킨다")
-    void rejoinsLeftMember() {
+    void member_leftRejoin_joinTimeUpdated() {
         GroupMember rejoined = endedMember(GroupMemberStatus.LEFT).rejoin(REACTIVATED_AT);
 
         assertThat(rejoined.status()).isEqualTo(GroupMemberStatus.ACTIVE);
@@ -39,7 +39,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("REMOVED 멤버의 가입 시각을 갱신해 OWNER 복구 상태로 만든다")
-    void restoresRemovedMember() {
+    void member_removedOwnerRestore_joinTimeUpdated() {
         GroupMember restored = endedMember(GroupMemberStatus.REMOVED).restore(REACTIVATED_AT);
 
         assertThat(restored.status()).isEqualTo(GroupMemberStatus.ACTIVE);
@@ -50,21 +50,21 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("REMOVED 멤버는 초대 코드 재가입 전이를 사용할 수 없다")
-    void rejectsRejoinForRemovedMember() {
+    void member_removedInviteRejoin_rejected() {
         assertThatThrownBy(() -> endedMember(GroupMemberStatus.REMOVED).rejoin(REACTIVATED_AT))
                 .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     @DisplayName("LEFT 멤버는 OWNER 복구 전이를 사용할 수 없다")
-    void rejectsRestoreForLeftMember() {
+    void member_leftOwnerRestore_rejected() {
         assertThatThrownBy(() -> endedMember(GroupMemberStatus.LEFT).restore(REACTIVATED_AT))
                 .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     @DisplayName("활성 OWNER와 MEMBER의 역할을 소유권 이전 상태로 변경한다")
-    void changesOwnershipRoles() {
+    void member_ownershipTransfer_rolesChanged() {
         GroupMember owner = GroupMember.owner(10L, 1L, JOINED_AT);
         GroupMember member = GroupMember.member(10L, 2L, JOINED_AT);
 
@@ -79,7 +79,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("자기 탈퇴와 OWNER 제거는 종료 상태를 구분해 기록한다")
-    void recordsDifferentExitStatuses() {
+    void member_selfLeaveAndOwnerRemoval_exitStatusesDistinguished() {
         GroupMember member = GroupMember.member(10L, 2L, JOINED_AT);
 
         GroupMember left = member.leave(REACTIVATED_AT);
@@ -93,7 +93,7 @@ class GroupMemberTest {
 
     @Test
     @DisplayName("OWNER는 멤버 종료 전이를 직접 사용할 수 없다")
-    void rejectsOwnerExit() {
+    void member_ownerExit_rejected() {
         GroupMember owner = GroupMember.owner(10L, 1L, JOINED_AT);
 
         assertThatThrownBy(() -> owner.leave(REACTIVATED_AT))

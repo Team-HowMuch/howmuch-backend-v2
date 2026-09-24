@@ -92,7 +92,7 @@ class SettlementMemberItemAllocationServiceTest {
 
     @Test
     @DisplayName("참여자가 아니면 접근을 거부한다")
-    void rejectsNonParticipant() {
+    void memberItemAllocation_nonParticipant_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
@@ -107,7 +107,7 @@ class SettlementMemberItemAllocationServiceTest {
 
     @Test
     @DisplayName("요청 이후에는 참여자가 자기 몫을 조회한다")
-    void readsOwnAllocationAfterRequest() {
+    void memberItemAllocation_afterRequest_readsOwnSelection() {
         arrangeParticipantAccess(SettlementStatus.REQUESTED);
         when(allocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of());
         when(allocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of());
@@ -119,7 +119,7 @@ class SettlementMemberItemAllocationServiceTest {
 
     @Test
     @DisplayName("알림 발송 전 DRAFT에서는 참여자가 볼 수 없다")
-    void hidesDraftFromParticipant() {
+    void memberItemAllocation_draft_hiddenFromMember() {
         arrangeParticipantAccess(SettlementStatus.DRAFT);
 
         assertThatThrownBy(() -> service.getMyAllocation(SETTLEMENT_ID))

@@ -23,7 +23,7 @@ class SettlementDepositMatchingPolicyTest {
 
     @Test
     @DisplayName("이름이 유일하고 정수 원 금액이 남은 금액 이하인 수입 거래만 연결한다")
-    void matchesOnlyUnambiguousWonIncome() {
+    void depositMatching_uniqueNameAndValidWonIncome_matched() {
         var payable = new SettlementDepositMatchingPolicy.PayableShare(
                 SHARE_ID,
                 "민선영",
@@ -41,7 +41,7 @@ class SettlementDepositMatchingPolicyTest {
 
     @Test
     @DisplayName("전체 이름과 부분 이름 후보가 함께 있으면 전체 이름만 연결한다")
-    void matchesFullNameDespiteSubstringCandidate() {
+    void depositMatching_fullName_beatsSubstringMatch() {
         var shares = List.of(
                 payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0)),
                 payable(UUID.randomUUID(), "선영", LocalDateTime.of(2026, 8, 24, 0, 0))
@@ -63,7 +63,7 @@ class SettlementDepositMatchingPolicyTest {
             "민선영, 민선영/최수아"
     })
     @DisplayName("거래 설명에 전체 입금자명이 포함되면 연결한다")
-    void matchesFullNameIncludedInDescription(String name, String description) {
+    void depositMatching_fullNameInDescription_matched(String name, String description) {
         assertThat(policy.match(transaction(description, "6000"), List.of(
                 payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).contains(SHARE_ID);
@@ -71,7 +71,7 @@ class SettlementDepositMatchingPolicyTest {
 
     @Test
     @DisplayName("거래 발생 후 시작된 정산 Share는 매칭 후보에서 제외한다")
-    void excludesSettlementStartedAfterTransaction() {
+    void depositMatching_settlementStartsAfterTransaction_excluded() {
         UUID laterShareId = UUID.randomUUID();
         var shares = List.of(
                 payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0)),
@@ -84,7 +84,7 @@ class SettlementDepositMatchingPolicyTest {
 
     @Test
     @DisplayName("UTC 스냅샷 이전 입금만 제외하고 동일 시각과 이후는 매칭한다")
-    void matchesAtOrAfterSnapshotWithoutNineHourGrace() {
+    void depositMatching_atOrAfterSnapshot_matches() {
         var transaction = transaction("민선영 입금", "6000");
         var depositedAt = transaction.transactedAt();
         assertThat(policy.match(transaction, List.of(payable(SHARE_ID, "민선영", depositedAt.plusNanos(1)))))
@@ -106,7 +106,7 @@ class SettlementDepositMatchingPolicyTest {
             "Ann, Joanne 입금"
     })
     @DisplayName("부분 이름이나 문자·숫자에 붙은 이름으로 연결하지 않는다")
-    void rejectsPartialNamesAndAttachedNames(String name, String description) {
+    void depositMatching_partialOrAttachedName_rejected(String name, String description) {
         assertThat(policy.match(transaction(description, "6000"), List.of(
                 payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).isEmpty();
@@ -123,7 +123,7 @@ class SettlementDepositMatchingPolicyTest {
             "민선영, 민선영 입금"
     })
     @DisplayName("전체 이름과 허용 접미어에 기존 공백·Unicode·대소문자 정규화를 적용한다")
-    void matchesNormalizedFullNames(String name, String description) {
+    void depositMatching_normalizedFullName_matched(String name, String description) {
         assertThat(policy.match(transaction("  " + description + "  ", "3000"), List.of(
                 payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).contains(SHARE_ID);
@@ -133,7 +133,7 @@ class SettlementDepositMatchingPolicyTest {
     @NullAndEmptySource
     @ValueSource(strings = {" ", "　", " ", "\t\n"})
     @DisplayName("null과 정규화 후 빈 이름은 자동 연결하지 않는다")
-    void rejectsMissingNames(String name) {
+    void depositMatching_missingOrBlankName_rejected(String name) {
         assertThat(policy.match(transaction("민선영 입금", "6000"), List.of(
                 payable(SHARE_ID, name, LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).isEmpty();
@@ -143,7 +143,7 @@ class SettlementDepositMatchingPolicyTest {
     @NullAndEmptySource
     @ValueSource(strings = {" ", "　", " ", "\t\n"})
     @DisplayName("null과 공백 거래 설명은 자동 연결하지 않는다")
-    void rejectsMissingDescriptions(String description) {
+    void depositMatching_missingOrBlankDescription_rejected(String description) {
         assertThat(policy.match(transaction(description, "6000"), List.of(
                 payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).isEmpty();
@@ -157,7 +157,7 @@ class SettlementDepositMatchingPolicyTest {
             "민선영, 최수아, 민선영 최수아 입금"
     })
     @DisplayName("동명이인·정규화 충돌·복수 해석과 복수 이름은 확정하지 않는다")
-    void rejectsAmbiguousFullNames(String first, String second, String description) {
+    void depositMatching_ambiguousNameOrInterpretation_rejected(String first, String second, String description) {
         var createdAt = LocalDateTime.of(2026, 8, 24, 0, 0);
         assertThat(policy.match(transaction(description, "6000"), List.of(
                 payable(SHARE_ID, first, createdAt),
@@ -168,7 +168,7 @@ class SettlementDepositMatchingPolicyTest {
     @ParameterizedTest
     @ValueSource(strings = {"0", "-1", "6000.5", "7000", "9223372036854775808"})
     @DisplayName("전체 이름이 일치해도 유효하지 않은 입금 금액은 거부한다")
-    void rejectsInvalidAmounts(String amount) {
+    void depositMatching_invalidAmount_rejected(String amount) {
         assertThat(policy.match(transaction("민선영", amount), List.of(
                 payable(SHARE_ID, "민선영", LocalDateTime.of(2026, 8, 24, 0, 0))
         ))).isEmpty();

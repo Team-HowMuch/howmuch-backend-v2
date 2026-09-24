@@ -30,7 +30,7 @@ class DeleteGroupServiceTest {
 
     @Test
     @DisplayName("OWNER가 그룹을 소프트 삭제하고 commit 후 이미지 정리를 예약한다")
-    void softDeletesGroup() {
+    void groupDeletion_ownerRequest_softDeletesAndSchedulesCleanup() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 25, 6, 0);
         Group group = new Group(10L, "여행", null, "image.jpg", 1L, "AB12CD34",
                 GroupStatus.ACTIVE, 1L, now, now, null);

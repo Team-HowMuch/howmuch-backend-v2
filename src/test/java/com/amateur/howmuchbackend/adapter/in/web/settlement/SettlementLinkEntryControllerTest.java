@@ -50,7 +50,7 @@ class SettlementLinkEntryControllerTest {
 
     @Test
     @DisplayName("비로그인 링크 조회는 이름 선택 후보를 반환한다")
-    void resolvesBrowserEntry() throws Exception {
+    void browserEntry_anonymousRequest_returnsCandidates() throws Exception {
         when(resolveSettlementLinkUseCase.resolve(TOKEN)).thenReturn(
                 new SettlementLinkEntryResult(
                         SETTLEMENT_ID,
@@ -94,7 +94,7 @@ class SettlementLinkEntryControllerTest {
 
     @Test
     @DisplayName("브라우저 참여자 선택은 후속 API용 단기 참여 문맥을 반환한다")
-    void selectsParticipant() throws Exception {
+    void browserParticipant_selection_returnsTemporaryContext() throws Exception {
         when(selectSettlementLinkParticipantUseCase.select(TOKEN, PARTICIPANT_ID)).thenReturn(
                 new SettlementLinkParticipantSelectionResult(
                         SETTLEMENT_ID,

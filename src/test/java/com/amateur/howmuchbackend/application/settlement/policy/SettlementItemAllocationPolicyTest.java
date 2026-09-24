@@ -32,7 +32,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("기존 자기 선택을 교체해도 품목 합이 1을 초과하지 않으면 허용한다")
-    void validatesReplacementWithoutDoubleCountingCurrentParticipant() {
+    void itemAllocation_replacementWithoutDoubleCounting_accepted() {
         SettlementItem item = item();
         List<SettlementItemSelection> selections = List.of(
                 selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF),
@@ -50,7 +50,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("3인분 중 2인분처럼 units와 fraction을 곱한 몫을 허용한다")
-    void allowsMultipleUnitsOfFraction() {
+    void itemAllocation_fractionAcrossMultipleUnits_allowed() {
         policy.validateSelection(
                 item(30_000),
                 List.of(selection(
@@ -65,7 +65,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("units까지 더해 품목 한 개를 넘으면 선점 충돌로 거부한다")
-    void rejectsOverAllocationByUnits() {
+    void itemAllocation_exceedsItemTotalWithUnits_rejected() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(30_000),
                 List.of(selection(
@@ -82,7 +82,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("품목 수량을 넘는 요청은 선점 충돌로 거부한다")
-    void rejectsUnitsExceedingItemQuantity() {
+    void itemAllocation_unitsExceedQuantity_rejected() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(),
                 List.of(),
@@ -96,7 +96,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("수량이 2인 품목은 2개까지 한 사람이 가져갈 수 있다")
-    void allowsTakingEveryUnitOfMultiQuantityItem() {
+    void itemAllocation_multiQuantityEveryUnit_allowed() {
         policy.validateSelection(
                 item(10_000, 2),
                 List.of(),
@@ -108,7 +108,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("남이 1개를 가져간 수량 2 품목에서 2개를 고르면 거부한다")
-    void rejectsTakingMoreThanRemainingQuantity() {
+    void itemAllocation_moreThanRemainingQuantity_rejected() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(10_000, 2),
                 List.of(selection(
@@ -125,7 +125,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("나누어떨어지지 않아도 각자 내림값만 낸다. 차액은 생성자가 부담한다")
-    void floorsEveryShare() {
+    void itemShare_nonDivisible_roundsDownAndRemainderToCreator() {
         SettlementItem item = item(5_000);
         List<SettlementItemSelection> selections = List.of(
                 selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW),
@@ -145,7 +145,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("내 금액은 남이 더 고르든 말든 바뀌지 않는다")
-    void keepsMyAmountStableWhileOthersSelect() {
+    void itemAllocation_othersSelect_myAmountUnchanged() {
         SettlementItem item = item(5_000);
         SettlementItemSelection mine =
                 selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW);
@@ -164,7 +164,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("품목이 덜 채워졌으면 나머지를 배분하지 않는다")
-    void keepsRemainderUnassignedWhileItemIsIncomplete() {
+    void itemAllocation_incompleteItem_remainderUnassigned() {
         SettlementItem item = item(5_000);
 
         var amounts = policy.calculateSelectionAmounts(
@@ -177,7 +177,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("수량 2 품목을 1개·1/2개·1/2개로 나눠 확정한다")
-    void finalizesMultiQuantityItem() {
+    void itemAllocation_quantityTwo_finalizesAcrossFractionalUnits() {
         var finalization = policy.finalizeAllocation(
                 SETTLEMENT_ID,
                 10_000,
@@ -199,7 +199,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("수량이 1보다 작으면 거부한다")
-    void rejectsNonPositiveUnits() {
+    void itemAllocation_nonPositiveUnits_rejected() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(),
                 List.of(),
@@ -213,7 +213,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("다른 참여자 선택과 합쳐 1을 초과하면 거부한다")
-    void rejectsOverAllocation() {
+    void itemAllocation_totalOverOne_rejected() {
         assertThatThrownBy(() -> policy.validateSelection(
                 item(),
                 List.of(selection(
@@ -231,7 +231,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("모든 품목이 정확히 배분되면 양수 Share를 생성한다")
-    void finalizesExactAllocation() {
+    void itemAllocation_exactCoverage_createsPositiveShares() {
         var finalization = policy.finalizeAllocation(
                 SETTLEMENT_ID,
                 1_000,
@@ -253,7 +253,7 @@ class SettlementItemAllocationPolicyTest {
 
     @Test
     @DisplayName("전체 제출 후에도 반만 배분된 품목은 중단 대상으로 반환한다")
-    void marksUnderAllocatedItemsInvalid() {
+    void itemAllocation_underAllocatedAfterSubmit_returnsInvalidItems() {
         var finalization = policy.finalizeAllocation(
                 SETTLEMENT_ID,
                 1_000,

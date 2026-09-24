@@ -43,7 +43,7 @@ class CommonCodeListPersistenceIntegrationTest {
     @ParameterizedTest
     @ValueSource(ints = {1, 10, 100})
     @DisplayName("그룹 수가 늘어도 전체·검색 목록은 각각 두 쿼리로 정확한 집계를 반환한다")
-    void queryCountStaysConstantAsGroupCountGrows(int groupCount) {
+    void commonCodeList_groupCountGrows_queryCountStaysConstant(int groupCount) {
         List<CommonCodeGroupSummary> expected = new ArrayList<>();
         for (int index = groupCount - 1; index >= 0; index--) {
             expected.add(insertGroup(prefix + "%03d".formatted(index), "목록 " + index,
@@ -64,7 +64,7 @@ class CommonCodeListPersistenceIntegrationTest {
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "\t\n"})
     @DisplayName("검색어가 없거나 공백이면 전체 목록의 빈 그룹·비활성 상세·요약 필드를 유지한다")
-    void wholeListPreservesCountsOrderAndSummaryFields(String keyword) {
+    void commonCodeList_blankSearch_preservesCountsOrderAndSummary(String keyword) {
         var last = insertGroup(prefix + "C", "비활성 그룹", "설명 C", false, 7, 1);
         var first = insertGroup(prefix + "A", "빈 그룹", null, true, 3, 0);
         var middle = insertGroup(prefix + "B", "활성·비활성 상세", "설명 B", true, 5, 2);
@@ -78,7 +78,7 @@ class CommonCodeListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹 이름의 대소문자 무시 부분 검색은 매칭 그룹의 개수와 정렬만 반환한다")
-    void searchesGroupNamesAndExcludesOtherGroups() {
+    void commonCodeSearch_caseInsensitiveName_returnsMatches() {
         String nameKeyword = "Match" + UUID.randomUUID().toString().replace("-", "");
         var last = insertGroup(prefix + "C", "앞 " + nameKeyword, null, false, 9, 2);
         var first = insertGroup(prefix + "A", nameKeyword + " 뒤", "빈 그룹", true, 2, 0);
@@ -91,7 +91,7 @@ class CommonCodeListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("조회한 그룹에 상세가 전혀 없어도 개수 0을 반환한다")
-    void returnsZeroWhenEveryMatchingGroupIsEmpty() {
+    void commonCodeCount_allMatchingGroupsEmpty_returnsZero() {
         var expected = insertGroup(prefix + "EMPTY", "빈 그룹", null, true, 1, 0);
         insertGroup(prefix + "OTHER", "검색 제외", null, true, 1, 3);
 
@@ -100,7 +100,7 @@ class CommonCodeListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("검색 결과가 없으면 개수 집계 없이 한 쿼리로 빈 목록을 반환한다")
-    void skipsCountQueryWhenNoGroupsMatch() {
+    void commonCodeSearch_noMatches_skipsCountQuery() {
         insertGroup(prefix + "OTHER", "검색 제외", null, true, 1, 2);
 
         assertThat(findAllWithQueryCount(prefix + "MISSING", 1)).isEmpty();

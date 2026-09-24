@@ -88,7 +88,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("동시 등록과 상태 확정을 직렬화하도록 정산을 잠근 뒤 다음 순서로 수동 지출을 저장한다")
-    void createsManualExpenseUnderSettlementLock() {
+    void manualExpense_concurrentDraftWrites_savedUnderLock() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(2);
         when(saveSettlementExpensePort.save(any(SettlementExpense.class)))
@@ -111,7 +111,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("등록 후 누적액이 long 범위를 넘으면 저장 전에 명시적인 입력 오류를 반환한다")
-    void rejectsCreationThatOverflowsTotal() {
+    void manualExpense_totalOverflow_rejectedBeforeSave() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(1);
         when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID))
@@ -129,7 +129,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("목록과 누적액이 같은 조회 결과를 반영하도록 지출 목록에서 합계를 계산한다")
-    void getsExpensesAndConsistentTotal() {
+    void settlementExpenseList_listAndTotal_consistent() {
         givenOwnedDraft();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
                 expense(EXPENSE_ID, "저녁 식사", 42_000, 0),
@@ -146,7 +146,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("외부에서 유입된 지출 목록의 합계가 long 범위를 넘으면 500 대신 명시적인 오류를 반환한다")
-    void rejectsExpenseListThatOverflowsTotal() {
+    void settlementExpenseTotal_externalOverflow_returnsExplicitError() {
         givenOwnedDraft();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
                 expense(EXPENSE_ID, "최대 금액", Long.MAX_VALUE, 0),
@@ -162,7 +162,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("생성자만 지출을 바꿀 수 있도록 다른 사용자의 등록을 저장하지 않는다")
-    void rejectsCreationByAnotherUser() {
+    void manualExpense_otherUser_notSaved() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
 
@@ -178,7 +178,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("요청 금액이 바뀌지 않도록 DRAFT가 아닌 정산의 지출 등록을 거부한다")
-    void rejectsCreationOutsideDraft() {
+    void manualExpense_nonDraftSettlement_rejected() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
@@ -195,7 +195,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("부분 수정 결과와 최신 누적액을 반환한다")
-    void updatesManualExpense() {
+    void manualExpense_partialUpdate_returnsExpenseAndTotal() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
                 .thenReturn(Optional.of(expense(EXPENSE_ID, "저녁 식사", 42_000, 0)));
@@ -216,7 +216,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("수정 후 누적액이 long 범위를 넘으면 기존 지출을 변경하지 않는다")
-    void rejectsUpdateThatOverflowsTotal() {
+    void manualExpense_updateOverflow_preservesExistingExpense() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
                 .thenReturn(Optional.of(expense(EXPENSE_ID, "기존 지출", 1, 0)));
@@ -236,7 +236,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("다른 정산의 지출 ID로 수정할 수 없도록 소속이 일치하지 않으면 찾을 수 없음으로 처리한다")
-    void rejectsExpenseOutsideSettlement() {
+    void manualExpense_wrongSettlement_returnsNotFound() {
         givenOwnedDraftForUpdate();
         when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
                 .thenReturn(Optional.empty());
@@ -254,7 +254,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("삭제 뒤 남은 지출 누적액을 반환한다")
-    void removesManualExpense() {
+    void manualExpense_delete_returnsRemainingTotal() {
         givenOwnedDraftForUpdate();
         SettlementExpense expense = expense(EXPENSE_ID, "저녁 식사", 42_000, 0);
         when(loadSettlementExpensePort.findBySettlementIdAndId(SETTLEMENT_ID, EXPENSE_ID))
@@ -269,7 +269,7 @@ class SettlementExpenseServiceTest {
 
     @Test
     @DisplayName("잘못 가져온 결제내역 지출도 초안에서 삭제할 수 있다")
-    void removesImportedExpense() {
+    void importedExpense_draftDelete_allowed() {
         givenOwnedDraftForUpdate();
         SettlementExpense expense = SettlementExpense.paymentHistory(
                 SETTLEMENT_ID,

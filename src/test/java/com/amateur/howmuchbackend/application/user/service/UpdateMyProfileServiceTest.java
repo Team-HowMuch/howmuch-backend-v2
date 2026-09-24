@@ -66,7 +66,7 @@ class UpdateMyProfileServiceTest {
 
     @Test
     @DisplayName("공개 ID를 소문자로 정규화하고 잠근 사용자 상태에 저장한다")
-    void updatesNormalizedPublicId() {
+    void publicId_update_normalizedAndSaved() {
         when(loadUserPort.existsByPublicId("new.id_1")).thenReturn(false);
         when(saveUserPort.update(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -81,7 +81,7 @@ class UpdateMyProfileServiceTest {
 
     @Test
     @DisplayName("다른 사용자가 쓰는 공개 ID는 저장하지 않고 409 오류로 거부한다")
-    void rejectsDuplicatePublicId() {
+    void publicId_duplicateOwnedByAnotherUser_rejected() {
         when(loadUserPort.existsByPublicId("taken.id")).thenReturn(true);
 
         assertThatThrownBy(() -> updateMyProfileService.update(
@@ -95,7 +95,7 @@ class UpdateMyProfileServiceTest {
 
     @Test
     @DisplayName("정규화한 공개 ID와 아바타가 그대로이면 중복 조회와 저장을 생략한다")
-    void skipsUnchangedProfile() {
+    void profile_unchangedNormalizedValues_skipLookupAndSave() {
         var result = updateMyProfileService.update(new UpdateMyProfileCommand(" CURRENT.ID ", null, false));
 
         assertThat(result.publicId()).isEqualTo("current.id");

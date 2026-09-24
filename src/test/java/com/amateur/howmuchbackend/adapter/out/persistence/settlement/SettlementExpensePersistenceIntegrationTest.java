@@ -105,7 +105,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("V11 스키마에 지출을 표시 순서대로 저장하고 누적액을 계산한다")
-    void savesAndLoadsExpenses() {
+    void settlementExpenses_displayOrder_savedAndTotalCalculated() {
         settlementExpensePersistenceAdapter.save(manualExpense("카페", 8_000, 1));
         settlementExpensePersistenceAdapter.save(manualExpense("저녁 식사", 42_000, 0));
 
@@ -125,7 +125,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("V28 영수증 결제일을 nullable 값 그대로 저장하고 조회한다")
-    void savesAndLoadsReceiptPaidAt() {
+    void receiptPaidAt_nullability_preservedOnSaveAndLoad() {
         LocalDateTime paidAt = LocalDateTime.of(2026, 8, 31, 17, 40);
         SettlementExpense saved = settlementExpensePersistenceAdapter.save(
                 SettlementExpense.receiptOcr(
@@ -149,7 +149,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("지출 수정과 삭제가 최신 누적액에 반영된다")
-    void updatesAndDeletesExpense() {
+    void expense_updateAndDelete_recalculatesTotal() {
         SettlementExpense saved = settlementExpensePersistenceAdapter.save(
                 manualExpense("저녁 식사", 42_000, 0)
         );
@@ -172,7 +172,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("정산 삭제 시 하위 지출도 함께 삭제한다")
-    void deletesExpenseWithSettlement() {
+    void settlementDeletion_expenses_cascaded() {
         SettlementExpense saved = settlementExpensePersistenceAdapter.save(
                 manualExpense("저녁 식사", 42_000, 0)
         );
@@ -184,7 +184,7 @@ class SettlementExpensePersistenceIntegrationTest {
 
     @Test
     @DisplayName("V25 원본 계좌를 저장하고 계좌별 결제내역 중복을 409로 변환한다")
-    void savesSourceReferenceAndRejectsDuplicateImport() {
+    void paymentImport_duplicateWithinAccount_returnsConflict() {
         SettlementExpense imported = SettlementExpense.paymentHistory(
                 settlementId,
                 sourceAccountId,

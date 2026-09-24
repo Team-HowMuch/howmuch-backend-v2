@@ -37,7 +37,7 @@ class MockSettlementTransferLinkAdapterTest {
 
     @Test
     @DisplayName("표시용 은행명과 선행 0을 보존한 기관코드·계좌·금액·예금주를 전달한다")
-    void createsMockLinkWithoutTossBankName() {
+    void mockTransferLink_withoutTossName_preservesBankAndPayee() {
         when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("우리은행"));
 
         var link = adapter.create("0020", "100-2239945843", 2_000, "현승민").orElseThrow();
@@ -53,7 +53,7 @@ class MockSettlementTransferLinkAdapterTest {
 
     @Test
     @DisplayName("한글·공백·앰퍼샌드·플러스가 쿼리 파라미터를 추가하거나 변형하지 않는다")
-    void encodesQueryValues() {
+    void mockTransferLink_queryValues_encodedWithoutMutation() {
         when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("은행 & +"));
         String url = adapter.create("0020", "000123", 1, "현 승민&sender=다른사람+가").orElseThrow().url();
 
@@ -69,7 +69,7 @@ class MockSettlementTransferLinkAdapterTest {
     @NullAndEmptySource
     @ValueSource(strings = {" ", "\t"})
     @DisplayName("예금주가 없으면 receiver를 생략한다")
-    void omitsMissingReceiver(String receiver) {
+    void mockTransferLink_missingPayee_omitsReceiver(String receiver) {
         when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("우리은행"));
         assertThat(query(adapter.create("0020", "123", 1, receiver).orElseThrow().url()))
                 .hasSize(4).doesNotContainKey("receiver");
@@ -79,7 +79,7 @@ class MockSettlementTransferLinkAdapterTest {
     @NullAndEmptySource
     @ValueSource(strings = {"---", "****1234", "123 456", "123456789012345", "１２３"})
     @DisplayName("유효하지 않은 계좌번호는 링크를 만들지 않는다")
-    void rejectsInvalidAccount(String account) {
+    void mockTransferLink_invalidAccount_rejected(String account) {
         assertThat(adapter.create("0020", account, 1, "예금주")).isEmpty();
     }
 
@@ -87,24 +87,24 @@ class MockSettlementTransferLinkAdapterTest {
     @NullAndEmptySource
     @ValueSource(strings = {"20", "00020", "abcd", "00 2"})
     @DisplayName("4자리 숫자 기관코드가 없으면 링크를 만들지 않는다")
-    void rejectsInvalidBankCode(String bankCode) {
+    void mockTransferLink_invalidBankCode_rejected(String bankCode) {
         assertThat(adapter.create(bankCode, "123", 1, "예금주")).isEmpty();
     }
 
     @ParameterizedTest
     @ValueSource(longs = {0, -1, Long.MIN_VALUE})
-    void rejectsNonPositiveAmount(long amount) {
+    void mockTransferLink_nonPositiveAmount_rejected(long amount) {
         assertThat(adapter.create("0020", "123", amount, "예금주")).isEmpty();
     }
 
     @Test
-    void rejectsUnsupportedBank() {
+    void mockTransferLink_unsupportedBank_rejected() {
         when(bankCatalog.findBankName("9999")).thenReturn(Optional.empty());
         assertThat(adapter.create("9999", "123", 1, "예금주")).isEmpty();
     }
 
     @Test
-    void acceptsMaximumAccountLengthAndConfiguredUrl() {
+    void mockTransferLink_maxAccountLength_usesConfiguredUrl() {
         adapter = new MockSettlementTransferLinkAdapter(bankCatalog, "http://localhost:3000/send");
         when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("우리은행"));
         String url = adapter.create("0020", "12345678901234", Long.MAX_VALUE, "예금주")

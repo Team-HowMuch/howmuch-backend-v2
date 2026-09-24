@@ -97,7 +97,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("알림 발송 전 DRAFT에서도 생성자가 자기 품목을 조회한다")
-    void readsOwnItemsWhileDraft() {
+    void creatorItemSelection_draft_returnsOwnItems() {
         arrangeCreatorAccess(SettlementStatus.DRAFT);
         when(allocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of());
         when(allocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of());
@@ -112,7 +112,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("DRAFT에서 생성자가 자기 몫 비율을 저장한다")
-    void savesOwnSelectionWhileDraft() {
+    void creatorItemSelection_draft_savesOwnFraction() {
         arrangeCreatorAccess(SettlementStatus.DRAFT);
         when(allocationStorePort.findSubmission(SETTLEMENT_ID, CREATOR_PARTICIPANT_ID))
                 .thenReturn(Optional.empty());
@@ -132,7 +132,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("DRAFT에서는 전원이 제출해도 확정하지 않는다")
-    void doesNotFinalizeWhileDraft() {
+    void creatorItemAllocation_draft_neverFinalizes() {
         arrangeCreatorAccess(SettlementStatus.DRAFT);
         when(allocationStorePort.findSubmission(SETTLEMENT_ID, CREATOR_PARTICIPANT_ID))
                 .thenReturn(Optional.empty());
@@ -149,7 +149,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("생성자가 아니면 접근을 거부한다")
-    void rejectsNonCreator() {
+    void creatorItemAllocation_nonCreator_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.DRAFT)));
@@ -162,7 +162,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("이미 제출했으면 다시 고칠 수 없다")
-    void rejectsEditAfterSubmission() {
+    void creatorItemAllocation_afterSubmission_editRejected() {
         arrangeCreatorAccess(SettlementStatus.DRAFT);
         when(allocationStorePort.findSubmission(SETTLEMENT_ID, CREATOR_PARTICIPANT_ID))
                 .thenReturn(Optional.of(SettlementItemSubmission.submit(
@@ -182,7 +182,7 @@ class SettlementCreatorItemAllocationServiceTest {
 
     @Test
     @DisplayName("확정된 정산은 더 이상 고칠 수 없다")
-    void rejectsEditAfterDeposit() {
+    void creatorItemAllocation_afterDeposit_editRejected() {
         arrangeCreatorAccess(SettlementStatus.AWAITING_DEPOSIT);
 
         assertThatThrownBy(() -> service.removeMyItem(SETTLEMENT_ID, ITEM_ID))

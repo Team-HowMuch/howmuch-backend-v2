@@ -29,7 +29,7 @@ class SettlementOpenApiIntegrationTest {
 
     @Test
     @DisplayName("목록과 상세 응답의 필수 필드와 nullable 필드를 공개한다")
-    void documentsRequiredAndNullableResponseFields() throws Exception {
+    void settlementApi_responseRequiredAndNullableFields_documented() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andReturn()

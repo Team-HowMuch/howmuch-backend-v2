@@ -24,7 +24,7 @@ class GetTreasurerRecommendationsServiceTest {
     private TreasurerSettlementQuery treasurerSettlementQuery;
 
     @Test
-    void returnsEmptyMessageWhenThereIsNothingToProcess() {
+    void recommendations_noPendingWork_returnsEmptyMessage() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         GetTreasurerRecommendationsService service = service();
 
@@ -35,7 +35,7 @@ class GetTreasurerRecommendationsServiceTest {
     }
 
     @Test
-    void exposesTransferOnlyForAwaitingDepositSend() {
+    void transferRecommendation_awaitingDepositSend_only() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),
@@ -72,7 +72,7 @@ class GetTreasurerRecommendationsServiceTest {
     }
 
     @Test
-    void excludesDraftFromRecommendations() {
+    void recommendations_draft_excluded() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
                 new PersonalSettlement(
                         UUID.randomUUID(),

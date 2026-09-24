@@ -64,7 +64,7 @@ class SettlementItemAllocationControllerTest {
 
     @Test
     @DisplayName("참여 문맥 헤더로 품목·선택·예정 금액을 조회한다")
-    void getsAllocationState() throws Exception {
+    void itemAllocation_contextRequest_returnsSelectionAndAmounts() throws Exception {
         when(getUseCase.get(TOKEN, CONTEXT_ID, PARTICIPANT_ID))
                 .thenReturn(result(SettlementItemAllocationPhase.SELECTING));
 
@@ -80,7 +80,7 @@ class SettlementItemAllocationControllerTest {
 
     @Test
     @DisplayName("품목 비율 선택을 Application Command로 변환한다")
-    void savesSelection() throws Exception {
+    void itemSelection_validRequest_mapsCommand() throws Exception {
         when(saveUseCase.save(
                 eq(TOKEN),
                 eq(CONTEXT_ID),
@@ -99,7 +99,7 @@ class SettlementItemAllocationControllerTest {
 
     @Test
     @DisplayName("선택 취소와 제출 endpoint를 공개한다")
-    void removesAndSubmitsSelection() throws Exception {
+    void itemSelection_cancelAndSubmit_endpointsExposed() throws Exception {
         when(removeUseCase.remove(TOKEN, CONTEXT_ID, PARTICIPANT_ID, ITEM_ID))
                 .thenReturn(result(SettlementItemAllocationPhase.SELECTING));
         when(submitUseCase.submit(TOKEN, CONTEXT_ID, PARTICIPANT_ID))
@@ -118,7 +118,7 @@ class SettlementItemAllocationControllerTest {
 
     @Test
     @DisplayName("품목 선택 비율이 누락되면 400을 반환한다")
-    void rejectsMissingFraction() throws Exception {
+    void itemSelection_missingFraction_returnsBadRequest() throws Exception {
         mockMvc.perform(put(BASE_PATH + "/items/{itemId}", TOKEN, PARTICIPANT_ID, ITEM_ID)
                         .header("Link-Participant-Context", CONTEXT_ID)
                         .contentType(MediaType.APPLICATION_JSON)

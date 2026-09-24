@@ -54,7 +54,7 @@ class ObservabilityHttpIntegrationTest {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     @Test
-    void realSecurityRejectionIsCorrelatedAndCounted(CapturedOutput output) throws Exception {
+    void observability_securityRejection_correlatedAndCounted(CapturedOutput output) throws Exception {
         double before = count("user", "401");
         var response = get(port, "/api/v2/user/me");
         assertThat(response.statusCode()).isEqualTo(401);
@@ -64,7 +64,7 @@ class ObservabilityHttpIntegrationTest {
     }
 
     @Test
-    void handledSettlementFailureKeepsSafeJsonAndCounter(CapturedOutput output) throws Exception {
+    void observability_settlementFailure_safeJsonAndCounterPreserved(CapturedOutput output) throws Exception {
         double before = count("settlement", "500");
         var response = get(port, "/api/v2/settlement-links/_observability/" + SECRET);
         assertThat(response.statusCode()).isEqualTo(500);
@@ -75,7 +75,7 @@ class ObservabilityHttpIntegrationTest {
     }
 
     @Test
-    void authenticationApplicationFailureAndMalformedBodyDoNotLeak(CapturedOutput output) throws Exception {
+    void observability_authOrMalformedBody_noSensitiveDataLeak(CapturedOutput output) throws Exception {
         var response = get(port, "/api/v2/settlement-links/_observability/auth");
         assertThat(response.statusCode()).isEqualTo(401);
         assertCorrelated(response, output);
@@ -91,7 +91,7 @@ class ObservabilityHttpIntegrationTest {
     }
 
     @Test
-    void metricsAreAvailableOnlyThroughSeparateLoopbackManagementPort() throws Exception {
+    void managementMetrics_loopbackPort_only() throws Exception {
         get(port, "/api/v2/user/me");
         assertThat(managementPort).isNotEqualTo(port);
         assertThat(get(managementPort, "/actuator/health").statusCode()).isEqualTo(200);
@@ -110,7 +110,7 @@ class ObservabilityHttpIntegrationTest {
     @Autowired private ApplicationContext applicationContext;
 
     @Test
-    void readinessReflectsAvailabilityAndRemainsPrivate() throws Exception {
+    void readiness_dependencyStatus_private() throws Exception {
         assertThat(get(managementPort, "/actuator/health/readiness").statusCode()).isEqualTo(200);
         assertThat(get(port, "/actuator/health/readiness").statusCode()).isBetween(400, 499);
         try {
@@ -126,7 +126,7 @@ class ObservabilityHttpIntegrationTest {
     }
 
     @Test
-    void doesNotPropagateW3cHeadersToExternalRequests() throws Exception {
+    void externalRequest_w3cTraceHeaders_notPropagated() throws Exception {
         var receivedHeaders = new AtomicReference<String>();
         try (var server = new ServerSocket(0)) {
             Thread serverThread = Thread.startVirtualThread(() -> acceptOnce(server, receivedHeaders));
@@ -184,7 +184,7 @@ class ObservabilityHttpIntegrationTest {
         String id = response.headers().firstValue("X-Trace-ID").orElseThrow();
         assertThat(id).matches("[0-9a-f]{32}").isNotEqualTo("11111111111111111111111111111111");
         assertThat(response.headers().firstValue("X-Request-ID")).isEmpty();
-        // The response can arrive just before the outer filter's finally block completes.
+        // 바깥 필터의 finally 처리가 끝나기 직전에 응답이 올 수 있으므로 trace 로그를 기다린다.
         long deadline = System.nanoTime() + Duration.ofSeconds(3).toNanos();
         while (!output.getAll().contains(id) && System.nanoTime() < deadline) Thread.sleep(10);
         var matching = output.getAll().lines().filter(line -> line.contains(id)).toList();

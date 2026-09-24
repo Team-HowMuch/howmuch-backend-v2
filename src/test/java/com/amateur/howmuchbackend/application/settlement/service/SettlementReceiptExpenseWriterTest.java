@@ -69,7 +69,7 @@ class SettlementReceiptExpenseWriterTest {
 
     @Test
     @DisplayName("잠긴 DRAFT 정산에 OCR 지출과 순서가 보존된 품목을 함께 저장한다")
-    void writesReceiptExpenseAndItems() {
+    void receiptExpense_draft_savesReceiptAndOrderedItems() {
         givenOwnedDraft();
         when(loadSettlementExpensePort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(2);
         when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(5_000L);
@@ -107,7 +107,7 @@ class SettlementReceiptExpenseWriterTest {
 
     @Test
     @DisplayName("OCR 총액과 품목 합계가 다르면 어떤 지출도 저장하지 않는다")
-    void rejectsMismatchedExtractionBeforePersistence() {
+    void receiptExpense_totalMismatch_rejectedBeforePersistence() {
         givenOwnedDraft();
 
         assertThatThrownBy(() -> writer.write(
@@ -125,7 +125,7 @@ class SettlementReceiptExpenseWriterTest {
 
     @Test
     @DisplayName("같은 OCR 결과 참조는 정산 행 잠금 뒤 중복 저장을 거부한다")
-    void rejectsDuplicateReceiptReference() {
+    void receiptExpense_duplicateReference_rejectedAfterLock() {
         givenOwnedDraft();
         when(loadSettlementExpensePort.existsBySettlementIdAndSourceAndSourceReference(
                 SETTLEMENT_ID,

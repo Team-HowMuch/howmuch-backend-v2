@@ -88,7 +88,7 @@ class SettlementReminderServiceTest {
     void clearTransaction() { TransactionSynchronizationManager.clearSynchronization(); }
 
     @Test
-    void storesReminderAndKeepsCooldownOnCommitWithoutFcmToken() {
+    void reminder_missingFcmToken_storedAndCooldownCommitted() {
         givenTarget();
         when(cooldownPort.reserve(any(), any(), anyString(), eq(Duration.ofMinutes(30)))).thenReturn(true);
         when(recorder.record(any())).thenReturn(true);
@@ -103,7 +103,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void storesItemSelectionReminderForRequestedParticipantWithoutShare() {
+    void itemSelectionReminder_requestedWithoutShare_stored() {
         givenRequestedTargetWithoutShare();
         when(loadUserPort.findById(CREATOR_ID)).thenReturn(Optional.of(creator()));
         when(cooldownPort.reserve(any(), any(), anyString(), eq(Duration.ofMinutes(30)))).thenReturn(true);
@@ -120,7 +120,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void remindsRequestedParticipantWithPreservedShareAfterResume() {
+    void reminder_requestedParticipantAfterResume_preservesShare() {
         givenRequestedTargetWithoutShare();
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(share()));
@@ -137,7 +137,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void refusesRequestedParticipantWhoSubmittedEvenWithPreservedShare() {
+    void reminder_submittedParticipantAfterResume_refused() {
         givenRequestedTargetWithoutShare();
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(Optional.of(share()));
@@ -153,7 +153,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void releasesOnlyOwnedReservationOnCommitFailure() {
+    void reminder_commitFailure_releasesOwnedReservation() {
         givenTarget();
         when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
         when(recorder.record(any())).thenReturn(true);
@@ -165,7 +165,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void releasesReservationWhenStorageFails() {
+    void reminder_storageFailure_releasesReservation() {
         givenTarget();
         when(cooldownPort.reserve(any(), any(), anyString(), any())).thenReturn(true);
         when(recorder.record(any())).thenThrow(new IllegalStateException("database unavailable"));
@@ -175,7 +175,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void respectsExistingCooldown() {
+    void reminder_activeCooldown_refused() {
         givenTarget();
         assertStatus(SettlementStatusCode.SETTLEMENT_REMINDER_COOLDOWN_ACTIVE,
                 () -> service.remind(SETTLEMENT_ID, PARTICIPANT_ID));
@@ -183,7 +183,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void refusesPartialPayment() {
+    void reminder_partialPayment_refused() {
         givenTarget();
         when(loadSettlementDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
                 .thenReturn(List.of(new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(SHARE_ID, 1)));
@@ -193,7 +193,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void refusesNonCreator() {
+    void reminder_nonCreator_refused() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(PAYER_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         assertStatus(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED,
@@ -202,7 +202,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void bulkCountsCreatedNotificationsAndSkipsUnlinked() {
+    void bulkReminder_createdCountReturnedAndUnlinkedSkipped() {
         givenTarget();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
@@ -216,7 +216,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void bulkRemindsRequestedParticipantsWithoutShare() {
+    void bulkReminder_requestedWithoutShare_notified() {
         givenRequestedTargetWithoutShare();
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(requestedSettlement()));
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
@@ -265,14 +265,14 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void automaticDoesNotBackfillLegacySettlements() {
+    void automaticReminder_legacySettlement_notBackfilled() {
         givenOldShare();
         assertThat(writer.automatic(candidate())).isFalse();
         verifyNoInteractions(recorder, cooldownPort);
     }
 
     @Test
-    void automaticWaitsTwelveHoursAfterPreviousReminder() {
+    void automaticReminder_previousReminderUnderTwelveHours_skipped() {
         givenOldShare();
         when(automaticTargets.hasRequestNotification(SETTLEMENT_ID, PAYER_ID)).thenReturn(true);
         when(automaticTargets.findLatestAutomaticReminderAt(SHARE_ID, PAYER_ID))
@@ -295,7 +295,7 @@ class SettlementReminderServiceTest {
     }
 
     @Test
-    void automaticRequestedReminderKeepsShareElapsedMessage() {
+    void automaticReminder_requested_preservesElapsedTime() {
         givenTarget();
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(requestedSettlement()));
         when(loadSettlementSharePort.findBySettlementIdAndPayerParticipantId(SETTLEMENT_ID, PARTICIPANT_ID))

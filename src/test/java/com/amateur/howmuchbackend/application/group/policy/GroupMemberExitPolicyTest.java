@@ -25,7 +25,7 @@ class GroupMemberExitPolicyTest {
 
     @Test
     @DisplayName("관련 정산이 없거나 DRAFT와 COMPLETED뿐이면 종료를 허용한다")
-    void allowsWithoutBlockingSettlement() {
+    void groupMemberExit_noBlockingSettlement_allowed() {
         GroupMember member = activeMember(2L, GroupMemberRole.MEMBER);
 
         assertThatCode(() -> policy.validate(
@@ -41,7 +41,7 @@ class GroupMemberExitPolicyTest {
             "REQUESTED", "AWAITING_DEPOSIT", "SUSPENDED"
     })
     @DisplayName("진행 중인 정산 상태가 하나라도 있으면 종료를 차단한다")
-    void blocksOngoingSettlement(SettlementStatus status) {
+    void groupMemberExit_ongoingSettlement_blocksExit(SettlementStatus status) {
         assertStatus(
                 () -> policy.validate(
                         activeMember(2L, GroupMemberRole.MEMBER),
@@ -55,7 +55,7 @@ class GroupMemberExitPolicyTest {
 
     @Test
     @DisplayName("OWNER가 이전 없이 탈퇴하거나 자신을 제거하는 요청을 차단한다")
-    void requiresOwnershipTransferBeforeOwnerExit() {
+    void groupOwnerExit_withoutOwnershipTransfer_blocked() {
         GroupMember owner = activeMember(1L, GroupMemberRole.OWNER);
 
         assertStatus(

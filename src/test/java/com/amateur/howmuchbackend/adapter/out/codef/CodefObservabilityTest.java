@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 class CodefObservabilityTest {
     @Test
-    void recordsSafeMetricsTraceAndFailureLogWithoutLeakingMdc() {
+    void codefTelemetry_safeMetricsTraceAndLogs_noMdcLeak() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         Tracer tracer = mock(Tracer.class);
         Span span = mock(Span.class);

@@ -156,7 +156,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("생성된 정산을 후속 단계에서 식별할 수 있도록 UUID와 기본 정보를 반환한다")
-    void createsSettlement() throws Exception {
+    void settlementCreation_validRequest_returnsUuidAndDefaults() throws Exception {
         when(createSettlementUseCase.create(any(CreateSettlementCommand.class))).thenReturn(result());
 
         mockMvc.perform(post("/api/v2/settlements")
@@ -177,7 +177,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("생성자가 삭제 가능한 정산을 삭제한다")
-    void deletesSettlement() throws Exception {
+    void settlementDeletion_creatorRequest_succeeds() throws Exception {
         mockMvc.perform(delete("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -185,7 +185,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("식별할 수 없는 정산이 생성되지 않도록 빈 제목을 INVALID_ARGUMENT로 거부한다")
-    void rejectsBlankTitle() throws Exception {
+    void settlementTitle_blank_returnsInvalidArgument() throws Exception {
         mockMvc.perform(post("/api/v2/settlements")
                         .contentType("application/json")
                         .content("""
@@ -201,7 +201,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("정산 상세에 생성자 표시 정보와 실제 납부 진행도를 반환한다")
-    void getsSettlement() throws Exception {
+    void settlementDetail_request_returnsCreatorAndPaymentProgress() throws Exception {
         when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(detailResult());
 
         mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
@@ -235,7 +235,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("목록 화면에 원본 상태와 숫자형 요약 필드를 반환한다")
-    void getsSettlementList() throws Exception {
+    void settlementList_request_preservesStatusAndNumericSummary() throws Exception {
         when(getSettlementsUseCase.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS,
@@ -281,7 +281,7 @@ class SettlementControllerTest {
     }
 
     @Test
-    void bindsCompletedYearMonthAndReturnsCompletedAt() throws Exception {
+    void settlementList_completedMonth_returnsCompletedAt() throws Exception {
         var month = java.time.YearMonth.of(2026, 9);
         var completedAt = LocalDateTime.of(2026, 9, 1, 0, 0);
         when(getSettlementsUseCase.get(new GetSettlementsCommand(
@@ -298,7 +298,7 @@ class SettlementControllerTest {
     }
 
     @Test
-    void preservesDefaultsWhenOnlyYearMonthIsProvided() throws Exception {
+    void settlementList_onlyYearMonth_preservesDefaults() throws Exception {
         mockMvc.perform(get("/api/v2/settlements").queryParam("yearMonth", "2026-09"))
                 .andExpect(status().isOk());
         verify(getSettlementsUseCase).get(new GetSettlementsCommand(
@@ -307,7 +307,7 @@ class SettlementControllerTest {
     }
 
     @Test
-    void acceptsYearMonthRangeBoundaries() throws Exception {
+    void settlementList_yearMonthBoundaries_accepted() throws Exception {
         for (String value : List.of("0001-01", "9999-12")) {
             mockMvc.perform(get("/api/v2/settlements")
                             .queryParam("yearMonth", value).queryParam("status", "COMPLETED"))
@@ -319,7 +319,7 @@ class SettlementControllerTest {
     }
 
     @Test
-    void rejectsInvalidYearMonth() throws Exception {
+    void settlementList_invalidYearMonth_rejected() throws Exception {
         for (String value : List.of("2026-13", "2026-00", "2026-9", "2026-09-01", "invalid",
                 "+999999999-12", "+294277-01", "+10000-01", "-0001-01", "0000-01",
                 "+02026-09", "", " 2026-09", "2026-09 ")) {
@@ -332,7 +332,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("그룹 필터의 잘못된 식별자를 INVALID_ARGUMENT로 거부한다")
-    void rejectsNonPositiveSettlementListGroupId() throws Exception {
+    void settlementList_nonPositiveGroupId_returnsInvalidArgument() throws Exception {
         mockMvc.perform(get("/api/v2/settlements").queryParam("groupId", "0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
@@ -342,7 +342,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("잘못된 정산 식별자를 서버 오류로 오해하지 않도록 INVALID_ARGUMENT로 거부한다")
-    void rejectsInvalidSettlementId() throws Exception {
+    void settlementId_invalid_returnsInvalidArgument() throws Exception {
         mockMvc.perform(get("/api/v2/settlements/not-a-uuid"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
@@ -352,7 +352,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("읽을 수 없는 JSON을 서버 오류로 오해하지 않도록 INVALID_ARGUMENT로 거부한다")
-    void rejectsUnreadableJson() throws Exception {
+    void settlementRequest_unreadableJson_returnsInvalidArgument() throws Exception {
         mockMvc.perform(post("/api/v2/settlements")
                         .contentType("application/json")
                         .content("{\"title\":\"회식 정산\",\"totalAmount\":"))
@@ -364,7 +364,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("의미 없는 변경 요청을 막기 위해 수정 필드가 없는 PATCH를 INVALID_ARGUMENT로 거부한다")
-    void rejectsPatchWithoutFields() throws Exception {
+    void settlementPatch_noFields_returnsInvalidArgument() throws Exception {
         mockMvc.perform(patch("/api/v2/settlements/{settlementId}", SETTLEMENT_ID)
                         .contentType("application/json")
                         .content("{}"))
@@ -375,7 +375,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("부분 수정 의도를 보존하도록 전달된 필드만 Command로 변환해 결과를 반환한다")
-    void updatesSettlementDraft() throws Exception {
+    void settlementDraft_partialUpdate_mapsCommandAndReturnsResult() throws Exception {
         SettlementResult updated = new SettlementResult(
                 SETTLEMENT_ID,
                 1L,
@@ -404,7 +404,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("생성자가 요청 중인 정산을 수동 중단하고 최신 상태를 받는다")
-    void suspendsSettlement() throws Exception {
+    void settlement_ownerSuspend_returnsLatestState() throws Exception {
         when(suspendSettlementUseCase.suspend(SETTLEMENT_ID)).thenReturn(
                 new SettlementResult(
                         SETTLEMENT_ID,
@@ -424,7 +424,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("생성자가 중단된 정산을 재개하고 최신 상태를 받는다")
-    void resumesSettlement() throws Exception {
+    void settlementLifecycle_suspendedState_resumesWithLatestState() throws Exception {
         when(resumeSettlementUseCase.resume(SETTLEMENT_ID)).thenReturn(
                 new SettlementResult(
                         SETTLEMENT_ID,
@@ -444,7 +444,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("정산 수명주기 권한·상태 오류를 기존 Application 오류 계약으로 반환한다")
-    void returnsSettlementLifecycleErrors() throws Exception {
+    void settlementLifecycle_invalidTransition_returnsError() throws Exception {
         when(suspendSettlementUseCase.suspend(SETTLEMENT_ID))
                 .thenThrow(ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
         when(resumeSettlementUseCase.resume(SETTLEMENT_ID))
@@ -465,7 +465,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("클라이언트가 최신 상태를 다시 조회하도록 동시 수정 충돌을 409 CONCURRENT_UPDATE로 반환한다")
-    void returnsConflictForConcurrentUpdate() throws Exception {
+    void settlementUpdate_concurrentModification_returnsConflict() throws Exception {
         when(updateSettlementDraftUseCase.update(eq(SETTLEMENT_ID), any(UpdateSettlementDraftCommand.class)))
                 .thenThrow(new OptimisticLockingFailureException("stale settlement"));
 
@@ -484,7 +484,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("잠금 획득 실패를 재시도 가능한 503 TEMPORARILY_UNAVAILABLE로 반환한다")
-    void returnsServiceUnavailableForLockFailure() throws Exception {
+    void settlementUpdate_lockFailure_returnsRetryableUnavailable() throws Exception {
         when(updateSettlementDraftUseCase.update(eq(SETTLEMENT_ID), any(UpdateSettlementDraftCommand.class)))
                 .thenThrow(new PessimisticLockingFailureException("lock timeout"));
 
@@ -504,7 +504,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("화면 재진입 시 공개 참여자 정보와 보호된 아바타 URL을 반환한다")
-    void getsSettlementParticipants() throws Exception {
+    void settlementParticipants_request_returnsPublicData() throws Exception {
         when(getSettlementParticipantsUseCase.get(SETTLEMENT_ID)).thenReturn(List.of(
                 new SettlementParticipantListItemResult(
                         PARTICIPANT_ID,
@@ -545,7 +545,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("아바타 URL에서 원본 Content-Type과 바이트를 반환한다")
-    void getsSettlementParticipantAvatar() throws Exception {
+    void participantAvatar_urlRequest_returnsOriginalTypeAndBytes() throws Exception {
         byte[] imageContent = {(byte) 0x89, 0x50, 0x4E, 0x47};
         when(getSettlementParticipantAvatarUseCase.get(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenReturn(new ProfileImage("image/png", imageContent));
@@ -563,7 +563,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("아바타가 없는 참여자는 PROFILE_IMAGE_NOT_FOUND로 반환한다")
-    void returnsNotFoundForMissingParticipantAvatar() throws Exception {
+    void participantAvatar_missing_returnsNotFound() throws Exception {
         when(getSettlementParticipantAvatarUseCase.get(SETTLEMENT_ID, PARTICIPANT_ID))
                 .thenThrow(ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
 
@@ -579,7 +579,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("공개 ID 후보 검색 결과에 공개 정보와 보호된 아바타 URL만 반환한다")
-    void searchesSettlementParticipantCandidates() throws Exception {
+    void participantSearch_publicId_returnsPublicFieldsAndAvatarUrl() throws Exception {
         when(searchSettlementParticipantUseCase.searchByPublicId(eq(SETTLEMENT_ID), any()))
                 .thenReturn(List.of(
                         new SettlementParticipantCandidateResult(
@@ -607,7 +607,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("그룹 구성원 후보에 공개 정보와 보호된 아바타 URL만 반환한다")
-    void getsSettlementGroupParticipantCandidates() throws Exception {
+    void groupParticipantCandidates_request_returnsPublicData() throws Exception {
         when(getSettlementGroupParticipantCandidatesUseCase.get(SETTLEMENT_ID, 10L))
                 .thenReturn(List.of(
                         new SettlementParticipantCandidateResult(
@@ -633,7 +633,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("그룹 ID와 공개 ID를 그룹 참여자 추가 Command로 변환한다")
-    void addsSettlementGroupParticipant() throws Exception {
+    void groupParticipant_addRequest_mapsCommand() throws Exception {
         UUID participantId = UUID.fromString("3b9da522-552a-4168-b052-794be9dbbe53");
         when(addSettlementParticipantUseCase.add(
                 SETTLEMENT_ID,
@@ -673,7 +673,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("양수가 아닌 그룹 ID는 UseCase 호출 없이 거부한다")
-    void rejectsNonPositiveGroupIdForParticipantAdd() throws Exception {
+    void participantAdd_nonPositiveGroupId_rejected() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/participants",
                         SETTLEMENT_ID
@@ -693,7 +693,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("빈 공개 ID 검색어는 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
-    void rejectsBlankParticipantCandidateSearch() throws Exception {
+    void participantSearch_blankPublicId_returnsInvalidArgument() throws Exception {
         mockMvc.perform(get(
                         "/api/v2/settlements/{settlementId}/participant-candidates/users",
                         SETTLEMENT_ID
@@ -705,7 +705,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("후보 아바타 URL에서 원본 Content-Type과 바이트를 반환한다")
-    void getsSettlementParticipantCandidateAvatar() throws Exception {
+    void participantAvatar_urlRequest_returnsOriginalBytes() throws Exception {
         byte[] imageContent = {(byte) 0x89, 0x50, 0x4E, 0x47};
         when(getSettlementParticipantCandidateAvatarUseCase.get(SETTLEMENT_ID, "sua.alpha"))
                 .thenReturn(new ProfileImage("image/png", imageContent));
@@ -723,7 +723,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("연락처 매칭 결과에 공개 정보와 기존 참여 여부만 반환한다")
-    void matchesSettlementContacts() throws Exception {
+    void contactMatch_request_returnsPublicFieldsAndStatus() throws Exception {
         when(matchSettlementContactsUseCase.match(eq(SETTLEMENT_ID), any())).thenReturn(List.of(
                 new SettlementContactCandidateResult(
                         "contact-1",
@@ -787,7 +787,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("빈 연락처 목록은 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
-    void rejectsEmptyContactMatchingRequest() throws Exception {
+    void settlementContactMatch_emptyList_returnsInvalidArgument() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
                         SETTLEMENT_ID
@@ -804,7 +804,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("null 연락처 항목은 UseCase 호출 없이 INVALID_ARGUMENT로 거부한다")
-    void rejectsNullContactMatchingItem() throws Exception {
+    void settlementContactMatch_nullItem_returnsInvalidArgument() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
                         SETTLEMENT_ID
@@ -823,7 +823,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("휴대폰 번호가 비어 있는 연락처 항목을 INVALID_ARGUMENT로 거부한다")
-    void rejectsContactWithoutPhoneNumber() throws Exception {
+    void settlementContactMatch_missingPhone_returnsInvalidArgument() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/participant-candidates/contacts/match",
                         SETTLEMENT_ID
@@ -846,7 +846,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("길이 제한을 초과한 연락처 항목을 UseCase 호출 없이 거부한다")
-    void rejectsOversizedContactMatchingFields() throws Exception {
+    void contactMatch_oversizedFields_returnsInvalidArgument() throws Exception {
         String oversizedContactId = "c".repeat(101);
         String oversizedDisplayName = "이".repeat(101);
         String oversizedPhoneNumber = "-".repeat(21) + "01011112222";
@@ -900,7 +900,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("참여자 본인에게는 사용 가능한 내 프로필 이미지 경로를 반환한다")
-    void returnsSelfAvatarUrl() throws Exception {
+    void participantAvatar_self_returnsAvailableProfilePath() throws Exception {
         when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(
                 detailResult(SettlementDetailResult.ViewerRole.PARTICIPANT, true)
         );
@@ -912,7 +912,7 @@ class SettlementControllerTest {
 
     @Test
     @DisplayName("사진 없는 행은 avatarUrl 필드를 null로 반환한다")
-    void returnsNullAvatarUrl() throws Exception {
+    void participantAvatar_missingPhoto_returnsNullUrl() throws Exception {
         when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(
                 detailResult(SettlementDetailResult.ViewerRole.CREATOR, false)
         );

@@ -40,7 +40,7 @@ class SettlementContactMatchUsageRedisIntegrationTest {
 
     @Test
     @DisplayName("사용자별 요청 수와 연락처 수를 원자 누적하고 각각 TTL을 설정한다")
-    void recordsUsageWithIndependentWindows() {
+    void contactMatchUsage_userAndContactLimits_independentTtls() {
         Duration requestWindow = Duration.ofMinutes(1);
         Duration contactWindow = Duration.ofHours(24);
 

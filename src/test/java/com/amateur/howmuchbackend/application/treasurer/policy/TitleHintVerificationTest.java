@@ -27,7 +27,7 @@ class TitleHintVerificationTest {
     @ParameterizedTest
     @ValueSource(strings = {"모임정산", "정산", "모임", "회비", "금액비용"})
     @DisplayName("일반어만으로 이루어진 힌트는 실제 정산에 맞아도 쓰지 않는다")
-    void rejectsHintMadeOnlyOfGenericWords(String hint) {
+    void titleHint_genericWordsOnly_rejected(String hint) {
         assertThat(policy.verify(all, hint)).isNull();
     }
 
@@ -39,37 +39,37 @@ class TitleHintVerificationTest {
             "점심회비, 점심회비"
     })
     @DisplayName("일반어를 걷어내도 이름이 남으면 쓴다")
-    void acceptsHintThatCarriesAName(String hint, String expected) {
+    void titleHint_nameRemainsAfterGenericRemoval_accepted(String hint, String expected) {
         assertThat(policy.verify(all, hint)).isEqualTo(expected);
     }
 
     @Test
     @DisplayName("맞는 정산이 없는 이름은 쓰지 않는다")
-    void rejectsHintThatMatchesNothing() {
+    void titleHint_withoutMatchingSettlement_rejected() {
         assertThat(policy.verify(all, "없는이름정산")).isNull();
     }
 
     @Test
     @DisplayName("이름이 없으면 좁히지 않는다")
-    void keepsEverythingWhenHintIsAbsent() {
+    void titleHint_absent_noFiltering() {
         assertThat(policy.verify(all, null)).isNull();
     }
 
     @Test
     @DisplayName("한 글자 조각은 이름의 근거로 보지 않는다")
-    void rejectsSingleCharacterHint() {
+    void titleHint_singleCharacter_rejected() {
         assertThat(policy.verify(List.of(settlement("여행 정산")), "여")).isNull();
     }
 
     @Test
     @DisplayName("정산이 하나도 없으면 어떤 이름도 쓰지 않는다")
-    void rejectsEveryHintWhenThereIsNoSettlement() {
+    void settlementList_empty_allHintsRejected() {
         assertThat(policy.verify(List.of(), "여행정산")).isNull();
     }
 
     @Test
     @DisplayName("이름 대조는 공백을 무시하고 대소문자를 가리지 않는다")
-    void matchesIgnoringWhitespaceAndCase() {
+    void titleMatch_whitespaceAndCase_ignored() {
         assertThat(policy.matchesTitle(settlement("MT 정산"), "mt정산")).isTrue();
         assertThat(policy.matchesTitle(settlement("여행 정산"), "여행정산")).isTrue();
         assertThat(policy.matchesTitle(settlement("여행 정산"), "회식")).isFalse();
@@ -77,7 +77,7 @@ class TitleHintVerificationTest {
 
     @Test
     @DisplayName("이름이 없으면 모든 정산이 대조를 통과한다")
-    void matchesEverySettlementWhenHintIsAbsent() {
+    void titleHint_absent_allSettlementsMatch() {
         assertThat(policy.matchesTitle(settlement("여행 정산"), null)).isTrue();
     }
 

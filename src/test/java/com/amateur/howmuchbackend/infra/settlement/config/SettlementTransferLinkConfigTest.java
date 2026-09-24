@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 class SettlementTransferLinkConfigTest {
     @ParameterizedTest
     @CsvSource({"none,toss", "local,mock", "dev,mock", "prod,toss"})
-    void profileDefaultsRegisterExactlyOneAdapter(String profile, String expected) {
+    void transferLinkConfig_profileDefaults_exactlyOneAdapter(String profile, String expected) {
         runner(Map.of()).withPropertyValues("spring.profiles.active=" + profile).run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(SettlementTransferLinkPort.class);
             assertThat(context.getBean(SettlementTransferLinkPort.class))
@@ -33,7 +33,7 @@ class SettlementTransferLinkConfigTest {
     }
 
     @Test
-    void defaultLocalProfileUsesMock() {
+    void transferLinkConfig_localProfile_mockSelected() {
         runner(Map.of()).run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(SettlementTransferLinkPort.class);
             assertThat(context.getBean(SettlementTransferLinkPort.class))
@@ -43,7 +43,7 @@ class SettlementTransferLinkConfigTest {
 
     @ParameterizedTest
     @CsvSource({"local,toss", "dev,toss", "prod,mock", "none,mock"})
-    void environmentOverridesProfileDefault(String profile, String selection) {
+    void transferLinkConfig_environmentSelection_overridesProfile(String profile, String selection) {
         runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", selection))
                 .withPropertyValues("spring.profiles.active=" + profile).run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(SettlementTransferLinkPort.class);
@@ -54,7 +54,7 @@ class SettlementTransferLinkConfigTest {
     }
 
     @Test
-    void configuredBaseUrlReachesMockAdapter() {
+    void transferLinkConfig_baseUrl_passedToMockAdapter() {
         runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", "mock",
                 "SETTLEMENT_MOCK_TRANSFER_BASE_URL", "http://localhost:3000/send"))
                 .run(context -> {
@@ -68,13 +68,13 @@ class SettlementTransferLinkConfigTest {
     }
 
     @Test
-    void unknownSelectionFailsStartup() {
+    void transferLinkConfig_unknownSelection_startupRejected() {
         runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", "typo"))
                 .run(context -> assertThat(context).hasFailed());
     }
 
     @Test
-    void invalidSelectedMockUrlFailsStartup() {
+    void transferLinkConfig_invalidSelectedMockUrl_startupRejected() {
         runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", "mock",
                 "SETTLEMENT_MOCK_TRANSFER_BASE_URL", "http://external.example/send"))
                 .run(context -> assertThat(context).hasFailed());

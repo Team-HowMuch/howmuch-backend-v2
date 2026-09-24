@@ -82,7 +82,7 @@ class GroupManagementScenarioIntegrationTest {
 
     @Test
     @DisplayName("가입한 그룹멤버를 정산에 연결하고 종료 정책과 그룹 삭제 이후 보존을 검증한다")
-    void preservesSettlementAcrossGroupMemberLifecycle() {
+    void groupLifecycle_memberExit_settlementPreservedAfterDelete() {
         UserFixture owner = insertUser("최수아");
         UserFixture member = insertUser("그룹 멤버");
 

@@ -68,7 +68,7 @@ class CommonCodeAdminControllerTest {
 
     @Test
     @DisplayName("그룹 검색 결과에 그룹 속성과 상세 개수를 반환한다")
-    void searchesGroups() throws Exception {
+    void groupSearch_query_returnsAttributesAndDetailCount() throws Exception {
         when(searchUseCase.search(any())).thenReturn(List.of(
                 new CommonCodeGroupSummaryResult("BANK", "은행 코드", null, true, 1L, 2L)
         ));
@@ -82,7 +82,7 @@ class CommonCodeAdminControllerTest {
 
     @Test
     @DisplayName("그룹 저장 요청을 Application Command로 전달한다")
-    void updatesGroup() throws Exception {
+    void groupUpdate_request_mapsToCommand() throws Exception {
         when(updateUseCase.update(eq("BANK"), any())).thenReturn(groupResult());
 
         mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
@@ -115,7 +115,7 @@ class CommonCodeAdminControllerTest {
 
     @Test
     @DisplayName("상세 목록의 null 원소를 400으로 거부한다")
-    void rejectsNullDetailElement() throws Exception {
+    void commonCodeDetails_nullElement_returnsBadRequest() throws Exception {
         mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -131,7 +131,7 @@ class CommonCodeAdminControllerTest {
 
     @ParameterizedTest
     @ValueSource(ints = {100, 101, 255})
-    void acceptsAttributeBoundariesWithoutTruncation(int length) throws Exception {
+    void commonCodeAttribute_boundaryLength_preserved(int length) throws Exception {
         String value = "가".repeat(length);
         when(updateUseCase.update(eq("BANK"), any())).thenReturn(groupResult());
         mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")
@@ -147,7 +147,7 @@ class CommonCodeAdminControllerTest {
 
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 3})
-    void rejectsEachOversizedAttributeBeforeSaving(int attribute) throws Exception {
+    void commonCodeAttribute_oversizedEach_rejectedBeforeSave(int attribute) throws Exception {
         String[] values = {"valid", "valid", "valid"};
         values[attribute - 1] = "가".repeat(256);
         var result = mockMvc.perform(put("/api/v2/admin/common-codes/groups/BANK")

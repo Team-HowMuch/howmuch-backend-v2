@@ -37,7 +37,7 @@ class UserPushTargetPersistenceIntegrationTest {
 
     @Test
     @DisplayName("같은 FID를 새 계정에 등록하면 기존 계정에서 현재 계정으로 이전한다")
-    void transfersTargetOwnership() {
+    void pushTarget_sameFid_transfersToNewOwner() {
         Long previousUserId = insertUser(TARGET);
         Long currentUserId = insertUser(null);
 
@@ -52,7 +52,7 @@ class UserPushTargetPersistenceIntegrationTest {
 
     @Test
     @DisplayName("현재 계정의 FID를 해제한다")
-    void clearsTarget() {
+    void pushTarget_currentAccount_cleared() {
         Long userId = insertUser(TARGET);
 
         boolean cleared = inTransaction(() ->

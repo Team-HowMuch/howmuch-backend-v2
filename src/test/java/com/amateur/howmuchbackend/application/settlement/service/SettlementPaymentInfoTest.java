@@ -21,7 +21,7 @@ class SettlementPaymentInfoTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("paymentInfoCases")
-    void resolvesOnlyOneEligibleExpense(
+    void paymentInfo_multipleEligibleExpenses_resolvesOnlyOne(
             String scenario,
             List<SettlementExpense> expenses,
             String expectedStoreName,

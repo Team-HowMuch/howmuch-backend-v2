@@ -19,7 +19,7 @@ class SettlementDutchPayAllocationTest {
 
     @Test
     @DisplayName("0원도 직접 배분할 수 있도록 음수가 아닌 금액을 허용한다")
-    void allowsZeroAmount() {
+    void dutchPay_zeroAmount_allowed() {
         var allocation = SettlementDutchPayAllocation.create(
                 SETTLEMENT_ID,
                 PARTICIPANT_ID,
@@ -32,7 +32,7 @@ class SettlementDutchPayAllocationTest {
 
     @Test
     @DisplayName("음수 부담 금액을 명시적인 입력 오류로 거부한다")
-    void rejectsNegativeAmount() {
+    void dutchPay_negativeAmount_rejected() {
         assertThatThrownBy(() -> SettlementDutchPayAllocation.create(
                 SETTLEMENT_ID,
                 PARTICIPANT_ID,

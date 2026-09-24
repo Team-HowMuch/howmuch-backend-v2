@@ -49,16 +49,15 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("multipart file 필드로 보내고 응답을 결과로 옮긴다")
-    void sendsImageAsMultipartAndMapsResponse() {
+    void receiptOcr_imageMultipart_mapsResponse() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.MULTIPART_FORM_DATA))
-                // 서비스가 받는 파트 이름은 file 이다. 이름이 어긋나면 422가 돌아온다.
+                // 서비스가 기대하는 file 파트 이름을 사용해 422 오류를 피한다.
                 .andExpect(request -> assertThat(request.getBody().toString())
                         .contains("name=\"file\"")
                         .contains("receipt.jpg")
-                        // 파트에 이미지 형식을 직접 실어 보낸다. 비워 두면 파일 이름의
-                        // 확장자로 추측되고, 확장자가 없으면 octet-stream 이 나간다.
+                        // 파트에 이미지 형식을 직접 지정해 파일 확장자나 octet-stream 추측에 의존하지 않는다.
                         .contains("Content-Type: image/jpeg"))
                 .andRespond(withSuccess("""
                         {
@@ -99,9 +98,9 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("파일 이름이 없어도 파트에 이름을 붙인다")
-    void alwaysSendsAFileName() {
+    void receiptOcr_missingFilename_addsFilename() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
-                // 이름 없는 파트를 파일로 보지 않는 서버가 있다.
+                // 서버가 파트를 파일로 인식하도록 파일 이름을 항상 지정한다.
                 .andExpect(request -> assertThat(request.getBody().toString()).contains("filename="))
                 .andRespond(withSuccess(okBody(), MediaType.APPLICATION_JSON));
 
@@ -112,7 +111,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("읽지 못한 값은 null 그대로 전달한다")
-    void keepsUnreadValuesAsNull() {
+    void receiptOcr_unreadValues_preservedAsNull() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess("""
                         {"ok": true, "elapsed_sec": 2.0, "raw": "",
@@ -135,7 +134,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("모르는 필드가 늘어도 깨지지 않는다")
-    void toleratesUnknownFields() {
+    void receiptOcr_unknownFields_ignored() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess("""
                         {"ok": true, "elapsed_sec": 1.0, "raw": "", "brand_new_field": {"x": 1},
@@ -147,7 +146,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("ok가 false면 이미지를 읽지 못한 것으로 본다")
-    void treatsNotOkAsUnreadable() {
+    void receiptOcr_notOkResponse_returnsUnreadable() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess(
                         "{\"ok\": false, \"error\": \"분석 실패\"}", MediaType.APPLICATION_JSON));
@@ -160,7 +159,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("ok가 true여도 result가 비면 읽지 못한 것으로 본다")
-    void treatsMissingResultAsUnreadable() {
+    void receiptOcr_missingResult_returnsUnreadable() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess(
                         "{\"ok\": true, \"elapsed_sec\": 1.0, \"raw\": \"\"}", MediaType.APPLICATION_JSON));
@@ -173,9 +172,8 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("서비스가 500으로 분석 실패를 알리면 재촬영을 안내한다")
-    void treatsServerErrorAsUnreadable() {
-        // 이 서비스는 분석 실패를 500 + {"ok": false, "error"} 로 알린다. 그래서 500은
-        // 닿지 못한 것이 아니라 읽지 못한 것이다.
+    void receiptOcr_serverError_returnsUnreadable() {
+        // 이 서비스는 분석 실패를 500으로 알리므로, 500은 연결 실패가 아니라 읽기 실패로 분류한다.
         server.expect(requestTo(BASE_URL + "/ocr/receipt")).andRespond(withServerError());
 
         assertThatThrownBy(() -> adapter.analyze("a.jpg", "image/jpeg", IMAGE))
@@ -186,7 +184,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("연결하지 못하면 잠시 후 다시 시도하도록 알린다")
-    void treatsConnectionFailureAsUnavailable() {
+    void receiptOcr_connectionFailure_returnsUnavailable() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(request -> {
                     throw new java.net.ConnectException("connection refused");
@@ -200,9 +198,9 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("주소가 비어 있으면 호출하지 않고 연결 불가로 답한다")
-    void doesNotCallWhenIntegrationIsOff() {
-        // 기대를 걸지 않은 서버를 붙인다. 요청이 한 건이라도 나가면 그 자리에서 실패한다.
-        // 바깥의 server 를 그대로 쓰면 어댑터가 다른 RestClient 를 쓰므로 아무것도 증명하지 못한다.
+    void receiptOcr_integrationDisabled_sendsNoRequest() {
+        // 요청을 받을 의도가 없는 서버를 연결해 요청이 한 건이라도 나가면 실패시킨다.
+        // 바깥의 server는 다른 RestClient를 사용하므로 이 경계의 호출 여부를 검증하지 못한다.
         RestClient.Builder offBuilder = RestClient.builder();
         MockRestServiceServer offServer = MockRestServiceServer.bindTo(offBuilder).build();
         ReceiptOcrHttpAdapter off = new ReceiptOcrHttpAdapter(offBuilder.build(), properties(""));
@@ -216,7 +214,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("확장자 없는 파일 이름이어도 파트에 실제 이미지 형식을 붙인다")
-    void sendsDeclaredContentTypeEvenWithoutAnExtension() {
+    void receiptOcr_missingExtension_usesDeclaredContentType() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andExpect(request -> assertThat(request.getBody().toString())
                         .contains("Content-Type: image/png")
@@ -230,7 +228,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("항목 배열에 null 원소가 섞여도 500이 되지 않는다")
-    void survivesNullItemElements() {
+    void receiptOcr_nullItem_doesNotFail() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess("""
                         {"ok": true, "result": {"store_name": "가게", "total_verified": true,
@@ -245,7 +243,7 @@ class ReceiptOcrHttpAdapterTest {
 
     @Test
     @DisplayName("응답 본문을 해석하지 못하면 500이 아니라 재시도를 알린다")
-    void treatsUnparseableBodyAsUnavailable() {
+    void receiptOcr_unparseableBody_returnsUnavailable() {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withSuccess("<html>gateway</html>", MediaType.APPLICATION_JSON));
 
@@ -258,7 +256,7 @@ class ReceiptOcrHttpAdapterTest {
     @ParameterizedTest
     @ValueSource(ints = {400, 413, 415, 422})
     @DisplayName("서비스가 이미지를 보고 거절한 상태만 재촬영을 안내한다")
-    void treatsImageRejectionsAsUnreadable(int status) {
+    void receiptOcr_imageRejected_returnsUnreadable(int status) {
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withStatus(HttpStatusCode.valueOf(status)));
 
@@ -271,11 +269,10 @@ class ReceiptOcrHttpAdapterTest {
     @ParameterizedTest
     @ValueSource(ints = {401, 403, 404, 405, 408, 429, 501, 502, 503, 504, 507, 520})
     @DisplayName("사진을 다시 찍어도 안 풀리는 상태는 재촬영이 아니라 재시도를 알린다")
-    void treatsUnreachableStatusesAsUnavailable(int status) {
-        // 경로 오타(404)나 내부 인증 오설정(401)을 422로 내보내면, 모든 사용자가 모든
-        // 영수증에서 "더 밝은 곳에서 다시 찍으세요"를 듣고 다시 찍어도 영원히 실패한다.
-        // 501·507이나 프록시 전용 520처럼 처음 보는 상태도 같은 쪽으로 가야 한다.
-        // 분류를 화이트리스트로 두면 새 상태가 조용히 재촬영 안내로 빠진다.
+    void receiptOcr_unreachableStatus_returnsUnavailable(int status) {
+        // 경로 오타(404)나 인증 오류(401)를 422로 바꾸면 사용자가 다시 촬영해도 문제를 해결하지 못한다.
+        // 501·507·520 같은 상태도 재촬영 오류가 아니라 연결 불가로 분류한다.
+        // 화이트리스트는 새 상태를 재촬영 안내로 잘못 분류하므로 응답 분류를 제한하지 않는다.
         server.expect(requestTo(BASE_URL + "/ocr/receipt"))
                 .andRespond(withStatus(HttpStatusCode.valueOf(status)));
 

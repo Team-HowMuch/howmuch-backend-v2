@@ -80,7 +80,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("링크 없이도 로그인한 참여자의 확정 금액과 수금 계좌를 반환한다")
-    void getsMyTransferInstructionWithoutLink() {
+    void memberTransferInstruction_noLink_returnsAmountAndAccount() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -114,7 +114,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("이 정산의 참여자가 아니면 남의 송금 정보를 볼 수 없다")
-    void rejectsNonParticipant() {
+    void memberTransferInstruction_nonParticipant_rejected() {
         arrangeActor(OTHER_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -131,7 +131,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("정산이 없으면 참여자를 찾기 전에 거부한다")
-    void rejectsMissingSettlement() {
+    void memberTransferInstruction_missingSettlement_rejected() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.empty());
 
@@ -144,7 +144,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("전원이 끝나지 않았어도 내 Share가 있으면 보낼 수 있다")
-    void allowsTransferBeforeEveryoneSubmits() {
+    void memberTransferInstruction_ownShareBeforeAllSubmit_allowed() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
@@ -174,7 +174,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("아무도 안 고른 품목이 남아 멈춰도 내 몫은 보낼 수 있다")
-    void allowsTransferWhileSuspended() {
+    void memberTransferInstruction_suspendedOwnShare_allowed() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.SUSPENDED)));
@@ -203,7 +203,7 @@ class SettlementMemberTransferInstructionServiceTest {
 
     @Test
     @DisplayName("내 Share가 아직 없으면 보낼 금액이 없다")
-    void rejectsWhenMyShareIsMissing() {
+    void myTransferInstruction_missingShare_rejected() {
         arrangeActor(MY_USER_ID);
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
@@ -231,7 +231,7 @@ class SettlementMemberTransferInstructionServiceTest {
             "SUSPENDED, 4000, 6000"
     })
     @DisplayName("본인 Share의 확인된 입금만 차감하고 완납이면 링크를 생성하지 않는다")
-    void reflectsRemainingAmount(SettlementStatus status, long confirmedAmount, long expectedAmount) {
+    void myTransferInstruction_partialDeposit_returnsRemaining(SettlementStatus status, long confirmedAmount, long expectedAmount) {
         arrangeActor(MY_USER_ID);
         arrangeParticipants();
         when(loadSettlementPort.findById(SETTLEMENT_ID))

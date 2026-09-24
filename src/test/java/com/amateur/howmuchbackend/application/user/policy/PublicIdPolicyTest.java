@@ -16,13 +16,13 @@ class PublicIdPolicyTest {
 
     @Test
     @DisplayName("사용자 입력의 앞뒤 공백을 제거하고 영문을 소문자로 정규화한다")
-    void normalizesPublicId() {
+    void publicId_inputTrimmedAndLowercased() {
         assertThat(publicIdPolicy.normalize("  Sua.Test_1  ")).isEqualTo("sua.test_1");
     }
 
     @Test
     @DisplayName("허용된 문자와 길이를 벗어난 공개 ID를 거부한다")
-    void rejectsInvalidPublicId() {
+    void publicId_invalidCharactersOrLength_rejected() {
         List<String> invalidValues = List.of("abc", "a".repeat(21), "수아01", "sua-01", "sua 01");
 
         for (String invalidValue : invalidValues) {
@@ -37,7 +37,7 @@ class PublicIdPolicyTest {
 
     @Test
     @DisplayName("공개 ID 검색어의 공백과 대소문자를 정규화하고 한 글자 prefix를 허용한다")
-    void normalizesPublicIdSearchPrefix() {
+    void publicIdPrefix_trimmedAndLowercased_singleCharacterAccepted() {
         assertThat(publicIdPolicy.normalizePrefix("  S_  ")).isEqualTo("s_");
         assertThat(publicIdPolicy.normalizePrefix("  " + "a".repeat(20) + "  "))
                 .isEqualTo("a".repeat(20));
@@ -45,7 +45,7 @@ class PublicIdPolicyTest {
 
     @Test
     @DisplayName("빈 값이나 허용되지 않은 문자를 포함한 공개 ID 검색어를 거부한다")
-    void rejectsInvalidPublicIdSearchPrefix() {
+    void publicIdPrefix_blankOrInvalidCharacters_rejected() {
         List<String> invalidValues = List.of("", "   ", "a".repeat(21), "수아", "sua-01", "sua 01");
 
         for (String invalidValue : invalidValues) {
@@ -62,7 +62,7 @@ class PublicIdPolicyTest {
 
     @Test
     @DisplayName("회원가입용 공개 ID를 user_ 접두사와 영문 소문자·숫자 12자리로 생성한다")
-    void generatesPublicId() {
+    void publicId_generation_userPrefixAndTwelveLowercaseChars() {
         for (int attempt = 0; attempt < 100; attempt++) {
             assertThat(publicIdPolicy.generate()).matches("^user_[a-z0-9]{12}$");
         }

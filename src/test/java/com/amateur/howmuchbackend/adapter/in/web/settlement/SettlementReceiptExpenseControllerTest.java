@@ -71,7 +71,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("앱이 읽은 영수증 품목과 결제 정보를 등록한다")
-    void createsReceiptExpenseFromAppResult() throws Exception {
+    void receiptExpense_appResult_mapsItemsAndPayment() throws Exception {
         CreateSettlementReceiptExpenseCommand command =
                 new CreateSettlementReceiptExpenseCommand(
                         "receipt-app-1",
@@ -111,7 +111,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("앱 영수증의 빈 품목 목록은 UseCase 호출 전에 거부한다")
-    void rejectsEmptySubmittedReceiptItems() throws Exception {
+    void receiptExpense_emptyItems_rejectedBeforeUseCase() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/expenses/receipt",
                         SETTLEMENT_ID
@@ -130,7 +130,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("OCR 영수증을 지출과 품목으로 가져온 결과를 반환한다")
-    void importsReceiptExpense() throws Exception {
+    void receiptExpense_ocrImport_returnsExpenseAndItems() throws Exception {
         when(importExpenseUseCase.importExpense(
                 SETTLEMENT_ID,
                 new ImportSettlementReceiptExpenseCommand("receipt-demo")
@@ -160,7 +160,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("정산에 저장된 OCR 품목과 전체 합계를 반환한다")
-    void getsSettlementItems() throws Exception {
+    void settlementItems_request_returnsSavedItemsAndTotal() throws Exception {
         when(getSettlementItemsUseCase.get(SETTLEMENT_ID))
                 .thenReturn(new SettlementItemListResult(List.of(itemResult()), 10_000));
 
@@ -177,7 +177,7 @@ class SettlementReceiptExpenseControllerTest {
 
     @Test
     @DisplayName("빈 OCR 영수증 참조는 UseCase 호출 전에 거부한다")
-    void rejectsBlankReceiptReference() throws Exception {
+    void receiptExpense_blankReference_rejectedBeforeUseCase() throws Exception {
         mockMvc.perform(post(
                         "/api/v2/settlements/{settlementId}/expenses/receipt-ocr",
                         SETTLEMENT_ID

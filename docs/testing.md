@@ -75,6 +75,14 @@ An infrastructure/setup failure may occur before reports exist; inspect the fail
 
 Authorization is currently enforced by `CommonCodeAdminService` using the database role, after filter-chain authentication. These tests exercise that actual boundary; they do not introduce a test-only role matcher. Each test deletes only its own user, audit, and session fixtures.
 
+## Java test method names and comments
+
+Name behavior tests with `<subject>_<keyCondition>_<expectedOutcome>`. Name configuration and annotation tests with `<subject>_<property>_<expectedState>`. Keep each part specific enough to explain the assertion without repeating words; there is no fixed character limit, and names around 60 characters or fewer are preferred when clarity is preserved.
+
+Write Javadoc and explanatory test comments as complete Korean declarative sentences using an active verb form such as `~한다.` or `~하지 않는다.`. Short helper notes and section labels may use noun phrases. Add comments only when they explain a contract, regression reason, or detail that the code does not show; do not restate the method name or obvious code. Add Javadoc only when the extra explanation is useful.
+
+Change an existing `@DisplayName` only when it disagrees with what the test verifies. Naming and comment cleanups preserve test bodies, assertions, and annotations; JavaScript tests use their existing naming conventions.
+
 ## Verify failure propagation
 
 On a disposable local checkout, temporarily add a JUnit test whose body calls `Assertions.fail("CI gate probe")`, then run it with `bash scripts/test.sh test --tests '*CiFailureProbeTest'`. Expect exit code 1 and no Node phase. Remove the temporary file and run the full suite again before publishing.

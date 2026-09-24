@@ -47,7 +47,7 @@ class SettlementTransferInstructionControllerTest {
             "https://howmuch-mock-send.vercel.app/send?bankCode=0020&bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89&accountNo=1002123456789&amount=6000&receiver=%EC%B5%9C%EC%88%98%EC%95%84"
     })
     @DisplayName("참여 문맥 헤더로 조회한 Toss와 Mock URL을 변형 없이 전달한다")
-    void getsTransferInstruction(String url) throws Exception {
+    void transferInstruction_participantContext_preservesUrls(String url) throws Exception {
         when(getUseCase.get(TOKEN, CONTEXT_ID)).thenReturn(
                 new SettlementTransferInstructionResult(
                         SETTLEMENT_ID,
@@ -85,7 +85,7 @@ class SettlementTransferInstructionControllerTest {
 
     @Test
     @DisplayName("참여 문맥 헤더가 없으면 요청을 거부한다")
-    void rejectsMissingParticipantContext() throws Exception {
+    void transferInstruction_missingParticipantContext_rejected() throws Exception {
         mockMvc.perform(get(
                         "/api/v2/settlement-links/{token}/transfer-instruction",
                         TOKEN
@@ -95,7 +95,7 @@ class SettlementTransferInstructionControllerTest {
 
     @Test
     @DisplayName("완납 응답은 0원과 빈 링크 배열을 유지한다")
-    void returnsPaidInstructionWithoutLinks() throws Exception {
+    void transferInstruction_paidState_returnsZeroAndNoLinks() throws Exception {
         when(getUseCase.get(TOKEN, CONTEXT_ID)).thenReturn(new SettlementTransferInstructionResult(
                 SETTLEMENT_ID, PARTICIPANT_ID, SHARE_ID, 0,
                 "최수아", "0020", "우리은행", "1002123456789", List.of()

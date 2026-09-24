@@ -31,21 +31,21 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("JPEG 바이트는 image/jpeg로 판정한다")
-    void detectsJpeg() {
+    void receiptImage_jpegBytes_detectedAsImageJpeg() {
         assertThat(policy.detectMediaType(jpeg())).isEqualTo("image/jpeg");
     }
 
     @Test
     @DisplayName("PNG 바이트는 image/png로 판정한다")
-    void detectsPng() {
+    void receiptImage_pngBytes_detectedAsImagePng() {
         assertThat(policy.detectMediaType(png())).isEqualTo("image/png");
     }
 
     @Test
     @DisplayName("PDF를 image/jpeg라고 선언해도 바이트를 보고 거절한다")
-    void rejectsPdfDisguisedAsImage() {
-        // 멀티파트 Content-Type은 클라이언트가 정한다. 선언을 믿으면 PDF 한 장이
-        // GPU 한 대짜리 OCR 장비의 수 초를 쓴다.
+    void receiptImage_pdfClaimedAsJpeg_rejectedBySignature() {
+        // 멀티파트 Content-Type은 요청자가 정하므로 바이트로 이미지 형식을 판별한다.
+        // 선언을 신뢰하면 PDF를 OCR로 보내 GPU 자원을 낭비한다.
         byte[] pdf = "%PDF-1.7\nfake".getBytes(StandardCharsets.UTF_8);
 
         assertThatThrownBy(() -> policy.detectMediaType(pdf))
@@ -56,14 +56,14 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("임의 바이트는 거절한다")
-    void rejectsArbitraryBytes() {
+    void receiptImage_arbitraryBytes_rejected() {
         assertThatThrownBy(() -> policy.detectMediaType("not-an-image".getBytes(StandardCharsets.UTF_8)))
                 .isInstanceOf(ApplicationException.class);
     }
 
     @Test
     @DisplayName("WebP는 받지 않는다. OCR 서비스가 JPEG·PNG만 받는다")
-    void rejectsWebp() {
+    void receiptImage_webp_unsupportedByOcrContract() {
         byte[] webp = new byte[16];
         System.arraycopy("RIFF".getBytes(StandardCharsets.US_ASCII), 0, webp, 0, 4);
         System.arraycopy("WEBP".getBytes(StandardCharsets.US_ASCII), 0, webp, 8, 4);
@@ -74,7 +74,7 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("비었거나 없으면 거절한다")
-    void rejectsEmpty() {
+    void receiptImage_emptyOrMissing_rejected() {
         assertThatThrownBy(() -> policy.detectMediaType(new byte[0]))
                 .isInstanceOf(ApplicationException.class);
         assertThatThrownBy(() -> policy.detectMediaType(null))
@@ -83,7 +83,7 @@ class ReceiptImagePolicyTest {
 
     @Test
     @DisplayName("시그니처보다 짧은 바이트에서 터지지 않는다")
-    void rejectsTruncatedSignature() {
+    void receiptImage_truncatedSignature_rejectedWithoutException() {
         assertThatThrownBy(() -> policy.detectMediaType(new byte[]{(byte) 0xFF, (byte) 0xD8}))
                 .isInstanceOf(ApplicationException.class);
         assertThatThrownBy(() -> policy.detectMediaType(new byte[]{(byte) 0x89, 0x50}))

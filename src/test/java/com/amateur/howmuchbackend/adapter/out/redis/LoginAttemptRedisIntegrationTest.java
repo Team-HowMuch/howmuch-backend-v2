@@ -84,7 +84,7 @@ class LoginAttemptRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 4})
-    void concurrentRequestsCannotVerifyMoreThanRemainingAttempts(int failures) throws Exception {
+    void loginAttempt_concurrentRequests_cannotExceedRemaining(int failures) throws Exception {
         if (failures > 0) redis.opsForValue().set(key, String.valueOf(failures), LOCK);
         int allowed = 5 - failures;
         var entered = new CountDownLatch(allowed);
@@ -109,7 +109,7 @@ class LoginAttemptRedisIntegrationTest {
             try {
                 start.countDown();
                 await(entered);
-                // Excess requests must finish while all permitted PIN checks are still paused.
+                // 허용된 PIN 검증이 모두 대기 중이어도 초과 요청은 그보다 먼저 끝나야 한다.
                 await(rejected);
                 verify(encoder, times(allowed)).matches(PIN, "synthetic-hash");
                 release.countDown();
@@ -129,7 +129,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void successfulLastAttemptResetsCounterAndAllowsRetry() {
+    void loginAttempt_successOnLastTry_resetsAndAllowsRetry() {
         redis.opsForValue().set(key, "4", LOCK);
         when(encoder.matches(PIN, "synthetic-hash")).thenReturn(true);
         assertThat(login(PIN)).isInstanceOf(TokenResult.class);
@@ -143,7 +143,7 @@ class LoginAttemptRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void delayedCompletionCannotChangeNewGenerationAfterSuccess(boolean success) throws Exception {
+    void loginAttempt_delayedCompletion_cannotChangeNewGeneration(boolean success) throws Exception {
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         when(encoder.matches(PIN, "synthetic-hash")).thenAnswer(call -> {
@@ -174,7 +174,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void expiryAllowsRetryAndOldSuccessCannotResetNewLock() throws Exception {
+    void loginAttempt_expiryAllowsRetry_oldSuccessCannotResetNewLock() throws Exception {
         var old = attempts.reserve(phoneHash, 1, Duration.ofMillis(100)).orElseThrow();
         assertThat(attempts.reserve(phoneHash, 1, LOCK)).isEmpty();
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
@@ -189,7 +189,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void legacyCountKeepsTtlUntilFinalReservationAndRejectionsDoNotExtendLock() {
+    void loginAttempt_legacyCount_preservesTtlWithoutExtendingLock() {
         redis.opsForValue().set(key, "2", Duration.ofSeconds(10));
         long ttl = redis.getExpire(key, TimeUnit.MILLISECONDS);
         assertThat(attempts.reserve(phoneHash, 5, LOCK).orElseThrow().attemptCount()).isEqualTo(3);
@@ -205,7 +205,7 @@ class LoginAttemptRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"5", "6", "invalid", "generation:invalid"})
-    void lockedOrMalformedLegacyStateIsPreserved(String state) {
+    void loginAttempt_legacyState_lockedOrMalformed_preserved(String state) {
         redis.opsForValue().set(key, state, LOCK);
         long ttl = redis.getExpire(key, TimeUnit.MILLISECONDS);
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.PIN_ATTEMPTS_EXCEEDED);
@@ -215,7 +215,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void stateWithoutExpiryIsBlocked() {
+    void loginAttempt_noExpiry_remainsBlocked() {
         redis.opsForValue().set(key, "1");
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.PIN_ATTEMPTS_EXCEEDED);
         assertThat(redis.opsForValue().get(key)).isEqualTo("1");
@@ -223,14 +223,14 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void invalidFormatDoesNotReserve() {
+    void loginAttempt_invalidFormat_notReserved() {
         assertThat(login("bad")).isEqualTo(AuthStatusCode.INVALID_PIN_FORMAT);
         assertThat(redis.hasKey(key)).isFalse();
         verifyNoInteractions(users, encoder);
     }
 
     @Test
-    void missingUserConsumesAttemptWithoutPinVerification() {
+    void loginAttempt_missingUser_consumedWithoutPinCheck() {
         when(users.findByPhoneNumber(PHONE)).thenReturn(Optional.empty());
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.INVALID_LOGIN_CREDENTIALS);
         assertThat(redis.opsForValue().get(key)).endsWith(":1");
@@ -238,7 +238,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void inactiveUserDoesNotResetAttemptsOrIssueTokens() {
+    void loginAttempt_inactiveUser_keepsAttemptsAndIssuesNoToken() {
         when(encoder.matches(PIN, "synthetic-hash")).thenReturn(true);
         when(user.active()).thenReturn(false);
         assertThat(login(PIN)).isEqualTo(AuthStatusCode.USER_INACTIVE);
@@ -247,7 +247,7 @@ class LoginAttemptRedisIntegrationTest {
     }
 
     @Test
-    void verificationExceptionDoesNotRefundAttempt() {
+    void loginAttempt_verificationFailure_attemptNotRefunded() {
         when(encoder.matches(PIN, "synthetic-hash")).thenThrow(new IllegalStateException("verification unavailable"));
         assertThatThrownBy(() -> login(PIN)).isInstanceOf(IllegalStateException.class);
         assertThat(redis.opsForValue().get(key)).endsWith(":1");

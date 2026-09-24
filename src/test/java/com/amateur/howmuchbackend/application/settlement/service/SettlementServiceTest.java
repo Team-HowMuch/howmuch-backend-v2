@@ -99,7 +99,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("요청 본문으로 생성자를 위조할 수 없도록 현재 로그인 사용자를 생성자로 사용한다")
-    void createsSettlementForCurrentActor() {
+    void settlement_currentActor_usedAsCreator() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadUserPort.findByIdForUpdate(CREATOR_ID)).thenReturn(Optional.of(creator()));
         when(saveSettlementPort.save(any(Settlement.class)))
@@ -126,7 +126,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("현재 사용자를 찾을 수 없으면 참여자 없는 정산을 만들지 않는다")
-    void rejectsCreationForMissingCurrentUser() {
+    void settlement_missingCurrentUser_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadUserPort.findByIdForUpdate(CREATOR_ID)).thenReturn(Optional.empty());
 
@@ -140,7 +140,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("생성자만 정산 기준을 바꿀 수 있도록 다른 사용자의 수정을 저장하지 않는다")
-    void rejectsUpdateByAnotherUser() {
+    void settlement_otherUserUpdate_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
 
@@ -155,7 +155,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("부분 수정 결과가 실제 영속 상태가 되도록 Domain 변경값을 저장 Port에 전달한다")
-    void persistsDomainUpdate() {
+    void settlement_domainUpdate_persisted() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(draft()));
         when(saveSettlementPort.update(any(Settlement.class)))
@@ -177,7 +177,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("생성자가 요청 중인 정산을 수동 중단하고 저장한다")
-    void suspendsRequestedSettlementForCreator() {
+    void settlement_creator_suspendRequested_suspendedAndSaved() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(requested()));
@@ -193,7 +193,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("정산 재개 시 기존 품목 선택은 유지하고 제출 완료 표시만 초기화한다")
-    void resumesSettlementAndClearsSubmissions() {
+    void settlement_resume_preservesSelectionsAndClearsSubmissions() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(suspended()));
@@ -210,7 +210,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("생성자가 아닌 사용자는 정산을 수동 중단하지 않는다")
-    void rejectsManualSuspendByAnotherUser() {
+    void settlement_otherUserManualSuspend_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(requested()));
@@ -224,7 +224,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("허용되지 않은 재개 요청은 제출 완료 표시를 삭제하지 않는다")
-    void rejectsResumeWithoutClearingSubmissions() {
+    void settlement_resumeWithoutClearingSubmissions_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(requested()));
@@ -239,7 +239,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("송금 단계 전인 생성자 정산만 삭제하고 root 삭제 Port를 호출한다")
-    void deletesSettlementBeforeTransferStage() {
+    void settlement_beforeTransfer_creatorDelete_allowed() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(draft()));
@@ -252,7 +252,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("송금 Share가 있는 정산은 삭제하지 않는다")
-    void rejectsDeletionAfterTransferStage() {
+    void settlement_afterTransfer_delete_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(requested()));
@@ -267,7 +267,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("생성자가 아닌 사용자는 정산을 삭제하지 않는다")
-    void rejectsDeletionByAnotherUser() {
+    void settlement_otherUserDelete_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(draft()));
@@ -282,7 +282,7 @@ class SettlementServiceTest {
 
     @Test
     @DisplayName("없는 정산은 삭제하지 않는다")
-    void rejectsDeletingMissingSettlement() {
+    void settlement_missing_delete_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.empty());
 

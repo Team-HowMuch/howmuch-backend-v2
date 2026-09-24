@@ -67,7 +67,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("앱 영수증 품목의 행 금액 합계를 서버에서 계산해 Writer에 전달한다")
-    void createsSubmittedReceiptWithServerCalculatedTotal() {
+    void receiptExpense_appItems_calculatesTotalOnServer() {
         CreateSettlementReceiptExpenseCommand command =
                 new CreateSettlementReceiptExpenseCommand(
                         "  receipt-app-1  ",
@@ -112,7 +112,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("앱 영수증 품목 합계 overflow를 잘못된 요청으로 거부한다")
-    void rejectsSubmittedReceiptTotalOverflow() {
+    void receiptExpense_totalOverflow_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         CreateSettlementReceiptExpenseCommand command =
                 new CreateSettlementReceiptExpenseCommand(
@@ -139,7 +139,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("OCR 외부 호출은 쓰기 트랜잭션 밖에서 실행하고 저장만 별도 트랜잭션을 사용한다")
-    void keepsExternalExtractionOutsideWriteTransaction() throws NoSuchMethodException {
+    void receiptExpense_ocr_runsOutsideWriteTransaction() throws NoSuchMethodException {
         var importMethod = SettlementReceiptExpenseService.class.getMethod(
                 "importExpense",
                 UUID.class,
@@ -166,7 +166,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("생성자와 DRAFT를 먼저 검증한 뒤 OCR 결과를 저장 컴포넌트에 전달한다")
-    void extractsAndDelegatesValidatedReceipt() {
+    void receiptExpense_validatedDraft_delegatesExtractedReceipt() {
         Settlement settlement = settlement(CREATOR_ID, SettlementStatus.DRAFT);
         ExtractReceiptItemsPort.ReceiptExtraction extraction = extraction(30_000);
         SettlementReceiptExpenseMutationResult expected =
@@ -193,7 +193,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("다른 사용자는 비용이 발생하는 OCR 호출 전에 거부한다")
-    void rejectsOtherUserBeforeExternalExtraction() {
+    void receiptExpense_otherUser_rejectedBeforeOcr() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(2L));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(CREATOR_ID, SettlementStatus.DRAFT)));
@@ -210,7 +210,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("OCR 결과가 없으면 지출 저장을 시작하지 않는다")
-    void rejectsMissingReceiptExtraction() {
+    void receiptExpense_missingOcrResult_rejectedBeforeWrite() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(CREATOR_ID, SettlementStatus.DRAFT)));
@@ -234,7 +234,7 @@ class SettlementReceiptExpenseServiceTest {
 
     @Test
     @DisplayName("이미 가져온 OCR 참조는 외부 OCR을 다시 호출하지 않는다")
-    void rejectsDuplicateBeforeExternalExtraction() {
+    void receiptExpense_duplicateReference_rejectedBeforeOcr() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(CREATOR_ID, SettlementStatus.DRAFT)));

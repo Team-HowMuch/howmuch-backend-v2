@@ -45,7 +45,7 @@ class SettlementMemberTransferInstructionControllerTest {
             "https://howmuch-mock-send.vercel.app/send?bankCode=0020&bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89&accountNo=1002123456789&amount=6000&receiver=%EC%B5%9C%EC%88%98%EC%95%84"
     })
     @DisplayName("로그인 회원 경로로 조회한 Toss와 Mock URL을 변형 없이 전달한다")
-    void getsTransferInstruction(String url) throws Exception {
+    void transferInstruction_memberRequest_preservesUrls(String url) throws Exception {
         when(getUseCase.getMyTransferInstruction(SETTLEMENT_ID)).thenReturn(
                 new SettlementTransferInstructionResult(
                         SETTLEMENT_ID,
@@ -84,7 +84,7 @@ class SettlementMemberTransferInstructionControllerTest {
 
     @Test
     @DisplayName("완납 응답은 0원과 빈 링크 배열을 유지한다")
-    void returnsPaidInstructionWithoutLinks() throws Exception {
+    void transferInstruction_paidState_returnsZeroAndNoLinks() throws Exception {
         when(getUseCase.getMyTransferInstruction(SETTLEMENT_ID)).thenReturn(new SettlementTransferInstructionResult(
                 SETTLEMENT_ID, PARTICIPANT_ID, SHARE_ID, 0,
                 "최수아", "0020", "우리은행", "1002123456789", List.of()

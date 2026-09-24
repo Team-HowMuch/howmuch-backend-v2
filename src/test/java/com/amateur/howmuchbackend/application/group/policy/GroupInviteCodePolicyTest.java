@@ -14,13 +14,13 @@ class GroupInviteCodePolicyTest {
 
     @Test
     @DisplayName("초대 코드의 바깥 공백을 제거하고 대문자로 정규화한다")
-    void normalizesInviteCode() {
+    void groupInviteCode_outerWhitespace_removedAndUppercase() {
         assertThat(policy.normalize("  ab12cd34  ")).isEqualTo("AB12CD34");
     }
 
     @Test
     @DisplayName("8자리 영숫자가 아닌 초대 코드를 거절한다")
-    void rejectsInvalidInviteCode() {
+    void groupInviteCode_invalidFormat_rejected() {
         assertThatThrownBy(() -> policy.normalize("AB12-CD3"))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
@@ -29,14 +29,14 @@ class GroupInviteCodePolicyTest {
 
     @Test
     @DisplayName("null과 공백 초대 코드를 같은 기능 오류로 거절한다")
-    void rejectsMissingInviteCode() {
+    void groupInviteCode_nullOrBlank_returnsSameError() {
         assertInvalidInviteCode(null);
         assertInvalidInviteCode("   ");
     }
 
     @Test
     @DisplayName("생성한 초대 코드는 8자리 대문자 영숫자다")
-    void generatesInviteCode() {
+    void groupInviteCode_generated_eightUppercaseAlphanumeric() {
         assertThat(policy.generate()).matches("^[A-Z0-9]{8}$");
     }
 

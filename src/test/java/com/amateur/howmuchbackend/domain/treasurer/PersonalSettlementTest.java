@@ -14,7 +14,7 @@ class PersonalSettlementTest {
     private static final Instant NOW = Instant.parse("2026-08-26T00:00:00Z");
 
     @Test
-    void treatsRequestedAwaitingAndSuspendedAsOutstanding() {
+    void personalSettlement_requestedAwaitingOrSuspended_outstanding() {
         assertThat(settlement(SettlementStatus.REQUESTED).isOutstanding()).isTrue();
         assertThat(settlement(SettlementStatus.AWAITING_DEPOSIT).isOutstanding()).isTrue();
         assertThat(settlement(SettlementStatus.SUSPENDED).isOutstanding()).isTrue();
@@ -23,7 +23,7 @@ class PersonalSettlementTest {
     }
 
     @Test
-    void countsOnlyIssuedSendSettlementsAsExpense() {
+    void personalSettlement_issuedSendOnly_countsAsExpense() {
         assertThat(send(SettlementStatus.REQUESTED).countsAsExpense()).isTrue();
         assertThat(send(SettlementStatus.COMPLETED).countsAsExpense()).isTrue();
         assertThat(send(SettlementStatus.DRAFT).countsAsExpense()).isFalse();
@@ -31,7 +31,7 @@ class PersonalSettlementTest {
     }
 
     @Test
-    void doesNotMarkDraftOrCompletedAsStale() {
+    void personalSettlement_draftOrCompleted_notStale() {
         LocalDateTime old = LocalDateTime.ofInstant(NOW.minus(PersonalSettlement.STALE_AFTER).minusSeconds(60), ZoneOffset.UTC);
 
         assertThat(settlement(SettlementStatus.REQUESTED, old).isStale(NOW)).isTrue();

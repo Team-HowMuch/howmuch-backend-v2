@@ -48,7 +48,7 @@ class SettlementReminderCooldownReaderTest {
 
     @Test
     @DisplayName("TTL 조회 직후 시각을 기준으로 가장 늦은 만료 시각을 반환한다")
-    void returnsLatestNextAvailableAt() {
+    void reminderCooldown_multipleTtls_returnsLatestExpiry() {
         when(cooldownPort.findRemainingCooldown(SETTLEMENT_ID, FIRST_PARTICIPANT_ID))
                 .thenReturn(Optional.of(Duration.ofMinutes(10)));
         when(cooldownPort.findRemainingCooldown(SETTLEMENT_ID, SECOND_PARTICIPANT_ID))
@@ -75,7 +75,7 @@ class SettlementReminderCooldownReaderTest {
 
     @Test
     @DisplayName("활성 쿨다운이 없으면 다음 가능 시각을 반환하지 않는다")
-    void returnsEmptyWithoutActiveCooldown() {
+    void reminderCooldown_noActiveTtl_returnsEmpty() {
         when(cooldownPort.findRemainingCooldown(SETTLEMENT_ID, FIRST_PARTICIPANT_ID))
                 .thenReturn(Optional.empty());
         when(cooldownPort.findRemainingCooldown(SETTLEMENT_ID, SECOND_PARTICIPANT_ID))

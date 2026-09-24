@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SettlementLinkPropertiesTest {
     @Test
     @DisplayName("외부 정산 링크는 HTTPS 주소만 허용한다")
-    void acceptsHttpsExternalBaseUrl() {
+    void settlementLink_externalHttpsBaseUrl_accepted() {
         SettlementLinkProperties properties = new SettlementLinkProperties(
                 "https://pay.howmuch.example/settlement-links/",
                 Duration.ofDays(30)
@@ -24,7 +24,7 @@ class SettlementLinkPropertiesTest {
 
     @Test
     @DisplayName("로컬 개발용 loopback 주소는 HTTP를 허용한다")
-    void acceptsHttpLoopbackBaseUrls() {
+    void settlementLink_loopbackHttpBaseUrl_accepted() {
         assertThat(new SettlementLinkProperties(
                 "http://localhost:8080/settlement-links",
                 Duration.ofDays(30)
@@ -41,7 +41,7 @@ class SettlementLinkPropertiesTest {
 
     @Test
     @DisplayName("외부 HTTP 정산 링크 주소는 거부한다")
-    void rejectsHttpExternalBaseUrl() {
+    void settlementLink_externalHttpBaseUrl_rejected() {
         assertThatThrownBy(() -> new SettlementLinkProperties(
                 "http://pay.howmuch.example/settlement-links",
                 Duration.ofDays(30)
@@ -52,7 +52,7 @@ class SettlementLinkPropertiesTest {
 
     @Test
     @DisplayName("localhost와 비슷한 외부 호스트는 HTTP 예외로 인정하지 않는다")
-    void rejectsLookalikeLoopbackHost() {
+    void settlementLink_lookalikeLoopbackHost_rejected() {
         assertThatThrownBy(() -> new SettlementLinkProperties(
                 "http://localhost.example/settlement-links",
                 Duration.ofDays(30)

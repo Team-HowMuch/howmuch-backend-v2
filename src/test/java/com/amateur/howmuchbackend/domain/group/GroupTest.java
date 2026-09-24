@@ -16,7 +16,7 @@ class GroupTest {
 
     @Test
     @DisplayName("이름과 메모를 정규화해 활성 그룹을 생성한다")
-    void createsNormalizedGroup() {
+    void group_creation_nameAndMemoNormalized() {
         Group group = Group.create("  여행 모임  ", "  여름 휴가  ", null, 1L, "AB12CD34", NOW);
 
         assertThat(group.name()).isEqualTo("여행 모임");
@@ -29,7 +29,7 @@ class GroupTest {
 
     @Test
     @DisplayName("빈 메모는 저장하지 않는다")
-    void normalizesBlankMemoToNull() {
+    void group_blankMemo_normalizedToNull() {
         Group group = Group.create("여행", "   ", null, 1L, "AB12CD34", NOW);
 
         assertThat(group.memo()).isNull();
@@ -37,7 +37,7 @@ class GroupTest {
 
     @Test
     @DisplayName("20자를 초과한 이름을 거절한다")
-    void rejectsLongName() {
+    void group_nameOver20Characters_rejected() {
         assertThatThrownBy(() -> Group.create("가".repeat(21), null, null, 1L, "AB12CD34", NOW))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(GroupStatusCode.INVALID_GROUP_NAME));
@@ -45,7 +45,7 @@ class GroupTest {
 
     @Test
     @DisplayName("60자를 초과한 메모를 거절한다")
-    void rejectsLongMemo() {
+    void group_memoOver60Characters_rejected() {
         assertThatThrownBy(() -> Group.create("여행", "가".repeat(61), null, 1L, "AB12CD34", NOW))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(GroupStatusCode.INVALID_GROUP_MEMO));
@@ -53,7 +53,7 @@ class GroupTest {
 
     @Test
     @DisplayName("삭제하면 이미지 참조를 비우고 삭제 시각을 기록한다")
-    void softDeletesGroup() {
+    void group_delete_clearsImageAndRecordsTime() {
         Group group = Group.create("여행", null, "image.jpg", 1L, "AB12CD34", NOW);
         LocalDateTime deletedAt = NOW.plusHours(1);
 
@@ -69,7 +69,7 @@ class GroupTest {
 
     @Test
     @DisplayName("소유권을 이전하면 OWNER와 수정 시각을 함께 변경한다")
-    void transfersOwnership() {
+    void group_ownershipTransfer_ownerAndUpdateTimeChanged() {
         Group group = Group.create("여행", null, null, 1L, "AB12CD34", NOW);
 
         Group transferred = group.transferOwnership(2L, NOW.plusHours(1));
@@ -81,7 +81,7 @@ class GroupTest {
 
     @Test
     @DisplayName("생성자는 활성 OWNER 멤버십이 된다")
-    void createsOwnerMembership() {
+    void group_creatorMembership_activeOwner() {
         GroupMember owner = GroupMember.owner(10L, 1L, NOW);
 
         assertThat(owner.role()).isEqualTo(GroupMemberRole.OWNER);

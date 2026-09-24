@@ -74,7 +74,7 @@ class SignUpServiceTest {
 
     @Test
     @DisplayName("충돌한 후보를 건너뛰고 사용 가능한 공개 ID로 가입한다")
-    void retriesCollidingPublicId() {
+    void publicId_collision_skipsToAvailableCandidate() {
         prepareValidSignUp();
         when(publicIdPolicy.generate()).thenReturn(COLLIDING_PUBLIC_ID, AVAILABLE_PUBLIC_ID);
         when(loadUserPort.existsByPublicId(COLLIDING_PUBLIC_ID)).thenReturn(true);
@@ -96,7 +96,7 @@ class SignUpServiceTest {
 
     @Test
     @DisplayName("다섯 후보가 모두 충돌하면 사용자를 저장하지 않는다")
-    void rejectsWhenAllCandidatesCollide() {
+    void publicId_allCandidatesCollide_userNotSaved() {
         prepareValidSignUp();
         when(publicIdPolicy.generate()).thenReturn(COLLIDING_PUBLIC_ID);
         when(loadUserPort.existsByPublicId(COLLIDING_PUBLIC_ID)).thenReturn(true);

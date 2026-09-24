@@ -64,7 +64,7 @@ class GroupInviteIntegrationTest {
     }
 
     @Test
-    void anonymouslyPreviewsCurrentOwnerWithoutJoining() throws Exception {
+    void invitePreview_anonymousRequest_returnsOwnerWithoutJoining() throws Exception {
         User creator = user("원래 방장");
         User currentOwner = user("현재 방장");
         User formerMember = user("탈퇴 멤버");
@@ -91,7 +91,7 @@ class GroupInviteIntegrationTest {
     }
 
     @Test
-    void invalidMissingAndDeletedInvitesAreNotFound() throws Exception {
+    void inviteLookup_missingOrDeleted_returnsNotFound() throws Exception {
         Group deleted = group(user("방장").id());
         groups.update(deleted.delete(NOW));
         for (String code : new String[]{"bad", "        ", codes.generate(), deleted.inviteCode()}) {
@@ -103,7 +103,7 @@ class GroupInviteIntegrationTest {
     }
 
     @Test
-    void rateLimitCountsFailedLookupsAndExpiresWithoutTrustingForwardedHeaders() throws Exception {
+    void inviteLookup_failedRequests_rateLimitedAndExpires() throws Exception {
         mvc.perform(get(PATH, "bad")
                         .with(request -> { request.setRemoteAddr(remoteAddress); return request; }))
                 .andExpect(status().isNotFound());
@@ -128,7 +128,7 @@ class GroupInviteIntegrationTest {
     }
 
     @Test
-    void onlyPreviewIsPublicAndOpenApiDescribesTheContract() throws Exception {
+    void invitePreview_onlyRoutePublic_openApiDocumentsContract() throws Exception {
         mvc.perform(options(PATH, "AB12CD34")
                         .header("Origin", ORIGIN)
                         .header("Access-Control-Request-Method", "GET")

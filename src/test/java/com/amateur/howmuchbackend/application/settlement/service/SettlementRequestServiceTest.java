@@ -106,7 +106,7 @@ class SettlementRequestServiceTest {
 
     @Test
     @DisplayName("더치페이는 Share와 계좌 스냅샷을 고정하고 입금 대기 상태로 전환한다")
-    void requestsDutchPaySettlement() {
+    void settlementRequest_dutchPay_freezesSharesAndAccountSnapshot() {
         arrangeCommon(SettlementAllocationType.DUTCH_PAY);
         when(allocationStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
                 allocation(CREATOR_PARTICIPANT_ID, 4_000),
@@ -146,7 +146,7 @@ class SettlementRequestServiceTest {
 
     @Test
     @DisplayName("품목별 배분은 Share 없이 계좌와 링크를 고정하고 참여자 선택 상태로 전환한다")
-    void requestsItemAllocationSettlement() {
+    void settlementRequest_itemAllocation_freezesAccountLinkNoShare() {
         arrangeCommon(SettlementAllocationType.ITEM_ALLOCATION);
         UUID expenseId = expenses().getFirst().id();
         when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
@@ -176,7 +176,7 @@ class SettlementRequestServiceTest {
 
     @Test
     @DisplayName("수령 계좌가 없으면 토큰과 요청 데이터를 만들기 전에 거부한다")
-    void rejectsMissingReceivingAccount() {
+    void settlementRequest_missingAccount_rejectedEarly() {
         authenticate();
         Settlement settlement = new Settlement(
                 SETTLEMENT_ID,
@@ -201,7 +201,7 @@ class SettlementRequestServiceTest {
 
     @Test
     @DisplayName("정산 요청 시 탈퇴한 그룹 출처 참여자가 있으면 발행을 거부한다")
-    void rejectsInactiveGroupMemberParticipant() {
+    void settlementRequest_inactiveGroupMember_rejected() {
         authenticate();
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementAllocationType.DUTCH_PAY)));

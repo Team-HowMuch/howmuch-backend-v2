@@ -35,7 +35,7 @@ class SettlementLinkPersistenceIntegrationTest {
 
     @Test
     @DisplayName("token hash로 V16 링크와 만료·상태 정보를 복원한다")
-    void loadsLinkByTokenHash() {
+    void settlementLink_tokenHash_lookupLoadsExpiryAndStatus() {
         jdbcTemplate.execute("SET LOCAL TIME ZONE 'UTC'");
         String uniqueKey = UUID.randomUUID().toString();
         Long creatorId = insertUser(uniqueKey);

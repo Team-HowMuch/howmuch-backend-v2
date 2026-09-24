@@ -66,7 +66,7 @@ class CommonCodeAdminServiceTest {
 
     @Test
     @DisplayName("관리자만 그룹 검색을 수행한다")
-    void rejectsNonAdmin() {
+    void commonCodeSearch_nonAdmin_rejected() {
         when(loadUserPort.findById(ADMIN_ID)).thenReturn(Optional.of(user(UserRole.USER)));
 
         assertThatThrownBy(() -> service.search(new SearchCommonCodeGroupsCommand(null)))
@@ -78,7 +78,7 @@ class CommonCodeAdminServiceTest {
 
     @Test
     @DisplayName("그룹 revision과 attr1부터 attr3까지의 상세 변경을 저장한다")
-    void updatesGroupAndDetails() {
+    void commonCodeGroup_revisionAndAttributes_updated() {
         CommonCodeGroup current = new CommonCodeGroup(
                 "BANK",
                 "은행 코드",
@@ -131,7 +131,7 @@ class CommonCodeAdminServiceTest {
 
     @Test
     @DisplayName("오래된 revision으로 저장하지 않는다")
-    void rejectsStaleRevision() {
+    void commonCodeGroup_staleRevision_rejected() {
         CommonCodeGroup current = new CommonCodeGroup(
                 "BANK", "은행 코드", null, null, null, null, true, 4L, List.of()
         );

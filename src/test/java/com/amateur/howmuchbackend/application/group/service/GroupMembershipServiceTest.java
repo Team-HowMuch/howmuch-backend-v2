@@ -81,7 +81,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("초대 코드로 신규 MEMBER를 생성한다")
-    void joinsAsNewMember() {
+    void groupJoin_newInviteCode_createsMember() {
         givenJoinGroup();
         givenInviteLink();
         when(loadGroupMemberPort.findByGroupIdAndUserIdForUpdate(GROUP_ID, MEMBER_ID))
@@ -102,7 +102,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("LEFT 멤버가 초대 코드로 재가입하면 가입 시각을 갱신한다")
-    void rejoinsLeftMember() {
+    void groupRejoin_leftMember_updatesJoinTime() {
         givenJoinGroup();
         givenInviteLink();
         GroupMember leftMember = endedMember(GroupMemberStatus.LEFT);
@@ -124,7 +124,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("ACTIVE 멤버의 중복 가입을 거절한다")
-    void rejectsAlreadyActiveMember() {
+    void groupJoin_activeMember_rejected() {
         givenJoinGroup();
         when(loadGroupMemberPort.findByGroupIdAndUserIdForUpdate(GROUP_ID, MEMBER_ID))
                 .thenReturn(Optional.of(activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER)));
@@ -137,7 +137,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("REMOVED 멤버의 초대 코드 가입을 거절한다")
-    void rejectsRemovedMemberJoin() {
+    void groupJoin_removedMember_rejected() {
         givenJoinGroup();
         when(loadGroupMemberPort.findByGroupIdAndUserIdForUpdate(GROUP_ID, MEMBER_ID))
                 .thenReturn(Optional.of(endedMember(GroupMemberStatus.REMOVED)));
@@ -150,7 +150,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("활성 멤버 목록을 OWNER 우선 순서와 현재 사용자 정보로 반환한다")
-    void getsActiveMembers() {
+    void groupMembers_activeList_ownerFirstAndCurrentUserIncluded() {
         GroupMember owner = activeMember(10L, OWNER_ID, GroupMemberRole.OWNER);
         GroupMember member = activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER);
         when(loadGroupMemberPort.findActiveByGroupId(GROUP_ID)).thenReturn(List.of(owner, member));
@@ -170,7 +170,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("사진을 올린 멤버만 파일명 기반 아바타 버전을 반환한다")
-    void marksMembersWithAvatar() {
+    void groupMember_avatarExists_returnsFileVersion() {
         GroupMember owner = activeMember(10L, OWNER_ID, GroupMemberRole.OWNER);
         GroupMember member = activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER);
         when(loadGroupMemberPort.findActiveByGroupId(GROUP_ID)).thenReturn(List.of(owner, member));
@@ -190,7 +190,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("같은 그룹 멤버의 아바타 파일을 반환한다")
-    void getsMemberAvatar() {
+    void groupMemberAvatar_sameGroupMember_returnsFile() {
         ProfileImage image = new ProfileImage("image/webp", new byte[]{1, 2, 3});
         when(loadGroupMemberPort.findByGroupIdAndId(GROUP_ID, 20L))
                 .thenReturn(Optional.of(activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER)));
@@ -206,7 +206,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("그룹의 활성 멤버가 아니면 아바타를 조회할 수 없다")
-    void rejectsAvatarOfUnknownMember() {
+    void groupMemberAvatar_unknownOrInactiveMember_rejected() {
         when(loadGroupMemberPort.findByGroupIdAndId(GROUP_ID, 99L)).thenReturn(Optional.empty());
 
         assertStatus(
@@ -217,7 +217,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("사진을 올리지 않은 멤버의 아바타 조회는 실패한다")
-    void rejectsAvatarWithoutFile() {
+    void groupMemberAvatar_missingFile_rejected() {
         when(loadGroupMemberPort.findByGroupIdAndId(GROUP_ID, 20L))
                 .thenReturn(Optional.of(activeMember(20L, MEMBER_ID, GroupMemberRole.MEMBER)));
         when(loadUserPort.findById(MEMBER_ID))
@@ -231,7 +231,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("OWNER가 publicId로 신규 멤버를 직접 추가한다")
-    void addsNewMemberByPublicId() {
+    void groupMember_publicId_ownerAddsNewMember() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OWNER_ID));
         User target = user(MEMBER_ID, "member.test", "멤버", true);
         when(loadUserPort.findByPublicId("member.test")).thenReturn(Optional.of(target));
@@ -251,7 +251,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("OWNER가 REMOVED 멤버를 직접 복구한다")
-    void restoresRemovedMember() {
+    void groupMember_removedMember_ownerRestores() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OWNER_ID));
         User target = user(MEMBER_ID, "member.test", "멤버", true);
         when(loadUserPort.findByPublicId("member.test")).thenReturn(Optional.of(target));
@@ -270,7 +270,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("OWNER는 LEFT 멤버를 직접 복귀시킬 수 없다")
-    void rejectsDirectRestoreForLeftMember() {
+    void groupMember_leftMember_directRestore_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OWNER_ID));
         when(loadUserPort.findByPublicId("member.test"))
                 .thenReturn(Optional.of(user(MEMBER_ID, "member.test", "멤버", true)));
@@ -285,7 +285,7 @@ class GroupMembershipServiceTest {
 
     @Test
     @DisplayName("비활성 사용자는 직접 추가 후보로 사용하지 않는다")
-    void rejectsInactiveCandidate() {
+    void groupMember_inactiveCandidate_rejected() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OWNER_ID));
         when(loadUserPort.findByPublicId("member.test"))
                 .thenReturn(Optional.of(user(MEMBER_ID, "member.test", "멤버", false)));

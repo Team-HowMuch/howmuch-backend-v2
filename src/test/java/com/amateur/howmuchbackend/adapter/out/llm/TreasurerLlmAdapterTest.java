@@ -21,7 +21,7 @@ class TreasurerLlmAdapterTest {
     private RestClient restClient;
 
     @Test
-    void returnsEmptyWhenProviderIsDisabled() {
+    void treasurerLlm_disabledProvider_returnsEmpty() {
         TreasurerLlmAdapter adapter = adapter("none");
         TreasurerAnswerDraft draft = draft();
 
@@ -29,7 +29,7 @@ class TreasurerLlmAdapterTest {
     }
 
     @Test
-    void returnsEmptyWhenRestClientCallFails() {
+    void treasurerLlm_clientFailure_returnsEmpty() {
         TreasurerLlmProperties properties = new TreasurerLlmProperties(
                 "openai",
                 Duration.ofSeconds(5),
@@ -43,14 +43,14 @@ class TreasurerLlmAdapterTest {
     }
 
     @Test
-    void returnsEmptyWhenGeminiKeyIsMissing() {
+    void treasurerLlm_missingGeminiKey_returnsEmpty() {
         TreasurerLlmAdapter adapter = adapter("gemini");
 
         assertThat(adapter.generate(draft())).isEmpty();
     }
 
     @Test
-    void returnsEmptyWhenDraftIsMissing() {
+    void treasurerLlm_missingDraft_returnsEmpty() {
         TreasurerLlmAdapter adapter = adapter("none");
 
         assertThat(adapter.generate(null)).isEmpty();

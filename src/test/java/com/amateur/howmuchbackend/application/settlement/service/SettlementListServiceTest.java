@@ -36,7 +36,7 @@ class SettlementListServiceTest {
     private LoadSettlementListPort loadSettlementListPort;
 
     @Test
-    void loadsListForCurrentUserAndPreservesNumericFieldsAndRawStatus() {
+    void settlementList_currentUser_preservesNumbersAndRawStatus() {
         SettlementListService service = new SettlementListService(currentActorPort, loadSettlementListPort);
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID,
@@ -100,7 +100,7 @@ class SettlementListServiceTest {
         ));
     }
     @Test
-    void passesMonthAndCompletedTimestampThrough() {
+    void settlementList_monthAndCompletedAt_passedThrough() {
         var month = java.time.YearMonth.of(2026, 9);
         var completedAt = LocalDateTime.of(2026, 9, 1, 0, 0);
         var readModel = new SettlementListReadModel(

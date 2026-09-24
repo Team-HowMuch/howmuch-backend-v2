@@ -30,7 +30,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void cleanupFailureDoesNotFailCommittedTransactionAndIsTraceable(boolean group) {
+    void imageCleanup_postCommitFailure_doesNotFailAndIsLogged(boolean group) {
         var fixture = fixture(group, false);
         fixture.failDelete.accept(OLD);
         var logger = (Logger) LoggerFactory.getLogger(group
@@ -67,7 +67,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void rollbackDeletesOnlyNewImageAndPreservesOriginalFailure(boolean group) {
+    void imageRollback_cleanupFailure_preservesOriginalFailure(boolean group) {
         var fixture = fixture(group, false);
         fixture.failDelete.accept(NEW);
         var original = new IllegalStateException("original failure");
@@ -81,7 +81,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void successfulRollbackDeletesNewImage(boolean group) {
+    void imageRollback_newImage_deleted(boolean group) {
         var fixture = fixture(group, false);
         new TransactionTemplate(new TestTransactionManager()).executeWithoutResult(status -> {
             fixture.update.run();
@@ -93,7 +93,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void unknownCompletionPreservesBothImages(boolean group) {
+    void imageCompletion_unknownOutcome_preservesBothImages(boolean group) {
         var fixture = fixture(group, false);
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -108,7 +108,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void unchangedImageIsNotDeleted(boolean group) {
+    void imageUpdate_unchangedImage_notDeleted(boolean group) {
         var fixture = fixture(group, true);
         new TransactionTemplate(new TestTransactionManager()).executeWithoutResult(status -> fixture.update.run());
         fixture.verifyNotDeleted.accept(OLD);
@@ -117,7 +117,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void directCallAlsoIsolatesCleanupFailure(boolean group) {
+    void imageCleanup_directCall_failureIsIsolated(boolean group) {
         var fixture = fixture(group, false);
         fixture.failDelete.accept(OLD);
         assertThatCode(fixture.update::run).doesNotThrowAnyException();
@@ -127,7 +127,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void groupCreationCleanupRunsOnlyOnRollback(boolean rollback) {
+    void groupCreation_imageCleanup_onlyOnRollback(boolean rollback) {
         var storage = mock(GroupImageStoragePort.class);
         var support = new GroupImageTransactionSupport(storage);
         new TransactionTemplate(new TestTransactionManager()).executeWithoutResult(status -> {
@@ -141,7 +141,7 @@ class ImageCleanupTransactionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void resetOrMissingPreviousImageIsSafe(boolean reset) {
+    void imageReset_missingPreviousImage_safe(boolean reset) {
         var storage = mock(GroupImageStoragePort.class);
         var support = new GroupImageTransactionSupport(storage);
         new TransactionTemplate(new TestTransactionManager()).executeWithoutResult(status ->

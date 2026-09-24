@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TreasurerRecommendationTest {
     @Test
-    void ordersSendBeforeReceiveAndStaleBeforeFresh() {
+    void recommendations_sendBeforeReceiveAndStaleBeforeFresh() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement staleSend = settlement(
                 SettlementDirection.SEND,
@@ -37,7 +37,7 @@ class TreasurerRecommendationTest {
     }
 
     @Test
-    void ignoresCompletedSettlements() {
+    void recommendations_completedSettlement_ignored() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement completed = new PersonalSettlement(
                 UUID.randomUUID(),
@@ -53,7 +53,7 @@ class TreasurerRecommendationTest {
     }
 
     @Test
-    void ignoresDraftSettlements() {
+    void recommendations_draftSettlement_ignored() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement draft = settlement(
                 SettlementDirection.RECEIVE,
@@ -66,7 +66,7 @@ class TreasurerRecommendationTest {
     }
 
     @Test
-    void exposesTransferOnlyWhenSendSettlementAwaitsDeposit() {
+    void recommendation_sendAwaitingDeposit_transferExposed() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement requested = settlement(
                 SettlementDirection.SEND,
@@ -93,7 +93,7 @@ class TreasurerRecommendationTest {
     }
 
     @Test
-    void exposesDepositCheckOnlyWhenReceiveSettlementAwaitsDeposit() {
+    void recommendation_receiveAwaitingDeposit_depositCheckExposed() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement requested = settlement(
                 SettlementDirection.RECEIVE,

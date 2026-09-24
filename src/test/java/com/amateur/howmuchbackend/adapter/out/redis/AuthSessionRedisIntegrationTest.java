@@ -80,7 +80,7 @@ class AuthSessionRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void delayedRefreshCannotRestoreLogoutOrOverwriteLogin(boolean login) throws Exception {
+    void authSession_delayedRefresh_preservesLogoutAndNewLogin(boolean login) throws Exception {
         TokenResult initial = service.issueNewSession(user);
         CountDownLatch validated = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -108,7 +108,7 @@ class AuthSessionRedisIntegrationTest {
     }
 
     @Test
-    void concurrentRefreshHasOneWinnerAndInvalidTokenLosers() throws Exception {
+    void authSession_concurrentRefresh_hasSingleWinner() throws Exception {
         TokenResult initial = service.issueNewSession(user);
         CountDownLatch validated = new CountDownLatch(8);
         CountDownLatch release = new CountDownLatch(1);
@@ -134,7 +134,7 @@ class AuthSessionRedisIntegrationTest {
     }
 
     @Test
-    void expirationAfterValidationCannotRestoreSession() throws Exception {
+    void authSession_expiredAfterValidation_notRestored() throws Exception {
         TokenResult initial = service.issueNewSession(user);
         CountDownLatch validated = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -158,7 +158,7 @@ class AuthSessionRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void rotationKeepsPolicyAndSetsNewTokenExpiry(boolean singleSession) {
+    void authSession_rotatingRefresh_setsExpiryAndPreservesPolicy(boolean singleSession) {
         service = service(singleSession, true);
         TokenResult initial = service.issueNewSession(user);
         String originalId = jwt.parsePayload(initial.requestToken()).orElseThrow().sessionId();
@@ -174,7 +174,7 @@ class AuthSessionRedisIntegrationTest {
     }
 
     @Test
-    void nonRotatingPolicyDoesNotWriteOrExtendSession() {
+    void authSession_nonRotatingPolicy_skipsWriteAndExpiryExtension() {
         service = service(true, false);
         TokenResult initial = service.issueNewSession(user);
         String before = redis.opsForValue().get(key);
@@ -186,7 +186,7 @@ class AuthSessionRedisIntegrationTest {
     }
 
     @Test
-    void invalidReplacementDoesNotDeleteCurrentSession() {
+    void authSession_invalidReplacement_preservesCurrentSession() {
         service.issueNewSession(user);
         AuthSession expected = sessions.findByUserId(userId).orElseThrow();
         String before = redis.opsForValue().get(key);
@@ -200,7 +200,7 @@ class AuthSessionRedisIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"session", "token", "expiry", "ttl", "json"})
-    void changedOrInvalidStoredStateIsPreserved(String change) {
+    void authSession_changedOrInvalidStoredState_preserved(String change) {
         service.issueNewSession(user);
         AuthSession expected = sessions.findByUserId(userId).orElseThrow();
         switch (change) {

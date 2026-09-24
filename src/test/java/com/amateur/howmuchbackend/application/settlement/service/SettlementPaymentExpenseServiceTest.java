@@ -90,7 +90,7 @@ class SettlementPaymentExpenseServiceTest {
 
     @Test
     @DisplayName("외부 계좌 동기화는 DB 트랜잭션 밖에서 실행하고 가져오기 저장은 트랜잭션을 유지한다")
-    void keepsExternalSynchronizationOutsideDatabaseTransaction() throws NoSuchMethodException {
+    void paymentExpense_externalSync_runsOutsideTransaction() throws NoSuchMethodException {
         var candidateMethod = SettlementPaymentExpenseService.class.getMethod(
                 "get",
                 UUID.class,
@@ -116,7 +116,7 @@ class SettlementPaymentExpenseServiceTest {
 
     @Test
     @DisplayName("계좌 동기화 뒤 출금 내역만 후보로 반환하고 이미 가져온 항목을 표시한다")
-    void getsExpenseCandidatesWithImportedState() {
+    void paymentExpense_candidates_returnsWithdrawalsAndImportState() {
         givenOwnedDraft();
         Transaction imported = transaction(
                 TRANSACTION_ID,
@@ -163,7 +163,7 @@ class SettlementPaymentExpenseServiceTest {
     @ParameterizedTest
     @CsvSource(value = {"NULL,결제내역", "'  행복식당  ',행복식당"}, nullValues = "NULL")
     @DisplayName("소유한 출금의 상호명과 UTC 거래 시각을 저장하고 최신 누적액을 반환한다")
-    void importsOwnedExpenseTransaction(String description, String expectedDescription) {
+    void paymentExpense_ownedWithdrawal_savesMerchantAndUtcTime(String description, String expectedDescription) {
         givenOwnedDraftForUpdate();
         Transaction transaction = transaction(
                 TRANSACTION_ID,
@@ -212,7 +212,7 @@ class SettlementPaymentExpenseServiceTest {
 
     @Test
     @DisplayName("같은 결제내역을 이미 가져왔으면 저장하지 않는다")
-    void rejectsDuplicateImport() {
+    void paymentExpense_duplicateImport_rejected() {
         givenOwnedDraftForUpdate();
         Transaction transaction = transaction(
                 TRANSACTION_ID,
@@ -245,7 +245,7 @@ class SettlementPaymentExpenseServiceTest {
 
     @Test
     @DisplayName("입금 내역과 원 단위로 표현할 수 없는 내역은 가져오지 않는다")
-    void rejectsNonImportableTransaction() {
+    void paymentExpense_depositOrFractionalAmount_rejected() {
         givenOwnedDraftForUpdate();
         when(loadAccountPort.findActiveByIdAndUserId(ACCOUNT_ID, CREATOR_ID))
                 .thenReturn(Optional.of(account()));

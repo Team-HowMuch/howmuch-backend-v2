@@ -102,7 +102,7 @@ class SettlementAmountDeserializationTest {
 
     @Test
     @DisplayName("원 단위 총액이 조용히 절삭되지 않도록 생성 요청의 소수를 거부한다")
-    void rejectsFractionalAmountOnCreate() throws Exception {
+    void settlementAmount_fractionalCreate_rejected() throws Exception {
         mockMvc.perform(post("/api/v2/settlements")
                         .contentType("application/json")
                         .content("""
@@ -119,7 +119,7 @@ class SettlementAmountDeserializationTest {
 
     @Test
     @DisplayName("원 단위 총액이 조용히 절삭되지 않도록 수정 요청의 소수를 거부한다")
-    void rejectsFractionalAmountOnUpdate() throws Exception {
+    void settlementAmount_fractionalUpdate_rejected() throws Exception {
         mockMvc.perform(patch("/api/v2/settlements/{settlementId}", SETTLEMENT_ID)
                         .contentType("application/json")
                         .content("""

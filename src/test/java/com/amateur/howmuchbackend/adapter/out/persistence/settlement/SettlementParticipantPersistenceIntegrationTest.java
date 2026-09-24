@@ -124,7 +124,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("생성자 참여자의 식별 정보와 표시 순서를 V9 스키마에 저장한다")
-    void savesCreatorParticipant() {
+    void settlementCreatorParticipation_identityAndOrder_persisted() {
         SettlementParticipant participant = SettlementParticipant.registeredUser(
                 settlementId,
                 creatorId,
@@ -149,7 +149,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("정산이 삭제되면 하위 참여자도 함께 삭제한다")
-    void deletesParticipantWithSettlement() {
+    void settlementDeletion_participants_cascaded() {
         SettlementParticipant participant = settlementParticipantPersistenceAdapter.save(
                 SettlementParticipant.registeredUser(
                         settlementId,
@@ -167,7 +167,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("화면이 저장 순서대로 복원되도록 참여자를 displayOrder 오름차순으로 조회한다")
-    void loadsParticipantsInDisplayOrder() {
+    void settlementParticipants_displayOrder_ascending() {
         settlementParticipantPersistenceAdapter.save(unlinkedContact("c".repeat(64), "세 번째", 2));
         settlementParticipantPersistenceAdapter.save(unlinkedContact("a".repeat(64), "첫 번째", 0));
         settlementParticipantPersistenceAdapter.save(unlinkedContact("b".repeat(64), "두 번째", 1));
@@ -183,7 +183,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹 참여자의 출처 그룹 ID를 저장하고 복원한다")
-    void savesGroupMemberSource() {
+    void settlementParticipant_groupSourceId_persisted() {
         SettlementParticipant saved = settlementParticipantPersistenceAdapter.save(
                 SettlementParticipant.groupMember(
                         settlementId,
@@ -203,7 +203,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹멤버 출처 참여자가 속한 정산 상태를 중복 없이 조회한다")
-    void loadsDistinctSettlementStatusesForGroupMember() {
+    void groupMemberSettlementStatuses_duplicateStatuses_excluded() {
         settlementParticipantPersistenceAdapter.save(SettlementParticipant.groupMember(
                 settlementId,
                 groupId,
@@ -245,7 +245,7 @@ class SettlementParticipantPersistenceIntegrationTest {
 
     @Test
     @DisplayName("V21 제약은 참여자 출처와 그룹 ID가 일치하지 않는 신규 행을 거부한다")
-    void rejectsInvalidSourceGroupCombinations() {
+    void participantSource_groupIdMismatch_rejectedByConstraint() {
         assertThatThrownBy(() -> insertParticipant(
                 SettlementParticipantSource.GROUP_MEMBER,
                 null

@@ -89,7 +89,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("본인 답변을 신고하고 식별자와 접수 시각을 돌려받는다")
-    void reportsOwnAnswer() {
+    void answerReport_ownAnswer_createdWithReceiptTime() {
         UUID answerId = saveAnswer(owner, NOW);
 
         TreasurerAnswerReportResult result = reports.report(
@@ -111,7 +111,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("남의 답변과 없는 답변은 구분 없이 같은 404다")
-    void hidesWhetherSomeoneElsesAnswerExists() {
+    void answerReport_otherUserOrMissingAnswer_sameNotFound() {
         UUID othersAnswer = saveAnswer(stranger, NOW);
         UUID missingAnswer = UUID.randomUUID();
 
@@ -131,7 +131,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("같은 답변을 두 번 신고하면 409다")
-    void rejectsDuplicateReport() {
+    void answerReport_duplicate_rejected() {
         UUID answerId = saveAnswer(owner, NOW);
         reports.report(new ReportTreasurerAnswerCommand(answerId, TreasurerAnswerReportReason.OTHER, null));
 
@@ -144,7 +144,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("동시에 두 번 신고해도 한 건만 접수된다")
-    void concurrentReportsProduceExactlyOne() throws Exception {
+    void answerReport_concurrentDuplicate_exactlyOneCreated() throws Exception {
         UUID answerId = saveAnswer(owner, NOW);
 
         List<Throwable> outcomes = concurrent(
@@ -163,7 +163,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("응용 계층을 건너뛰어도 스키마가 남의 답변 신고를 거부한다")
-    void schemaRejectsReportOnSomeoneElsesAnswer() {
+    void answerReport_foreignAnswerRejectedBySchema() {
         UUID othersAnswer = saveAnswer(stranger, NOW);
 
         assertThatThrownBy(() -> jdbc.update("""
@@ -176,7 +176,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("보관 기간이 지난 답변은 정리되고 신고된 답변은 남는다")
-    void purgesExpiredAnswersButKeepsReportedOnes() {
+    void answerCleanup_expiredUnreportedDeleted_reportedRetained() {
         UUID expiredAndReported = saveAnswer(owner, NOW.minusDays(99));
         UUID expired = saveAnswer(owner, NOW.minusDays(31));
         UUID recent = saveAnswer(owner, NOW.minusDays(1));
@@ -192,7 +192,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("정리는 배치 크기만큼만 지우고 남은 것은 다음 주기가 이어서 지운다")
-    void purgesInBatches() {
+    void answerCleanup_limitedBatch_deletesRemainderNextCycle() {
         for (int i = 0; i < 5; i++) {
             saveAnswer(owner, NOW.minusDays(31 + i));
         }
@@ -205,7 +205,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("정리된 답변을 신고하면 404다")
-    void reportingPurgedAnswerIsNotFound() {
+    void answerReport_purgedAnswer_notFound() {
         UUID expired = saveAnswer(owner, NOW.minusDays(31));
         purge.purge(Duration.ofDays(30), 500);
 
@@ -217,7 +217,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("조회 직후 답변이 정리되어도 500이 아니라 404다")
-    void mapsForeignKeyViolationToNotFound() {
+    void answerReport_concurrentPurge_mapsToNotFound() {
         UUID expired = saveAnswer(owner, NOW.minusDays(31));
         // 응용 계층 조회는 통과했는데 저장 직전에 정리가 지나간 상황을 만든다.
         jdbc.update("DELETE FROM treasurer_answers WHERE id=?", expired);
@@ -231,7 +231,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("밀린 분량은 한 주기 안에서 배치를 이어 붙여 정리한다")
-    void drainsBacklogWithinOneCycle() {
+    void answerCleanup_backlog_drainedWithinOneCycle() {
         for (int i = 0; i < 7; i++) {
             saveAnswer(owner, NOW.minusDays(31 + i));
         }
@@ -243,7 +243,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("한 주기에 도는 배치 수를 넘기면 남겨 두고 다음 주기로 넘긴다")
-    void stopsAfterMaxBatches() {
+    void answerCleanup_maxBatchesReached_stopsForNextCycle() {
         for (int i = 0; i < 7; i++) {
             saveAnswer(owner, NOW.minusDays(31 + i));
         }
@@ -254,7 +254,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("질문 흐름은 LLM을 부르는 동안 트랜잭션을 쥐지 않는다")
-    void doesNotHoldATransactionWhileCallingTheLlm() {
+    void askTreasurer_llmCall_runsWithoutTransaction() {
         AtomicBoolean transactionWasActive = new AtomicBoolean(true);
         when(generateTreasurerAnswerPort.generate(any())).thenAnswer(invocation -> {
             // 여기서 트랜잭션이 살아 있으면 커넥션 하나를 LLM 호출 내내 쥐고 있다는 뜻이다.
@@ -274,7 +274,7 @@ class TreasurerAnswerReportIntegrationTest {
 
     @Test
     @DisplayName("공백만 있는 상세는 저장하지 않는다")
-    void storesBlankDetailAsAbsent() {
+    void answerReport_blankDetail_storedAbsent() {
         UUID answerId = saveAnswer(owner, NOW);
 
         TreasurerAnswerReportResult result = reports.report(

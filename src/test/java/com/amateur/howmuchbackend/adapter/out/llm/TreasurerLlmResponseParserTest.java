@@ -9,7 +9,7 @@ class TreasurerLlmResponseParserTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void readsOpenAiMessageContent() throws Exception {
+    void openAiResponse_messageContent_parsed() throws Exception {
         String content = TreasurerLlmResponseParser.openAiContent(objectMapper.readTree("""
                 {"choices":[{"message":{"content":"보낼 정산이 1건 있어요."}}]}
                 """));
@@ -18,7 +18,7 @@ class TreasurerLlmResponseParserTest {
     }
 
     @Test
-    void readsGeminiTextParts() throws Exception {
+    void geminiResponse_textParts_parsed() throws Exception {
         String content = TreasurerLlmResponseParser.geminiContent(objectMapper.readTree("""
                 {"candidates":[{"content":{"parts":[{"text":"이번 달 지출은 12,000원입니다."}]}}]}
                 """));
@@ -27,7 +27,7 @@ class TreasurerLlmResponseParserTest {
     }
 
     @Test
-    void returnsNullWhenGeminiPartsAreMissing() throws Exception {
+    void geminiResponse_missingParts_returnsNull() throws Exception {
         assertThat(TreasurerLlmResponseParser.geminiContent(objectMapper.readTree("""
                 {"candidates":[{"content":{"parts":[]}}]}
                 """))).isNull();
@@ -35,7 +35,7 @@ class TreasurerLlmResponseParserTest {
     }
 
     @Test
-    void sanitizesMarkdownAndTruncates() {
+    void llmDraft_markdownRemovedAndLengthLimited() {
         assertThat(TreasurerLlmResponseParser.sanitize("```답변```")).isEqualTo("답변");
         assertThat(TreasurerLlmResponseParser.sanitize("**보낼 정산이 있어요.**")).isEqualTo("보낼 정산이 있어요.");
         assertThat(TreasurerLlmResponseParser.sanitize("# 안내\n보낼 정산이 있어요.")).isEqualTo("안내\n보낼 정산이 있어요.");

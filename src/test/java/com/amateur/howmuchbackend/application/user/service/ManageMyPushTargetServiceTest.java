@@ -48,7 +48,7 @@ class ManageMyPushTargetServiceTest {
 
     @Test
     @DisplayName("Firebase installation ID를 정규화해 현재 사용자에 저장한다")
-    void registersPushTarget() {
+    void pushTarget_installationIdNormalized_registered() {
         givenCurrentActor();
         when(pushTargetStorePort.claim(
                 eq(USER_ID),
@@ -67,7 +67,7 @@ class ManageMyPushTargetServiceTest {
 
     @Test
     @DisplayName("등록된 푸시 대상을 해제한다")
-    void clearsPushTarget() {
+    void pushTarget_registeredTarget_cleared() {
         givenCurrentActor();
         when(pushTargetStorePort.clear(eq(USER_ID), any(LocalDateTime.class))).thenReturn(true);
 
@@ -78,7 +78,7 @@ class ManageMyPushTargetServiceTest {
 
     @Test
     @DisplayName("현재 사용자를 찾지 못하면 등록을 거부한다")
-    void rejectsMissingUser() {
+    void pushTarget_missingCurrentUser_rejected() {
         givenCurrentActor();
         when(pushTargetStorePort.claim(eq(USER_ID), eq("target"), any(LocalDateTime.class)))
                 .thenReturn(false);
@@ -94,7 +94,7 @@ class ManageMyPushTargetServiceTest {
 
     @Test
     @DisplayName("빈 Firebase installation ID를 거부한다")
-    void rejectsBlankTarget() {
+    void pushTarget_blankInstallationId_rejected() {
         assertThatThrownBy(() -> service.register("  "))
                 .isInstanceOf(ApplicationException.class);
 

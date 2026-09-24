@@ -74,7 +74,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("내 프로필은 nickname 없이 공개 ID를 반환한다")
-    void returnsPublicIdInMyProfile() throws Exception {
+    void userProfile_request_returnsPublicIdWithoutNickname() throws Exception {
         when(getMyProfileUseCase.getMyProfile()).thenReturn(result("current.id"));
 
         mockMvc.perform(get("/api/v2/user/me"))
@@ -88,7 +88,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("multipart 공개 ID 입력을 Application Command로 전달하고 변경 결과를 반환한다")
-    void updatesPublicId() throws Exception {
+    void userPublicId_multipartRequest_mapsCommandAndReturnsResult() throws Exception {
         when(updateMyProfileUseCase.update(any(UpdateMyProfileCommand.class)))
                 .thenReturn(result("new.id_1"));
 
@@ -110,7 +110,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("Firebase installation ID를 앱 푸시 대상으로 등록한다")
-    void registersPushTarget() throws Exception {
+    void pushTarget_validInstallationId_registered() throws Exception {
         mockMvc.perform(put("/api/v2/user/me/push-target")
                         .contentType("application/json")
                         .content("""
@@ -124,7 +124,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("빈 Firebase installation ID는 요청 경계에서 거부한다")
-    void rejectsBlankPushTarget() throws Exception {
+    void pushTarget_blankInstallationId_rejected() throws Exception {
         mockMvc.perform(put("/api/v2/user/me/push-target")
                         .contentType("application/json")
                         .content("""
@@ -137,7 +137,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("앱 푸시 대상을 해제한다")
-    void clearsPushTarget() throws Exception {
+    void pushTarget_deleteRequest_cleared() throws Exception {
         mockMvc.perform(delete("/api/v2/user/me/push-target"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));

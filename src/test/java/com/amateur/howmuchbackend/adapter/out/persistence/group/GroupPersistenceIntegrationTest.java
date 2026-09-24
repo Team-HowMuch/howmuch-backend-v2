@@ -110,7 +110,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹과 OWNER를 저장하고 내 그룹 목록·인원수를 조회한다")
-    void savesAndLoadsGroupWithOwner() {
+    void group_ownerSaved_groupAndMemberCountLoaded() {
         Group savedGroup = saveGroup();
         GroupMember savedOwner = groupMemberPersistenceAdapter.save(
                 GroupMember.owner(savedGroup.id(), userId, CREATED_AT)
@@ -124,7 +124,7 @@ class GroupPersistenceIntegrationTest {
             assertThat(loaded).usingRecursiveComparison()
                     .ignoringFields("createdAt", "updatedAt")
                     .isEqualTo(savedGroup);
-            // PostgreSQL timestamps have microsecond precision; Linux clocks may return nanoseconds.
+            // PostgreSQL은 timestamp를 마이크로초 단위로 저장하므로 나노초 차이는 허용한다.
             assertThat(loaded.createdAt()).isCloseTo(savedGroup.createdAt(), within(1, MICROS));
             assertThat(loaded.updatedAt()).isCloseTo(savedGroup.updatedAt(), within(1, MICROS));
         });
@@ -138,7 +138,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹을 소프트 삭제해도 기존 OWNER 멤버십은 보존하고 목록에서는 숨긴다")
-    void softDeletePreservesMembership() {
+    void group_softDeleted_membershipPreservedAndHidden() {
         Group savedGroup = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(savedGroup.id(), userId, CREATED_AT));
 
@@ -159,7 +159,7 @@ class GroupPersistenceIntegrationTest {
     @Test
     @Transactional
     @DisplayName("초대 코드로 그룹을 조회하고 LEFT 멤버를 재가입 상태로 갱신한다")
-    void findsByInviteCodeAndRejoinsLeftMember() {
+    void group_inviteCodeLookup_rejoinsLeftMember() {
         Group savedGroup = saveGroup();
         GroupMember leftMember = groupMemberPersistenceAdapter.save(new GroupMember(
                 null,
@@ -194,7 +194,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("활성 멤버를 OWNER 우선, 가입 시각과 멤버 ID 순으로 조회한다")
-    void loadsOrderedActiveMembers() {
+    void groupMembers_activeMembers_orderedByOwnerTimeAndId() {
         Long earlierMemberUserId = insertUser("먼저 가입한 멤버");
         Long laterMemberUserId = insertUser("나중 가입한 멤버");
         Long removedMemberUserId = insertUser("제거된 멤버");
@@ -232,7 +232,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("동시 소유권 이전 요청은 직렬화되어 활성 OWNER를 한 명만 유지한다")
-    void serializesConcurrentOwnershipTransfers() throws Exception {
+    void groupOwnership_concurrentTransfers_serializedWithOneOwner() throws Exception {
         Long targetUserId = insertUser("새 OWNER");
         Group savedGroup = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(
@@ -310,7 +310,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("멤버 탈퇴가 먼저 group row를 잠그면 정산 요청 재검증은 탈퇴 결과를 읽는다")
-    void revalidatesGroupRosterAfterConcurrentMemberExit() throws Exception {
+    void groupRoster_memberExitsConcurrently_revalidatedAfterExit() throws Exception {
         Long memberUserId = insertUser("탈퇴 멤버");
         Group savedGroup = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(
@@ -367,7 +367,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("요약은 본인 포함 활성 사용자만 세고 그룹장·가입 시각·ID 순으로 세 이름을 반환한다")
-    void summarizesOnlyActiveUsersWithBoundedOrderedNames() {
+    void groupSummary_activeUsers_boundedNamesOrderedAndCounted() {
         Group group = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT.plusDays(1)));
         Long first = insertUser("이름, 공백");
@@ -401,7 +401,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("요청자 위치와 동명이인에 관계없이 다른 구성원 세 명과 전체 인원수를 반환한다")
-    void excludesRequesterBeforeSelectingThreeNames() {
+    void groupSummary_requesterExcluded_returnsThreeOtherNames() {
         Group group = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT));
         List<Long> members = new ArrayList<>();
@@ -431,7 +431,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("두 명인 그룹은 요청자 외 한 이름만 반환하고 인원수는 2를 유지한다")
-    void returnsOneOtherNameForTwoMembers() {
+    void groupSummary_twoMembers_returnsOtherNameAndTotalCount() {
         Group group = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT));
         Long other = insertUser("다른 멤버");
@@ -447,7 +447,7 @@ class GroupPersistenceIntegrationTest {
 
     @Test
     @DisplayName("활성 사용자가 없는 그룹 요약은 0명과 빈 이름 배열을 반환한다")
-    void summarizesNoActiveUsers() {
+    void groupSummary_noActiveUsers_returnsEmptyNamesAndZero() {
         Group group = saveGroup();
         groupMemberPersistenceAdapter.save(GroupMember.owner(group.id(), userId, CREATED_AT));
         jdbcTemplate.update("UPDATE users SET active = FALSE WHERE id = ?", userId);

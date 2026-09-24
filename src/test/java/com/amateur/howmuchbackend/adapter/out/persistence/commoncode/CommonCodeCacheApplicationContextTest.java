@@ -33,7 +33,7 @@ class CommonCodeCacheApplicationContextTest {
 
     @Test
     @DisplayName("실제 애플리케이션 Caffeine CacheManager와 1분 TTL을 사용한다")
-    void usesApplicationCacheConfiguration() {
+    void commonCodeCache_applicationConfiguration_usesOneMinuteTtl() {
         assertThat(cacheManager).isInstanceOf(CaffeineCacheManager.class);
 
         CaffeineCache cache = (CaffeineCache) cacheManager.getCache("commonCodeByGroup");

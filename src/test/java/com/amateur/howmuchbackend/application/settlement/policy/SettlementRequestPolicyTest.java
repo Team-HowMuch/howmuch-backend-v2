@@ -30,7 +30,7 @@ class SettlementRequestPolicyTest {
 
     @Test
     @DisplayName("더치페이 참여자별 배분이 총액과 일치하면 같은 순서의 불변 Share를 만든다")
-    void preparesDutchPayShares() {
+    void settlementRequest_dutchPayTotalMatches_createsOrderedShares() {
         var shares = policy.prepareShares(
                 settlement(SettlementAllocationType.DUTCH_PAY),
                 participants(),
@@ -50,7 +50,7 @@ class SettlementRequestPolicyTest {
 
     @Test
     @DisplayName("누락·0원·총액 불일치 더치페이 배분은 요청 확정하지 않는다")
-    void rejectsInvalidDutchPayAllocations() {
+    void settlementRequest_dutchPayInvalidAllocation_rejected() {
         assertStatus(
                 List.of(allocation(CREATOR_PARTICIPANT_ID, 10_000)),
                 SettlementStatusCode.SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE
@@ -73,7 +73,7 @@ class SettlementRequestPolicyTest {
 
     @Test
     @DisplayName("품목별 배분은 품목 합계가 지출과 일치하면 Share 없이 선택 단계를 연다")
-    void validatesItemAllocationWithoutFinalShares() {
+    void settlementRequest_balancedItemAllocation_opensWithoutShares() {
         UUID expenseId = expenses().getFirst().id();
         var shares = policy.prepareShares(
                 settlement(SettlementAllocationType.ITEM_ALLOCATION),

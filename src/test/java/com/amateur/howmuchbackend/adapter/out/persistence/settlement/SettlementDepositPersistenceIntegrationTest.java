@@ -95,7 +95,7 @@ class SettlementDepositPersistenceIntegrationTest {
 
     @Test
     @DisplayName("삭제 후 재연결된 같은 수금 계좌의 미완료 Share도 함께 조회한다")
-    void loadsCompetingCandidatesAcrossAccountLifecycles() {
+    void depositCandidates_reconnectedAccount_includesPendingShares() {
         var candidates = adapter.findUnfinishedPayableCandidatesByReceivingAccount(
                 creatorId,
                 sourceAccountId,
@@ -115,7 +115,7 @@ class SettlementDepositPersistenceIntegrationTest {
 
     @Test
     @DisplayName("재연결 전 계좌에서 정산에 연결한 외부 거래 Key를 조회한다")
-    void loadsMatchedTransactionKeyAcrossAccountLifecycles() {
+    void depositTransactions_reconnectedAccount_externalKey_loaded() {
         String externalTransactionKey = "a".repeat(64);
         Long transactionId = jdbcTemplate.queryForObject("""
                         INSERT INTO account_transactions (
@@ -164,7 +164,7 @@ class SettlementDepositPersistenceIntegrationTest {
 
     @Test
     @DisplayName("정산 상세 조회를 위해 Share별 실제 입금액을 합산한다")
-    void sumsConfirmedAmountByShare() {
+    void share_confirmedDeposits_sumComputed() {
         UUID settlementId = settlementIds.get(0);
         UUID shareId = jdbcTemplate.queryForObject(
                 "SELECT id FROM settlement_shares WHERE settlement_id = ?",

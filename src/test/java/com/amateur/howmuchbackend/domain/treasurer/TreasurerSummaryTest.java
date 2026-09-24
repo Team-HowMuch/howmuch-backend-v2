@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TreasurerSummaryTest {
     @Test
-    void prefersSendGuidanceOverReceive() {
+    void treasurerSummary_sendGuidance_preferred() {
         TreasurerSummary summary = TreasurerSummary.from(List.of(
                 settlement(SettlementDirection.SEND, SettlementStatus.REQUESTED, 30_000L),
                 settlement(SettlementDirection.RECEIVE, SettlementStatus.AWAITING_DEPOSIT, 50_000L)
@@ -25,7 +25,7 @@ class TreasurerSummaryTest {
     }
 
     @Test
-    void usesEmptyGuidanceWhenNothingIsOpen() {
+    void treasurerSummary_noOpenSettlement_emptyGuidance() {
         TreasurerSummary summary = TreasurerSummary.from(List.of(
                 settlement(SettlementDirection.SEND, SettlementStatus.COMPLETED, 10_000L)
         ));
@@ -36,7 +36,7 @@ class TreasurerSummaryTest {
     }
 
     @Test
-    void countsDraftAsInProgressWithoutSendOrReceiveBalance() {
+    void treasurerSummary_draftInProgressWithoutBalance() {
         TreasurerSummary summary = TreasurerSummary.from(List.of(
                 settlement(SettlementDirection.RECEIVE, SettlementStatus.DRAFT, 80_000L)
         ));

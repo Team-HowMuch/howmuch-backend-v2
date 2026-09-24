@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ApnsConfigTest {
     @Test
-    void springBootJacksonMapperWiresApnsSender() {
+    void apnsConfig_jacksonMapper_wiresSender() {
         runner().withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class))
                 .withUserConfiguration(ApnsPushSender.class)
                 .run(context -> assertThat(context).hasSingleBean(ApnsPushSender.class));
@@ -21,7 +21,7 @@ class ApnsConfigTest {
 
     @ParameterizedTest
     @CsvSource({"local,dev", "dev,dev", "prod,prod"})
-    void profileSelectsApnsEnvironment(String profile, String expected) {
+    void apnsConfig_activeProfile_selectsEnvironment(String profile, String expected) {
         runner().withPropertyValues("spring.profiles.active=" + profile).run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getBean(ApnsProperties.class).environment()).isEqualTo(expected);
@@ -30,7 +30,7 @@ class ApnsConfigTest {
 
     @ParameterizedTest
     @CsvSource({"dev,prod", "prod,dev"})
-    void explicitEnvironmentOverridesProfile(String profile, String selected) {
+    void apnsConfig_explicitEnvironment_overridesProfile(String profile, String selected) {
         runner().withPropertyValues("spring.profiles.active=" + profile,
                 "APNS_ENVIRONMENT=" + selected).run(context -> {
             assertThat(context).hasNotFailed();

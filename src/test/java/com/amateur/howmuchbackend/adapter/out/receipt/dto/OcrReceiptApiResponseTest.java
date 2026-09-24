@@ -12,9 +12,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("OCR 서비스 응답 매핑")
 class OcrReceiptApiResponseTest {
     /**
-     * 모르는 필드에서 일부러 터지는 매퍼.
+     * 모르는 필드에 예외를 발생시키는 매퍼를 사용한다.
      *
-     * <p>Jackson 3은 FAIL_ON_UNKNOWN_PROPERTIES 가 기본으로 꺼져 있다. 기본 매퍼로 검증하면
+     * <p>Jackson 3은 FAIL_ON_UNKNOWN_PROPERTIES를 기본값으로 false로 설정한다. 기본 매퍼로 검증하면
      * {@code @JsonIgnoreProperties} 를 통째로 지워도 테스트가 통과한다. 여기서는 켜 두고,
      * 애노테이션이 실제로 일하는지를 본다.
      */
@@ -24,7 +24,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("디버깅용 필드가 섞여 와도 매핑이 깨지지 않는다")
-    void ignoresDebugAndUnknownFields() {
+    void receiptOcr_debugAndUnknownFields_ignored() {
         String body = """
                 {"ok": true, "elapsed_sec": 3.1, "raw": "모델 원본",
                  "ocr_lines": [{"text": "스타필드", "confidence": 0.98}],
@@ -42,7 +42,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("snake_case 필드를 우리 이름으로 옮긴다")
-    void mapsSnakeCaseFields() {
+    void receiptOcr_snakeCaseFields_mapped() {
         String body = """
                 {"ok": true, "result": {"store_name": "가게", "purchased_at": "2026-09-16 16:47",
                  "total_amount": 10500, "payment_method": "카드", "total_verified": true,
@@ -66,7 +66,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("항목 배열에 null 원소가 섞여도 변환에서 터지지 않는다")
-    void dropsNullItemElements() {
+    void receiptOcr_nullItems_dropped() {
         String body = """
                 {"ok": true, "result": {"store_name": "가게", "total_verified": false,
                  "items": [null, {"name": "김밥", "quantity": 1, "price": 3500}]}}
@@ -81,7 +81,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("items가 없으면 빈 목록이 된다")
-    void treatsMissingItemsAsEmpty() {
+    void receiptOcr_missingItems_returnsEmptyList() {
         String body = "{\"ok\": true, \"result\": {\"store_name\": \"가게\", \"total_verified\": false}}";
 
         assertThat(strict.readValue(body, OcrReceiptApiResponse.class).toResult().items()).isEmpty();
@@ -89,7 +89,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("ok가 true여도 result가 없으면 결과 없음이다")
-    void treatsMissingResultAsNoResult() {
+    void receiptOcr_missingResult_returnsNoResult() {
         String body = "{\"ok\": true, \"elapsed_sec\": 1.0}";
 
         assertThat(strict.readValue(body, OcrReceiptApiResponse.class).hasResult()).isFalse();
@@ -97,7 +97,7 @@ class OcrReceiptApiResponseTest {
 
     @Test
     @DisplayName("실패 응답은 결과 없음이다")
-    void treatsNotOkAsNoResult() {
+    void receiptOcr_notOkResponse_returnsNoResult() {
         String body = "{\"ok\": false, \"error\": \"분석 실패\"}";
 
         assertThat(strict.readValue(body, OcrReceiptApiResponse.class).hasResult()).isFalse();

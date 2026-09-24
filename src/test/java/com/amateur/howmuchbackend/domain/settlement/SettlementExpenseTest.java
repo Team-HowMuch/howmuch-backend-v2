@@ -21,7 +21,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("수동 지출 설명의 앞뒤 공백을 제거하고 양수 금액을 보존한다")
-    void createsNormalizedManualExpense() {
+    void manualExpense_descriptionTrimmed_positiveAmountPreserved() {
         SettlementExpense expense = SettlementExpense.manual(
                 SETTLEMENT_ID,
                 "  저녁 식사  ",
@@ -38,7 +38,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("화면에 빈 지출이 생기지 않도록 유니코드 공백 설명을 거부한다")
-    void rejectsUnicodeWhitespaceDescription() {
+    void manualExpense_unicodeWhitespaceDescription_rejected() {
         assertThatThrownBy(() -> SettlementExpense.manual(
                 SETTLEMENT_ID,
                 "\u2003",
@@ -53,7 +53,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("정산 금액 합계가 감소하지 않도록 0원 이하 지출을 거부한다")
-    void rejectsNonPositiveAmount() {
+    void expense_nonPositiveAmount_rejected() {
         assertThatThrownBy(() -> SettlementExpense.manual(
                 SETTLEMENT_ID,
                 "저녁 식사",
@@ -68,7 +68,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("부분 수정에서 전달되지 않은 금액을 보존한다")
-    void updatesOnlyRequestedField() {
+    void expense_partialUpdate_omittedAmountPreserved() {
         SettlementExpense expense = manualExpense();
 
         SettlementExpense updated = expense.updateManual(
@@ -84,7 +84,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("외부 원본의 수정 정책이 확정되기 전에는 수동 지출 API 수정을 거부한다")
-    void rejectsUpdateForImportedExpense() {
+    void importedExpense_manualUpdate_rejected() {
         SettlementExpense imported = SettlementExpense.paymentHistory(
                 SETTLEMENT_ID,
                 1L,
@@ -110,7 +110,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("OCR 영수증 지출은 원본 참조와 출처를 보존한다")
-    void createsReceiptOcrExpense() {
+    void receiptExpense_ocrSourceAndReference_preserved() {
         SettlementExpense expense = SettlementExpense.receiptOcr(
                 SETTLEMENT_ID,
                 "  receipt-demo  ",
@@ -129,7 +129,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("수동 지출에 외부 참조가 있거나 결제내역에 외부 참조가 없으면 거부한다")
-    void validatesSourceReferenceByExpenseSource() {
+    void expenseSource_inconsistentReference_rejected() {
         assertThatThrownBy(() -> new SettlementExpense(
                 UUID.randomUUID(),
                 SETTLEMENT_ID,
@@ -165,7 +165,7 @@ class SettlementExpenseTest {
 
     @Test
     @DisplayName("결제일을 모르는 결제내역도 생성 시각으로 대체하지 않는다")
-    void keepsUnknownPaymentDateNull() {
+    void paymentDate_unknown_remainsNull() {
         SettlementExpense expense = SettlementExpense.paymentHistory(
                 SETTLEMENT_ID, 1L, "unknown-date", "카드 결제", 42_000, null, 0, NOW
         );

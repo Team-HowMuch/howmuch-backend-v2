@@ -49,7 +49,7 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("분석 결과를 반환한다")
-    void returnsAnalysis() throws Exception {
+    void receiptAnalysis_request_returnsAnalysis() throws Exception {
         when(analyzeReceiptUseCase.analyze(any())).thenReturn(new ReceiptAnalysisResult(
                 "스타필드", "2026-09-16 16:47",
                 List.of(new ReceiptAnalysisResult.Item("참치김밥", 1, 3_500L)),
@@ -70,15 +70,14 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("읽지 못한 값은 null로 내보낸다")
-    void exposesUnreadValuesAsNull() throws Exception {
+    void receiptAnalysis_unreadValues_returnsNull() throws Exception {
         when(analyzeReceiptUseCase.analyze(any())).thenReturn(
                 new ReceiptAnalysisResult(null, null, List.of(), null, null, false));
 
         mockMvc.perform(multipart("/api/v2/receipts/ocr")
                         .file(image("bytes".getBytes(StandardCharsets.UTF_8))))
                 .andExpect(status().isOk())
-                // doesNotExist() 는 필드가 없을 때도 통과한다. 앱이 "값을 못 읽었다"를
-                // 판단하는 기준이 null 이므로 실제로 null 인지를 본다.
+                // 앱은 읽지 못한 필드를 생략하지 않고 null로 반환하므로 실제 null을 확인한다.
                 .andExpect(jsonPath("$.data.storeName").value(nullValue()))
                 .andExpect(jsonPath("$.data.totalAmount").value(nullValue()))
                 .andExpect(content().string(containsString("\"storeName\":null")))
@@ -88,7 +87,7 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("빈 파일은 400이고 분석까지 가지 않는다")
-    void rejectsEmptyFile() throws Exception {
+    void receiptUpload_emptyFile_returnsBadRequestWithoutAnalysis() throws Exception {
         mockMvc.perform(multipart("/api/v2/receipts/ocr").file(image(new byte[0])))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_RECEIPT_IMAGE"));
@@ -97,7 +96,7 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("이미지를 읽지 못하면 422로 다시 촬영을 알린다")
-    void returnsUnprocessableWhenOcrCannotRead() throws Exception {
+    void receiptAnalysis_unreadableImage_returnsUnprocessable() throws Exception {
         when(analyzeReceiptUseCase.analyze(any()))
                 .thenThrow(ApplicationException.of(SettlementStatusCode.RECEIPT_OCR_FAILED));
 
@@ -109,7 +108,7 @@ class ReceiptOcrControllerTest {
 
     @Test
     @DisplayName("분석 서비스에 닿지 못하면 503으로 재시도를 알린다")
-    void returnsServiceUnavailableWhenOcrIsDown() throws Exception {
+    void receiptAnalysis_unavailableService_returnsRetryResponse() throws Exception {
         when(analyzeReceiptUseCase.analyze(any()))
                 .thenThrow(ApplicationException.of(SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE));
 

@@ -38,7 +38,7 @@ class UserPublicIdSearchPersistenceIntegrationTest {
 
     @Test
     @DisplayName("밑줄을 문자 그대로 포함한 prefix로 활성 회원만 정렬·제외·제한 조회한다")
-    void searchesActiveUsersByLiteralPublicIdPrefix() {
+    void userSearch_publicIdPrefix_matchesActiveUsersLiterally() {
         String key = UUID.randomUUID().toString().replace("-", "").substring(0, 6);
         String prefix = "p" + key + "_";
         Long excludedId = insertUser(prefix + "alpha", true);
@@ -59,7 +59,7 @@ class UserPublicIdSearchPersistenceIntegrationTest {
 
     @Test
     @DisplayName("연락처 HMAC 목록과 일치하는 활성 회원만 한 번에 조회한다")
-    void matchesActiveUsersByIdentityKeys() {
+    void userLookup_identityKeys_returnsActiveMatchesOnce() {
         String key = UUID.randomUUID().toString().replace("-", "").substring(0, 6);
         String activeIdentityKey = "active-contact-" + key;
         String inactiveIdentityKey = "inactive-contact-" + key;

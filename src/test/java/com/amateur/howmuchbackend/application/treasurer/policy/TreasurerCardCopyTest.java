@@ -18,7 +18,7 @@ class TreasurerCardCopyTest {
     private final TreasurerCardCopy copy = new TreasurerCardCopy();
 
     @Test
-    void buildsSendAndReceiveListCopy() {
+    void treasurerCards_sendAndReceive_buildsListCopy() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement send = new PersonalSettlement(
                 UUID.randomUUID(),
@@ -49,7 +49,7 @@ class TreasurerCardCopyTest {
     }
 
     @Test
-    void completedSendExpenseIsNotUnpaid() {
+    void sendExpense_completed_notUnpaid() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement completed = new PersonalSettlement(
                 UUID.randomUUID(),
@@ -67,7 +67,7 @@ class TreasurerCardCopyTest {
     }
 
     @Test
-    void carriesAllocationTypeAndStatusOnEveryCardBranch() {
+    void settlementCard_allBranchesIncludeAllocationTypeAndStatus() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement outstandingSend = new PersonalSettlement(
                 UUID.randomUUID(),
@@ -121,7 +121,7 @@ class TreasurerCardCopyTest {
     }
 
     @Test
-    void keepsAllocationTypeNullWhenNotDecidedYet() {
+    void settlementCard_allocationUndecided_null() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement notDecided = new PersonalSettlement(
                 UUID.randomUUID(),
@@ -138,7 +138,7 @@ class TreasurerCardCopyTest {
     }
 
     @Test
-    void buildsStatusSummaryCard() {
+    void settlementStatus_buildsSummaryCard() {
         var card = copy.statusCard(
                 List.of(
                         new PersonalSettlement(

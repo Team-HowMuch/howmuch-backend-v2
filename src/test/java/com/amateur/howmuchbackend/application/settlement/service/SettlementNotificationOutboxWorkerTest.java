@@ -65,7 +65,7 @@ class SettlementNotificationOutboxWorkerTest {
 
     @Test
     @DisplayName("앞선 알림 발송을 완료한 뒤 다음 이벤트를 선점한다")
-    void claimsEachEventImmediatelyBeforeDelivery() {
+    void notificationOutbox_eachEvent_claimedBeforeDelivery() {
         SettlementNotificationOutbox first = processingEvent(1L);
         SettlementNotificationOutbox second = processingEvent(2L);
         when(outboxPort.recoverStale(eq(2), any(), any(), eq(5))).thenReturn(0);
@@ -130,7 +130,7 @@ class SettlementNotificationOutboxWorkerTest {
     }
 
     @Test
-    void retriesDeliveryFailurePreservingNotificationId() {
+    void notificationOutbox_deliveryFailure_retriesWithSameId() {
         var notification = com.amateur.howmuchbackend.application.notification.service.NotificationMessages.request(
                 SETTLEMENT_ID, 1L, com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType.DUTCH_PAY,
                 "요청자", CREATED_AT);

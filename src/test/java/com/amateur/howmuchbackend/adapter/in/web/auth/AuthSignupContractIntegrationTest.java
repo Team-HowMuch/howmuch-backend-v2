@@ -54,7 +54,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("인증 없이 활성 계정의 휴대폰 번호 가입 여부를 확인한다")
-    void returnsRegisteredForActiveUserWithoutAuthentication() throws Exception {
+    void phoneRegistration_activeUserWithoutAuth_returnsTrue() throws Exception {
         String phoneNumber = randomPhoneNumber();
         String clientAddress = randomClientAddress();
         Long userId = insertUser(phoneNumber, true);
@@ -70,7 +70,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("비활성 계정과 가입되지 않은 휴대폰 번호는 false를 반환한다")
-    void returnsNotRegisteredForInactiveAndMissingUsers() throws Exception {
+    void phoneRegistration_inactiveOrMissingUser_returnsFalse() throws Exception {
         String inactivePhoneNumber = randomPhoneNumber();
         String missingPhoneNumber = randomPhoneNumber();
         String clientAddress = randomClientAddress();
@@ -91,7 +91,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("공백 또는 잘못된 휴대폰 번호는 전용 형식 오류로 거절한다")
-    void rejectsInvalidPhoneNumber() throws Exception {
+    void phoneNumber_blankOrInvalid_returnsFormatError() throws Exception {
         String clientAddress = randomClientAddress();
         try {
             mockMvc.perform(post(PHONE_NUMBER_CHECK_PATH)
@@ -116,7 +116,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("같은 휴대폰 번호의 반복 확인은 번호 quota로 제한한다")
-    void limitsRepeatedPhoneNumberChecks() throws Exception {
+    void phoneCheck_sameNumberRepeated_rateLimited() throws Exception {
         String phoneNumber = randomPhoneNumber();
         String firstAddress = randomClientAddress();
         String secondAddress = randomClientAddress();
@@ -135,7 +135,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("같은 IP의 61번째 확인은 IP quota로 제한한다")
-    void limitsAddressAfterSixtyChecks() throws Exception {
+    void signupCheck_61stSameIpRequest_rateLimited() throws Exception {
         String clientAddress = randomClientAddress();
         List<String> phoneNumbers = new ArrayList<>();
         try {
@@ -158,7 +158,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("OpenAPI에 휴대폰 번호 가입 여부 확인 API를 공개한다")
-    void documentsPhoneNumberRegistrationCheck() throws Exception {
+    void phoneRegistrationCheck_openApiRoute_documented() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -180,7 +180,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("생년월일이 없으면 회원가입 요청을 거부한다")
-    void requiresBirthDate() throws Exception {
+    void signup_missingBirthDate_rejected() throws Exception {
         mockMvc.perform(post("/api/v2/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -200,7 +200,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("유효하지 않은 달력 날짜를 회원가입 요청에서 거부한다")
-    void rejectsInvalidCalendarDate() throws Exception {
+    void signup_invalidCalendarDate_rejected() throws Exception {
         mockMvc.perform(post("/api/v2/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -220,7 +220,7 @@ class AuthSignupContractIntegrationTest {
 
     @Test
     @DisplayName("OpenAPI에 생년월일을 required date 필드로 공개한다")
-    void documentsBirthDateAsRequiredDate() throws Exception {
+    void signupBirthDate_openApiRequired_documented() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andReturn()

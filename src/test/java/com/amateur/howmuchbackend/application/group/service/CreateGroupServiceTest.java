@@ -75,7 +75,7 @@ class CreateGroupServiceTest {
 
     @Test
     @DisplayName("그룹과 요청자의 OWNER 멤버십을 함께 생성한다")
-    void createsGroupAndOwner() {
+    void groupCreation_request_createsGroupAndOwner() {
         when(saveGroupMemberPort.save(any(GroupMember.class)))
                 .thenAnswer(invocation -> persistedMember(invocation.getArgument(0)));
         when(groupInviteLinkPort.create("AB12CD34"))
@@ -96,7 +96,7 @@ class CreateGroupServiceTest {
 
     @Test
     @DisplayName("멤버십 저장이 실패하면 먼저 저장한 신규 이미지를 제거한다")
-    void deletesNewImageWhenPersistenceFails() {
+    void groupCreation_persistenceFailure_deletesNewImage() {
         when(groupImageStoragePort.save(any())).thenReturn("00000000-0000-0000-0000-000000000001.jpg");
         when(saveGroupMemberPort.save(any(GroupMember.class))).thenThrow(new IllegalStateException("failed"));
 

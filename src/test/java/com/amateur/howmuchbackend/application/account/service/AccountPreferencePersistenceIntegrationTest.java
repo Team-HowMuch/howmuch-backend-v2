@@ -89,7 +89,7 @@ class AccountPreferencePersistenceIntegrationTest {
     }
 
     @Test
-    void changesDefaultAndMovesAccountToRequestedPosition() {
+    void accountPreference_defaultAndPosition_persisted() {
         setDefaultAccountUseCase.setDefault(firstAccountId);
         updateAccountDisplayOrderUseCase.updateDisplayOrder(
                 new UpdateAccountDisplayOrderCommand(thirdAccountId, 0)

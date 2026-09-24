@@ -12,7 +12,7 @@ class TreasurerAnswerFactCheckTest {
     private final TreasurerAnswerFactCheck factCheck = new TreasurerAnswerFactCheck();
 
     @Test
-    void acceptsKnownAmountsAndCalendarSuffixes() {
+    void treasurerAnswer_knownAmountsAndCalendarSuffixes_accepted() {
         TreasurerAnswerDraft draft = new TreasurerAnswerDraft(
                 "이번 달 보낼 정산은 얼마야?",
                 InquiryIntent.SEND_SETTLEMENTS,
@@ -29,7 +29,7 @@ class TreasurerAnswerFactCheckTest {
     }
 
     @Test
-    void acceptsNumbersPresentInFallbackAnswer() {
+    void fallbackAnswer_presentNumbers_accepted() {
         TreasurerAnswerDraft statusDraft = new TreasurerAnswerDraft(
                 "정산 진행 상태는?",
                 InquiryIntent.SETTLEMENT_STATUS,

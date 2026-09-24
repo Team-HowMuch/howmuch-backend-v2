@@ -79,7 +79,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("현황 요약을 반환한다")
-    void returnsSummary() throws Exception {
+    void treasurerSummary_request_returnsSummary() throws Exception {
         when(getTreasurerSummaryUseCase.getSummary()).thenReturn(new TreasurerSummaryResult(
                 30_000L, 1, 0L, 0, 1, 0, "보낼 정산 1건, 30,000원이 남아 있어요."
         ));
@@ -93,7 +93,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("질의 답변을 반환한다")
-    void returnsAnswer() throws Exception {
+    void treasurerAnswer_question_returnsAnswer() throws Exception {
         when(askTreasurerUseCase.ask(any())).thenReturn(answerResult());
 
         mockMvc.perform(post("/api/v2/treasurer/questions")
@@ -111,7 +111,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("채팅 시작 인사와 바로가기를 반환한다")
-    void returnsChatStart() throws Exception {
+    void treasurerChat_start_returnsGreetingAndShortcuts() throws Exception {
         when(getTreasurerChatUseCase.getChat()).thenReturn(new TreasurerChatResult(
                 "안녕하세요. 어떤 정산이 궁금하세요?",
                 List.of(new TreasurerChatResult.Prompt(InquiryIntent.SEND_SETTLEMENTS, "보낼 정산", "보낼 정산")),
@@ -126,7 +126,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("빈 질문은 400을 반환한다")
-    void rejectsBlankQuestion() throws Exception {
+    void treasurerChat_blankQuestion_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v2/treasurer/questions")
                         .contentType("application/json")
                         .content("""
@@ -137,7 +137,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("답변 응답에 신고용 answerId를 싣는다")
-    void exposesAnswerIdForReporting() throws Exception {
+    void treasurerAnswer_reportableResponse_includesAnswerId() throws Exception {
         when(askTreasurerUseCase.ask(any())).thenReturn(answerResult());
 
         mockMvc.perform(post("/api/v2/treasurer/questions")
@@ -151,7 +151,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("저장에 실패한 답변은 answerId가 null이다")
-    void exposesNullAnswerIdWhenStoringFailed() throws Exception {
+    void treasurerAnswer_saveFailure_returnsNullAnswerId() throws Exception {
         when(askTreasurerUseCase.ask(any())).thenReturn(answerResult().withAnswerId(null));
 
         mockMvc.perform(post("/api/v2/treasurer/questions")
@@ -160,15 +160,14 @@ class TreasurerControllerTest {
                                 {"question":"보낼 정산"}
                                 """))
                 .andExpect(status().isOk())
-                // doesNotExist()는 필드가 없을 때도 null일 때도 통과한다. 앱이 신고 버튼을
-                // 숨기는 기준이 "null"이므로 값이 실제로 null인지를 본다.
+                // doesNotExist()는 필드가 없어도 통과하므로, 신고 버튼을 숨기는 기준인 null을 직접 확인한다.
                 .andExpect(jsonPath("$.data.answerId").value(nullValue()))
                 .andExpect(content().string(containsString("\"answerId\":null")));
     }
 
     @Test
     @DisplayName("답변을 신고하면 접수 식별자와 시각을 반환한다")
-    void reportsAnswer() throws Exception {
+    void answerReport_validRequest_returnsReceiptIdAndTime() throws Exception {
         when(reportTreasurerAnswerUseCase.report(any())).thenReturn(new TreasurerAnswerReportResult(
                 UUID.fromString("66666666-6666-6666-6666-666666666666"),
                 LocalDateTime.of(2026, 9, 15, 12, 0)
@@ -186,7 +185,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("신고 사유가 없으면 400을 반환한다")
-    void rejectsReportWithoutReason() throws Exception {
+    void answerReport_missingReason_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v2/treasurer/answers/55555555-5555-5555-5555-555555555555/reports")
                         .contentType("application/json")
                         .content("{}"))
@@ -195,7 +194,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("알 수 없는 신고 사유는 400을 반환한다")
-    void rejectsUnknownReason() throws Exception {
+    void answerReport_unknownReason_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v2/treasurer/answers/55555555-5555-5555-5555-555555555555/reports")
                         .contentType("application/json")
                         .content("""
@@ -206,7 +205,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("신고 상세가 500자를 넘으면 400을 반환한다")
-    void rejectsTooLongDetail() throws Exception {
+    void answerReport_detailOverLimit_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v2/treasurer/answers/55555555-5555-5555-5555-555555555555/reports")
                         .contentType("application/json")
                         .content("{\"reason\":\"OTHER\",\"detail\":\"" + "가".repeat(501) + "\"}"))
@@ -215,7 +214,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("answerId 형식이 잘못되면 400을 반환한다")
-    void rejectsMalformedAnswerId() throws Exception {
+    void answerReport_malformedId_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v2/treasurer/answers/not-a-uuid/reports")
                         .contentType("application/json")
                         .content("""
@@ -226,7 +225,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("본인 답변이 아니거나 없는 답변은 404를 반환한다")
-    void returnsNotFoundForAnswerThatIsNotMine() throws Exception {
+    void answerReport_notOwnedOrMissing_returnsNotFound() throws Exception {
         when(reportTreasurerAnswerUseCase.report(any()))
                 .thenThrow(new ApplicationException(TreasurerStatusCode.TREASURER_ANSWER_NOT_FOUND));
 
@@ -241,7 +240,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("이미 신고한 답변은 409를 반환한다")
-    void returnsConflictForDuplicateReport() throws Exception {
+    void answerReport_duplicate_returnsConflict() throws Exception {
         when(reportTreasurerAnswerUseCase.report(any()))
                 .thenThrow(new ApplicationException(TreasurerStatusCode.TREASURER_ANSWER_ALREADY_REPORTED));
 
@@ -256,7 +255,7 @@ class TreasurerControllerTest {
 
     @Test
     @DisplayName("추천 목록을 반환한다")
-    void returnsRecommendations() throws Exception {
+    void treasurerRecommendations_request_returnsList() throws Exception {
         when(getTreasurerRecommendationsUseCase.getRecommendations())
                 .thenReturn(new TreasurerRecommendationsResult("처리할 정산이 없어요.", List.of()));
 

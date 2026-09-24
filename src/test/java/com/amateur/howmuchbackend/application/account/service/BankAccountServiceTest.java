@@ -48,7 +48,7 @@ class BankAccountServiceTest {
 
     @Test
     @DisplayName("이미 연결된 은행은 CODEF 계정 수정 후 계좌 후보를 재조회한다")
-    void updatesCredentialsForExistingInstitution() {
+    void bankCredentials_existingBank_updatedAndRefetchesAccounts() {
         Long userId = 1L;
         Long connectionId = 7L;
         String connectedId = "CID-1";
@@ -72,7 +72,7 @@ class BankAccountServiceTest {
 
     @Test
     @DisplayName("처음 선택한 계좌 하나만 기본으로 두고 표시 순서를 부여한다")
-    void assignsDefaultAndDisplayOrderToNewAccounts() throws Exception {
+    void newBankAccounts_oneDefaultAssignedAndOrderSet() throws Exception {
         Long userId = 1L;
         Long connectionId = 7L;
         String connectedId = "CID-1";

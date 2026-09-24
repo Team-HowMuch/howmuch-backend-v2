@@ -103,7 +103,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("제출하면 남을 기다리지 않고 내 Share부터 만든다")
-    void createsMyShareBeforeOthersSubmit() {
+    void itemAllocation_submit_createsOwnShareImmediately() {
         arrangeRequestedAccess();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
@@ -128,7 +128,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("마지막 제출에서 품목 배분이 정확하면 입금 대기로 전환한다")
-    void finalizesSharesOnLastExactSubmission() {
+    void itemAllocation_lastExactSubmission_finalizesShares() {
         arrangeRequestedAccess();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.AWAITING_DEPOSIT)));
@@ -155,7 +155,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("마지막 제출 후 미배분 품목이 남으면 중단한다. 이미 만든 내 Share는 남는다")
-    void suspendsWhenAllocationIsIncomplete() {
+    void itemAllocation_lastSubmit_suspendsAndKeepsShare() {
         arrangeRequestedAccess();
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(SettlementStatus.SUSPENDED)));
@@ -179,7 +179,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("중단된 정산을 다시 조회해도 미배분 품목을 반환한다")
-    void returnsInvalidItemsWhenSuspendedSettlementIsReloaded() {
+    void itemAllocation_suspendedReload_returnsInvalidItems() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
                 context(FIRST_PARTICIPANT_ID)
@@ -207,7 +207,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("헤더 문맥의 참여자와 path 참여자가 다르면 정산을 조회하지 않는다")
-    void rejectsMismatchedParticipantContext() {
+    void itemAllocation_participantContextMismatch_rejectedBeforeRead() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
                 context(SECOND_PARTICIPANT_ID)
@@ -226,7 +226,7 @@ class SettlementItemAllocationServiceTest {
 
     @Test
     @DisplayName("완료된 정산은 남아 있는 참여 문맥으로 품목 화면을 다시 열 수 없다")
-    void rejectsCompletedSettlementAccess() {
+    void itemAllocation_completedSettlement_rejectsOldContext() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(
                 context(FIRST_PARTICIPANT_ID)

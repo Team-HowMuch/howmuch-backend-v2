@@ -28,7 +28,7 @@ class GroupOpenApiIntegrationTest {
 
     @Test
     @DisplayName("그룹 13개 API의 경로, 요청 형식, 성공 응답과 bearer 인증을 공개한다")
-    void documentsGroupApiContract() throws Exception {
+    void groupApi_contractDocumentsEndpointsAndResponses() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andReturn()

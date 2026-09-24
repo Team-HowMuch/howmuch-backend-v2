@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AccountTest {
     @Test
     @DisplayName("활성 원화 입출금 계좌를 송금 수령 가능한 계좌 사실로 분류한다")
-    void identifiesActiveWonDemandDeposit() {
+    void account_activeKrwDemandDeposit_transferEligible() {
         Account account = account(true, AccountType.DEPOSIT_TRUST, "11", "KRW");
 
         assertThat(account.isActiveWonDemandDeposit()).isTrue();
@@ -20,7 +20,7 @@ class AccountTest {
 
     @Test
     @DisplayName("비활성·외화·비입출금 계좌를 원화 입출금 계좌로 분류하지 않는다")
-    void rejectsAccountsWithoutDemandDepositFacts() {
+    void account_inactiveOrUnsupported_transferIneligible() {
         List<Account> unsupported = List.of(
                 account(false, AccountType.DEPOSIT_TRUST, "11", "KRW"),
                 account(true, AccountType.FOREIGN_CURRENCY, "11", "KRW"),

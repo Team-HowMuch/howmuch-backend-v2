@@ -64,7 +64,7 @@ class SettlementShareLinkServiceTest {
 
     @Test
     @DisplayName("암호화 저장된 기존 토큰으로 같은 공유 URL을 복원한다")
-    void restoresExistingShareLink() {
+    void shareLink_encryptedToken_restoresSameUrl() {
         SettlementLink link = activeLink(TOKEN_HASH);
         when(shareLinkStorePort.findBySettlementId(SETTLEMENT_ID)).thenReturn(Optional.of(
                 new SettlementShareLinkStorePort.StoredSettlementShareLink(link, RAW_TOKEN)
@@ -81,7 +81,7 @@ class SettlementShareLinkServiceTest {
 
     @Test
     @DisplayName("기존 hash만 있는 링크는 새 토큰으로 재발급하고 저장한다")
-    void reissuesLegacyHashOnlyLink() {
+    void shareLink_legacyHashOnly_reissuedAndSaved() {
         SettlementLink link = activeLink(TOKEN_HASH);
         LocalDateTime expiresAt = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
         when(shareLinkStorePort.findBySettlementId(SETTLEMENT_ID)).thenReturn(Optional.of(

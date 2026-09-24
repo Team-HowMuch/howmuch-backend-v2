@@ -23,7 +23,7 @@ class SettlementItemTest {
 
     @Test
     @DisplayName("OCR 품목 이름을 정규화하고 수량이 반영된 행 금액을 보존한다")
-    void createsNormalizedReceiptItem() {
+    void receiptItem_nameNormalizedAndQuantityAppliedToRowAmount() {
         SettlementItem item = SettlementItem.fromReceipt(
                 SETTLEMENT_ID,
                 EXPENSE_ID,
@@ -42,7 +42,7 @@ class SettlementItemTest {
 
     @Test
     @DisplayName("화면에 빈 품목이 생기지 않도록 유니코드 공백 이름을 거부한다")
-    void rejectsUnicodeWhitespaceName() {
+    void receiptItem_unicodeWhitespaceName_rejected() {
         assertThatThrownBy(() -> item("\u2003", 1, 1_000, 0))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
@@ -52,7 +52,7 @@ class SettlementItemTest {
 
     @Test
     @DisplayName("수량과 행 금액이 양수가 아니면 OCR 품목을 거부한다")
-    void rejectsNonPositiveQuantityAndAmount() {
+    void receiptItem_nonPositiveQuantityOrAmount_rejected() {
         assertThatThrownBy(() -> item("커피", 0, 1_000, 0))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
@@ -67,7 +67,7 @@ class SettlementItemTest {
 
     @Test
     @DisplayName("품목 표시 순서가 음수이면 거부한다")
-    void rejectsNegativeDisplayOrder() {
+    void receiptItem_negativeDisplayOrder_rejected() {
         assertThatThrownBy(() -> item("커피", 1, 1_000, -1))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
