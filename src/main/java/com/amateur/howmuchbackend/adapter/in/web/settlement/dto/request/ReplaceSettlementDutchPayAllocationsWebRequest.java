@@ -12,9 +12,8 @@ import java.util.UUID;
 
 public record ReplaceSettlementDutchPayAllocationsWebRequest(
         @NotEmpty
-        @Valid
         @Schema(description = "정산 참여자 전원의 부담 금액")
-        List<Allocation> allocations
+        List<@NotNull @Valid Allocation> allocations
 ) {
     public ReplaceSettlementDutchPayAllocationsCommand toCommand() {
         return new ReplaceSettlementDutchPayAllocationsCommand(

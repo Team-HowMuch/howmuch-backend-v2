@@ -114,7 +114,7 @@ public class AccountController implements AccountDocs {
     @PatchMapping("/{accountId}/display-order")
     public ApiResponse<Void> updateAccountDisplayOrder(
             @PathVariable Long accountId,
-            @Valid @RequestBody UpdateAccountDisplayOrderWebRequest request
+            @RequestBody UpdateAccountDisplayOrderWebRequest request
     ) {
         updateAccountDisplayOrderUseCase.updateDisplayOrder(request.toCommand(accountId));
         return ApiResponse.success();

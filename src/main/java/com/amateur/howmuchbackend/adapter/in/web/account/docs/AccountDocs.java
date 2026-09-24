@@ -16,11 +16,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 
 import java.time.YearMonth;
 import java.util.List;
 
-@Tag(name = "계좌 API", description = "CODEF 기반 은행 연결과 계좌 연동 API")
+@Tag(name = "계좌 API", description = "CODEF 기반 은행 연결과 계좌 연동 API. 0 이하 계좌 경로 ID는 INVALID_ARGUMENT(400)로 거부합니다.")
 public interface AccountDocs {
     @Operation(
             summary = "연결 계좌 목록 조회",
@@ -34,7 +36,7 @@ public interface AccountDocs {
             description = "계좌 표시 정보와 요청 월의 소비 금액, 소비 건수, 최근 사용일을 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
-    ApiResponse<AccountDetailWebResponse> getAccountDetail(Long accountId, YearMonth yearMonth);
+    ApiResponse<AccountDetailWebResponse> getAccountDetail(@Positive Long accountId, YearMonth yearMonth);
 
     @Operation(
             summary = "계좌 거래내역 조회",
@@ -55,7 +57,7 @@ public interface AccountDocs {
                     description = "CODEF_UPSTREAM_UNAVAILABLE - CODEF 조회 실패"
             )
     })
-    ApiResponse<List<AccountTransactionWebResponse>> getAccountTransactions(Long accountId, YearMonth yearMonth);
+    ApiResponse<List<AccountTransactionWebResponse>> getAccountTransactions(@Positive Long accountId, YearMonth yearMonth);
 
     @Operation(
             summary = "연결 계좌 삭제",
@@ -70,7 +72,7 @@ public interface AccountDocs {
                     description = "ACCOUNT_IN_USE_BY_SETTLEMENT"
             )
     })
-    ApiResponse<Void> deleteAccount(Long accountId);
+    ApiResponse<Void> deleteAccount(@Positive Long accountId);
 
     @Operation(
             summary = "기본 결제수단 설정",
@@ -81,7 +83,7 @@ public interface AccountDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "설정 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "ACCOUNT_NOT_FOUND")
     })
-    ApiResponse<Void> setDefaultAccount(Long accountId);
+    ApiResponse<Void> setDefaultAccount(@Positive Long accountId);
 
     @Operation(
             summary = "계좌 표시 순서 일괄 저장",
@@ -125,8 +127,8 @@ public interface AccountDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "ACCOUNT_NOT_FOUND")
     })
     ApiResponse<Void> updateAccountDisplayOrder(
-            Long accountId,
-            UpdateAccountDisplayOrderWebRequest request
+            @Positive Long accountId,
+            @Valid UpdateAccountDisplayOrderWebRequest request
     );
 
     @Operation(

@@ -11,12 +11,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.validation.method.ParameterErrors;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -48,6 +50,36 @@ public class GlobalExceptionHandler {
         Map<String, String> details = new LinkedHashMap<>();
         exception.getBindingResult().getFieldErrors()
                 .forEach(error -> details.putIfAbsent(error.getField(), error.getDefaultMessage()));
+        ErrorResponse error = ErrorResponse.of(
+                400,
+                "INVALID_ARGUMENT",
+                "요청값이 올바르지 않습니다.",
+                details
+        );
+        return ResponseEntity.badRequest().body(new BaseResponse<>(false, null, error));
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<BaseResponse<ErrorResponse>> handleHandlerMethodValidation(
+            HandlerMethodValidationException exception
+    ) {
+        SafeExceptionLogger.log(exception, 400);
+        Map<String, String> details = new LinkedHashMap<>();
+        exception.getParameterValidationResults().forEach(result -> {
+            if (result instanceof ParameterErrors errors) {
+                errors.getFieldErrors().forEach(error ->
+                        details.putIfAbsent(error.getField(), error.getDefaultMessage())
+                );
+                return;
+            }
+            String parameterName = result.getMethodParameter().getParameterName();
+            String key = parameterName == null
+                    ? "argument" + result.getMethodParameter().getParameterIndex()
+                    : parameterName;
+            result.getResolvableErrors().forEach(error ->
+                    details.putIfAbsent(key, error.getDefaultMessage())
+            );
+        });
         ErrorResponse error = ErrorResponse.of(
                 400,
                 "INVALID_ARGUMENT",

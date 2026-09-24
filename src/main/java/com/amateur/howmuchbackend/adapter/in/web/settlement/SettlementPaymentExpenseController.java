@@ -8,7 +8,6 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.Settlem
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementPaymentExpenseCandidatesUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ImportSettlementPaymentExpenseUseCase;
 import lombok.RequiredArgsConstructor;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,7 +20,6 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 
-@Validated
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v2/settlements/{settlementId}")

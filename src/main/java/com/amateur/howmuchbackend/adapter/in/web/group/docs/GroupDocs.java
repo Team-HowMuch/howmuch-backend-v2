@@ -15,11 +15,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 
-@Tag(name = "그룹 API", description = "그룹 생성, 조회와 설정 API")
+@Tag(name = "그룹 API", description = "그룹 생성, 조회와 설정 API. 0 이하 숫자 경로 ID는 INVALID_ARGUMENT(400)로 거부합니다.")
 public interface GroupDocs {
     @Operation(
             summary = "그룹 생성",
@@ -74,7 +76,7 @@ public interface GroupDocs {
                     description = "GROUP_NOT_FOUND - 그룹이 없거나 삭제됨"
             )
     })
-    ApiResponse<GroupDetailWebResponse> getGroup(Long groupId);
+    ApiResponse<GroupDetailWebResponse> getGroup(@Positive Long groupId);
 
     @Operation(
             summary = "그룹 이미지 조회",
@@ -96,7 +98,7 @@ public interface GroupDocs {
                     description = "GROUP_NOT_FOUND 또는 GROUP_IMAGE_NOT_FOUND"
             )
     })
-    ResponseEntity<byte[]> getGroupImage(Long groupId);
+    ResponseEntity<byte[]> getGroupImage(@Positive Long groupId);
 
     @Operation(
             summary = "그룹 설정 수정",
@@ -122,7 +124,7 @@ public interface GroupDocs {
                     description = "GROUP_NOT_FOUND - 그룹이 없거나 삭제됨"
             )
     })
-    ApiResponse<GroupDetailWebResponse> updateGroup(Long groupId, UpdateGroupWebRequest request);
+    ApiResponse<GroupDetailWebResponse> updateGroup(@Positive Long groupId, @Valid UpdateGroupWebRequest request);
 
     @Operation(
             summary = "그룹 삭제",
@@ -144,7 +146,7 @@ public interface GroupDocs {
                     description = "GROUP_NOT_FOUND - 그룹이 없거나 이미 삭제됨"
             )
     })
-    ApiResponse<Void> deleteGroup(Long groupId);
+    ApiResponse<Void> deleteGroup(@Positive Long groupId);
 
     @Operation(
             summary = "그룹 가입",
@@ -194,7 +196,7 @@ public interface GroupDocs {
                     description = "GROUP_NOT_FOUND"
             )
     })
-    ApiResponse<List<GroupMemberWebResponse>> getGroupMembers(Long groupId);
+    ApiResponse<List<GroupMemberWebResponse>> getGroupMembers(@Positive Long groupId);
 
     @Operation(
             summary = "그룹 멤버 프로필 사진 조회",
@@ -216,7 +218,7 @@ public interface GroupDocs {
                     description = "GROUP_NOT_FOUND, GROUP_MEMBER_NOT_FOUND 또는 PROFILE_IMAGE_NOT_FOUND"
             )
     })
-    ResponseEntity<byte[]> getGroupMemberAvatar(Long groupId, Long memberId);
+    ResponseEntity<byte[]> getGroupMemberAvatar(@Positive Long groupId, @Positive Long memberId);
 
     @Operation(
             summary = "그룹 멤버 직접 추가",
@@ -243,8 +245,8 @@ public interface GroupDocs {
             )
     })
     ApiResponse<GroupMemberWebResponse> addGroupMember(
-            Long groupId,
-            AddGroupMemberWebRequest request
+            @Positive Long groupId,
+            @Valid AddGroupMemberWebRequest request
     );
 
     @Operation(
@@ -272,8 +274,8 @@ public interface GroupDocs {
             )
     })
     ApiResponse<Void> transferGroupOwnership(
-            Long groupId,
-            TransferGroupOwnershipWebRequest request
+            @Positive Long groupId,
+            @Valid TransferGroupOwnershipWebRequest request
     );
 
     @Operation(
@@ -300,7 +302,7 @@ public interface GroupDocs {
                     description = "GROUP_OWNER_TRANSFER_REQUIRED 또는 GROUP_MEMBER_EXIT_BLOCKED_BY_SETTLEMENT"
             )
     })
-    ApiResponse<Void> leaveGroup(Long groupId);
+    ApiResponse<Void> leaveGroup(@Positive Long groupId);
 
     @Operation(
             summary = "그룹 멤버 제거",
@@ -326,5 +328,5 @@ public interface GroupDocs {
                     description = "GROUP_OWNER_TRANSFER_REQUIRED 또는 GROUP_MEMBER_EXIT_BLOCKED_BY_SETTLEMENT"
             )
     })
-    ApiResponse<Void> removeGroupMember(Long groupId, Long memberId);
+    ApiResponse<Void> removeGroupMember(@Positive Long groupId, @Positive Long memberId);
 }
