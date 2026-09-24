@@ -17,7 +17,6 @@ import com.amateur.howmuchbackend.application.port.out.user.UserPushTargetStoreP
 import com.amateur.howmuchbackend.application.user.policy.UserDeletionPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
-import com.amateur.howmuchbackend.domain.group.Group;
 import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.GroupStatus;
 import com.amateur.howmuchbackend.domain.user.User;

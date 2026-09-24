@@ -36,7 +36,6 @@ import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlemen
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
