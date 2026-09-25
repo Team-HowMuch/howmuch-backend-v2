@@ -27,7 +27,6 @@ import com.amateur.howmuchbackend.application.port.in.group.TransferGroupOwnersh
 import com.amateur.howmuchbackend.application.port.in.group.LeaveGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.RemoveGroupMemberUseCase;
 import lombok.RequiredArgsConstructor;
-import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,7 +63,7 @@ public class GroupController implements GroupDocs {
     @Override
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<GroupDetailWebResponse> createGroup(
-            @Valid @ModelAttribute CreateGroupWebRequest request
+            @ModelAttribute CreateGroupWebRequest request
     ) {
         return ApiResponse.created(GroupDetailWebResponse.from(
                 createGroupUseCase.create(request.toCommand())
@@ -114,7 +113,7 @@ public class GroupController implements GroupDocs {
     @Override
     @PostMapping("/join")
     public ApiResponse<GroupDetailWebResponse> joinGroup(
-            @Valid @RequestBody JoinGroupWebRequest request
+            @RequestBody JoinGroupWebRequest request
     ) {
         return ApiResponse.success(GroupDetailWebResponse.from(
                 joinGroupUseCase.join(request.toCommand())

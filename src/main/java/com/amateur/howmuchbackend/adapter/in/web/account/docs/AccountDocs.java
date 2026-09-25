@@ -110,7 +110,7 @@ public interface AccountDocs {
             )
     })
     ApiResponse<Void> replaceAccountDisplayOrders(
-            ReplaceAccountDisplayOrdersWebRequest request
+            @Valid ReplaceAccountDisplayOrdersWebRequest request
     );
 
     @Operation(
@@ -153,7 +153,7 @@ public interface AccountDocs {
                     description = "CODEF_UPSTREAM_UNAVAILABLE - CODEF 조회 실패"
             )
     })
-    ApiResponse<BankConnectionWebResponse> connectBank(ConnectBankWebRequest request);
+    ApiResponse<BankConnectionWebResponse> connectBank(@Valid ConnectBankWebRequest request);
 
     @Operation(
             summary = "외부 계좌 연동",
@@ -170,5 +170,5 @@ public interface AccountDocs {
                     description = "CODEF_UPSTREAM_UNAVAILABLE - CODEF 조회 실패"
             )
     })
-    ApiResponse<LinkedAccountsWebResponse> linkAccounts(LinkBankAccountsWebRequest request);
+    ApiResponse<LinkedAccountsWebResponse> linkAccounts(@Valid LinkBankAccountsWebRequest request);
 }

@@ -24,7 +24,6 @@ import com.amateur.howmuchbackend.application.port.in.account.SetDefaultAccountU
 import com.amateur.howmuchbackend.application.port.in.account.UpdateAccountDisplayOrderUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -104,7 +103,7 @@ public class AccountController implements AccountDocs {
     @Override
     @PatchMapping("/display-order")
     public ApiResponse<Void> replaceAccountDisplayOrders(
-            @Valid @RequestBody ReplaceAccountDisplayOrdersWebRequest request
+            @RequestBody ReplaceAccountDisplayOrdersWebRequest request
     ) {
         replaceAccountDisplayOrdersUseCase.replaceDisplayOrders(request.toCommand());
         return ApiResponse.success();
@@ -131,7 +130,7 @@ public class AccountController implements AccountDocs {
     @Override
     @PostMapping("/connections/banks")
     public ApiResponse<BankConnectionWebResponse> connectBank(
-            @Valid @RequestBody ConnectBankWebRequest request
+            @RequestBody ConnectBankWebRequest request
     ) {
         return ApiResponse.success(BankConnectionWebResponse.from(connectBankUseCase.connect(request.toCommand())));
     }
@@ -139,7 +138,7 @@ public class AccountController implements AccountDocs {
     @Override
     @PostMapping("/external")
     public ApiResponse<LinkedAccountsWebResponse> linkAccounts(
-            @Valid @RequestBody LinkBankAccountsWebRequest request
+            @RequestBody LinkBankAccountsWebRequest request
     ) {
         return ApiResponse.success(LinkedAccountsWebResponse.from(linkBankAccountsUseCase.link(request.toCommand())));
     }

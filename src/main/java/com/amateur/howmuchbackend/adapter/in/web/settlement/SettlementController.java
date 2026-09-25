@@ -34,7 +34,6 @@ import com.amateur.howmuchbackend.application.port.in.settlement.SearchSettlemen
 import com.amateur.howmuchbackend.application.port.in.settlement.SuspendSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.UpdateSettlementDraftUseCase;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -74,7 +73,7 @@ public class SettlementController implements SettlementDocs {
     @Override
     @PostMapping
     public ApiResponse<SettlementWebResponse> createSettlement(
-            @Valid @RequestBody CreateSettlementWebRequest request
+            @RequestBody CreateSettlementWebRequest request
     ) {
         return ApiResponse.success(SettlementWebResponse.from(
                 createSettlementUseCase.create(request.toCommand())
@@ -103,7 +102,7 @@ public class SettlementController implements SettlementDocs {
     @Override
     @GetMapping
     public ApiResponse<List<SettlementListItemWebResponse>> getSettlements(
-            @Valid @ModelAttribute SettlementListWebRequest request
+            @ModelAttribute SettlementListWebRequest request
     ) {
         return ApiResponse.success(getSettlementsUseCase.get(request.toCommand())
                 .stream()
@@ -115,7 +114,7 @@ public class SettlementController implements SettlementDocs {
     @PatchMapping("/{settlementId}")
     public ApiResponse<SettlementWebResponse> updateSettlement(
             @PathVariable UUID settlementId,
-            @Valid @RequestBody UpdateSettlementDraftWebRequest request
+            @RequestBody UpdateSettlementDraftWebRequest request
     ) {
         return ApiResponse.success(SettlementWebResponse.from(
                 updateSettlementDraftUseCase.update(settlementId, request.toCommand())
@@ -146,7 +145,7 @@ public class SettlementController implements SettlementDocs {
     @PostMapping("/{settlementId}/participants")
     public ApiResponse<SettlementParticipantWebResponse> addSettlementParticipant(
             @PathVariable UUID settlementId,
-            @Valid @RequestBody AddSettlementParticipantWebRequest request
+            @RequestBody AddSettlementParticipantWebRequest request
     ) {
         return ApiResponse.success(SettlementParticipantWebResponse.from(
                 addSettlementParticipantUseCase.add(settlementId, request.toCommand())
@@ -168,7 +167,7 @@ public class SettlementController implements SettlementDocs {
     @GetMapping("/{settlementId}/participant-candidates/users")
     public ApiResponse<List<SettlementParticipantCandidateWebResponse>> searchSettlementParticipantCandidates(
             @PathVariable UUID settlementId,
-            @Valid @ModelAttribute SearchSettlementParticipantWebRequest request
+            @ModelAttribute SearchSettlementParticipantWebRequest request
     ) {
         return ApiResponse.success(searchSettlementParticipantUseCase
                 .searchByPublicId(settlementId, request.toCommand())
@@ -194,7 +193,7 @@ public class SettlementController implements SettlementDocs {
     @PostMapping("/{settlementId}/participant-candidates/contacts/match")
     public ApiResponse<List<SettlementContactCandidateWebResponse>> matchSettlementContacts(
             @PathVariable UUID settlementId,
-            @Valid @RequestBody MatchSettlementContactsWebRequest request
+            @RequestBody MatchSettlementContactsWebRequest request
     ) {
         return ApiResponse.success(matchSettlementContactsUseCase.match(
                         settlementId,
@@ -242,7 +241,7 @@ public class SettlementController implements SettlementDocs {
     public ApiResponse<SettlementParticipantWebResponse> renameSettlementParticipant(
             @PathVariable UUID settlementId,
             @PathVariable UUID participantId,
-            @Valid @RequestBody RenameSettlementParticipantWebRequest request
+            @RequestBody RenameSettlementParticipantWebRequest request
     ) {
         return ApiResponse.success(SettlementParticipantWebResponse.from(
                 renameSettlementParticipantUseCase.rename(

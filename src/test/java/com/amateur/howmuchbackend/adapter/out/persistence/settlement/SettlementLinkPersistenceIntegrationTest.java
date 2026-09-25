@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @DisplayName("공개 정산 링크 조회 영속 흐름")
 class SettlementLinkPersistenceIntegrationTest {
-    private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 24, 12, 0);
+    private static final LocalDateTime NOW = LocalDateTime.now(ZoneOffset.UTC);
 
     @Autowired private SettlementLinkPersistenceAdapter adapter;
     @Autowired private SettlementLinkJpaRepository linkRepository;
