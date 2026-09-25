@@ -40,14 +40,27 @@ public class SettlementDepositMatchingPolicy {
         String nameBeforeDeposit = description.endsWith(" 입금")
                 ? description.substring(0, description.length() - " 입금".length()).replace(" ", "")
                 : "";
-        List<UUID> matches = payableShares.stream()
-                .filter(share -> !transaction.transactedAt().isBefore(share.snapshotCreatedAt()))
-                .filter(share -> share.remainingAmount() >= amount)
-                .filter(share -> matchesName(share.payerName(), description, fullName, nameBeforeDeposit))
-                .map(PayableShare::shareId)
-                .limit(2)
-                .toList();
-        return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
+        UUID onlyMatch = null;
+        int matchCount = 0;
+        UUID onlyExactMatch = null;
+        int exactMatchCount = 0;
+        for (PayableShare share : payableShares) {
+            if (transaction.transactedAt().isBefore(share.snapshotCreatedAt())
+                    || share.remainingAmount() < amount
+                    || !matchesName(share.payerName(), description, fullName, nameBeforeDeposit)) {
+                continue;
+            }
+            matchCount++;
+            onlyMatch = share.shareId();
+            if (share.remainingAmount() == amount) {
+                exactMatchCount++;
+                onlyExactMatch = share.shareId();
+            }
+        }
+        if (exactMatchCount > 0) {
+            return exactMatchCount == 1 ? Optional.of(onlyExactMatch) : Optional.empty();
+        }
+        return matchCount == 1 ? Optional.of(onlyMatch) : Optional.empty();
     }
 
     private boolean matchesName(

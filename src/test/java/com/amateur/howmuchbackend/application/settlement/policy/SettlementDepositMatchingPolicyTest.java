@@ -40,6 +40,51 @@ class SettlementDepositMatchingPolicyTest {
     }
 
     @Test
+    @DisplayName("정확한 금액 후보가 하나이면 더 큰 부분 입금 후보보다 우선한다")
+    void depositMatching_uniqueExactAmount_preferredOverPartialCandidate() {
+        UUID largerShareId = UUID.randomUUID();
+        var createdAt = LocalDateTime.of(2026, 8, 24, 0, 0);
+
+        assertThat(policy.match(transaction("민선영 입금", "1750"), List.of(
+                payable(largerShareId, "민선영", 7_300, createdAt),
+                payable(SHARE_ID, "민선영", 1_750, createdAt)
+        ))).contains(SHARE_ID);
+    }
+
+    @Test
+    @DisplayName("정확한 금액 후보가 여러 개이면 자동 연결하지 않는다")
+    void depositMatching_multipleExactAmounts_rejected() {
+        var createdAt = LocalDateTime.of(2026, 8, 24, 0, 0);
+
+        assertThat(policy.match(transaction("민선영 입금", "1750"), List.of(
+                payable(SHARE_ID, "민선영", 1_750, createdAt),
+                payable(UUID.randomUUID(), "민선영", 1_750, createdAt),
+                payable(UUID.randomUUID(), "민선영", 7_300, createdAt)
+        ))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("정확한 금액 후보가 없으면 유일한 부분 입금 후보를 연결한다")
+    void depositMatching_noExactAmount_uniquePartialCandidateMatched() {
+        var createdAt = LocalDateTime.of(2026, 8, 24, 0, 0);
+
+        assertThat(policy.match(transaction("민선영 입금", "1750"), List.of(
+                payable(SHARE_ID, "민선영", 7_300, createdAt)
+        ))).contains(SHARE_ID);
+    }
+
+    @Test
+    @DisplayName("정확한 금액 후보가 없고 부분 입금 후보가 여러 개이면 자동 연결하지 않는다")
+    void depositMatching_noExactAmount_multiplePartialCandidatesRejected() {
+        var createdAt = LocalDateTime.of(2026, 8, 24, 0, 0);
+
+        assertThat(policy.match(transaction("민선영 입금", "1750"), List.of(
+                payable(SHARE_ID, "민선영", 7_300, createdAt),
+                payable(UUID.randomUUID(), "민선영", 8_000, createdAt)
+        ))).isEmpty();
+    }
+
+    @Test
     @DisplayName("전체 이름과 부분 이름 후보가 함께 있으면 전체 이름만 연결한다")
     void depositMatching_fullName_beatsSubstringMatch() {
         var shares = List.of(
@@ -179,10 +224,19 @@ class SettlementDepositMatchingPolicyTest {
             String payerName,
             LocalDateTime snapshotCreatedAt
     ) {
+        return payable(shareId, payerName, 6_000, snapshotCreatedAt);
+    }
+
+    private SettlementDepositMatchingPolicy.PayableShare payable(
+            UUID shareId,
+            String payerName,
+            long remainingAmount,
+            LocalDateTime snapshotCreatedAt
+    ) {
         return new SettlementDepositMatchingPolicy.PayableShare(
                 shareId,
                 payerName,
-                6_000,
+                remainingAmount,
                 snapshotCreatedAt
         );
     }
