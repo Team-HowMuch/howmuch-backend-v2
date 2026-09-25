@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -22,6 +23,7 @@ class SettlementItemAllocationStateLoader {
     private final LoadSettlementPort loadSettlementPort;
     private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final LoadSettlementItemPort loadSettlementItemPort;
+    private final LoadSettlementExpensePort loadSettlementExpensePort;
 
     State load(
             UUID settlementId,
@@ -55,7 +57,10 @@ class SettlementItemAllocationStateLoader {
         if (items.isEmpty()) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ITEM_REQUIRED);
         }
-        return new State(settlement, participant, items);
+        long receiptDiscount = loadSettlementExpensePort.findAllBySettlementId(settlement.id())
+                .stream().mapToLong(expense -> expense.discount())
+                .reduce(0L, Math::addExact);
+        return new State(settlement, participant, items, receiptDiscount);
     }
 
     /** 생성자는 알림 발송 전 DRAFT에서도 자기 몫을 봐야 한다. 링크는 요청 이후만 본다. */
@@ -75,7 +80,8 @@ class SettlementItemAllocationStateLoader {
     record State(
             Settlement settlement,
             SettlementParticipant participant,
-            List<SettlementItem> items
+            List<SettlementItem> items,
+            long receiptDiscount
     ) {
         State {
             items = List.copyOf(items);

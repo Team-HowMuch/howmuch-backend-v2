@@ -9,14 +9,26 @@ public interface ExtractReceiptItemsPort {
     record ReceiptExtraction(
             String description,
             long totalAmount,
-            List<ReceiptItem> items
+            List<ReceiptItem> items,
+            long discount
     ) {
+        public ReceiptExtraction(String description, long totalAmount, List<ReceiptItem> items) {
+            this(description, totalAmount, items, 0);
+        }
     }
 
     record ReceiptItem(
             String name,
             int quantity,
-            long amount
+            long amount,
+            long discount,
+            List<ReceiptOption> options
     ) {
+        public ReceiptItem(String name, int quantity, long amount) {
+            this(name, quantity, amount, 0, List.of());
+        }
+    }
+
+    record ReceiptOption(String name, long price) {
     }
 }

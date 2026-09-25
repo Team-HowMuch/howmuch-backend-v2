@@ -1,7 +1,10 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementItemJpaEntity;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemOption;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
+
+import java.util.List;
 
 public final class SettlementItemMapper {
     private SettlementItemMapper() {
@@ -12,6 +15,12 @@ public final class SettlementItemMapper {
     }
 
     public static SettlementItem toDomain(SettlementItemJpaEntity entity) {
+        return toDomain(entity, List.of());
+    }
+
+    public static SettlementItem toDomain(
+            SettlementItemJpaEntity entity, List<SettlementItemOption> options
+    ) {
         return new SettlementItem(
                 entity.getId(),
                 entity.getSettlementId(),
@@ -21,7 +30,9 @@ public final class SettlementItemMapper {
                 entity.getAmount(),
                 entity.getDisplayOrder(),
                 entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getUpdatedAt(),
+                entity.getDiscount(),
+                options
         );
     }
 }

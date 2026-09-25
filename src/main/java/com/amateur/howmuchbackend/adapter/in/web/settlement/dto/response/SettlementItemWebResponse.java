@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementItemResult;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record SettlementItemWebResponse(
@@ -13,7 +14,9 @@ public record SettlementItemWebResponse(
         long amount,
         int displayOrder,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        long discount,
+        List<SettlementItemOptionWebResponse> options
 ) {
     public static SettlementItemWebResponse from(SettlementItemResult result) {
         return new SettlementItemWebResponse(
@@ -24,7 +27,9 @@ public record SettlementItemWebResponse(
                 result.amount(),
                 result.displayOrder(),
                 result.createdAt(),
-                result.updatedAt()
+                result.updatedAt(),
+                result.discount(),
+                result.options().stream().map(SettlementItemOptionWebResponse::from).toList()
         );
     }
 }

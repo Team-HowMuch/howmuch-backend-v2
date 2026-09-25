@@ -9,7 +9,9 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.springframework.stereotype.Component;
 
+import java.math.BigInteger;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -80,7 +82,7 @@ public class SettlementItemAllocationPolicy {
                 .forEach(selection -> amountBySelection.put(
                         selection.id(),
                         Math.multiplyExact(
-                                item.amount(),
+                                item.netAmount(),
                                 (long) selection.allocatedUnits()
                         ) / totalUnits
                 ));
@@ -88,6 +90,24 @@ public class SettlementItemAllocationPolicy {
     }
 
     public long calculatePersonalAmount(
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            UUID participantId
+    ) {
+        return calculatePersonalAmount(items, selections, participantId, 0);
+    }
+
+    public long calculatePersonalAmount(
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            UUID participantId,
+            long receiptDiscount
+    ) {
+        return Math.subtractExact(calculateBaseAmount(items, selections, participantId),
+                calculateDiscountShare(items, selections, participantId, receiptDiscount));
+    }
+
+    private long calculateBaseAmount(
             List<SettlementItem> items,
             List<SettlementItemSelection> selections,
             UUID participantId
@@ -128,6 +148,88 @@ public class SettlementItemAllocationPolicy {
         return total;
     }
 
+    public long calculateDiscountShare(
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            UUID participantId,
+            long receiptDiscount
+    ) {
+        if (receiptDiscount == 0) {
+            return 0;
+        }
+        Map<UUID, Long> baseAmounts = new HashMap<>();
+        for (SettlementItemSelection selection : selections) {
+            baseAmounts.putIfAbsent(selection.participantId(), 0L);
+        }
+        for (UUID id : new ArrayList<>(baseAmounts.keySet())) {
+            baseAmounts.put(id, calculateBaseAmount(items, selections, id));
+        }
+        long itemTotal = items.stream().mapToLong(SettlementItem::netAmount)
+                .reduce(0L, Math::addExact);
+        if (receiptDiscount < 0 || receiptDiscount > itemTotal) {
+            throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL);
+        }
+        long allocatedTotal = baseAmounts.values().stream().mapToLong(Long::longValue)
+                .reduce(0L, Math::addExact);
+        if (fullyAllocated(items, selections) && receiptDiscount <= allocatedTotal) {
+            return distributeDiscount(baseAmounts, receiptDiscount)
+                    .getOrDefault(participantId, 0L);
+        }
+        long base = baseAmounts.getOrDefault(participantId, 0L);
+        return BigInteger.valueOf(receiptDiscount).multiply(BigInteger.valueOf(base))
+                .divide(BigInteger.valueOf(itemTotal)).longValueExact();
+    }
+
+    private boolean fullyAllocated(
+            List<SettlementItem> items, List<SettlementItemSelection> selections
+    ) {
+        return items.stream().allMatch(item -> selections.stream()
+                .filter(selection -> selection.itemId().equals(item.id()))
+                .mapToInt(SettlementItemSelection::allocatedUnits)
+                .sum() == item.totalAllocationUnits());
+    }
+
+    /** 전체 품목 몫이 확정된 뒤 최대 잔여법으로 할인액을 원 단위까지 나눈다. */
+    public Map<UUID, Long> distributeDiscount(
+            Map<UUID, Long> baseAmounts, long receiptDiscount
+    ) {
+        long total = baseAmounts.values().stream().mapToLong(Long::longValue)
+                .reduce(0L, Math::addExact);
+        if (receiptDiscount < 0 || receiptDiscount > total) {
+            throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL);
+        }
+        if (receiptDiscount == 0 || total == 0) {
+            return Map.of();
+        }
+        BigInteger divisor = BigInteger.valueOf(total);
+        Map<UUID, Long> shares = new HashMap<>();
+        Map<UUID, BigInteger> remainders = new HashMap<>();
+        long assigned = 0;
+        for (var entry : baseAmounts.entrySet()) {
+            if (entry.getValue() < 0) {
+                throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL);
+            }
+            BigInteger[] division = BigInteger.valueOf(receiptDiscount)
+                    .multiply(BigInteger.valueOf(entry.getValue()))
+                    .divideAndRemainder(divisor);
+            long share = division[0].longValueExact();
+            shares.put(entry.getKey(), share);
+            remainders.put(entry.getKey(), division[1]);
+            assigned = Math.addExact(assigned, share);
+        }
+        List<UUID> remainderOrder = remainders.keySet().stream()
+                .filter(id -> baseAmounts.get(id) > 0)
+                .sorted(Comparator.<UUID, BigInteger>comparing(remainders::get)
+                        .reversed().thenComparing(UUID::compareTo))
+                .toList();
+        long remaining = receiptDiscount - assigned;
+        for (int index = 0; index < remaining; index++) {
+            UUID id = remainderOrder.get(index);
+            shares.put(id, shares.get(id) + 1);
+        }
+        return Map.copyOf(shares);
+    }
+
     /**
      * 참여자 한 명의 Share를 만든다. 금액이 자기 선택만으로 정해지므로
      * 다른 참여자를 기다리지 않고 제출 시점에 확정할 수 있다.
@@ -156,12 +258,26 @@ public class SettlementItemAllocationPolicy {
             List<SettlementItemSelection> selections,
             LocalDateTime now
     ) {
+        return finalizeAllocation(settlementId, settlementTotalAmount, participants,
+                items, selections, now, 0);
+    }
+
+    public Finalization finalizeAllocation(
+            UUID settlementId,
+            long settlementTotalAmount,
+            List<SettlementParticipant> participants,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            LocalDateTime now,
+            long receiptDiscount
+    ) {
         AllocationEvaluation evaluation = evaluateAllocation(
                 settlementId,
                 settlementTotalAmount,
                 participants,
                 items,
-                selections
+                selections,
+                receiptDiscount
         );
         if (!evaluation.valid()) {
             return Finalization.invalid(evaluation.invalidItemIds());
@@ -187,12 +303,25 @@ public class SettlementItemAllocationPolicy {
             List<SettlementItem> items,
             List<SettlementItemSelection> selections
     ) {
+        return findInvalidItemIds(settlementId, settlementTotalAmount,
+                participants, items, selections, 0);
+    }
+
+    public List<UUID> findInvalidItemIds(
+            UUID settlementId,
+            long settlementTotalAmount,
+            List<SettlementParticipant> participants,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            long receiptDiscount
+    ) {
         return evaluateAllocation(
                 settlementId,
                 settlementTotalAmount,
                 participants,
                 items,
-                selections
+                selections,
+                receiptDiscount
         ).invalidItemIds();
     }
 
@@ -201,7 +330,8 @@ public class SettlementItemAllocationPolicy {
             long settlementTotalAmount,
             List<SettlementParticipant> participants,
             List<SettlementItem> items,
-            List<SettlementItemSelection> selections
+            List<SettlementItemSelection> selections,
+            long receiptDiscount
     ) {
         Map<UUID, SettlementItem> itemById = new HashMap<>();
         items.forEach(item -> itemById.put(item.id(), item));
@@ -273,7 +403,18 @@ public class SettlementItemAllocationPolicy {
         }
         // 내림 때문에 합이 총액보다 적을 수 있다. 그 차액은 생성자가 부담한다.
         // 다만 선택 하나당 최대 1원까지만 줄어들 수 있어, 그보다 크게 어긋나면 배분이 잘못된 것이다.
-        long shortfall = Math.subtractExact(settlementTotalAmount, shareTotal);
+        if (receiptDiscount < 0 || receiptDiscount > shareTotal) {
+            return AllocationEvaluation.invalid(items.stream().map(SettlementItem::id).toList());
+        }
+        Map<UUID, Long> discountShares = distributeDiscount(
+                amountByParticipant, receiptDiscount
+        );
+        discountShares.forEach((participantId, share) -> amountByParticipant.computeIfPresent(
+                participantId, (id, amount) -> Math.subtractExact(amount, share)
+        ));
+        long shortfall = Math.subtractExact(
+                settlementTotalAmount, Math.subtractExact(shareTotal, receiptDiscount)
+        );
         if (shortfall < 0L || shortfall > selections.size() || !hasPositiveShare) {
             return AllocationEvaluation.invalid(
                     items.stream().map(SettlementItem::id).toList()

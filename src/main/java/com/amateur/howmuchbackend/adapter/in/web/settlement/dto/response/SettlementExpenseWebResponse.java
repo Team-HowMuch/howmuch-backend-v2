@@ -13,7 +13,8 @@ public record SettlementExpenseWebResponse(
         long amount,
         int displayOrder,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        long discount
 ) {
     public static SettlementExpenseWebResponse from(SettlementExpenseResult result) {
         return new SettlementExpenseWebResponse(
@@ -23,7 +24,8 @@ public record SettlementExpenseWebResponse(
                 result.amount(),
                 result.displayOrder(),
                 result.createdAt(),
-                result.updatedAt()
+                result.updatedAt(),
+                result.discount()
         );
     }
 }

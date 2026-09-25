@@ -14,8 +14,18 @@ public record SettlementExpenseResult(
         long amount,
         int displayOrder,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        long discount
 ) {
+    public SettlementExpenseResult(
+            UUID expenseId, UUID settlementId, SettlementExpenseSource source,
+            String description, long amount, int displayOrder,
+            LocalDateTime createdAt, LocalDateTime updatedAt
+    ) {
+        this(expenseId, settlementId, source, description, amount, displayOrder,
+                createdAt, updatedAt, 0);
+    }
+
     public static SettlementExpenseResult from(SettlementExpense expense) {
         return new SettlementExpenseResult(
                 expense.id(),
@@ -25,7 +35,8 @@ public record SettlementExpenseResult(
                 expense.amount(),
                 expense.displayOrder(),
                 expense.createdAt(),
-                expense.updatedAt()
+                expense.updatedAt(),
+                expense.discount()
         );
     }
 }

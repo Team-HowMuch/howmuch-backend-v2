@@ -15,7 +15,9 @@ public record SettlementItemAllocationWebResponse(
         int submittedParticipantCount,
         int totalParticipantCount,
         List<SettlementItemAllocationItemWebResponse> items,
-        List<UUID> invalidItemIds
+        List<UUID> invalidItemIds,
+        long discount,
+        long discountShare
 ) {
     public static SettlementItemAllocationWebResponse from(
             SettlementItemAllocationResult result
@@ -31,7 +33,9 @@ public record SettlementItemAllocationWebResponse(
                 result.items().stream()
                         .map(SettlementItemAllocationItemWebResponse::from)
                         .toList(),
-                result.invalidItemIds()
+                result.invalidItemIds(),
+                result.discount(),
+                result.discountShare()
         );
     }
 }

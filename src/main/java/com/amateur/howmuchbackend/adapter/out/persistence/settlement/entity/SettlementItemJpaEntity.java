@@ -36,6 +36,9 @@ public class SettlementItemJpaEntity extends BaseTimeJpaEntity {
     @Column(nullable = false, updatable = false)
     private long amount;
 
+    @Column(nullable = false, updatable = false)
+    private long discount;
+
     @Column(name = "display_order", nullable = false, updatable = false)
     private int displayOrder;
 
@@ -46,6 +49,7 @@ public class SettlementItemJpaEntity extends BaseTimeJpaEntity {
         this.name = item.name();
         this.quantity = item.quantity();
         this.amount = item.amount();
+        this.discount = item.discount();
         this.displayOrder = item.displayOrder();
     }
 }

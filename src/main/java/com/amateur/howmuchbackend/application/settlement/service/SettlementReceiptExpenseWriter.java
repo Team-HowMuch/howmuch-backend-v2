@@ -70,7 +70,8 @@ public class SettlementReceiptExpenseWriter {
                 validated.totalAmount(),
                 paidAt,
                 loadSettlementExpensePort.nextDisplayOrder(settlement.id()),
-                now
+                now,
+                validated.discount()
         );
         long totalExpenseAmount = addToTotal(
                 loadSettlementExpensePort.totalAmount(settlement.id()),
@@ -99,6 +100,7 @@ public class SettlementReceiptExpenseWriter {
                 || extraction.description().strip().isBlank()
                 || extraction.description().strip().length() > 500
                 || extraction.totalAmount() <= 0
+                || extraction.discount() < 0
                 || extraction.items() == null
                 || extraction.items().isEmpty()) {
             throw invalidExtraction();
@@ -112,14 +114,32 @@ public class SettlementReceiptExpenseWriter {
                         || item.name().strip().isBlank()
                         || item.name().strip().length() > 500
                         || item.quantity() <= 0
-                        || item.amount() <= 0) {
+                        || item.amount() < 0
+                        || item.discount() < 0
+                        || item.discount() > item.amount()
+                        || item.options() == null) {
                     throw invalidExtraction();
                 }
-                itemTotal = Math.addExact(itemTotal, item.amount());
+                List<ExtractReceiptItemsPort.ReceiptOption> options = new ArrayList<>();
+                for (ExtractReceiptItemsPort.ReceiptOption option : item.options()) {
+                    if (option == null || option.name() == null
+                            || option.name().isBlank()
+                            || option.name().strip().length() > 500
+                            || option.price() < 0) {
+                        throw invalidExtraction();
+                    }
+                    options.add(new ExtractReceiptItemsPort.ReceiptOption(
+                            option.name().strip(), option.price()
+                    ));
+                }
+                itemTotal = Math.addExact(itemTotal,
+                        Math.subtractExact(item.amount(), item.discount()));
                 items.add(new ExtractReceiptItemsPort.ReceiptItem(
                         item.name().strip(),
                         item.quantity(),
-                        item.amount()
+                        item.amount(),
+                        item.discount(),
+                        List.copyOf(options)
                 ));
             }
         } catch (ArithmeticException exception) {
@@ -128,13 +148,15 @@ public class SettlementReceiptExpenseWriter {
                     exception
             );
         }
-        if (itemTotal != extraction.totalAmount()) {
+        if (Math.subtractExact(itemTotal, extraction.discount())
+                != extraction.totalAmount()) {
             throw invalidExtraction();
         }
         return new ValidatedExtraction(
                 extraction.description().strip(),
                 extraction.totalAmount(),
-                List.copyOf(items)
+                List.copyOf(items),
+                extraction.discount()
         );
     }
 
@@ -154,7 +176,13 @@ public class SettlementReceiptExpenseWriter {
                     item.quantity(),
                     item.amount(),
                     index,
-                    now
+                    now,
+                    item.discount(),
+                    item.options().stream()
+                            .map(option -> new SettlementItem.OptionInput(
+                                    option.name(), option.price()
+                            ))
+                            .toList()
             ));
         }
         return List.copyOf(items);
@@ -203,7 +231,8 @@ public class SettlementReceiptExpenseWriter {
     private record ValidatedExtraction(
             String description,
             long totalAmount,
-            List<ExtractReceiptItemsPort.ReceiptItem> items
+            List<ExtractReceiptItemsPort.ReceiptItem> items,
+            long discount
     ) {
     }
 }

@@ -21,6 +21,8 @@ import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
@@ -86,6 +88,13 @@ public class SettlementDetailService implements GetSettlementUseCase {
         Set<UUID> submittedParticipantIds = itemAllocationStorePort.findAllSubmissions(settlementId).stream()
                 .map(submission -> submission.participantId())
                 .collect(Collectors.toSet());
+        List<SettlementExpense> expenses = loadSettlementExpensePort.findAllBySettlementId(settlementId);
+        long receiptDiscount = expenses.stream().mapToLong(SettlementExpense::discount)
+                .reduce(0L, Math::addExact);
+        List<SettlementItem> items = loadSettlementItemPort.findAllBySettlementId(settlementId);
+        List<SettlementItemSelection> selections =
+                settlement.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
+                        ? itemAllocationStorePort.findAllSelections(settlementId) : List.of();
         Map<UUID, SettlementShare> shareByParticipantId = loadSettlementSharePort
                 .findAllBySettlementId(settlementId)
                 .stream()
@@ -127,7 +136,11 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         participant.linkedUserId() == null
                                 ? null
                                 : avatarVersionsByUserId.get(participant.linkedUserId()),
-                        submittedParticipantIds.contains(participant.id())
+                        submittedParticipantIds.contains(participant.id()),
+                        receiptDiscount == 0 ? 0 : itemAllocationPolicy.calculateDiscountShare(
+                                items, selections, participant.id(), receiptDiscount
+                        ),
+                        receiptDiscount > 0 && submittedParticipantIds.size() < participants.size()
                 ))
                 .toList();
         UUID viewerParticipantId = viewerRole == SettlementDetailResult.ViewerRole.PARTICIPANT
@@ -181,13 +194,15 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 institutionIconUrl,
                 paymentInfo(
                         settlement,
-                        loadSettlementExpensePort.findAllBySettlementId(settlementId)
+                        expenses
                 ),
-                summary(settlement, creatorParticipant, allPayments),
+                summary(settlement, creatorParticipant, allPayments, receiptDiscount),
                 reminderNextAvailableAt(
                         settlement, viewerRole, allPayments, submittedParticipantIds
                 ),
-                visiblePayments
+                visiblePayments,
+                items.stream().map(com.amateur.howmuchbackend.application.port.in.settlement.result
+                        .SettlementItemResult::from).toList()
         );
     }
 
@@ -234,7 +249,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
         return new SettlementDetailResult.PaymentInfo(
                 settlement.totalAmount(),
                 payment.storeName(),
-                payment.paidAt()
+                payment.paidAt(),
+                expenses.stream().mapToLong(SettlementExpense::discount)
+                        .reduce(0L, Math::addExact)
         );
     }
 
@@ -257,19 +274,22 @@ public class SettlementDetailService implements GetSettlementUseCase {
             SettlementShare share,
             Map<UUID, Long> confirmedByShareId,
             String avatarVersion,
-            boolean submitted
+            boolean submitted,
+            long discountShare,
+            boolean discountPending
     ) {
         if (share == null) {
             return new SettlementDetailResult.ParticipantPayment(
                     participant.id(),
                     participant.displayName(),
                     participant.linkedUserId() != null,
-                    submitted ? 0L : null,
+                    submitted && !discountPending ? 0L : null,
                     0,
-                    submitted
+                    submitted && !discountPending
                             ? SettlementDetailResult.PaymentStatus.PAID
                             : SettlementDetailResult.PaymentStatus.NOT_READY,
-                    avatarVersion
+                    avatarVersion,
+                    discountShare
             );
         }
         long confirmedAmount = confirmedByShareId.getOrDefault(share.id(), 0L);
@@ -285,14 +305,16 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 share.amount(),
                 confirmedAmount,
                 status,
-                avatarVersion
+                avatarVersion,
+                discountShare
         );
     }
 
     private SettlementDetailResult.PaymentSummary summary(
             Settlement settlement,
             SettlementParticipant creatorParticipant,
-            List<SettlementDetailResult.ParticipantPayment> payments
+            List<SettlementDetailResult.ParticipantPayment> payments,
+            long receiptDiscount
     ) {
         long shareExpectedAmount = payments.stream()
                 .filter(payment -> payment.expectedAmount() != null)
@@ -301,7 +323,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
         long expectedAmount = settlement.allocationType()
                 == SettlementAllocationType.ITEM_ALLOCATION
                 && settlement.status() == SettlementStatus.REQUESTED
-                ? requestedItemExpectedAmount(settlement, creatorParticipant)
+                ? requestedItemExpectedAmount(settlement, creatorParticipant, receiptDiscount)
                 : shareExpectedAmount;
         long confirmedAmount = payments.stream()
                 .filter(payment -> payment.expectedAmount() != null)
@@ -336,7 +358,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
 
     private long requestedItemExpectedAmount(
             Settlement settlement,
-            SettlementParticipant creatorParticipant
+            SettlementParticipant creatorParticipant,
+            long receiptDiscount
     ) {
         if (creatorParticipant == null) {
             return settlement.totalAmount();
@@ -344,7 +367,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
         long creatorAmount = itemAllocationPolicy.calculatePersonalAmount(
                 loadSettlementItemPort.findAllBySettlementId(settlement.id()),
                 itemAllocationStorePort.findAllSelections(settlement.id()),
-                creatorParticipant.id()
+                creatorParticipant.id(),
+                receiptDiscount
         );
         return Math.subtractExact(settlement.totalAmount(), creatorAmount);
     }

@@ -12,7 +12,9 @@ public record SettlementItemAllocationItemWebResponse(
         long amount,
         int allocatedUnits,
         int totalUnits,
-        List<SettlementItemSelectionWebResponse> selections
+        List<SettlementItemSelectionWebResponse> selections,
+        long discount,
+        List<SettlementItemOptionWebResponse> options
 ) {
     public static SettlementItemAllocationItemWebResponse from(
             SettlementItemAllocationItemResult result
@@ -26,7 +28,9 @@ public record SettlementItemAllocationItemWebResponse(
                 result.totalUnits(),
                 result.selections().stream()
                         .map(SettlementItemSelectionWebResponse::from)
-                        .toList()
+                        .toList(),
+                result.discount(),
+                result.options().stream().map(SettlementItemOptionWebResponse::from).toList()
         );
     }
 }
