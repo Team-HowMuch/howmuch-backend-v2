@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,7 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @DisplayName("정산 요청 V16 영속 흐름")
 class SettlementRequestPersistenceIntegrationTest {
-    private static final LocalDateTime NOW = LocalDateTime.now(ZoneOffset.UTC);
+    private static final LocalDateTime NOW = LocalDateTime.now(ZoneOffset.UTC)
+            .truncatedTo(ChronoUnit.MICROS);
     private static final String ACCOUNT_NUMBER = "1002123456789";
     private static final String RAW_LINK_TOKEN = "r".repeat(43);
 
