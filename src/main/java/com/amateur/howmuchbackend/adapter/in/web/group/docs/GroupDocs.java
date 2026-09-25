@@ -43,7 +43,7 @@ public interface GroupDocs {
                     description = "UNAUTHORIZED - 인증 필요"
             )
     })
-    ApiResponse<GroupDetailWebResponse> createGroup(CreateGroupWebRequest request);
+    ApiResponse<GroupDetailWebResponse> createGroup(@Valid CreateGroupWebRequest request);
 
     @Operation(
             summary = "내 그룹 목록 조회",
@@ -172,7 +172,7 @@ public interface GroupDocs {
                     description = "GROUP_MEMBER_ALREADY_ACTIVE 또는 GROUP_MEMBER_REMOVED"
             )
     })
-    ApiResponse<GroupDetailWebResponse> joinGroup(JoinGroupWebRequest request);
+    ApiResponse<GroupDetailWebResponse> joinGroup(@Valid JoinGroupWebRequest request);
 
     @Operation(
             summary = "그룹 멤버 목록 조회",

@@ -21,6 +21,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
 import org.springdoc.core.annotations.ParameterObject;
@@ -51,7 +52,7 @@ public interface SettlementDocs {
                     description = "UNAUTHORIZED - 인증 필요"
             )
     })
-    ApiResponse<SettlementWebResponse> createSettlement(CreateSettlementWebRequest request);
+    ApiResponse<SettlementWebResponse> createSettlement(@Valid CreateSettlementWebRequest request);
 
     @Operation(
             summary = "정산 상세 조회",
@@ -110,7 +111,7 @@ public interface SettlementDocs {
             )
     })
     ApiResponse<List<SettlementListItemWebResponse>> getSettlements(
-            @ParameterObject SettlementListWebRequest request
+            @Valid @ParameterObject SettlementListWebRequest request
     );
 
     @Operation(
@@ -151,7 +152,7 @@ public interface SettlementDocs {
     })
     ApiResponse<SettlementWebResponse> updateSettlement(
             UUID settlementId,
-            UpdateSettlementDraftWebRequest request
+            @Valid UpdateSettlementDraftWebRequest request
     );
 
     @Operation(
@@ -288,7 +289,7 @@ public interface SettlementDocs {
     })
     ApiResponse<SettlementParticipantWebResponse> addSettlementParticipant(
             UUID settlementId,
-            AddSettlementParticipantWebRequest request
+            @Valid AddSettlementParticipantWebRequest request
     );
 
     @Operation(
@@ -358,7 +359,7 @@ public interface SettlementDocs {
     })
     ApiResponse<List<SettlementParticipantCandidateWebResponse>> searchSettlementParticipantCandidates(
             UUID settlementId,
-            @ParameterObject SearchSettlementParticipantWebRequest request
+            @Valid @ParameterObject SearchSettlementParticipantWebRequest request
     );
 
     @Operation(
@@ -447,7 +448,7 @@ public interface SettlementDocs {
     })
     ApiResponse<List<SettlementContactCandidateWebResponse>> matchSettlementContacts(
             UUID settlementId,
-            MatchSettlementContactsWebRequest request
+            @Valid MatchSettlementContactsWebRequest request
     );
 
     @Operation(
@@ -594,6 +595,6 @@ public interface SettlementDocs {
     ApiResponse<SettlementParticipantWebResponse> renameSettlementParticipant(
             UUID settlementId,
             UUID participantId,
-            RenameSettlementParticipantWebRequest request
+            @Valid RenameSettlementParticipantWebRequest request
     );
 }

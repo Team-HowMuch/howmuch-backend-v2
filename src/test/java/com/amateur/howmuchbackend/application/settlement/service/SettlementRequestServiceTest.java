@@ -45,6 +45,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -65,7 +66,7 @@ class SettlementRequestServiceTest {
     private static final UUID CREATOR_PARTICIPANT_ID = UUID.fromString("bb97ee76-3a82-4ccc-b324-4a9974c8e1af");
     private static final UUID PAYER_PARTICIPANT_ID = UUID.fromString("e4049b4f-1c0a-4c63-b88e-3bdaee853679");
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 24, 10, 0);
-    private static final LocalDateTime EXPIRES_AT = LocalDateTime.of(2026, 9, 23, 10, 0);
+    private static final LocalDateTime EXPIRES_AT = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
     private static final String RAW_LINK_TOKEN = "r".repeat(43);
 
     @Mock private CurrentActorPort currentActorPort;

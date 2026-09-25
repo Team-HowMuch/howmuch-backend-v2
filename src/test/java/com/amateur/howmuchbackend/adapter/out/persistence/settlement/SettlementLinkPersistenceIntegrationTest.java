@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,7 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @DisplayName("공개 정산 링크 조회 영속 흐름")
 class SettlementLinkPersistenceIntegrationTest {
-    private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 24, 12, 0);
+    private static final LocalDateTime NOW = LocalDateTime.now(ZoneOffset.UTC)
+            .truncatedTo(ChronoUnit.MICROS);
 
     @Autowired private SettlementLinkPersistenceAdapter adapter;
     @Autowired private SettlementLinkJpaRepository linkRepository;
@@ -60,7 +62,7 @@ class SettlementLinkPersistenceIntegrationTest {
         assertThat(loaded.orElseThrow().expiresAt()).isEqualTo(NOW.plusDays(30));
         assertThat(adapter.findByTokenHash("b".repeat(64))).isEmpty();
 
-        LocalDateTime reissuedAt = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime reissuedAt = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
         adapter.replace(
                 loaded.orElseThrow().reissue(
                         "b".repeat(64),
