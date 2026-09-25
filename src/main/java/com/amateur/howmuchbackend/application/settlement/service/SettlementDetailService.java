@@ -109,6 +109,9 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         LoadSettlementDepositSummaryPort.ConfirmedShareAmount::shareId,
                         LoadSettlementDepositSummaryPort.ConfirmedShareAmount::amount
                 ));
+        boolean discountPending = receiptDiscount > 0
+                && settlement.status() != SettlementStatus.AWAITING_DEPOSIT
+                && settlement.status() != SettlementStatus.COMPLETED;
 
         Set<Long> visibleUserIds = participants.stream()
                 .filter(participant -> !participant.isLinkedTo(settlement.creatorId()))
@@ -140,7 +143,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         receiptDiscount == 0 ? 0 : itemAllocationPolicy.calculateDiscountShare(
                                 items, selections, participant.id(), receiptDiscount
                         ),
-                        receiptDiscount > 0 && submittedParticipantIds.size() < participants.size()
+                        discountPending
                 ))
                 .toList();
         UUID viewerParticipantId = viewerRole == SettlementDetailResult.ViewerRole.PARTICIPANT

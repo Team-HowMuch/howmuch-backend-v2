@@ -491,6 +491,50 @@ class SettlementDetailServiceTest {
     }
 
     @Test
+    @DisplayName("할인 배분에 실패해 중단된 정산은 전원 제출해도 납부 완료로 표시하지 않는다")
+    void discountedItemAllocation_suspendedAfterAllSubmissions_remainsNotReady() {
+        givenDiscountedItemSettlement(
+                SettlementStatus.SUSPENDED,
+                List.of(SettlementItemSelection.create(
+                        SETTLEMENT_ID, PAYER_ITEM_ID, PAYER_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.HALF, 1, NOW
+                )),
+                List.of()
+        );
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.participants()).allSatisfy(payment -> {
+            assertThat(payment.expectedAmount()).isNull();
+            assertThat(payment.paymentStatus())
+                    .isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
+        });
+        assertThat(result.paymentSummary().completedParticipantCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("할인 배분이 확정된 정산의 0원 참여자는 납부 완료로 표시한다")
+    void discountedItemAllocation_finalizedZeroShare_returnsPaid() {
+        givenDiscountedItemSettlement(
+                SettlementStatus.AWAITING_DEPOSIT,
+                List.of(SettlementItemSelection.create(
+                        SETTLEMENT_ID, PAYER_ITEM_ID, PAYER_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.ONE, 1, NOW
+                )),
+                List.of(new SettlementShare(
+                        PAYER_SHARE_ID, SETTLEMENT_ID, PAYER_PARTICIPANT_ID, 1_400, NOW
+                ))
+        );
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.participants().get(1).expectedAmount()).isZero();
+        assertThat(result.participants().get(1).paymentStatus())
+                .isEqualTo(SettlementDetailResult.PaymentStatus.PAID);
+        assertThat(result.paymentSummary().completedParticipantCount()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("품목 선택이 끝나면 기존처럼 납부 대상 Share 합계를 기준으로 계산한다")
     void settlementItemAllocation_completed_usesPayableShareTotal() {
         givenSettlement(CREATOR_ID);
@@ -655,6 +699,39 @@ class SettlementDetailServiceTest {
                 .thenReturn(confirmedAmounts);
         when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
         when(itemAllocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of());
+        givenReceivingAccount();
+    }
+
+    private void givenDiscountedItemSettlement(
+            SettlementStatus status,
+            List<SettlementItemSelection> selections,
+            List<SettlementShare> shares
+    ) {
+        SettlementExpense expense = SettlementExpense.receiptOcr(
+                SETTLEMENT_ID, "receipt-1", "상호", 1_400, null, 0, NOW, 100
+        );
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID))
+                .thenReturn(Optional.of(itemSettlement(status)));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(participants());
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(expense));
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(new SettlementItem(
+                        PAYER_ITEM_ID, SETTLEMENT_ID, expense.id(), "품목", 1,
+                        1_500, 0, NOW, NOW
+                )));
+        when(itemAllocationStorePort.findAllSelections(SETTLEMENT_ID))
+                .thenReturn(selections);
+        when(itemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
+                .thenReturn(participants().stream().map(participant ->
+                        SettlementItemSubmission.submit(SETTLEMENT_ID, participant.id(), NOW)
+                ).toList());
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(shares);
+        when(loadDepositSummaryPort.findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of());
         givenReceivingAccount();
     }
 
