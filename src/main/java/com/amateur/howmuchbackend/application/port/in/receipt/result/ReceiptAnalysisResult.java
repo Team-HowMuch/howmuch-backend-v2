@@ -16,8 +16,14 @@ public record ReceiptAnalysisResult(
         List<Item> items,
         Long totalAmount,
         String paymentMethod,
-        boolean totalVerified
+        boolean totalVerified,
+        Long discount
 ) {
+    public ReceiptAnalysisResult(String storeName, String purchasedAt, List<Item> items,
+                                 Long totalAmount, String paymentMethod, boolean totalVerified) {
+        this(storeName, purchasedAt, items, totalAmount, paymentMethod, totalVerified, null);
+    }
+
     public ReceiptAnalysisResult {
         items = items == null ? List.of() : List.copyOf(items);
     }
@@ -25,7 +31,19 @@ public record ReceiptAnalysisResult(
     public record Item(
             String name,
             Integer quantity,
-            Long price
+            Long price,
+            Long discount,
+            List<Option> subItems
     ) {
+        public Item(String name, Integer quantity, Long price) {
+            this(name, quantity, price, null, List.of());
+        }
+
+        public Item {
+            subItems = subItems == null ? List.of() : List.copyOf(subItems);
+        }
+    }
+
+    public record Option(String name, Long price) {
     }
 }
