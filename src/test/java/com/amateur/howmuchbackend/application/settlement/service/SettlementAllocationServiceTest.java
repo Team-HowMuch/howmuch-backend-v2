@@ -12,6 +12,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDutchPayAllocationStorePort;
 import com.amateur.howmuchbackend.application.settlement.policy.DutchPayAllocationPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementRequestPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -83,7 +84,8 @@ class SettlementAllocationServiceTest {
                 loadSettlementExpensePort,
                 loadSettlementItemPort,
                 allocationStorePort,
-                new DutchPayAllocationPolicy()
+                new DutchPayAllocationPolicy(),
+                new SettlementRequestPolicy()
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
     }
