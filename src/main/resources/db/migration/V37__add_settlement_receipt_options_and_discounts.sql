@@ -8,9 +8,7 @@ ALTER TABLE settlement_items
 
 ALTER TABLE settlement_expenses
     ADD COLUMN discount BIGINT NOT NULL DEFAULT 0,
-    ADD CONSTRAINT ck_settlement_expenses_discount_range CHECK (
-        discount >= 0 AND discount <= amount
-    );
+    ADD CONSTRAINT ck_settlement_expenses_discount_nonnegative CHECK (discount >= 0);
 
 CREATE TABLE settlement_item_options (
     id UUID NOT NULL,
