@@ -10,9 +10,20 @@ public record SettlementItemAllocationItemResult(
         long amount,
         int allocatedUnits,
         int totalUnits,
-        List<SettlementItemSelectionResult> selections
+        List<SettlementItemSelectionResult> selections,
+        long discount,
+        List<SettlementItemOptionResult> options
 ) {
+    public SettlementItemAllocationItemResult(
+            UUID itemId, String name, int quantity, long amount,
+            int allocatedUnits, int totalUnits, List<SettlementItemSelectionResult> selections
+    ) {
+        this(itemId, name, quantity, amount, allocatedUnits, totalUnits,
+                selections, 0, List.of());
+    }
+
     public SettlementItemAllocationItemResult {
         selections = List.copyOf(selections);
+        options = List.copyOf(options);
     }
 }

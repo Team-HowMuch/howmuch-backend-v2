@@ -94,6 +94,28 @@ class SettlementRequestPolicyTest {
         assertThat(shares).isEmpty();
     }
 
+    @Test
+    @DisplayName("품목·전체 할인 후 금액이 지출 결제액과 같으면 정산 요청을 허용한다")
+    void settlementRequest_discountedReceipt_matchesNetExpense() {
+        Settlement settlement = new Settlement(
+                SETTLEMENT_ID, 1L, "영수증", 9_000,
+                SettlementAllocationType.ITEM_ALLOCATION, 7L,
+                SettlementStatus.DRAFT, NOW, NOW
+        );
+        SettlementExpense expense = SettlementExpense.receiptOcr(
+                SETTLEMENT_ID, "discounted-receipt", "가게", 9_000,
+                null, 0, NOW, 1_000
+        );
+        SettlementItem item = SettlementItem.fromReceipt(
+                SETTLEMENT_ID, expense.id(), "식사", 1, 12_000, 0, NOW,
+                2_000, List.of()
+        );
+
+        assertThat(policy.prepareShares(
+                settlement, participants(), List.of(expense), List.of(item), List.of(), NOW
+        )).isEmpty();
+    }
+
     private void assertStatus(
             List<SettlementDutchPayAllocation> allocations,
             SettlementStatusCode expected

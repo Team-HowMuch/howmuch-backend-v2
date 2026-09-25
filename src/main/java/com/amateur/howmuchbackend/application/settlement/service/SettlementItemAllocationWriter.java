@@ -113,10 +113,13 @@ class SettlementItemAllocationWriter {
         List<SettlementItemSelection> selections = allocationStorePort
                 .findAllSelections(settlementId);
 
-        // 내 금액은 내 선택만으로 정해진다. 남을 기다리지 않고 바로 확정해 송금할 수 있게 한다.
-        allocationPolicy.buildShareFor(
-                settlementId, state.items(), selections, participantId, now
-        ).ifPresent(share -> saveSettlementSharePort.saveAll(List.of(share)));
+        // 전체 할인은 모든 몫이 정해져야 원 단위 나머지를 확정할 수 있다.
+        // 할인 없는 정산의 기존 즉시 송금 흐름은 유지한다.
+        if (state.receiptDiscount() == 0) {
+            allocationPolicy.buildShareFor(
+                    settlementId, state.items(), selections, participantId, now
+            ).ifPresent(share -> saveSettlementSharePort.saveAll(List.of(share)));
+        }
 
         List<SettlementParticipant> participants = loadSettlementParticipantPort
                 .findAllBySettlementId(settlementId);
@@ -127,13 +130,22 @@ class SettlementItemAllocationWriter {
         }
 
         // 전원이 제출했다. 안 채워진 품목이 있으면 생성자가 손봐야 하므로 멈춘다.
-        boolean fullyAllocated = allocationPolicy.findInvalidItemIds(
-                settlementId,
-                state.settlement().totalAmount(),
-                participants,
-                state.items(),
-                selections
-        ).isEmpty();
+        boolean fullyAllocated;
+        if (state.receiptDiscount() > 0) {
+            var finalization = allocationPolicy.finalizeAllocation(
+                    settlementId, state.settlement().totalAmount(), participants,
+                    state.items(), selections, now, state.receiptDiscount()
+            );
+            fullyAllocated = finalization.valid();
+            if (fullyAllocated) {
+                saveSettlementSharePort.saveAll(finalization.shares());
+            }
+        } else {
+            fullyAllocated = allocationPolicy.findInvalidItemIds(
+                    settlementId, state.settlement().totalAmount(),
+                    participants, state.items(), selections
+            ).isEmpty();
+        }
         saveSettlementPort.update(
                 fullyAllocated
                         ? state.settlement().awaitDeposit(now)

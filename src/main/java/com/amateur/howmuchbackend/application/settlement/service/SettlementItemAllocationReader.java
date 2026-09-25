@@ -56,7 +56,8 @@ class SettlementItemAllocationReader {
                         state.settlement().totalAmount(),
                         participants,
                         state.items(),
-                        selections
+                        selections,
+                        state.receiptDiscount()
                 )
                 : List.of();
         SettlementItemAllocationPhase phase = resolvePhase(
@@ -73,12 +74,16 @@ class SettlementItemAllocationReader {
                 state.participant().displayName(),
                 phase,
                 allocationPolicy.calculatePersonalAmount(
-                        state.items(), selections, participantId
+                        state.items(), selections, participantId, state.receiptDiscount()
                 ),
                 submissions.size(),
                 participants.size(),
                 itemResults,
-                invalidItemIds
+                invalidItemIds,
+                state.receiptDiscount(),
+                allocationPolicy.calculateDiscountShare(
+                        state.items(), selections, participantId, state.receiptDiscount()
+                )
         );
     }
 
@@ -130,7 +135,12 @@ class SettlementItemAllocationReader {
                 item.amount(),
                 allocatedUnits,
                 item.totalAllocationUnits(),
-                selectionResults
+                selectionResults,
+                item.discount(),
+                item.options().stream()
+                        .map(com.amateur.howmuchbackend.application.port.in.settlement.result
+                                .SettlementItemOptionResult::from)
+                        .toList()
         );
     }
 

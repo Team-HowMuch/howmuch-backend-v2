@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
@@ -38,14 +39,23 @@ public record CreateSettlementReceiptExpenseWebRequest(
         )
         LocalDateTime paidAt,
         @NotEmpty(message = "영수증 품목은 하나 이상이어야 합니다.")
-        List<@NotNull @Valid Item> items
+        List<@NotNull @Valid Item> items,
+        @PositiveOrZero(message = "영수증 전체 할인은 0원 이상이어야 합니다.")
+        Long discount
 ) {
+    public CreateSettlementReceiptExpenseWebRequest(
+            String receiptReference, String storeName, LocalDateTime paidAt, List<Item> items
+    ) {
+        this(receiptReference, storeName, paidAt, items, null);
+    }
+
     public CreateSettlementReceiptExpenseCommand toCommand() {
         return new CreateSettlementReceiptExpenseCommand(
                 receiptReference,
                 storeName,
                 paidAt,
-                items.stream().map(Item::toCommand).toList()
+                items.stream().map(Item::toCommand).toList(),
+                discount == null ? 0 : discount
         );
     }
 
@@ -58,11 +68,33 @@ public record CreateSettlementReceiptExpenseWebRequest(
             String name,
             @Positive(message = "품목 수량은 1개 이상이어야 합니다.")
             int quantity,
-            @Positive(message = "품목 행 금액은 1원 이상이어야 합니다.")
-            long amount
+            @PositiveOrZero(message = "품목 행 금액은 0원 이상이어야 합니다.")
+            long amount,
+            @PositiveOrZero(message = "품목 할인은 0원 이상이어야 합니다.")
+            Long discount,
+            List<@NotNull @Valid Option> options
     ) {
+        public Item(String name, int quantity, long amount) {
+            this(name, quantity, amount, null, List.of());
+        }
+
         private CreateSettlementReceiptExpenseCommand.Item toCommand() {
-            return new CreateSettlementReceiptExpenseCommand.Item(name, quantity, amount);
+            return new CreateSettlementReceiptExpenseCommand.Item(
+                    name, quantity, amount, discount == null ? 0 : discount,
+                    options == null ? List.of() : options.stream().map(Option::toCommand).toList()
+            );
+        }
+    }
+
+    public record Option(
+            @NotBlank(message = "옵션명은 필수입니다.")
+            @Size(max = 500, message = "옵션명은 500자 이하여야 합니다.")
+            String name,
+            @PositiveOrZero(message = "옵션 가격은 0원 이상이어야 합니다.")
+            long price
+    ) {
+        private CreateSettlementReceiptExpenseCommand.Option toCommand() {
+            return new CreateSettlementReceiptExpenseCommand.Option(name, price);
         }
     }
 }

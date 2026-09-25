@@ -87,7 +87,10 @@ public class SettlementReceiptExpenseService implements
         Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
         try {
             return SettlementItemListResult.from(
-                    loadSettlementItemPort.findAllBySettlementId(settlement.id())
+                    loadSettlementItemPort.findAllBySettlementId(settlement.id()),
+                    loadSettlementExpensePort.findAllBySettlementId(settlement.id())
+                            .stream().mapToLong(SettlementExpense::discount)
+                            .reduce(0L, Math::addExact)
             );
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(
@@ -143,9 +146,12 @@ public class SettlementReceiptExpenseService implements
             throw invalidImportRequest();
         }
 
-        long totalAmount = 0L;
+        long itemTotal = 0L;
         List<ExtractReceiptItemsPort.ReceiptItem> items = new ArrayList<>(command.items().size());
         try {
+            if (command.discount() < 0) {
+                throw invalidImportRequest();
+            }
             for (CreateSettlementReceiptExpenseCommand.Item item : command.items()) {
                 if (item == null || item.name() == null) {
                     throw invalidImportRequest();
@@ -154,14 +160,32 @@ public class SettlementReceiptExpenseService implements
                 if (name.isBlank()
                         || name.length() > SettlementExpense.MAX_DESCRIPTION_LENGTH
                         || item.quantity() <= 0
-                        || item.amount() <= 0) {
+                        || item.amount() < 0
+                        || item.discount() < 0
+                        || item.discount() > item.amount()
+                        || item.options() == null) {
                     throw invalidImportRequest();
                 }
-                totalAmount = Math.addExact(totalAmount, item.amount());
+                List<ExtractReceiptItemsPort.ReceiptOption> options = new ArrayList<>();
+                for (CreateSettlementReceiptExpenseCommand.Option option : item.options()) {
+                    if (option == null || option.name() == null
+                            || option.name().isBlank()
+                            || option.name().strip().length() > 500
+                            || option.price() < 0) {
+                        throw invalidImportRequest();
+                    }
+                    options.add(new ExtractReceiptItemsPort.ReceiptOption(
+                            option.name().strip(), option.price()
+                    ));
+                }
+                itemTotal = Math.addExact(itemTotal,
+                        Math.subtractExact(item.amount(), item.discount()));
                 items.add(new ExtractReceiptItemsPort.ReceiptItem(
                         name,
                         item.quantity(),
-                        item.amount()
+                        item.amount(),
+                        item.discount(),
+                        List.copyOf(options)
                 ));
             }
         } catch (ArithmeticException exception) {
@@ -170,13 +194,17 @@ public class SettlementReceiptExpenseService implements
                     exception
             );
         }
+        if (command.discount() >= itemTotal) {
+            throw invalidImportRequest();
+        }
         return new SubmittedReceipt(
                 receiptReference,
                 command.paidAt(),
                 new ExtractReceiptItemsPort.ReceiptExtraction(
                         storeName,
-                        totalAmount,
-                        List.copyOf(items)
+                        itemTotal - command.discount(),
+                        List.copyOf(items),
+                        command.discount()
                 )
         );
     }

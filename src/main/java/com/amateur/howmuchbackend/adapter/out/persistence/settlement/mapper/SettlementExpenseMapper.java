@@ -23,7 +23,8 @@ public final class SettlementExpenseMapper {
                 entity.getPaidAt(),
                 entity.getDisplayOrder(),
                 entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getUpdatedAt(),
+                entity.getDiscount()
         );
     }
 }

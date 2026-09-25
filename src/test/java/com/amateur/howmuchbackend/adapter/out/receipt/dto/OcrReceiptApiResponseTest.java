@@ -65,6 +65,30 @@ class OcrReceiptApiResponseTest {
     }
 
     @Test
+    @DisplayName("OCR 품목 옵션과 품목·전체 할인을 그대로 옮긴다")
+    void receiptOcr_optionsAndDiscounts_mapped() {
+        String body = """
+                {"ok": true, "result": {"discount": 1000, "total_amount": 12000,
+                 "total_verified": true,
+                 "items": [{"name": "커피", "quantity": 2, "price": 6500,
+                            "discount": 500,
+                            "sub_items": [{"name": "샷 추가", "price": 500}]}]}}
+                """;
+
+        ReceiptAnalysisResult result =
+                strict.readValue(body, OcrReceiptApiResponse.class).toResult();
+
+        assertThat(result.discount()).isEqualTo(1_000);
+        assertThat(result.items()).singleElement().satisfies(item -> {
+            assertThat(item.discount()).isEqualTo(500);
+            assertThat(item.subItems()).singleElement().satisfies(option -> {
+                assertThat(option.name()).isEqualTo("샷 추가");
+                assertThat(option.price()).isEqualTo(500);
+            });
+        });
+    }
+
+    @Test
     @DisplayName("항목 배열에 null 원소가 섞여도 변환에서 터지지 않는다")
     void receiptOcr_nullItems_dropped() {
         String body = """

@@ -16,7 +16,8 @@ public interface SettlementItemAllocationDocs {
     @Operation(
             summary = "내 품목 배분 상태 조회",
             description = "링크와 참여 문맥이 가리키는 참여자의 품목 선택, "
-                    + "예정 금액, 전체 제출 현황을 조회합니다."
+                    + "옵션·할인, 예정 금액, 전체 제출 현황을 조회합니다. "
+                    + "discountShare는 현재 선택 기준의 할인 몫이며 전체 제출 후 확정됩니다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -48,8 +49,7 @@ public interface SettlementItemAllocationDocs {
             summary = "품목 부담 비율 선택",
             description = "ONE·HALF·THIRD·QUARTER 중 하나와 수량(units, 생략 시 1)을 저장합니다. "
                     + "의미는 units × fraction 이라 3인분 중 2인분은 units=2, fraction=THIRD 입니다. "
-                    + "품목의 선택 합은 1을 초과할 수 없고, 정수 원으로 나누어지지 "
-                    + "않는 비율은 저장하지 않습니다. "
+                    + "품목의 선택 합은 품목 수량을 초과할 수 없습니다. "
                     + "요청 자체가 품목 한 개 분량을 넘으면 INVALID_SETTLEMENT_ITEM_SELECTION_UNITS, "
                     + "다른 참여자가 먼저 가져가 남은 몫이 모자라면 SETTLEMENT_ITEM_OVER_ALLOCATED 입니다."
     )

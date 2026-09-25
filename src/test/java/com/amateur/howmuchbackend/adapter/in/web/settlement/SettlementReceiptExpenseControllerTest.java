@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.ImportS
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementExpenseResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementItemListResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementItemResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementItemOptionResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementReceiptExpenseMutationResult;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
@@ -107,6 +108,47 @@ class SettlementReceiptExpenseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.expense.source").value("RECEIPT_OCR"))
                 .andExpect(jsonPath("$.data.totalExpenseAmount").value(10_000));
+    }
+
+    @Test
+    @DisplayName("영수증 옵션과 두 할인을 요청·응답 경계에 보존한다")
+    void receiptExpense_discountsAndOptions_preserved() throws Exception {
+        CreateSettlementReceiptExpenseCommand command =
+                new CreateSettlementReceiptExpenseCommand(
+                        "receipt-discount", "커피점", PAID_AT,
+                        List.of(new CreateSettlementReceiptExpenseCommand.Item(
+                                "커피", 1, 1_100, 100,
+                                List.of(new CreateSettlementReceiptExpenseCommand.Option(
+                                        "샷 추가", 100
+                                ))
+                        )), 100
+                );
+        SettlementExpenseResult expense = new SettlementExpenseResult(
+                EXPENSE_ID, SETTLEMENT_ID, SettlementExpenseSource.RECEIPT_OCR,
+                "커피점", 900, 0, CREATED_AT, CREATED_AT, 100
+        );
+        SettlementItemResult item = new SettlementItemResult(
+                ITEM_ID, SETTLEMENT_ID, EXPENSE_ID, "커피", 1, 1_100,
+                0, CREATED_AT, CREATED_AT, 100,
+                List.of(new SettlementItemOptionResult("샷 추가", 100))
+        );
+        when(createExpenseUseCase.create(SETTLEMENT_ID, command)).thenReturn(
+                new SettlementReceiptExpenseMutationResult(expense, List.of(item), 900)
+        );
+
+        mockMvc.perform(post("/api/v2/settlements/{settlementId}/expenses/receipt",
+                        SETTLEMENT_ID).contentType("application/json").content("""
+                        {"receiptReference":"receipt-discount","storeName":"커피점",
+                         "paidAt":"2026-08-31T17:40:00","discount":100,
+                         "items":[{"name":"커피","quantity":1,"amount":1100,
+                                   "discount":100,"options":[{"name":"샷 추가","price":100}]}]}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.expense.amount").value(900))
+                .andExpect(jsonPath("$.data.expense.discount").value(100))
+                .andExpect(jsonPath("$.data.items[0].discount").value(100))
+                .andExpect(jsonPath("$.data.items[0].options[0].name").value("샷 추가"))
+                .andExpect(jsonPath("$.data.items[0].options[0].price").value(100));
     }
 
     @Test

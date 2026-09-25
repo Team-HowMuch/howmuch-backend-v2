@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.web.receipt.dto.response;
 
 import com.amateur.howmuchbackend.application.port.in.receipt.result.ReceiptAnalysisResult;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
@@ -26,7 +27,10 @@ public record ReceiptOcrWebResponse(
                         + "false면 사용자에게 합계를 확인받는 것을 권장합니다.",
                 example = "true"
         )
-        boolean totalVerified
+        boolean totalVerified,
+
+        @Schema(description = "영수증 전체 할인(원). 읽지 못하면 null", nullable = true)
+        Long discount
 ) {
     public static ReceiptOcrWebResponse from(ReceiptAnalysisResult result) {
         return new ReceiptOcrWebResponse(
@@ -35,7 +39,8 @@ public record ReceiptOcrWebResponse(
                 result.items().stream().map(Item::from).toList(),
                 result.totalAmount(),
                 result.paymentMethod(),
-                result.totalVerified()
+                result.totalVerified(),
+                result.discount()
         );
     }
 
@@ -47,10 +52,24 @@ public record ReceiptOcrWebResponse(
             Integer quantity,
 
             @Schema(description = "금액(원). 읽지 못하면 null", example = "3500")
-            Long price
+            Long price,
+
+            @Schema(description = "품목 할인(원). 읽지 못하면 null", nullable = true)
+            Long discount,
+
+            @Schema(description = "품목 옵션")
+            @JsonProperty("sub_items")
+            List<Option> subItems
     ) {
         public static Item from(ReceiptAnalysisResult.Item item) {
-            return new Item(item.name(), item.quantity(), item.price());
+            return new Item(item.name(), item.quantity(), item.price(), item.discount(),
+                    item.subItems().stream().map(Option::from).toList());
+        }
+    }
+
+    public record Option(String name, Long price) {
+        public static Option from(ReceiptAnalysisResult.Option option) {
+            return new Option(option.name(), option.price());
         }
     }
 }

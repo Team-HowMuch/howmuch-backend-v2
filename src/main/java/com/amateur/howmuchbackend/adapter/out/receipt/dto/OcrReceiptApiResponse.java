@@ -27,16 +27,30 @@ public record OcrReceiptApiResponse(
             List<Item> items,
             @JsonProperty("total_amount") Long totalAmount,
             @JsonProperty("payment_method") String paymentMethod,
-            @JsonProperty("total_verified") boolean totalVerified
+            @JsonProperty("total_verified") boolean totalVerified,
+            Long discount
     ) {
+        public Result(String storeName, String purchasedAt, List<Item> items,
+                      Long totalAmount, String paymentMethod, boolean totalVerified) {
+            this(storeName, purchasedAt, items, totalAmount, paymentMethod, totalVerified, null);
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Item(
             String name,
             Integer quantity,
-            Long price
+            Long price,
+            Long discount,
+            @JsonProperty("sub_items") List<SubItem> subItems
     ) {
+        public Item(String name, Integer quantity, Long price) {
+            this(name, quantity, price, null, List.of());
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SubItem(String name, Long price) {
     }
 
     /**
@@ -58,11 +72,19 @@ public record OcrReceiptApiResponse(
                         : result.items().stream()
                                 .filter(Objects::nonNull)
                                 .map(item -> new ReceiptAnalysisResult.Item(
-                                        item.name(), item.quantity(), item.price()))
+                                        item.name(), item.quantity(), item.price(),
+                                        item.discount(),
+                                        item.subItems() == null ? List.of()
+                                                : item.subItems().stream()
+                                                        .filter(Objects::nonNull)
+                                                        .map(option -> new ReceiptAnalysisResult.Option(
+                                                                option.name(), option.price()
+                                                        )).toList()))
                                 .toList(),
                 result.totalAmount(),
                 result.paymentMethod(),
-                result.totalVerified()
+                result.totalVerified(),
+                result.discount()
         );
     }
 }

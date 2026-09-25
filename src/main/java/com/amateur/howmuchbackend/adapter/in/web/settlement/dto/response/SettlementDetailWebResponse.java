@@ -13,7 +13,7 @@ import java.util.UUID;
         "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
         "viewerRole", "creatorName", "bankName", "accountNumber", "institutionIconUrl",
         "paymentInfo", "paymentSummary",
-        "reminderNextAvailableAt", "participants"
+        "reminderNextAvailableAt", "participants", "items"
 })
 public record SettlementDetailWebResponse(
         UUID settlementId,
@@ -39,7 +39,8 @@ public record SettlementDetailWebResponse(
                         + "offset 없는 값을 UTC로 해석하며 활성 쿨다운이 없으면 null"
         )
         LocalDateTime reminderNextAvailableAt,
-        List<ParticipantPayment> participants
+        List<ParticipantPayment> participants,
+        List<SettlementItemWebResponse> items
 ) {
     public static SettlementDetailWebResponse from(SettlementDetailResult result) {
         return new SettlementDetailWebResponse(
@@ -61,20 +62,23 @@ public record SettlementDetailWebResponse(
                         .map(payment -> ParticipantPayment.from(
                                 result.settlementId(), result.viewerRole(), payment
                         ))
-                        .toList()
+                        .toList(),
+                result.items().stream().map(SettlementItemWebResponse::from).toList()
         );
     }
 
-    @Schema(requiredProperties = {"amount", "storeName", "paidAt"})
+    @Schema(requiredProperties = {"amount", "storeName", "paidAt", "discount"})
     public record PaymentInfo(
             long amount,
             @Schema(nullable = true, description = "상호명. 영수증·결제내역 지출을 합쳐 한 건일 때만 채워진다.")
             String storeName,
             @Schema(nullable = true, description = "결제일(UTC, offset 없는 값). 영수증·결제내역 지출을 합쳐 한 건일 때만 채워지며 알 수 없으면 null이다.")
-            LocalDateTime paidAt
+            LocalDateTime paidAt,
+            long discount
     ) {
         private static PaymentInfo from(SettlementDetailResult.PaymentInfo result) {
-            return new PaymentInfo(result.amount(), result.storeName(), result.paidAt());
+            return new PaymentInfo(result.amount(), result.storeName(), result.paidAt(),
+                    result.discount());
         }
     }
 
@@ -110,7 +114,7 @@ public record SettlementDetailWebResponse(
     }
 
     @Schema(requiredProperties = {
-            "participantId", "displayName", "linked", "expectedAmount", "confirmedAmount", "paymentStatus", "avatarUrl"
+            "participantId", "displayName", "linked", "expectedAmount", "confirmedAmount", "paymentStatus", "avatarUrl", "discountShare"
     })
     public record ParticipantPayment(
             UUID participantId,
@@ -121,7 +125,8 @@ public record SettlementDetailWebResponse(
             long confirmedAmount,
             SettlementDetailResult.PaymentStatus paymentStatus,
             @Schema(nullable = true, description = "인증이 필요한 프로필 이미지 상대 경로. 사진이 없거나 비회원이면 null")
-            String avatarUrl
+            String avatarUrl,
+            long discountShare
     ) {
         private static ParticipantPayment from(
                 UUID settlementId,
@@ -142,7 +147,8 @@ public record SettlementDetailWebResponse(
                                             settlementId,
                                             result.participantId(),
                                             result.avatarVersion()
-                                    )
+                                    ),
+                    result.discountShare()
             );
         }
     }

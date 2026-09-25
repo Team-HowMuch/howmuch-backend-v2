@@ -6,12 +6,14 @@ import java.util.List;
 
 public record SettlementItemListWebResponse(
         List<SettlementItemWebResponse> items,
-        long totalItemAmount
+        long totalItemAmount,
+        long discount
 ) {
     public static SettlementItemListWebResponse from(SettlementItemListResult result) {
         return new SettlementItemListWebResponse(
                 result.items().stream().map(SettlementItemWebResponse::from).toList(),
-                result.totalItemAmount()
+                result.totalItemAmount(),
+                result.discount()
         );
     }
 }

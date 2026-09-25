@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -269,6 +270,100 @@ class SettlementItemAllocationPolicyTest {
         assertThat(finalization.valid()).isFalse();
         assertThat(finalization.shares()).isEmpty();
         assertThat(finalization.invalidItemIds()).containsExactly(ITEM_ID);
+    }
+
+    @Test
+    @DisplayName("품목 몫 6500·3900·2600원에 전체 할인 1000원을 비율대로 분배한다")
+    void receiptDiscount_proportionalShares_matchPaidTotal() {
+        SettlementItem first = itemWithDiscount(6_500, 0);
+        SettlementItem second = itemWithDiscount(3_900, 0);
+        SettlementItem third = itemWithDiscount(2_600, 0);
+        List<SettlementItem> items = List.of(first, second, third);
+        List<SettlementItemSelection> selections = List.of(
+                selectionFor(first, FIRST_PARTICIPANT_ID),
+                selectionFor(second, SECOND_PARTICIPANT_ID),
+                selectionFor(third, THIRD_PARTICIPANT_ID)
+        );
+
+        var finalization = policy.finalizeAllocation(
+                SETTLEMENT_ID, 12_000, participants(), items, selections, NOW, 1_000
+        );
+
+        assertThat(finalization.valid()).isTrue();
+        assertThat(finalization.shares()).extracting(share -> share.amount())
+                .containsExactly(6_000L, 3_600L, 2_400L);
+        assertThat(policy.calculateDiscountShare(items, selections, FIRST_PARTICIPANT_ID, 1_000))
+                .isEqualTo(500);
+    }
+
+    @Test
+    @DisplayName("최대 잔여법은 할인 원 단위 합을 보존하고 동률은 ID 순으로 결정한다")
+    void receiptDiscount_remainder_isExactAndDeterministic() {
+        UUID first = new UUID(0, 1);
+        UUID second = new UUID(0, 2);
+        UUID third = new UUID(0, 3);
+
+        Map<UUID, Long> shares = policy.distributeDiscount(
+                Map.of(first, 1L, second, 1L, third, 1L), 2
+        );
+
+        assertThat(shares).containsEntry(first, 1L)
+                .containsEntry(second, 1L)
+                .containsEntry(third, 0L);
+        assertThat(shares.values().stream().mapToLong(Long::longValue).sum()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("선택 금액의 내림 합이 할인보다 작으면 조회는 잠정값을 반환하고 확정은 거부한다")
+    void receiptDiscount_roundedSelectionsBelowDiscount_returnsProvisionalShare() {
+        SettlementItem item = itemWithDiscount(2, 0);
+        List<SettlementItemSelection> selections = List.of(
+                new SettlementItemSelection(UUID.randomUUID(), SETTLEMENT_ID, item.id(),
+                        FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW, NOW),
+                new SettlementItemSelection(UUID.randomUUID(), SETTLEMENT_ID, item.id(),
+                        SECOND_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW, NOW),
+                new SettlementItemSelection(UUID.randomUUID(), SETTLEMENT_ID, item.id(),
+                        THIRD_PARTICIPANT_ID, SettlementItemAllocationFraction.THIRD, 1, NOW, NOW)
+        );
+
+        assertThat(policy.calculateDiscountShare(List.of(item), selections,
+                FIRST_PARTICIPANT_ID, 1)).isZero();
+        assertThat(policy.finalizeAllocation(SETTLEMENT_ID, 1, participants(),
+                List.of(item), selections, NOW, 1).valid()).isFalse();
+    }
+
+    @Test
+    @DisplayName("전액 할인된 품목의 선택 금액은 0원이고 다른 품목 배분은 유지한다")
+    void itemDiscount_fullDiscount_doesNotCreateNegativeShare() {
+        SettlementItem free = itemWithDiscount(500, 500);
+        SettlementItem paid = itemWithDiscount(1_000, 0);
+        List<SettlementItemSelection> selections = List.of(
+                selectionFor(free, FIRST_PARTICIPANT_ID),
+                selectionFor(paid, SECOND_PARTICIPANT_ID)
+        );
+
+        var finalization = policy.finalizeAllocation(
+                SETTLEMENT_ID, 1_000, participants(), List.of(free, paid),
+                selections, NOW, 0
+        );
+
+        assertThat(finalization.valid()).isTrue();
+        assertThat(finalization.shares()).singleElement()
+                .satisfies(share -> assertThat(share.amount()).isEqualTo(1_000));
+    }
+
+    private SettlementItem itemWithDiscount(long amount, long discount) {
+        return new SettlementItem(
+                UUID.randomUUID(), SETTLEMENT_ID, EXPENSE_ID, "품목", 1,
+                amount, 0, NOW, NOW, discount, List.of()
+        );
+    }
+
+    private SettlementItemSelection selectionFor(SettlementItem item, UUID participantId) {
+        return new SettlementItemSelection(
+                UUID.randomUUID(), SETTLEMENT_ID, item.id(), participantId,
+                SettlementItemAllocationFraction.ONE, 1, NOW, NOW
+        );
     }
 
     private SettlementItem item() {
