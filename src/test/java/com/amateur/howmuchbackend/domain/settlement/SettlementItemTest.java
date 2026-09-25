@@ -51,18 +51,31 @@ class SettlementItemTest {
     }
 
     @Test
-    @DisplayName("수량과 행 금액이 양수가 아니면 OCR 품목을 거부한다")
-    void receiptItem_nonPositiveQuantityOrAmount_rejected() {
+    @DisplayName("수량이 0이거나 행 금액이 음수이면 OCR 품목을 거부한다")
+    void receiptItem_invalidQuantityOrNegativeAmount_rejected() {
         assertThatThrownBy(() -> item("커피", 0, 1_000, 0))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
                                 SettlementStatusCode.INVALID_SETTLEMENT_ITEM_QUANTITY
                         ));
-        assertThatThrownBy(() -> item("커피", 1, 0, 0))
+        assertThatThrownBy(() -> item("커피", 1, -1, 0))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
                                 SettlementStatusCode.INVALID_SETTLEMENT_ITEM_AMOUNT
                         ));
+    }
+
+    @Test
+    @DisplayName("0원 품목은 허용하고 품목 할인은 행 금액을 넘을 수 없다")
+    void receiptItem_zeroAmountAllowed_discountBounded() {
+        assertThat(item("무료 품목", 1, 0, 0).netAmount()).isZero();
+
+        assertThatThrownBy(() -> SettlementItem.fromReceipt(
+                SETTLEMENT_ID, EXPENSE_ID, "커피", 1, 500, 0, NOW,
+                501, java.util.List.of()
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_ITEM_AMOUNT));
     }
 
     @Test

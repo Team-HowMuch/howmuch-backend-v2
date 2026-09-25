@@ -114,16 +114,49 @@ class SettlementItemPersistenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("품목 옵션과 두 할인값을 저장한 뒤 순서대로 다시 읽는다")
+    void receiptDiscountsAndOptions_savedAndLoaded() {
+        SettlementExpense expense = expensePersistenceAdapter.save(SettlementExpense.receiptOcr(
+                settlementId, "receipt-discount", "OCR 영수증", 900,
+                null, expensePersistenceAdapter.nextDisplayOrder(settlementId), CREATED_AT, 100
+        ));
+        SettlementItem item = SettlementItem.fromReceipt(
+                settlementId, expense.id(), "커피", 2, 1_100, 0, CREATED_AT,
+                100, List.of(
+                        new SettlementItem.OptionInput("샷 추가", 100),
+                        new SettlementItem.OptionInput("얼음 적게", 0)
+                )
+        );
+
+        itemPersistenceAdapter.saveAll(List.of(item));
+
+        SettlementItem loaded = itemPersistenceAdapter.findAllBySettlementId(settlementId)
+                .getFirst();
+        assertThat(expensePersistenceAdapter.findBySettlementIdAndId(settlementId, expense.id()))
+                .get().extracting(SettlementExpense::discount).isEqualTo(100L);
+        assertThat(loaded.discount()).isEqualTo(100);
+        assertThat(loaded.options()).extracting(option -> option.name())
+                .containsExactly("샷 추가", "얼음 적게");
+        assertThat(loaded.options()).extracting(option -> option.price())
+                .containsExactly(100L, 0L);
+    }
+
+    @Test
     @DisplayName("OCR 지출을 삭제하면 하위 품목도 Cascade로 삭제한다")
     void receiptExpense_deleted_cascadesItems() {
         SettlementExpense expense = saveReceiptExpense("receipt-cascade");
         SettlementItem saved = itemPersistenceAdapter.saveAll(List.of(
-                item(expense.id(), "아메리카노", 2, 30_000, 0)
+                SettlementItem.fromReceipt(settlementId, expense.id(), "아메리카노",
+                        2, 30_000, 0, CREATED_AT, 0,
+                        List.of(new SettlementItem.OptionInput("샷 추가", 500)))
         )).getFirst();
 
         expensePersistenceAdapter.delete(expense);
 
         assertThat(settlementItemJpaRepository.existsById(saved.id())).isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM settlement_item_options WHERE item_id = ?",
+                Long.class, saved.id())).isZero();
     }
 
     @Test

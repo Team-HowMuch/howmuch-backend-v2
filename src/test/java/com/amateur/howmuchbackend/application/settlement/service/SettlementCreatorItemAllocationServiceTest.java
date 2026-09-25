@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SaveSettlementItemSelectionCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
@@ -59,6 +60,7 @@ class SettlementCreatorItemAllocationServiceTest {
     @Mock private SaveSettlementPort saveSettlementPort;
     @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementItemPort loadSettlementItemPort;
+    @Mock private LoadSettlementExpensePort loadSettlementExpensePort;
     @Mock private SettlementItemAllocationStorePort allocationStorePort;
     @Mock private SaveSettlementSharePort saveSettlementSharePort;
 
@@ -70,7 +72,8 @@ class SettlementCreatorItemAllocationServiceTest {
         SettlementItemAllocationStateLoader stateLoader = new SettlementItemAllocationStateLoader(
                 loadSettlementPort,
                 loadSettlementParticipantPort,
-                loadSettlementItemPort
+                loadSettlementItemPort,
+                loadSettlementExpensePort
         );
         SettlementItemAllocationWriter writer = new SettlementItemAllocationWriter(
                 stateLoader,

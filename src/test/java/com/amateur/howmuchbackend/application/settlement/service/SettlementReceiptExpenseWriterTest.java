@@ -106,6 +106,36 @@ class SettlementReceiptExpenseWriterTest {
     }
 
     @Test
+    @DisplayName("품목 옵션과 할인은 결제액을 검증한 뒤 원자적으로 저장한다")
+    void receiptExpense_optionsAndDiscounts_savedWithNetTotal() {
+        givenOwnedDraft();
+        when(saveSettlementExpensePort.save(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(saveSettlementItemPort.saveAll(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ExtractReceiptItemsPort.ReceiptExtraction extraction =
+                new ExtractReceiptItemsPort.ReceiptExtraction(
+                        "커피점", 900,
+                        List.of(new ExtractReceiptItemsPort.ReceiptItem(
+                                "커피", 1, 1_100, 100,
+                                List.of(new ExtractReceiptItemsPort.ReceiptOption("샷 추가", 100))
+                        )),
+                        100
+                );
+
+        var result = writer.write(SETTLEMENT_ID, CREATOR_ID, "receipt-discount", extraction);
+
+        assertThat(result.expense().amount()).isEqualTo(900);
+        assertThat(result.expense().discount()).isEqualTo(100);
+        assertThat(result.items()).singleElement().satisfies(item -> {
+            assertThat(item.amount()).isEqualTo(1_100);
+            assertThat(item.discount()).isEqualTo(100);
+            assertThat(item.options()).singleElement()
+                    .satisfies(option -> assertThat(option.name()).isEqualTo("샷 추가"));
+        });
+    }
+
+    @Test
     @DisplayName("OCR 총액과 품목 합계가 다르면 어떤 지출도 저장하지 않는다")
     void receiptExpense_totalMismatch_rejectedBeforePersistence() {
         givenOwnedDraft();
