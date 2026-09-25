@@ -72,7 +72,7 @@ public class SettlementAllocationService implements
                 .findAllBySettlementId(settlement.id());
         long expenseTotal = validateExpenseTotal(settlement, expenses);
         if (selectedType == SettlementAllocationType.ITEM_ALLOCATION) {
-            validateItemTotal(settlement.id(), expenseTotal);
+            validateItemTotal(settlement.id(), expenses, expenseTotal);
         }
 
         if (selectedType == settlement.allocationType()) {
@@ -217,7 +217,9 @@ public class SettlementAllocationService implements
         return total;
     }
 
-    private void validateItemTotal(UUID settlementId, long expenseTotal) {
+    private void validateItemTotal(
+            UUID settlementId, List<SettlementExpense> expenses, long expenseTotal
+    ) {
         List<SettlementItem> items = loadSettlementItemPort
                 .findAllBySettlementId(settlementId);
         if (items.isEmpty()) {
@@ -226,7 +228,10 @@ public class SettlementAllocationService implements
         long itemTotal = 0L;
         try {
             for (SettlementItem item : items) {
-                itemTotal = Math.addExact(itemTotal, item.amount());
+                itemTotal = Math.addExact(itemTotal, item.netAmount());
+            }
+            for (SettlementExpense expense : expenses) {
+                itemTotal = Math.subtractExact(itemTotal, expense.discount());
             }
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(
