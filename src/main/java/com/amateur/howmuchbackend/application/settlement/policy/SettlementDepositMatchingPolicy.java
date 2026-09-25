@@ -44,12 +44,18 @@ public class SettlementDepositMatchingPolicy {
         int matchCount = 0;
         UUID onlyExactMatch = null;
         int exactMatchCount = 0;
+        String onlyPayerName = null;
         for (PayableShare share : payableShares) {
             if (transaction.transactedAt().isBefore(share.snapshotCreatedAt())
                     || share.remainingAmount() < amount
                     || !matchesName(share.payerName(), description, fullName, nameBeforeDeposit)) {
                 continue;
             }
+            String payerName = normalize(share.payerName()).replace(" ", "");
+            if (onlyPayerName != null && !onlyPayerName.equals(payerName)) {
+                return Optional.empty();
+            }
+            onlyPayerName = payerName;
             matchCount++;
             onlyMatch = share.shareId();
             if (share.remainingAmount() == amount) {

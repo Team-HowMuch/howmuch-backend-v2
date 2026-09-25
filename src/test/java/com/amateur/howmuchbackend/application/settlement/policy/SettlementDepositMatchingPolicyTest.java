@@ -64,6 +64,17 @@ class SettlementDepositMatchingPolicyTest {
     }
 
     @Test
+    @DisplayName("서로 다른 입금자 후보는 한 명의 금액만 정확해도 자동 연결하지 않는다")
+    void depositMatching_distinctPayers_exactAmountDoesNotResolveAmbiguity() {
+        var createdAt = LocalDateTime.of(2026, 8, 24, 0, 0);
+
+        assertThat(policy.match(transaction("민선영 최수아 입금", "1750"), List.of(
+                payable(SHARE_ID, "민선영", 1_750, createdAt),
+                payable(UUID.randomUUID(), "최수아", 7_300, createdAt)
+        ))).isEmpty();
+    }
+
+    @Test
     @DisplayName("정확한 금액 후보가 없으면 유일한 부분 입금 후보를 연결한다")
     void depositMatching_noExactAmount_uniquePartialCandidateMatched() {
         var createdAt = LocalDateTime.of(2026, 8, 24, 0, 0);
