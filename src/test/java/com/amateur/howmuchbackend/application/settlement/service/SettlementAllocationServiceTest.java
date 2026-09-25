@@ -12,6 +12,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDutchPayAllocationStorePort;
 import com.amateur.howmuchbackend.application.settlement.policy.DutchPayAllocationPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementRequestPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -83,7 +84,8 @@ class SettlementAllocationServiceTest {
                 loadSettlementExpensePort,
                 loadSettlementItemPort,
                 allocationStorePort,
-                new DutchPayAllocationPolicy()
+                new DutchPayAllocationPolicy(),
+                new SettlementRequestPolicy()
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
     }
@@ -206,6 +208,44 @@ class SettlementAllocationServiceTest {
     }
 
     @Test
+    @DisplayName("품목 할인을 반영한 합계가 지출과 같으면 품목별 할당을 선택한다")
+    void allocationType_itemDiscount_selectsItemAllocation() {
+        assertDiscountedItemAllocation(1_000, 0, 200, 800);
+    }
+
+    @Test
+    @DisplayName("영수증 전체 할인을 반영한 합계가 지출과 같으면 품목별 할당을 선택한다")
+    void allocationType_receiptDiscount_selectsItemAllocation() {
+        assertDiscountedItemAllocation(1_000, 200, 0, 800);
+    }
+
+    @Test
+    @DisplayName("품목 할인과 영수증 전체 할인을 모두 반영하면 품목별 할당을 선택한다")
+    void allocationType_bothDiscounts_selectsItemAllocation() {
+        assertDiscountedItemAllocation(1_000, 100, 200, 700);
+    }
+
+    @Test
+    @DisplayName("할인 적용 후 품목 합계와 지출이 다르면 품목별 할당을 거부한다")
+    void allocationType_discountedTotalMismatch_rejected() {
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(null, 700)));
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(receiptExpense(700, 100)));
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(discountedItem(1_000, 100)));
+
+        assertThatThrownBy(() -> service.select(
+                SETTLEMENT_ID,
+                new SelectSettlementAllocationTypeCommand(SettlementAllocationType.ITEM_ALLOCATION)
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(
+                        SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH
+                ));
+        verify(saveSettlementPort, never()).update(any());
+    }
+
+    @Test
     @DisplayName("OCR 품목 합계가 전체 지출보다 작으면 품목별 할당 선택을 거부한다")
     void allocationType_receiptTotalMismatch_rejected() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
@@ -307,6 +347,39 @@ class SettlementAllocationServiceTest {
                 0,
                 CREATED_AT
         );
+    }
+
+    private SettlementExpense receiptExpense(long amount, long discount) {
+        return SettlementExpense.receiptOcr(
+                SETTLEMENT_ID, "receipt", "지출", amount,
+                null, 0, CREATED_AT, discount
+        );
+    }
+
+    private SettlementItem discountedItem(long amount, long discount) {
+        return SettlementItem.fromReceipt(
+                SETTLEMENT_ID, UUID.randomUUID(), "할인 품목", 1,
+                amount, 0, CREATED_AT, discount, List.of()
+        );
+    }
+
+    private void assertDiscountedItemAllocation(
+            long itemAmount, long receiptDiscount, long itemDiscount, long expenseAmount
+    ) {
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(settlement(null, expenseAmount)));
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(receiptExpense(expenseAmount, receiptDiscount)));
+        when(loadSettlementItemPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(discountedItem(itemAmount, itemDiscount)));
+
+        var result = service.select(
+                SETTLEMENT_ID,
+                new SelectSettlementAllocationTypeCommand(SettlementAllocationType.ITEM_ALLOCATION)
+        );
+
+        assertThat(result.allocationType()).isEqualTo(SettlementAllocationType.ITEM_ALLOCATION);
+        verify(saveSettlementPort).update(any());
     }
 
     private SettlementItem item(long amount, int displayOrder) {

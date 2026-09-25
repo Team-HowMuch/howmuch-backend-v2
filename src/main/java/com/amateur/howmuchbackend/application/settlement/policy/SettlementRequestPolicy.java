@@ -44,10 +44,7 @@ public class SettlementRequestPolicy {
                     now
             );
             case ITEM_ALLOCATION -> {
-                long receiptDiscount = expenses.stream()
-                        .mapToLong(SettlementExpense::discount)
-                        .reduce(0L, Math::addExact);
-                validateItems(items, expenseTotal, receiptDiscount);
+                validateItemTotal(items, expenses, expenseTotal);
                 yield List.of();
             }
         };
@@ -155,8 +152,8 @@ public class SettlementRequestPolicy {
         return List.copyOf(shares);
     }
 
-    private void validateItems(
-            List<SettlementItem> items, long expenseTotal, long receiptDiscount
+    public void validateItemTotal(
+            List<SettlementItem> items, List<SettlementExpense> expenses, long expenseTotal
     ) {
         if (items == null || items.isEmpty()) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ITEM_REQUIRED);
@@ -166,13 +163,16 @@ public class SettlementRequestPolicy {
             for (SettlementItem item : items) {
                 itemTotal = Math.addExact(itemTotal, item.netAmount());
             }
+            for (SettlementExpense expense : expenses) {
+                itemTotal = Math.subtractExact(itemTotal, expense.discount());
+            }
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(
                     SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH,
                     exception
             );
         }
-        if (Math.subtractExact(itemTotal, receiptDiscount) != expenseTotal) {
+        if (itemTotal != expenseTotal) {
             throw ApplicationException.of(
                     SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH
             );

@@ -19,12 +19,12 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDutchPayAllocationStorePort;
 import com.amateur.howmuchbackend.application.settlement.policy.DutchPayAllocationPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementRequestPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementDutchPayAllocation;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
-import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +53,7 @@ public class SettlementAllocationService implements
     private final LoadSettlementItemPort loadSettlementItemPort;
     private final SettlementDutchPayAllocationStorePort allocationStorePort;
     private final DutchPayAllocationPolicy dutchPayAllocationPolicy;
+    private final SettlementRequestPolicy settlementRequestPolicy;
 
     @Override
     @Transactional
@@ -72,7 +73,11 @@ public class SettlementAllocationService implements
                 .findAllBySettlementId(settlement.id());
         long expenseTotal = validateExpenseTotal(settlement, expenses);
         if (selectedType == SettlementAllocationType.ITEM_ALLOCATION) {
-            validateItemTotal(settlement.id(), expenseTotal);
+            settlementRequestPolicy.validateItemTotal(
+                    loadSettlementItemPort.findAllBySettlementId(settlement.id()),
+                    expenses,
+                    expenseTotal
+            );
         }
 
         if (selectedType == settlement.allocationType()) {
@@ -215,30 +220,6 @@ public class SettlementAllocationService implements
             );
         }
         return total;
-    }
-
-    private void validateItemTotal(UUID settlementId, long expenseTotal) {
-        List<SettlementItem> items = loadSettlementItemPort
-                .findAllBySettlementId(settlementId);
-        if (items.isEmpty()) {
-            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ITEM_REQUIRED);
-        }
-        long itemTotal = 0L;
-        try {
-            for (SettlementItem item : items) {
-                itemTotal = Math.addExact(itemTotal, item.amount());
-            }
-        } catch (ArithmeticException exception) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH,
-                    exception
-            );
-        }
-        if (itemTotal != expenseTotal) {
-            throw ApplicationException.of(
-                    SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH
-            );
-        }
     }
 
     private SettlementDutchPayResult assembleResult(Settlement settlement) {
