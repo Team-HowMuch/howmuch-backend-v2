@@ -16,6 +16,7 @@ public interface ReceiptOcrDocs {
                     + "JPEG 또는 PNG만 받고, 업로드 한도는 5MB입니다. 분석에 수 초가 걸립니다.\n\n"
                     + "대부분의 값은 읽지 못하면 null입니다. `totalVerified`가 false면 "
                     + "합계를 사용자에게 확인받는 흐름을 권장합니다.\n\n"
+                    + "품목 옵션은 각 품목의 `subItems` 필드로 반환합니다.\n\n"
                     + "이미지는 분석에만 쓰이고 서버에 보관하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
