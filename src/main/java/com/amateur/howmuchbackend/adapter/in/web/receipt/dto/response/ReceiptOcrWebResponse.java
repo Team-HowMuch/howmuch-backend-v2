@@ -1,7 +1,6 @@
 package com.amateur.howmuchbackend.adapter.in.web.receipt.dto.response;
 
 import com.amateur.howmuchbackend.application.port.in.receipt.result.ReceiptAnalysisResult;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
@@ -58,7 +57,6 @@ public record ReceiptOcrWebResponse(
             Long discount,
 
             @Schema(description = "품목 옵션")
-            @JsonProperty("sub_items")
             List<Option> subItems
     ) {
         public static Item from(ReceiptAnalysisResult.Item item) {
