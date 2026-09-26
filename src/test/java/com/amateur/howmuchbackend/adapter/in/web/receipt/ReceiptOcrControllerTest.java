@@ -52,7 +52,8 @@ class ReceiptOcrControllerTest {
     void receiptAnalysis_request_returnsAnalysis() throws Exception {
         when(analyzeReceiptUseCase.analyze(any())).thenReturn(new ReceiptAnalysisResult(
                 "스타필드", "2026-09-16 16:47",
-                List.of(new ReceiptAnalysisResult.Item("참치김밥", 1, 3_500L)),
+                List.of(new ReceiptAnalysisResult.Item("참치김밥", 1, 3_500L, null,
+                        List.of(new ReceiptAnalysisResult.Option("와사비 추가", 500L)))),
                 60_000L, "카드", true));
 
         mockMvc.perform(multipart("/api/v2/receipts/ocr")
@@ -65,7 +66,10 @@ class ReceiptOcrControllerTest {
                 .andExpect(jsonPath("$.data.totalVerified").value(true))
                 .andExpect(jsonPath("$.data.items[0].name").value("참치김밥"))
                 .andExpect(jsonPath("$.data.items[0].quantity").value(1))
-                .andExpect(jsonPath("$.data.items[0].price").value(3_500));
+                .andExpect(jsonPath("$.data.items[0].price").value(3_500))
+                .andExpect(jsonPath("$.data.items[0].subItems[0].name").value("와사비 추가"))
+                .andExpect(jsonPath("$.data.items[0].subItems[0].price").value(500))
+                .andExpect(jsonPath("$.data.items[0].sub_items").doesNotExist());
     }
 
     @Test
