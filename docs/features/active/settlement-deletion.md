@@ -1,10 +1,13 @@
 # Feature Plan: 정산 삭제 가능 정책 및 삭제 API
 
-- Status: Partially implemented - 참여 진행 후 삭제 차단 보강 대기
-- Last updated: 2026-08-28
+- Status: #430 논리 삭제 확장 구현 완료 (로컬 검증)
+- Last updated: 2026-09-27
+- Current issue: [#430 SUSPENDED·COMPLETED 정산 전역 논리 삭제 지원](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/430)
 - Related issue: [#159 정산 삭제 가능 정책 및 삭제 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/159)
 - Related parent issue: [#137 정산 수동 중단·재개·삭제 상태 관리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/137)
 - Related issues: [#136 정산 입금 상태 확인 및 종료 처리](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/136), [#158 정산 수동 중단·재개 UseCase 및 API 추가](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/158), [#193 정산 참여 진행 후 삭제 차단 정책 보강](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/193)
+
+> 1~11절은 #159 당시의 물리 삭제 구현 기록이다. #430의 최신 목표 계약과 구현 경계는 12절에 기록한다.
 
 ## 1. 목적
 
@@ -257,3 +260,38 @@ PostgreSQL이 필요한 cascade 통합 테스트는 서비스 상태를 확인�
 - Unverified items: 품목 선택·제출과 삭제의 동시 요청
 - Remaining risks: 참여자가 입력한 선택·제출 데이터가 Share 생성 전에 생성자 삭제로 제거될 수 있다.
 - Follow-up work: #193 정산 참여 진행 후 삭제 차단 정책 보강
+
+## 12. #430 SUSPENDED·COMPLETED 전역 논리 삭제 확장
+
+### 목적과 성공 기준
+
+- 생성자가 `SUSPENDED` 또는 `COMPLETED` 정산을 삭제하면 모든 사용자에게서 정산을 숨긴다. Share·입금·송금 매칭 및 완료 시각은 보존한다.
+- 삭제 허용 범위: `DRAFT`·`REQUESTED`는 Share가 없을 때, `SUSPENDED`·`COMPLETED`는 Share와 무관하게 허용한다. `AWAITING_DEPOSIT`은 `409 SETTLEMENT_NOT_DELETABLE`을 유지한다.
+- 기존 `DELETE /api/v2/settlements/{settlementId}`와 성공 응답은 유지한다. 생성자만 삭제하며 반복 삭제는 `404 SETTLEMENT_NOT_FOUND`이다.
+- 복구 API, 프론트엔드 변경, 금융 이력 물리 삭제는 제외한다. #193의 `REQUESTED` 참여 진행 차단 논의와 #430의 `SUSPENDED` 삭제 허용은 구분한다.
+
+### 영향 흐름과 계약
+
+1. `SettlementService`가 현재 생성자와 잠긴 정산을 확인하고 `SettlementDeletionPolicy`로 상태·Share 조건을 검사한다.
+2. `DeleteSettlementPort`가 `settlements.deleted_at`에 UTC 시각을 기록하고 version을 증가시킨다. 원래 status와 `updated_at`은 유지해 완료 시각을 바꾸지 않는다.
+3. 삭제된 정산은 생성자·참여자 목록, 상세·품목·입금·송금 API, 참여 링크 및 총무 조회에서 제외한다. 계좌·회원 탈퇴 차단 조회에서도 진행 중 정산으로 세지 않는다. 계좌 삭제 시 FK를 유지한 활성 수령 계좌 참조는 완료 정산과 동일하게 분리하되 snapshot과 금융 매칭은 보존한다.
+4. 예약 리마인드·알림 생성 및 발송은 삭제 정산을 새로 처리하지 않는다. 기존 알림 메시지는 남기되 정산 이동 액션은 비활성화한다.
+
+`deleted_at TIMESTAMP(6) WITHOUT TIME ZONE NULL`은 [migration PR #432](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/432)로 반영됐다. 기존 행은 `NULL`로 활성 상태다. 새 endpoint, Web DTO, Redis 키 또는 외부 연동은 없다. 삭제된 정산을 읽거나 수정하려는 요청은 없는 정산과 동일하게 처리한다.
+
+### 커밋 경계와 검증 계획
+
+- migration-only 커밋·PR: #432 (완료). 후속 구현은 별도 `feat/430-settlement-soft-delete` 브랜치에서 진행한다.
+- 후속 구현 커밋 경계: (1) 삭제 정책·논리 삭제 저장·전역 조회 차단·계좌 참조 처리·Swagger, (2) 기존 알림 액션 비활성화와 신규 리마인드·푸시 차단, (3) Feature Plan·관련 계좌 문서. 각 경계에서 컴파일 가능하게 묶는다.
+- 기존 계좌 삭제 문서와 ADR-0005의 진행 중 정산 정의에 삭제된 정산 제외 조건을 반영한다.
+- Policy·Service 테스트: 상태별 Share 유무, 생성자 권한, 중복 삭제, `AWAITING_DEPOSIT` 차단.
+- PostgreSQL 통합 테스트: 완료 정산의 Share·입금·송금 이력과 상태·완료 시각 보존, version 증가, 롤백 및 행 잠금 동시성.
+- 조회 회귀: 생성자·참여자·링크·총무·계좌 거래 연결·계좌/회원 탈퇴 판정, 기존 알림 메시지와 비활성 액션, 예약/대기 알림 억제.
+- 실행 명령: `./gradlew compileJava`, `./gradlew test`, `git diff --check`, `git status --short --untracked-files=all`.
+
+### 로컬 검증 결과 (2026-09-27)
+
+- 격리된 PostgreSQL·Redis를 사용한 `./gradlew compileJava test --no-daemon` 성공: Java 1,328건 통과. 앞선 `scripts/test.sh`의 JS 35건도 통과했지만 정산 변경과는 무관하다.
+- 정책·서비스·영속 통합 테스트로 상태/Share 조합, 권한·반복 삭제, 목록·총무·계좌 삭제·알림/리마인드 경로를 확인했다. 완료 정산의 Share·입금·송금 행 및 `updated_at` 보존과 version 증가도 확인했다.
+- `git diff --check` 통과. 운영 배포와 실제 사용자 데이터 검증은 이 로컬 결과에 포함하지 않는다.
+- 후속 요청에 따라 위 경계로 커밋하고 `develop` 대상 PR을 만든다.

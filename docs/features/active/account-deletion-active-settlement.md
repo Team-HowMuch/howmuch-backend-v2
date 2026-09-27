@@ -5,6 +5,8 @@
 - Related issue: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/356
 - Related ADR: [ADR-0005](../../adr/0005-block-account-deletion-for-active-settlements.md)
 
+> #430부터 `settlements.deleted_at IS NOT NULL`인 논리 삭제 정산은 수령 계좌 사용 차단 조회에서 제외한다. 계좌 삭제 시 완료 정산과 논리 삭제 정산의 활성 수령 계좌 참조를 분리한다. 아래 상태별 규칙은 삭제되지 않은 정산에 적용된다. #356 당시 설계·진행 기록은 유지한다.
+
 ## 1. 목적
 
 ### 문제
@@ -52,7 +54,7 @@
 
 ### 상태와 불변식
 
-- 상태 전이: 계좌 삭제 시 `COMPLETED` 정산의 활성 참조만 분리하며 정산 상태는 바꾸지 않는다.
+- 상태 전이: 계좌 삭제 시 `COMPLETED` 또는 논리 삭제된 정산의 활성 참조를 분리하며 정산 상태는 바꾸지 않는다.
 - 항상 지킬 규칙:
   - 진행 중 정산은 수령 계좌가 삭제되기 전에 대체 계좌를 선택해야 한다.
   - 종료 정산은 immutable receiving-account snapshot으로 과거 정보를 유지한다.
@@ -66,7 +68,7 @@
 2. Application이 소유권·외부 연결·잠금 후 활성 상태를 확인한다.
 3. 진행 중 Settlement가 해당 Account를 수령 계좌로 사용하는지 확인한다.
 4. 사용 중이면 409를 반환하고 아무 값도 변경하지 않는다.
-5. 진행 중 참조가 없으면 종료 정산의 활성 참조를 분리하고 Account를 삭제한다.
+5. 진행 중 참조가 없으면 완료·논리 삭제 정산의 활성 참조를 분리하고 Account를 삭제한다.
 
 ### 실패 흐름
 
@@ -95,7 +97,7 @@ Result -> Web Response DTO: ApiResponse<Void>
 
 | Port | 목적 | 호출자 | Adapter |
 |---|---|---|---|
-| `SettlementReceivingAccountUsagePort` | 진행 중 수령 계좌 사용 여부 조회 및 종료 정산 참조 분리 | `AccountDeletionService` | `SettlementPersistenceAdapter` |
+| `SettlementReceivingAccountUsagePort` | 진행 중 수령 계좌 사용 여부 조회 및 완료·논리 삭제 정산 참조 분리 | `AccountDeletionService` | `SettlementPersistenceAdapter` |
 
 ### Application Policy
 
@@ -113,7 +115,7 @@ Authentication: required
 
 ### Persistence와 외부 연동
 
-- DB Entity/제약/쿼리: 진행 중 상태 조회와 `COMPLETED` 참조 분리 JPQL 변경
+- DB Entity/제약/쿼리: 진행 중 상태 조회와 완료·논리 삭제 정산 참조 분리 JPQL 변경
 - Flyway migration required: No
 - Redis/외부 API/환경 변수: 변경 없음
 
@@ -122,12 +124,12 @@ Authentication: required
 ### 비즈니스 로직
 
 - 진행 중 상태 차단은 `SettlementReceivingAccountUsagePort` 조회로 판단한다.
-- 종료된 `COMPLETED` 정산만 기존 snapshot 보존 정책에 따라 활성 참조를 분리한다.
+- `COMPLETED` 또는 논리 삭제된 정산은 기존 snapshot 보존 정책에 따라 활성 참조를 분리한다.
 - 기존 `ACCOUNT_IN_USE_BY_DRAFT_SETTLEMENT` 대신 상태 범위를 표현하는 `ACCOUNT_IN_USE_BY_SETTLEMENT`를 반환한다.
 
 ### 기술 및 패턴
 
-- 선택 방식: `status <> COMPLETED` 조건으로 단일 존재 조회
+- 선택 방식: `status <> COMPLETED AND deleted_at IS NULL` 조건으로 단일 존재 조회
 - 이유: 새 상태가 추가되어도 종료 상태만 명시적으로 허용하고, 삭제 흐름에서 불필요한 목록 조회를 하지 않는다.
 - 대안: 모든 정산 상태를 차단하는 방식은 완료된 정산까지 계좌 삭제를 영구적으로 막을 수 있어 선택하지 않는다.
 - 한계: 새로운 terminal 상태가 추가되면 이 조건과 테스트를 함께 검토해야 한다.
@@ -138,7 +140,7 @@ Authentication: required
 |---|---|---|
 | API | 409 오류 코드와 설명 변경 | `AccountDocs`, `AccountStatusCode` |
 | Application | 진행 중 정산 참조 확인 후 삭제 | `AccountDeletionService` |
-| Persistence | 상태 기준 존재 조회, 완료 정산 참조 분리 | `SettlementJpaRepository`, `SettlementPersistenceAdapter` |
+| Persistence | 상태·삭제 시각 기준 존재 조회, 완료·논리 삭제 정산 참조 분리 | `SettlementJpaRepository`, `SettlementPersistenceAdapter` |
 | Documentation | 기존 계좌 삭제 정책 갱신 | `account-deletion-and-reconnection.md`, `ADR-0005` |
 
 기존에 유지할 동작:
