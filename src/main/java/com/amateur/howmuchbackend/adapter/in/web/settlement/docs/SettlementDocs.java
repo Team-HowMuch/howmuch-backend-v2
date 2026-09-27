@@ -222,8 +222,9 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 삭제",
-            description = "현재 로그인한 생성자가 송금 단계에 도달하지 않은 정산을 삭제합니다. "
-                    + "Share가 있거나 AWAITING_DEPOSIT·COMPLETED 상태인 정산은 삭제할 수 없습니다.",
+            description = "생성자가 정산을 전체 사용자 조회에서 숨깁니다. "
+                    + "DRAFT·REQUESTED는 Share가 없을 때, SUSPENDED·COMPLETED는 Share와 관계없이 삭제할 수 있습니다. "
+                    + "AWAITING_DEPOSIT은 삭제할 수 없으며 금융 이력은 보존됩니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -246,7 +247,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_DELETABLE - 송금 또는 입금이 진행된 정산"
+                    description = "SETTLEMENT_NOT_DELETABLE - AWAITING_DEPOSIT 또는 Share가 있는 DRAFT·REQUESTED 정산"
             )
     })
     ApiResponse<Void> deleteSettlement(UUID settlementId);

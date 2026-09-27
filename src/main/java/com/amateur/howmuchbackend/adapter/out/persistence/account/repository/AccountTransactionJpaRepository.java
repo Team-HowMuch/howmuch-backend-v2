@@ -57,6 +57,7 @@ public interface AccountTransactionJpaRepository extends JpaRepository<AccountTr
                    ) link
               JOIN settlements settlement ON settlement.id = link.settlement_id
              WHERE settlement.status <> 'DRAFT'
+               AND settlement.deleted_at IS NULL
              ORDER BY link.external_transaction_key,
                       settlement.created_at DESC,
                       settlement.id DESC

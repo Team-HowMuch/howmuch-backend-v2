@@ -11,7 +11,7 @@
 
 Account deletion currently rejects only `DRAFT` settlements that use the Account as their receiving account. `REQUESTED`, `AWAITING_DEPOSIT`, and `SUSPENDED` settlements detach the active reference and continue without the selected receiving Account, although those states still require future settlement work.
 
-Current state:
+State at the time of the original decision:
 
 - All non-terminal settlement states are protected by `ACCOUNT_IN_USE_BY_SETTLEMENT`.
 - Only `COMPLETED` settlement references are detached by `detachCompletedByReceivingAccountId`.
@@ -55,6 +55,8 @@ Problems caused by leaving the decision unresolved:
 
 Use option 3. Account deletion is rejected when `DRAFT`, `REQUESTED`, `AWAITING_DEPOSIT`, or `SUSPENDED` uses the Account as its receiving account. The API returns `409 ACCOUNT_IN_USE_BY_SETTLEMENT`, and the transaction changes neither the Account nor the Settlement. Deletion is allowed when only `COMPLETED` settlements reference the Account; their active reference is detached while the immutable receiving-account snapshot and Shares remain. This decision remains valid while `COMPLETED` is the only terminal settlement state.
 
+Issue #430 adds global settlement soft deletion. A settlement with `deleted_at IS NOT NULL` is no longer active and does not block Account deletion, regardless of its preserved status. Account deletion detaches its active receiving-account reference, just as it does for `COMPLETED`; the settlement status and financial records remain stored.
+
 ## Consequences
 
 ### Positive
@@ -82,7 +84,7 @@ Use option 3. Account deletion is rejected when `DRAFT`, `REQUESTED`, `AWAITING_
 |---|---|
 | Architecture | Existing Account–Settlement usage Port changes from DRAFT-only to in-progress usage |
 | API | 409 contract becomes `ACCOUNT_IN_USE_BY_SETTLEMENT` |
-| Data | No schema change; only completed settlement active references are detached |
+| Data | No schema change for this ADR; completed or soft-deleted settlement active references are detached on Account deletion |
 | Security | No change |
 | Operations | No migration or deployment ordering change |
 | Developer workflow | New status transitions must be checked against account deletion |
@@ -97,4 +99,5 @@ Use option 3. Account deletion is rejected when `DRAFT`, `REQUESTED`, `AWAITING_
 ## References
 
 - [Issue #356: 진행 중인 정산의 수령 계좌 삭제 차단](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/356)
+- [Issue #430: SUSPENDED·COMPLETED 정산 전역 논리 삭제 지원](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/430)
 - [ADR-0004: Separate active Account and Account Record lifecycles](0004-separate-active-account-and-account-record-lifecycles.md)

@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 public interface UserNotificationJpaRepository extends JpaRepository<UserNotificationJpaEntity, UUID> {
+    @Query(value = "SELECT id FROM settlements WHERE id IN (:ids) AND deleted_at IS NOT NULL", nativeQuery = true)
+    List<UUID> findDeletedSettlementIds(@Param("ids") Collection<UUID> ids);
+
     @Query(value = "SELECT * FROM user_notifications WHERE recipient_user_id=:userId ORDER BY created_at DESC,id DESC LIMIT :limit", nativeQuery = true)
     List<UserNotificationJpaEntity> firstPage(@Param("userId") Long userId, @Param("limit") int limit);
     @Query(value = "SELECT * FROM user_notifications WHERE recipient_user_id=:userId AND (created_at,id)<(:beforeAt,:beforeId) ORDER BY created_at DESC,id DESC LIMIT :limit", nativeQuery = true)

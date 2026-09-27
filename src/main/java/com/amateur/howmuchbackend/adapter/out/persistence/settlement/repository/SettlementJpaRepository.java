@@ -16,6 +16,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEntity, UUID> {
+    Optional<SettlementJpaEntity> findByIdAndDeletedAtIsNull(UUID settlementId);
+
     @Query(value = """
             SELECT
                 settlement.id AS settlementId,
@@ -73,7 +75,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                      GROUP BY payable_share.settlement_id
                 ) payment_summary
                 ON payment_summary.settlement_id = settlement.id
-             WHERE (
+             WHERE settlement.deleted_at IS NULL
+               AND (
                     (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
                     OR (
                         :tab = 'PAY'
@@ -201,7 +204,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 ) paid
                 ON paid.settlement_id = settlement.id
                AND paid.share_id = share.id
-             WHERE (
+             WHERE settlement.deleted_at IS NULL
+               AND (
                     (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
                     OR (
                         :tab = 'PAY'
@@ -224,14 +228,25 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select settlement from SettlementJpaEntity settlement where settlement.id = :settlementId")
+    @Query("select settlement from SettlementJpaEntity settlement where settlement.id = :settlementId and settlement.deletedAt is null")
     Optional<SettlementJpaEntity> findByIdForUpdate(@Param("settlementId") UUID settlementId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE settlements
+               SET deleted_at = :deletedAt,
+                   version = version + 1
+             WHERE id = :settlementId
+               AND deleted_at IS NULL
+            """, nativeQuery = true)
+    int markDeleted(@Param("settlementId") UUID settlementId, @Param("deletedAt") LocalDateTime deletedAt);
 
     @Query(value = """
             SELECT EXISTS (
                 SELECT 1
-                  FROM settlements settlement
+                 FROM settlements settlement
                  WHERE settlement.status <> 'COMPLETED'
+                   AND settlement.deleted_at IS NULL
                    AND (
                         settlement.creator_id = :userId
                         OR EXISTS (
@@ -301,16 +316,16 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         long getCompletedPayerCount();
     }
 
-    boolean existsByReceivingAccountIdAndStatusNot(Long accountId, SettlementStatus status);
+    boolean existsByReceivingAccountIdAndStatusNotAndDeletedAtIsNull(Long accountId, SettlementStatus status);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update SettlementJpaEntity settlement
                set settlement.receivingAccountId = null
              where settlement.receivingAccountId = :accountId
-               and settlement.status = :completedStatus
+               and (settlement.status = :completedStatus or settlement.deletedAt is not null)
             """)
-    int detachCompletedByReceivingAccountId(
+    int detachCompletedOrDeletedByReceivingAccountId(
             @Param("accountId") Long accountId,
             @Param("completedStatus") SettlementStatus completedStatus
     );

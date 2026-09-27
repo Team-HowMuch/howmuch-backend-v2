@@ -144,6 +144,16 @@ class TreasurerSettlementPersistenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("삭제된 정산은 총무의 송금·수령 조회에서 제외한다")
+    void treasurer_softDeletedSettlement_excluded() {
+        jdbcTemplate.update("UPDATE settlements SET deleted_at = ? WHERE id IN (?, ?)",
+                CREATED_AT.plusDays(1), receiveSettlementId, paySettlementId);
+
+        assertThat(treasurerSettlementPersistenceAdapter.findAll(creatorId)).isEmpty();
+        assertThat(treasurerSettlementPersistenceAdapter.findAll(payerId)).isEmpty();
+    }
+
+    @Test
     @DisplayName("SEND는 현재 사용자의 Share 금액을 선택한다")
     void linkedParticipant_currentUserShare_selected() {
         var result = treasurerSettlementPersistenceAdapter.findAll(payerId);

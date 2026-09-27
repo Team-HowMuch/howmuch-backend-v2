@@ -20,6 +20,7 @@ public interface SettlementAutomaticReminderJpaRepository extends Repository<Set
                     WHERE n.recipient_user_id=p.linked_user_id
                     AND n.deduplication_key LIKE 'AUTO_REMINDER:' || CAST(sh.id AS text) || '%') last_automatic ON true
                 WHERE COALESCE(last_automatic.created_at,sh.created_at)<=:automaticDueBefore
+                    AND s.deleted_at IS NULL
                     AND u.active=true AND p.linked_user_id<>s.creator_id
                     AND s.status IN ('REQUESTED','AWAITING_DEPOSIT','SUSPENDED')
                     AND COALESCE((SELECT SUM(t.amount) FROM settlement_deposits d

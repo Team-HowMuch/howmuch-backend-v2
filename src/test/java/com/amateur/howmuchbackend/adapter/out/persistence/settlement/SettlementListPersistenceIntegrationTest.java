@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -175,6 +176,65 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(item.amountToPay()).isNull();
             assertThat(item.groups()).isEmpty();
         });
+    }
+
+    @Test
+    @DisplayName("삭제된 정산은 생성자와 참여자의 목록에서 모두 제외한다")
+    void settlementList_softDeleted_hiddenFromBothTabs() {
+        jdbcTemplate.update("UPDATE settlements SET deleted_at = ? WHERE id IN (?, ?)",
+                CREATED_AT.plusDays(1), receiveSettlementId, paySettlementId);
+
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null)).isEmpty();
+        assertThat(settlementPersistenceAdapter.findAll(
+                payerId, SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null)).isEmpty();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM settlements WHERE id IN (?, ?)", Long.class,
+                receiveSettlementId, paySettlementId)).isEqualTo(2L);
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("완료 정산 논리 삭제 후에도 Share·입금·송금 매칭 이력과 완료 시각을 보존한다")
+    void completedSettlement_softDelete_preservesFinancialMatches() {
+        RequestFixture request = insertReceiveRequest(600L);
+        insertDeposit(request.shareId(), 600L);
+        Long paymentTransactionId = jdbcTemplate.queryForObject("""
+                        INSERT INTO account_transactions (
+                            account_id, external_transaction_key, transaction_type, amount,
+                            transacted_at, created_at, updated_at
+                        ) VALUES (?, ?, 'EXPENSE', 600, ?, ?, ?)
+                        RETURNING id
+                        """, Long.class, accountId, randomExternalKey(),
+                CREATED_AT.plusHours(3), CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_payments (
+                    id, settlement_id, share_id, payer_account_id, account_transaction_id, matched_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """, UUID.randomUUID(), receiveSettlementId, request.shareId(), accountId,
+                paymentTransactionId, CREATED_AT.plusHours(3));
+        jdbcTemplate.update("UPDATE settlements SET status = 'COMPLETED' WHERE id = ?", receiveSettlementId);
+        LocalDateTime completedAt = jdbcTemplate.queryForObject(
+                "SELECT updated_at FROM settlements WHERE id = ?", LocalDateTime.class, receiveSettlementId);
+
+        settlementPersistenceAdapter.delete(receiveSettlementId, CREATED_AT.plusDays(1));
+
+        assertThat(settlementPersistenceAdapter.findById(receiveSettlementId)).isEmpty();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM settlements WHERE id = ?", String.class, receiveSettlementId))
+                .isEqualTo("COMPLETED");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT updated_at FROM settlements WHERE id = ?", LocalDateTime.class, receiveSettlementId))
+                .isEqualTo(completedAt);
+        for (String table : java.util.List.of("settlement_shares", "settlement_deposits", "settlement_payments")) {
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM %s WHERE settlement_id = ?".formatted(table),
+                    Long.class, receiveSettlementId)).as(table).isOne();
+        }
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null))
+                .extracting(SettlementListReadModel::settlementId)
+                .doesNotContain(receiveSettlementId);
     }
 
     @Test
@@ -477,6 +537,15 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     private void cleanupFixtures() {
+        jdbcTemplate.update("""
+                DELETE FROM settlement_payments
+                 WHERE settlement_id IN (
+                     SELECT id FROM settlements
+                      WHERE creator_id IN (
+                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
+                      )
+                 )
+                """);
         jdbcTemplate.update("""
                 DELETE FROM settlement_deposits
                  WHERE settlement_id IN (

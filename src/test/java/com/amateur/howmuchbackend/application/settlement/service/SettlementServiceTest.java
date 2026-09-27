@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -238,7 +239,7 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("송금 단계 전인 생성자 정산만 삭제하고 root 삭제 Port를 호출한다")
+    @DisplayName("생성자 정산은 삭제 시각을 전달해 논리 삭제한다")
     void settlement_beforeTransfer_creatorDelete_allowed() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
@@ -247,7 +248,36 @@ class SettlementServiceTest {
 
         settlementService.delete(SETTLEMENT_ID);
 
-        verify(deleteSettlementPort).delete(SETTLEMENT_ID);
+        verify(deleteSettlementPort).delete(eq(SETTLEMENT_ID), any(LocalDateTime.class));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = SettlementStatus.class, names = {"SUSPENDED", "COMPLETED"})
+    @DisplayName("SUSPENDED·COMPLETED 정산은 Share가 있어도 논리 삭제한다")
+    void settlement_suspendedOrCompletedWithShare_deleteAllowed(SettlementStatus status) {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(new Settlement(
+                SETTLEMENT_ID, CREATOR_ID, "회식 정산", 10_000, status, CREATED_AT, CREATED_AT)));
+        when(loadSettlementSharePort.existsBySettlementId(SETTLEMENT_ID)).thenReturn(true);
+
+        settlementService.delete(SETTLEMENT_ID);
+
+        verify(deleteSettlementPort).delete(eq(SETTLEMENT_ID), any(LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("AWAITING_DEPOSIT 정산은 Share가 없어도 삭제하지 않는다")
+    void settlement_awaitingDeposit_deleteRejected() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(new Settlement(
+                SETTLEMENT_ID, CREATOR_ID, "회식 정산", 10_000,
+                SettlementStatus.AWAITING_DEPOSIT, CREATED_AT, CREATED_AT)));
+
+        assertThatThrownBy(() -> settlementService.delete(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_DELETABLE));
+        verify(deleteSettlementPort, never()).delete(eq(SETTLEMENT_ID), any(LocalDateTime.class));
     }
 
     @Test
@@ -262,7 +292,7 @@ class SettlementServiceTest {
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_DELETABLE));
-        verify(deleteSettlementPort, never()).delete(SETTLEMENT_ID);
+        verify(deleteSettlementPort, never()).delete(eq(SETTLEMENT_ID), any(LocalDateTime.class));
     }
 
     @Test
@@ -277,7 +307,7 @@ class SettlementServiceTest {
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
         verify(loadSettlementSharePort, never()).existsBySettlementId(SETTLEMENT_ID);
-        verify(deleteSettlementPort, never()).delete(SETTLEMENT_ID);
+        verify(deleteSettlementPort, never()).delete(eq(SETTLEMENT_ID), any(LocalDateTime.class));
     }
 
     @Test
@@ -290,7 +320,7 @@ class SettlementServiceTest {
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
-        verify(deleteSettlementPort, never()).delete(SETTLEMENT_ID);
+        verify(deleteSettlementPort, never()).delete(eq(SETTLEMENT_ID), any(LocalDateTime.class));
     }
 
     private Settlement draft() {

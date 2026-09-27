@@ -16,11 +16,13 @@ public interface SettlementNotificationOutboxJpaRepository
     @Query(value = """
             SELECT event.*
               FROM settlement_notification_outbox event
+              JOIN settlements settlement ON settlement.id = event.settlement_id
              WHERE event.status IN ('PENDING', 'RETRY')
                AND event.next_attempt_at <= :now
+               AND settlement.deleted_at IS NULL
              ORDER BY event.next_attempt_at, event.created_at, event.id
              LIMIT 1
-               FOR UPDATE SKIP LOCKED
+               FOR UPDATE OF event SKIP LOCKED
             """, nativeQuery = true)
     Optional<SettlementNotificationOutboxJpaEntity> findNextReadyForUpdate(
             @Param("now") LocalDateTime now

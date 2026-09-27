@@ -36,6 +36,7 @@ public interface SettlementParticipantJpaRepository
               from SettlementJpaEntity settlement,
                    SettlementParticipantJpaEntity participant
              where settlement.id = participant.settlementId
+               and settlement.deletedAt is null
                and participant.source = :source
                and participant.sourceGroupId = :groupId
                and participant.linkedUserId = :userId

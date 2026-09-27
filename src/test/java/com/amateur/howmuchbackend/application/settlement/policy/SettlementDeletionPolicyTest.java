@@ -21,16 +21,28 @@ class SettlementDeletionPolicyTest {
     private final SettlementDeletionPolicy policy = new SettlementDeletionPolicy();
 
     @Test
-    @DisplayName("송금 전 진행 상태는 Share가 없으면 삭제를 허용한다")
+    @DisplayName("DRAFT·REQUESTED는 Share가 없을 때만 삭제를 허용한다")
     void settlementDeletion_beforeTransferWithoutShare_allowed() {
         policy.validate(settlement(SettlementStatus.DRAFT), false);
         policy.validate(settlement(SettlementStatus.REQUESTED), false);
-        policy.validate(settlement(SettlementStatus.SUSPENDED), false);
     }
 
     @Test
-    @DisplayName("Share가 있거나 입금 흐름 상태인 정산은 삭제를 차단한다")
+    @DisplayName("SUSPENDED·COMPLETED는 Share 유무에 관계없이 삭제를 허용한다")
+    void settlementDeletion_suspendedAndCompleted_allowed() {
+        for (SettlementStatus status : new SettlementStatus[]{SettlementStatus.SUSPENDED, SettlementStatus.COMPLETED}) {
+            policy.validate(settlement(status), false);
+            policy.validate(settlement(status), true);
+        }
+    }
+
+    @Test
+    @DisplayName("Share가 있는 DRAFT·REQUESTED와 AWAITING_DEPOSIT은 삭제를 차단한다")
     void settlementDeletion_afterTransferOrDeposit_rejected() {
+        assertThatThrownBy(() -> policy.validate(settlement(SettlementStatus.DRAFT), true))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_DELETABLE));
         assertThatThrownBy(() -> policy.validate(
                 settlement(SettlementStatus.REQUESTED),
                 true
@@ -40,10 +52,14 @@ class SettlementDeletionPolicyTest {
 
         assertThatThrownBy(() -> policy.validate(
                 settlement(SettlementStatus.AWAITING_DEPOSIT),
-                false
+                true
         )).isInstanceOfSatisfying(ApplicationException.class, exception ->
                 assertThat(exception.getStatusCode())
                         .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_DELETABLE));
+        assertThatThrownBy(() -> policy.validate(settlement(SettlementStatus.AWAITING_DEPOSIT), false))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_DELETABLE));
     }
 
     private Settlement settlement(SettlementStatus status) {
