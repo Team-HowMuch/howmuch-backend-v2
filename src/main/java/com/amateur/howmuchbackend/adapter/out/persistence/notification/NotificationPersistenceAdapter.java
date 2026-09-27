@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.notification;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.notification.mapper.NotificationMapper;
+import com.amateur.howmuchbackend.adapter.out.persistence.notification.entity.UserNotificationJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.notification.repository.UserNotificationJpaRepository;
 import com.amateur.howmuchbackend.application.port.out.notification.*;
 import com.amateur.howmuchbackend.domain.notification.UserNotification;
@@ -17,8 +18,14 @@ public class NotificationPersistenceAdapter implements LoadNotificationPort, Mar
     @Override
     @Transactional(readOnly = true)
     public List<UserNotification> findPage(Long userId, LocalDateTime beforeAt, UUID beforeId, int limit) {
-        return (beforeAt == null ? repository.firstPage(userId, limit) : repository.before(userId, beforeAt, beforeId, limit))
-                .stream().map(NotificationMapper::toDomain).toList();
+        var rows = beforeAt == null ? repository.firstPage(userId, limit)
+                : repository.before(userId, beforeAt, beforeId, limit);
+        var settlementIds = rows.stream().map(UserNotificationJpaEntity::getSettlementId)
+                .filter(Objects::nonNull).distinct().toList();
+        Set<UUID> deletedIds = settlementIds.isEmpty() ? Set.of()
+                : Set.copyOf(repository.findDeletedSettlementIds(settlementIds));
+        return rows.stream().map(row -> NotificationMapper.toDomain(row,
+                deletedIds.contains(row.getSettlementId()) ? null : row.getSettlementId())).toList();
     }
     @Override
     @Transactional(readOnly = true)
@@ -32,7 +39,8 @@ public class NotificationPersistenceAdapter implements LoadNotificationPort, Mar
     @Override
     @Transactional(readOnly = true)
     public Optional<UserNotification> findById(UUID id) {
-        return repository.findById(id).map(NotificationMapper::toDomain);
+        return repository.findById(id)
+                .map(row -> NotificationMapper.toDomain(row, row.getSettlementId()));
     }
     @Override
     @Transactional

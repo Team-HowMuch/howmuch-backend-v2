@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementNotificationOutboxPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementShareLinkStorePort;
@@ -11,6 +12,8 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
+import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,6 +46,7 @@ class SettlementNotificationOutboxWorkerTest {
     private static final String URL = "https://howmuch.example/settlements/" + RAW_TOKEN;
 
     @Mock private SettlementNotificationOutboxPort outboxPort;
+    @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementShareLinkStorePort shareLinkStorePort;
     @Mock private SettlementLinkTokenPort linkTokenPort;
@@ -54,6 +59,7 @@ class SettlementNotificationOutboxWorkerTest {
     void setUp() {
         worker = new SettlementNotificationOutboxWorker(
                 outboxPort,
+                loadSettlementPort,
                 loadUserPort,
                 shareLinkStorePort,
                 linkTokenPort,
@@ -72,6 +78,7 @@ class SettlementNotificationOutboxWorkerTest {
         when(outboxPort.claimNextReady(any()))
                 .thenReturn(Optional.of(first))
                 .thenReturn(Optional.of(second));
+        activeSettlement();
         when(loadUserPort.findById(1L)).thenReturn(Optional.of(user(1L, "fid-1")));
         when(loadUserPort.findById(2L)).thenReturn(Optional.of(user(2L, "fid-2")));
         when(shareLinkStorePort.findBySettlementId(SETTLEMENT_ID)).thenReturn(Optional.of(
@@ -112,6 +119,7 @@ class SettlementNotificationOutboxWorkerTest {
                 "요청자", "알림 제목", "알림 내용", "test-key", null, CREATED_AT);
         var event = SettlementNotificationOutbox.pending(SETTLEMENT_ID, 1L, CREATED_AT, notification.id()).claim(CREATED_AT);
         when(outboxPort.claimNextReady(any())).thenReturn(Optional.of(event));
+        activeSettlement();
         when(loadUserPort.findById(1L)).thenReturn(Optional.of(user(1L, "token")));
         when(notifications.findById(notification.id())).thenReturn(Optional.of(notification));
         when(pushSenderPort.sendNotification(any(), any())).thenReturn(SettlementPushSenderPort.SendResult.SENT);
@@ -136,6 +144,7 @@ class SettlementNotificationOutboxWorkerTest {
                 "요청자", CREATED_AT);
         var event = SettlementNotificationOutbox.pending(SETTLEMENT_ID, 1L, CREATED_AT, notification.id()).claim(CREATED_AT);
         when(outboxPort.claimNextReady(any())).thenReturn(Optional.of(event));
+        activeSettlement();
         when(loadUserPort.findById(1L)).thenReturn(Optional.of(user(1L, "token")));
         when(notifications.findById(notification.id())).thenReturn(Optional.of(notification));
         when(pushSenderPort.sendNotification(any(), any())).thenThrow(new IllegalStateException("push unavailable"));
@@ -144,6 +153,21 @@ class SettlementNotificationOutboxWorkerTest {
         var transition = org.mockito.ArgumentCaptor.forClass(SettlementNotificationOutbox.class);
         org.mockito.Mockito.verify(outboxPort).transitionFromProcessing(transition.capture(), any());
         assertThat(transition.getValue().notificationId()).isEqualTo(notification.id());
+    }
+
+    @Test
+    void notificationOutbox_deletedSettlement_isNotSent() {
+        var event = processingEvent(1L);
+        when(outboxPort.claimNextReady(any())).thenReturn(Optional.of(event));
+        when(outboxPort.transitionFromProcessing(any(), any())).thenReturn(true);
+
+        assertThat(worker.processBatch(1).failed()).isOne();
+        verifyNoInteractions(loadUserPort, pushSenderPort);
+    }
+
+    private void activeSettlement() {
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(new Settlement(
+                SETTLEMENT_ID, 1L, "정산", 1000L, SettlementStatus.REQUESTED, CREATED_AT, CREATED_AT)));
     }
 
     private SettlementNotificationOutbox processingEvent(Long recipientUserId) {

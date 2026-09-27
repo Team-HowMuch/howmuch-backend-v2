@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.domain.notification.NotificationType;
 import com.amateur.howmuchbackend.application.port.out.notification.LoadNotificationPort;
 
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementNotificationOutboxPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementShareLinkStorePort;
@@ -26,6 +27,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SettlementNotificationOutboxWorker {
     private final SettlementNotificationOutboxPort outboxPort;
+    private final LoadSettlementPort loadSettlementPort;
     private final LoadUserPort loadUserPort;
     private final SettlementShareLinkStorePort shareLinkStorePort;
     private final SettlementLinkTokenPort linkTokenPort;
@@ -75,6 +77,9 @@ public class SettlementNotificationOutboxWorker {
 
     private ProcessingResult process(SettlementNotificationOutbox event) {
         try {
+            if (loadSettlementPort.findById(event.settlementId()).isEmpty()) {
+                return fail(event, SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
+            }
             Optional<User> recipientCandidate = loadUserPort.findById(event.recipientUserId());
             if (recipientCandidate.isEmpty()) {
                 return fail(event, SettlementNotificationFailureCode.TARGET_UNAVAILABLE);

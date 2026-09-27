@@ -168,7 +168,11 @@ class NotificationInboxIntegrationTest {
     @Test
     void settlementDeleted_notificationMessageKeptActionDisabled() throws Exception {
         var n = request(); recorder.record(n);
-        jdbc.update("DELETE FROM settlements WHERE id=?", settlement);
+        jdbc.update("UPDATE settlements SET deleted_at=? WHERE id=?", NOW, settlement);
+        assertThat(jdbc.queryForObject(
+                "SELECT settlement_id FROM user_notifications WHERE id=?", UUID.class, n.id()))
+                .isEqualTo(settlement);
+        assertThat(notifications.findById(n.id())).isPresent();
         mvc.perform(get("/api/v2/notifications").with(user("member")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].settlementId").isEmpty())
                 .andExpect(jsonPath("$.data.items[0].action.enabled").value(false))
@@ -334,6 +338,19 @@ class NotificationInboxIntegrationTest {
 
         jdbc.update("DELETE FROM settlement_shares WHERE id=?", share);
         assertThat(due()).isEmpty();
+    }
+
+    @Test
+    void deletedSettlement_hasNoReminderOrNewPushDelivery() {
+        recorder.record(request());
+        assertThat(due()).containsExactly(candidate());
+        jdbc.update("UPDATE settlements SET status='SUSPENDED', deleted_at=? WHERE id=?", NOW, settlement);
+
+        assertThat(due()).isEmpty();
+        assertThat(writer.automatic(candidate())).isFalse();
+        assertThat(outbox.claimNextReady(NOW.plusHours(1))).isEmpty();
+        assertThat(worker.processBatch(1).claimed()).isZero();
+        assertThat(notifications.countUnread(recipient)).isOne();
     }
 
     @Test
