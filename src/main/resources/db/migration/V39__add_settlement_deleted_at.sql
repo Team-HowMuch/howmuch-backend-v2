@@ -1,0 +1,2 @@
+ALTER TABLE settlements
+    ADD COLUMN deleted_at TIMESTAMP(6) WITHOUT TIME ZONE;
