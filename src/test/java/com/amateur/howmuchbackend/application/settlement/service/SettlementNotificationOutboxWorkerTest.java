@@ -172,7 +172,7 @@ class SettlementNotificationOutboxWorkerTest {
     }
 
     private void activeSettlement() {
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(new Settlement(
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(new Settlement(
                 SETTLEMENT_ID, 1L, "정산", 1000L, SettlementStatus.REQUESTED, CREATED_AT, CREATED_AT)));
     }
 
