@@ -1,22 +1,21 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
-import com.amateur.howmuchbackend.domain.notification.NotificationType;
-
 import com.amateur.howmuchbackend.application.port.out.notification.LoadNotificationPort;
-
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementNotificationOutboxPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementShareLinkStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementNotificationRetryPolicy;
+import com.amateur.howmuchbackend.domain.notification.NotificationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationFailureCode;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
 import com.amateur.howmuchbackend.domain.user.User;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -24,7 +23,6 @@ import java.util.Optional;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class SettlementNotificationOutboxWorker {
     private final SettlementNotificationOutboxPort outboxPort;
     private final LoadSettlementPort loadSettlementPort;
@@ -34,6 +32,29 @@ public class SettlementNotificationOutboxWorker {
     private final SettlementPushSenderPort pushSenderPort;
     private final SettlementNotificationRetryPolicy retryPolicy;
     private final LoadNotificationPort loadNotificationPort;
+    private final TransactionTemplate deliveryTransaction;
+
+    public SettlementNotificationOutboxWorker(
+            SettlementNotificationOutboxPort outboxPort,
+            LoadSettlementPort loadSettlementPort,
+            LoadUserPort loadUserPort,
+            SettlementShareLinkStorePort shareLinkStorePort,
+            SettlementLinkTokenPort linkTokenPort,
+            SettlementPushSenderPort pushSenderPort,
+            SettlementNotificationRetryPolicy retryPolicy,
+            LoadNotificationPort loadNotificationPort,
+            PlatformTransactionManager transactionManager
+    ) {
+        this.outboxPort = outboxPort;
+        this.loadSettlementPort = loadSettlementPort;
+        this.loadUserPort = loadUserPort;
+        this.shareLinkStorePort = shareLinkStorePort;
+        this.linkTokenPort = linkTokenPort;
+        this.pushSenderPort = pushSenderPort;
+        this.retryPolicy = retryPolicy;
+        this.loadNotificationPort = loadNotificationPort;
+        this.deliveryTransaction = new TransactionTemplate(transactionManager);
+    }
 
     public BatchResult processBatch(int batchSize) {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
@@ -57,7 +78,20 @@ public class SettlementNotificationOutboxWorker {
             }
             claimed++;
             SettlementNotificationOutbox event = candidate.get();
-            ProcessingResult result = process(event);
+            ProcessingResult result;
+            try {
+                result = deliveryTransaction.execute(status -> process(event));
+            } catch (RuntimeException exception) {
+                log.warn(
+                        "Settlement notification processing transaction failed. "
+                                + "eventId={}, settlementId={}, attemptCount={}, failureType={}",
+                        event.id(),
+                        event.settlementId(),
+                        event.attemptCount(),
+                        exception.getClass().getSimpleName()
+                );
+                result = retryOrFail(event);
+            }
             switch (result) {
                 case SUCCEEDED -> succeeded++;
                 case RETRIED -> retried++;
@@ -77,7 +111,7 @@ public class SettlementNotificationOutboxWorker {
 
     private ProcessingResult process(SettlementNotificationOutbox event) {
         try {
-            if (loadSettlementPort.findById(event.settlementId()).isEmpty()) {
+            if (loadSettlementPort.findByIdForUpdate(event.settlementId()).isEmpty()) {
                 return fail(event, SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
             }
             Optional<User> recipientCandidate = loadUserPort.findById(event.recipientUserId());

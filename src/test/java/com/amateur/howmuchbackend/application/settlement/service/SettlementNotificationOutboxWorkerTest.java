@@ -23,6 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -51,12 +53,15 @@ class SettlementNotificationOutboxWorkerTest {
     @Mock private SettlementShareLinkStorePort shareLinkStorePort;
     @Mock private SettlementLinkTokenPort linkTokenPort;
     @Mock private SettlementPushSenderPort pushSenderPort;
+    @Mock private PlatformTransactionManager transactionManager;
+    @Mock private TransactionStatus transactionStatus;
 
     @Mock private com.amateur.howmuchbackend.application.port.out.notification.LoadNotificationPort notifications;
     private SettlementNotificationOutboxWorker worker;
 
     @BeforeEach
     void setUp() {
+        when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
         worker = new SettlementNotificationOutboxWorker(
                 outboxPort,
                 loadSettlementPort,
@@ -65,7 +70,8 @@ class SettlementNotificationOutboxWorkerTest {
                 linkTokenPort,
                 pushSenderPort,
                 new SettlementNotificationRetryPolicy(),
-                notifications
+                notifications,
+                transactionManager
         );
     }
 

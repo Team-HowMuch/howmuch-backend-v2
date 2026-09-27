@@ -275,7 +275,7 @@ PostgreSQL이 필요한 cascade 통합 테스트는 서비스 상태를 확인�
 1. `SettlementService`가 현재 생성자와 잠긴 정산을 확인하고 `SettlementDeletionPolicy`로 상태·Share 조건을 검사한다.
 2. `DeleteSettlementPort`가 `settlements.deleted_at`에 UTC 시각을 기록하고 version을 증가시킨다. 원래 status와 `updated_at`은 유지해 완료 시각을 바꾸지 않는다.
 3. 삭제된 정산은 생성자·참여자 목록, 상세·품목·입금·송금 API, 참여 링크 및 총무 조회에서 제외한다. 계좌·회원 탈퇴 차단 조회에서도 진행 중 정산으로 세지 않는다. 계좌 삭제 시 FK를 유지한 활성 수령 계좌 참조는 완료 정산과 동일하게 분리하되 snapshot과 금융 매칭은 보존한다.
-4. 예약 리마인드·알림 생성 및 발송은 삭제 정산을 새로 처리하지 않는다. 기존 알림 메시지는 남기되 정산 이동 액션은 비활성화한다.
+4. 예약 리마인드·알림 생성 및 발송은 삭제 정산을 새로 처리하지 않는다. 기존 알림 메시지는 남기되 정산 이동 액션은 비활성화한다. Outbox 발송은 이벤트별 트랜잭션에서 같은 정산 행을 잠근 채 푸시 제출과 Outbox 상태 전이를 마친다. 삭제도 같은 행 잠금을 사용하므로 진행 중 발송과 삭제가 직렬화된다.
 
 `deleted_at TIMESTAMP(6) WITHOUT TIME ZONE NULL`은 [migration PR #432](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/432)로 반영됐다. 기존 행은 `NULL`로 활성 상태다. 새 endpoint, Web DTO, Redis 키 또는 외부 연동은 없다. 삭제된 정산을 읽거나 수정하려는 요청은 없는 정산과 동일하게 처리한다.
 
@@ -295,3 +295,9 @@ PostgreSQL이 필요한 cascade 통합 테스트는 서비스 상태를 확인�
 - 정책·서비스·영속 통합 테스트로 상태/Share 조합, 권한·반복 삭제, 목록·총무·계좌 삭제·알림/리마인드 경로를 확인했다. 완료 정산의 Share·입금·송금 행 및 `updated_at` 보존과 version 증가도 확인했다.
 - `git diff --check` 통과. 운영 배포와 실제 사용자 데이터 검증은 이 로컬 결과에 포함하지 않는다.
 - 후속 요청에 따라 위 경계로 커밋하고 `develop` 대상 PR을 만든다.
+
+### PR 리뷰 반영: 삭제와 진행 중 푸시 직렬화
+
+- 워커가 이벤트를 선점한 뒤 존재 확인만 하는 방식으로는 삭제와 푸시 사이의 경합을 막지 못한다.
+- 이벤트별 DB 트랜잭션 안에서 `findByIdForUpdate`로 정산 행을 잠그고, 푸시 제출과 Outbox 상태 전이까지 잠금을 유지한다. 삭제 서비스도 같은 정산 행을 잠그므로 삭제가 먼저면 발송하지 않고, 발송이 먼저면 발송 처리가 끝난 뒤에만 삭제가 성공한다.
+- 리뷰 수정 뒤 `compileJava`와 `compileTestJava`를 확인한다. 테스트 실행과 원격 CI는 이 수정에 대해 다시 실행하지 않았다.
