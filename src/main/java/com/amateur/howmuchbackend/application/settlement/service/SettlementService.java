@@ -85,7 +85,7 @@ public class SettlementService implements
                 settlement,
                 loadSettlementSharePort.existsBySettlementId(settlementId)
         );
-        deleteSettlementPort.delete(settlementId);
+        deleteSettlementPort.delete(settlementId, LocalDateTime.now(ZoneOffset.UTC));
     }
 
     @Override

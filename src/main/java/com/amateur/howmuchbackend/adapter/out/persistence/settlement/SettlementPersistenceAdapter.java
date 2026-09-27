@@ -53,7 +53,8 @@ public class SettlementPersistenceAdapter implements
 
     @Override
     public Optional<Settlement> findById(UUID settlementId) {
-        return settlementJpaRepository.findById(settlementId).map(SettlementMapper::toDomain);
+        return settlementJpaRepository.findByIdAndDeletedAtIsNull(settlementId)
+                .map(SettlementMapper::toDomain);
     }
 
     @Override
@@ -119,15 +120,17 @@ public class SettlementPersistenceAdapter implements
 
     @Override
     public Settlement update(Settlement settlement) {
-        var entity = settlementJpaRepository.findById(settlement.id())
+        var entity = settlementJpaRepository.findByIdAndDeletedAtIsNull(settlement.id())
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
         entity.updateFrom(settlement);
         return SettlementMapper.toDomain(settlementJpaRepository.save(entity));
     }
 
     @Override
-    public void delete(UUID settlementId) {
-        settlementJpaRepository.deleteById(settlementId);
+    public void delete(UUID settlementId, LocalDateTime deletedAt) {
+        if (settlementJpaRepository.markDeleted(settlementId, deletedAt) != 1) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND);
+        }
     }
 
     private SettlementListReadModel toReadModel(
@@ -165,11 +168,12 @@ public class SettlementPersistenceAdapter implements
 
     @Override
     public boolean existsInProgressByReceivingAccountId(Long accountId) {
-        return settlementJpaRepository.existsByReceivingAccountIdAndStatusNot(accountId, SettlementStatus.COMPLETED);
+        return settlementJpaRepository.existsByReceivingAccountIdAndStatusNotAndDeletedAtIsNull(
+                accountId, SettlementStatus.COMPLETED);
     }
 
     @Override
-    public void detachCompletedByReceivingAccountId(Long accountId) {
-        settlementJpaRepository.detachCompletedByReceivingAccountId(accountId, SettlementStatus.COMPLETED);
+    public void detachCompletedOrDeletedByReceivingAccountId(Long accountId) {
+        settlementJpaRepository.detachCompletedOrDeletedByReceivingAccountId(accountId, SettlementStatus.COMPLETED);
     }
 }

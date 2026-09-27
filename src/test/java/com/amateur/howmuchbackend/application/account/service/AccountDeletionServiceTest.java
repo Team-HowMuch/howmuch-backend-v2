@@ -55,7 +55,7 @@ class AccountDeletionServiceTest {
 
         service().delete(deleted.id());
 
-        verify(settlementUsagePort).detachCompletedByReceivingAccountId(deleted.id());
+        verify(settlementUsagePort).detachCompletedOrDeletedByReceivingAccountId(deleted.id());
         verify(deleteAccountPort).delete(deleted.id(), next.id());
     }
 
@@ -71,7 +71,7 @@ class AccountDeletionServiceTest {
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(AccountStatusCode.ACCOUNT_IN_USE_BY_SETTLEMENT));
 
-        verify(settlementUsagePort, never()).detachCompletedByReceivingAccountId(account.id());
+        verify(settlementUsagePort, never()).detachCompletedOrDeletedByReceivingAccountId(account.id());
         verifyNoInteractions(deleteAccountPort);
     }
 

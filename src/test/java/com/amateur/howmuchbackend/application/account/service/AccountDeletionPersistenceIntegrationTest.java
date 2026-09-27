@@ -167,6 +167,19 @@ class AccountDeletionPersistenceIntegrationTest {
         )).isEqualTo(deletedAccountId);
     }
 
+    @Test
+    @DisplayName("논리 삭제된 SUSPENDED 정산은 계좌 삭제를 막지 않는다")
+    void accountDeletion_softDeletedSuspendedSettlement_allowed() {
+        jdbcTemplate.update("UPDATE settlements SET status = 'SUSPENDED', deleted_at = ? WHERE id = ?",
+                LocalDateTime.of(2026, 8, 24, 7, 0), settlementId);
+
+        deleteAccountUseCase.delete(deletedAccountId);
+
+        assertThat(count("SELECT COUNT(*) FROM accounts WHERE id = ?", deletedAccountId)).isZero();
+        assertThat(count("SELECT COUNT(*) FROM settlements WHERE id = ? AND deleted_at IS NOT NULL",
+                settlementId)).isOne();
+    }
+
     private Long insertAccount(String candidateKey, boolean isDefault, int displayOrder, LocalDateTime now) {
         Long temporaryId = jdbcTemplate.queryForObject("SELECT nextval(pg_get_serial_sequence('accounts', 'id'))", Long.class);
         return jdbcTemplate.queryForObject("""

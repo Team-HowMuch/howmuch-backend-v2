@@ -16,6 +16,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -56,6 +57,9 @@ public class SettlementJpaEntity extends BaseTimeJpaEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private SettlementStatus status;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     public SettlementJpaEntity(Settlement settlement) {
         this.id = settlement.id();

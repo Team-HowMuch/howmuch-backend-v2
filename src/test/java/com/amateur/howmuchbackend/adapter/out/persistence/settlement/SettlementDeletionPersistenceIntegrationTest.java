@@ -2,9 +2,11 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementJpaEntity;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Transactional
@@ -26,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("정산 삭제 영속 통합")
 class SettlementDeletionPersistenceIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 25, 19, 0);
-    private static final List<String> CASCADED_TABLES = List.of(
+    private static final List<String> OWNED_TABLES = List.of(
             "settlement_participants",
             "settlement_expenses",
             "settlement_items",
@@ -142,18 +145,37 @@ class SettlementDeletionPersistenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("정산 root 삭제가 모든 정산 소유 하위 행을 cascade로 제거한다")
-    void settlementDeletion_rootRemoved_cascadesOwnedRows() {
-        settlementPersistenceAdapter.delete(settlementId);
+    @DisplayName("논리 삭제가 정산과 하위 행을 보존하면서 모든 조회에서 정산을 숨긴다")
+    void settlementDeletion_softDelete_preservesOwnedRows() {
+        Long versionBefore = jdbcTemplate.queryForObject(
+                "SELECT version FROM settlements WHERE id = ?", Long.class, settlementId);
+        LocalDateTime updatedAtBefore = jdbcTemplate.queryForObject(
+                "SELECT updated_at FROM settlements WHERE id = ?", LocalDateTime.class, settlementId);
+        LocalDateTime deletedAt = NOW.plusDays(1);
+
+        settlementPersistenceAdapter.delete(settlementId, deletedAt);
         settlementJpaRepository.flush();
 
-        assertThat(settlementJpaRepository.existsById(settlementId)).isFalse();
-        for (String table : CASCADED_TABLES) {
+        assertThat(settlementJpaRepository.existsById(settlementId)).isTrue();
+        assertThat(settlementPersistenceAdapter.findById(settlementId)).isEmpty();
+        assertThat(settlementPersistenceAdapter.findByIdForUpdate(settlementId)).isEmpty();
+        assertThatThrownBy(() -> settlementPersistenceAdapter.delete(settlementId, deletedAt.plusSeconds(1)))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
+        assertThat(settlementJpaRepository.findById(settlementId).orElseThrow().getDeletedAt())
+                .isEqualTo(deletedAt);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT version FROM settlements WHERE id = ?", Long.class, settlementId))
+                .isEqualTo(versionBefore + 1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT updated_at FROM settlements WHERE id = ?", LocalDateTime.class, settlementId))
+                .isEqualTo(updatedAtBefore);
+        for (String table : OWNED_TABLES) {
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM %s WHERE settlement_id = ?".formatted(table),
                     Long.class,
                     settlementId
-            )).as(table).isZero();
+            )).as(table).isEqualTo(1L);
         }
     }
 }

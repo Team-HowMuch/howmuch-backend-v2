@@ -160,8 +160,8 @@ class SettlementRequestPersistenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("정산 root 삭제가 Share·수령 계좌 스냅샷·링크를 함께 cascade한다")
-    void settlementDeletion_requestChildren_cascaded() {
+    @DisplayName("논리 삭제가 Share·수령 계좌 스냅샷·링크를 보존한다")
+    void settlementDeletion_requestChildren_preserved() {
         SettlementReceivingAccountSnapshot snapshot = SettlementReceivingAccountSnapshot.create(
                 settlementId,
                 accountId,
@@ -182,27 +182,28 @@ class SettlementRequestPersistenceIntegrationTest {
         );
         adapter.save(snapshot, shares, link, RAW_LINK_TOKEN);
 
-        settlementPersistenceAdapter.delete(settlementId);
+        settlementPersistenceAdapter.delete(settlementId, NOW.plusDays(1));
         settlementJpaRepository.flush();
 
+        assertThat(settlementPersistenceAdapter.findById(settlementId)).isEmpty();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM settlements WHERE id = ?", Integer.class, settlementId
-        )).isZero();
+        )).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM settlement_receiving_account_snapshots WHERE settlement_id = ?",
                 Integer.class,
                 settlementId
-        )).isZero();
+        )).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM settlement_shares WHERE settlement_id = ?",
                 Integer.class,
                 settlementId
-        )).isZero();
+        )).isEqualTo(2);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM settlement_links WHERE settlement_id = ?",
                 Integer.class,
                 settlementId
-        )).isZero();
+        )).isEqualTo(1);
     }
 
     private Long insertUser(String uniqueKey) {

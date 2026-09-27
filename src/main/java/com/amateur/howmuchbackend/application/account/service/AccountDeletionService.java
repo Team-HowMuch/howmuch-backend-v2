@@ -46,7 +46,7 @@ public class AccountDeletionService implements DeleteAccountUseCase {
             throw ApplicationException.of(AccountStatusCode.ACCOUNT_IN_USE_BY_SETTLEMENT);
         }
 
-        settlementUsagePort.detachCompletedByReceivingAccountId(account.id());
+        settlementUsagePort.detachCompletedOrDeletedByReceivingAccountId(account.id());
         deleteAccountPort.delete(account.id(), nextDefaultAccountId(account));
     }
 
