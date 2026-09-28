@@ -89,6 +89,26 @@ class OcrReceiptApiResponseTest {
     }
 
     @Test
+    @DisplayName("배달비를 옮기고, 0과 값 없음을 구분한다")
+    void receiptOcr_deliveryFee_mapped() {
+        String withFee = """
+                {"ok": true, "result": {"total_amount": 12000, "total_verified": true,
+                 "discount": 0, "delivery_fee": 3000,
+                 "items": [{"name": "짬뽕", "quantity": 1, "price": 9000}]}}
+                """;
+        String zeroFee = "{\"ok\": true, \"result\": {\"total_verified\": true, \"delivery_fee\": 0}}";
+        String noFee = "{\"ok\": true, \"result\": {\"total_verified\": true}}";
+
+        assertThat(strict.readValue(withFee, OcrReceiptApiResponse.class).toResult().deliveryFee())
+                .isEqualTo(3_000L);
+        // 0은 "배달비 없음(또는 못 찾음)", null은 "분석 서비스가 값을 주지 않음"이라 섞이면 안 된다.
+        assertThat(strict.readValue(zeroFee, OcrReceiptApiResponse.class).toResult().deliveryFee())
+                .isZero();
+        assertThat(strict.readValue(noFee, OcrReceiptApiResponse.class).toResult().deliveryFee())
+                .isNull();
+    }
+
+    @Test
     @DisplayName("항목 배열에 null 원소가 섞여도 변환에서 터지지 않는다")
     void receiptOcr_nullItems_dropped() {
         String body = """
