@@ -51,10 +51,10 @@ class SettlementOpenApiIntegrationTest {
         assertRequired(
                 document,
                 "SettlementDetailWebResponse",
-                "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
+                "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt", "endedAt",
                 "viewerRole", "creatorName", "bankName", "accountNumber", "institutionIconUrl",
                 "paymentInfo", "paymentSummary",
-                "reminderNextAvailableAt", "participants"
+                "reminderNextAvailableAt", "participants", "items"
         );
         assertRequired(document, "PaymentInfo", "amount", "storeName", "paidAt");
         assertRequired(
@@ -94,9 +94,10 @@ class SettlementOpenApiIntegrationTest {
         assertNullable(
                 document,
                 "SettlementDetailWebResponse",
-                "allocationType", "bankName", "accountNumber", "institutionIconUrl",
+                "allocationType", "endedAt", "bankName", "accountNumber", "institutionIconUrl",
                 "reminderNextAvailableAt"
         );
+        assertDescriptionContainsUtc(document, "SettlementDetailWebResponse", "endedAt");
         assertNullable(document, "SettlementBulkReminderWebResponse", "nextAvailableAt");
         assertNullable(document, "ParticipantPayment", "avatarUrl");
         assertNullable(document, "PaymentInfo", "storeName", "paidAt");

@@ -942,6 +942,21 @@ class SettlementControllerTest {
                 ));
     }
 
+    @Test
+    void settlementDetail_suspended_returnsEndedAt() throws Exception {
+        var suspendedAt = LocalDateTime.of(2026, 9, 2, 12, 30);
+        when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(detailResult(
+                SettlementDetailResult.ViewerRole.CREATOR,
+                true,
+                SettlementStatus.SUSPENDED,
+                suspendedAt
+        ));
+
+        mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.endedAt").value("2026-09-02T12:30:00"));
+    }
+
     private SettlementDetailResult detailResult() {
         return detailResult(SettlementDetailResult.ViewerRole.CREATOR, true);
     }
@@ -950,13 +965,23 @@ class SettlementControllerTest {
             SettlementDetailResult.ViewerRole viewerRole,
             boolean hasAvatar
     ) {
+        return detailResult(viewerRole, hasAvatar, SettlementStatus.AWAITING_DEPOSIT, null);
+    }
+
+    private SettlementDetailResult detailResult(
+            SettlementDetailResult.ViewerRole viewerRole,
+            boolean hasAvatar,
+            SettlementStatus status,
+            LocalDateTime endedAt
+    ) {
         return new SettlementDetailResult(
                 SETTLEMENT_ID,
                 "회식 정산",
                 10_000,
                 null,
-                SettlementStatus.AWAITING_DEPOSIT,
+                status,
                 CREATED_AT,
+                endedAt,
                 viewerRole,
                 "최수아",
                 "NH농협",
@@ -977,7 +1002,8 @@ class SettlementControllerTest {
                         4_000,
                         SettlementDetailResult.PaymentStatus.PARTIALLY_PAID,
                         hasAvatar ? IMAGE_VERSION : null
-                ))
+                )),
+                List.of()
         );
     }
 }
