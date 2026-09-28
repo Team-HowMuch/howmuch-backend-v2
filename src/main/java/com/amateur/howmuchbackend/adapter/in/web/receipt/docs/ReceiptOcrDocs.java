@@ -17,6 +17,7 @@ public interface ReceiptOcrDocs {
                     + "대부분의 값은 읽지 못하면 null입니다. `totalVerified`가 false면 "
                     + "합계를 사용자에게 확인받는 흐름을 권장합니다.\n\n"
                     + "품목 옵션은 각 품목의 `subItems` 필드로 반환합니다.\n\n"
+                    + "배달비는 품목이 아니라 `deliveryFee` 필드로 반환합니다.\n\n"
                     + "이미지는 분석에만 쓰이고 서버에 보관하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )

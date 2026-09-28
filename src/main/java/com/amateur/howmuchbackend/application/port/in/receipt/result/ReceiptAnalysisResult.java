@@ -17,11 +17,12 @@ public record ReceiptAnalysisResult(
         Long totalAmount,
         String paymentMethod,
         boolean totalVerified,
-        Long discount
+        Long discount,
+        Long deliveryFee
 ) {
     public ReceiptAnalysisResult(String storeName, String purchasedAt, List<Item> items,
                                  Long totalAmount, String paymentMethod, boolean totalVerified) {
-        this(storeName, purchasedAt, items, totalAmount, paymentMethod, totalVerified, null);
+        this(storeName, purchasedAt, items, totalAmount, paymentMethod, totalVerified, null, null);
     }
 
     public ReceiptAnalysisResult {

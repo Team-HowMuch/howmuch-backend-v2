@@ -29,7 +29,15 @@ public record ReceiptOcrWebResponse(
         boolean totalVerified,
 
         @Schema(description = "영수증 전체 할인(원). 읽지 못하면 null", nullable = true)
-        Long discount
+        Long discount,
+
+        @Schema(
+                description = "배달비(원). 배달팁 할인·무료배달을 뺀 순액이고 품목(items)에는 들어가지 않습니다. "
+                        + "배달비가 없으면 0, 분석 서비스가 값을 주지 않으면 null",
+                example = "3000",
+                nullable = true
+        )
+        Long deliveryFee
 ) {
     public static ReceiptOcrWebResponse from(ReceiptAnalysisResult result) {
         return new ReceiptOcrWebResponse(
@@ -39,7 +47,8 @@ public record ReceiptOcrWebResponse(
                 result.totalAmount(),
                 result.paymentMethod(),
                 result.totalVerified(),
-                result.discount()
+                result.discount(),
+                result.deliveryFee()
         );
     }
 

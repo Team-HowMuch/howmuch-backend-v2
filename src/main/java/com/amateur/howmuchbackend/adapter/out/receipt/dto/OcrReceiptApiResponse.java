@@ -28,11 +28,12 @@ public record OcrReceiptApiResponse(
             @JsonProperty("total_amount") Long totalAmount,
             @JsonProperty("payment_method") String paymentMethod,
             @JsonProperty("total_verified") boolean totalVerified,
-            Long discount
+            Long discount,
+            @JsonProperty("delivery_fee") Long deliveryFee
     ) {
         public Result(String storeName, String purchasedAt, List<Item> items,
                       Long totalAmount, String paymentMethod, boolean totalVerified) {
-            this(storeName, purchasedAt, items, totalAmount, paymentMethod, totalVerified, null);
+            this(storeName, purchasedAt, items, totalAmount, paymentMethod, totalVerified, null, null);
         }
     }
 
@@ -84,7 +85,8 @@ public record OcrReceiptApiResponse(
                 result.totalAmount(),
                 result.paymentMethod(),
                 result.totalVerified(),
-                result.discount()
+                result.discount(),
+                result.deliveryFee()
         );
     }
 }
