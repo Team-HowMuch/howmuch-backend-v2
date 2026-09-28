@@ -146,6 +146,9 @@ public class SettlementPersistenceAdapter implements
                 projection.getSettlementId(),
                 status,
                 projection.getRequestedAt(),
+                projection.getEndedAt() == null
+                        ? null
+                        : LocalDateTime.ofInstant(projection.getEndedAt(), ZoneOffset.UTC),
                 projection.getCompletedAt() == null
                         ? null
                         : LocalDateTime.ofInstant(projection.getCompletedAt(), ZoneOffset.UTC),

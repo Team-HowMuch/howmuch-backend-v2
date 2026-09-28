@@ -26,6 +26,7 @@ public class SettlementListService implements GetSettlementsUseCase {
                         item.settlementId(),
                         item.status(),
                         item.requestedAt(),
+                        item.endedAt(),
                         item.completedAt(),
                         item.totalAmount(),
                         item.allocationType(),

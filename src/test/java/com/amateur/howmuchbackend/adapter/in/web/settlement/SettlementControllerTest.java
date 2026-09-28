@@ -246,6 +246,7 @@ class SettlementControllerTest {
                 SettlementStatus.AWAITING_DEPOSIT,
                 CREATED_AT,
                 null,
+                null,
                 600L,
                 SettlementAllocationType.DUTCH_PAY,
                 3,
@@ -269,6 +270,8 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0].settlementId").value(SETTLEMENT_ID.toString()))
                 .andExpect(jsonPath("$.data[0].status").value("AWAITING_DEPOSIT"))
                 .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
+                        org.hamcrest.Matchers.equalTo("endedAt"), org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
                         org.hamcrest.Matchers.equalTo("completedAt"), org.hamcrest.Matchers.nullValue())))
                 .andExpect(jsonPath("$.data[0].totalAmount").value(600))
                 .andExpect(jsonPath("$.data[0].participantCount").value(3))
@@ -287,14 +290,30 @@ class SettlementControllerTest {
         when(getSettlementsUseCase.get(new GetSettlementsCommand(
                 SettlementListTab.PAY, SettlementListStatusFilter.COMPLETED, 10L, month)))
                 .thenReturn(List.of(new SettlementListItemResult(
-                        SETTLEMENT_ID, SettlementStatus.COMPLETED, CREATED_AT, completedAt,
+                        SETTLEMENT_ID, SettlementStatus.COMPLETED, CREATED_AT, completedAt, completedAt,
                         null, SettlementAllocationType.DUTCH_PAY, null, null, null, 600L,
                         "요청자", List.of())));
         mockMvc.perform(get("/api/v2/settlements")
                         .queryParam("tab", "PAY").queryParam("status", "COMPLETED")
                         .queryParam("groupId", "10").queryParam("yearMonth", "2026-09"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].endedAt").value("2026-09-01T00:00:00"))
                 .andExpect(jsonPath("$.data[0].completedAt").value("2026-09-01T00:00:00"));
+    }
+
+    @Test
+    void settlementList_suspended_returnsCommonEndedAt() throws Exception {
+        var suspendedAt = LocalDateTime.of(2026, 9, 2, 12, 30);
+        when(getSettlementsUseCase.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.SUSPENDED, null, null)))
+                .thenReturn(List.of(new SettlementListItemResult(
+                        SETTLEMENT_ID, SettlementStatus.SUSPENDED, CREATED_AT, suspendedAt, null,
+                        null, null, null, null, null, null, null, List.of())));
+
+        mockMvc.perform(get("/api/v2/settlements").queryParam("status", "SUSPENDED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].endedAt").value("2026-09-02T12:30:00"))
+                .andExpect(jsonPath("$.data[0].completedAt").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

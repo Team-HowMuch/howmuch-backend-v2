@@ -40,7 +40,7 @@ class SettlementOpenApiIntegrationTest {
         assertRequired(
                 document,
                 "SettlementListItemWebResponse",
-                "settlementId", "status", "requestedAt", "completedAt", "totalAmount", "participantCount",
+                "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
                 "completedParticipantCount", "amountToPay", "requesterName", "groups"
         );
         assertRequired(
@@ -78,8 +78,9 @@ class SettlementOpenApiIntegrationTest {
         assertNullable(
                 document,
                 "SettlementListItemWebResponse",
-                "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay", "requesterName"
+                "endedAt", "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay", "requesterName"
         );
+        assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "endedAt");
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "completedAt");
         List<JsonNode> parameters = new ArrayList<>();
         document.path("paths").path("/api/v2/settlements").path("get").path("parameters")

@@ -23,6 +23,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.id AS settlementId,
                 settlement.status AS status,
                 COALESCE(link.created_at, settlement.created_at) AS requestedAt,
+                CASE WHEN settlement.status IN ('COMPLETED', 'SUSPENDED')
+                     THEN settlement.updated_at AT TIME ZONE 'UTC' END AS endedAt,
                 CASE WHEN settlement.status = 'COMPLETED' THEN settlement.updated_at AT TIME ZONE 'UTC' END AS completedAt,
                 settlement.total_amount AS totalAmount,
                 settlement.allocation_type AS allocationType,
@@ -266,6 +268,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         String getStatus();
 
         LocalDateTime getRequestedAt();
+
+        Instant getEndedAt();
 
         Instant getCompletedAt();
 

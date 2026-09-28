@@ -43,6 +43,7 @@ class SettlementListServiceTest {
                 SettlementStatus.AWAITING_DEPOSIT,
                 LocalDateTime.of(2026, 8, 13, 0, 0),
                 null,
+                null,
                 600L,
                 SettlementAllocationType.DUTCH_PAY,
                 3,
@@ -85,6 +86,7 @@ class SettlementListServiceTest {
                 SettlementStatus.AWAITING_DEPOSIT,
                 LocalDateTime.of(2026, 8, 13, 0, 0),
                 null,
+                null,
                 600L,
                 SettlementAllocationType.DUTCH_PAY,
                 3,
@@ -104,7 +106,7 @@ class SettlementListServiceTest {
         var month = java.time.YearMonth.of(2026, 9);
         var completedAt = LocalDateTime.of(2026, 9, 1, 0, 0);
         var readModel = new SettlementListReadModel(
-                SETTLEMENT_ID, SettlementStatus.COMPLETED, completedAt.minusMonths(1), completedAt,
+                SETTLEMENT_ID, SettlementStatus.COMPLETED, completedAt.minusMonths(1), completedAt, completedAt,
                 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 1, null, null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
@@ -113,8 +115,29 @@ class SettlementListServiceTest {
         assertThat(service.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED, 10L, month)))
                 .singleElement().satisfies(item -> {
+                    assertThat(item.endedAt()).isEqualTo(completedAt);
                     assertThat(item.completedAt()).isEqualTo(completedAt);
                     assertThat(item.requestedAt()).isEqualTo(completedAt.minusMonths(1));
-                });
+        });
+    }
+
+    @Test
+    void settlementList_suspendedEndedAt_passedThroughWithoutCompletedAt() {
+        var suspendedAt = LocalDateTime.of(2026, 9, 2, 12, 30);
+        var readModel = new SettlementListReadModel(
+                SETTLEMENT_ID, SettlementStatus.SUSPENDED, suspendedAt.minusDays(1), suspendedAt, null,
+                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, null, List.of());
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS, null, null)).thenReturn(List.of(readModel));
+
+        var result = new SettlementListService(currentActorPort, loadSettlementListPort).get(
+                new GetSettlementsCommand(
+                        SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null));
+
+        assertThat(result).singleElement().satisfies(item -> {
+            assertThat(item.endedAt()).isEqualTo(suspendedAt);
+            assertThat(item.completedAt()).isNull();
+        });
     }
 }
