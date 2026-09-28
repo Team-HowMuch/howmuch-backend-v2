@@ -1,6 +1,6 @@
 # 정산 API 공통 종료 시각
 
-- Status: Complete (PR #436)
+- Status: Complete (목록 PR #436 merged; 상세 후속 PR 준비 중)
 - Last updated: 2026-09-28
 - Related issue: [#435](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/435)
 - Related ADR: 없음
@@ -93,4 +93,4 @@ feat(settlement): 상세 응답에 공통 종료 시각 제공
 
 | 날짜 | 완료 | 다음 작업 | 위험 |
 |---|---|---|---|
-| 2026-09-28 | 이슈 #435 및 PR #436에 목록·상세 `endedAt` 계약 구현, Swagger·Feature Plan·상태별 테스트 반영, 전체 로컬 검증 완료 | GitHub Actions billing 제한 해제 후 CI 재실행 | migration 없음; `completedAt`·완료 월 필터 호환 유지 |
+| 2026-09-28 | PR #436에서 목록 `endedAt` 구현·병합; 상세 `endedAt`은 후속 변경으로 구현하고 Swagger·Feature Plan·상태별 테스트 및 전체 로컬 검증 완료 | 상세 후속 PR 생성 및 GitHub Actions 확인 | migration 없음; `completedAt`·완료 월 필터 호환 유지 |
