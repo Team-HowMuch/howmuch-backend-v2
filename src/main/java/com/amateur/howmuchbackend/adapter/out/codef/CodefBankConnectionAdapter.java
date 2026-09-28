@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.codef;
 
+import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
 import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.AccountType;
@@ -60,12 +61,14 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
     public List<ExternalAccountCandidate> findAccounts(
             String connectedId,
             String organization,
-            String birthDate
+            String birthDate,
+            BankAccountCredentials credentials
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("organization", organization);
         payload.put("connectedId", connectedId);
         putIfPresent(payload, "birthDate", birthDate);
+        putCredentials(payload, credentials);
 
         JsonNode data = data(post(ACCOUNT_LIST_PATH, "account_list", organization, payload));
         Map<String, ExternalAccountCandidate> accounts = new LinkedHashMap<>();
@@ -84,7 +87,16 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
         payload.put("id", registration.loginId());
         payload.put("password", rsaEncryptor.encrypt(registration.password()));
         putIfPresent(payload, "birthDate", registration.birthDate());
+        putCredentials(payload, registration.credentials());
         return payload;
+    }
+
+    private void putCredentials(Map<String, Object> payload, BankAccountCredentials credentials) {
+        if (credentials == null) {
+            return;
+        }
+        payload.put("withdrawAccountNo", credentials.number());
+        payload.put("withdrawAccountPassword", rsaEncryptor.encrypt(credentials.password()));
     }
 
     private ConnectionResult connectionResult(JsonNode response, String organization, String fallbackConnectedId) {

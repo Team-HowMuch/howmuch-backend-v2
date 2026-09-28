@@ -133,17 +133,21 @@ public interface AccountDocs {
 
     @Operation(
             summary = "연동 가능한 은행 목록 조회",
-            description = "활성 은행의 CODEF 기관코드, 이름, 아이콘 URL을 정렬 순서대로 반환합니다.",
+            description = "활성 은행의 CODEF 기관코드, 이름, 아이콘 URL과 계좌 자격정보 필요 여부를 정렬 순서대로 반환합니다. BANK.attr3가 1일 때만 requiresAccountCredentials=true입니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     ApiResponse<List<BankCatalogWebResponse>> getBanks();
 
     @Operation(
             summary = "은행 연결 및 계좌 후보 조회",
-            description = "은행 ID/PW를 CODEF에 연결하고 마스킹된 계좌 후보를 반환합니다.",
+            description = "은행 ID/PW를 CODEF에 연결하고 마스킹된 계좌 후보를 반환합니다. requiresAccountCredentials=true인 은행은 accountNumber와 accountPassword가 필수이며 서버에 암호화하여 보관합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "BANK_ACCOUNT_CREDENTIAL_REQUIRED - 필요한 계좌번호 또는 계좌 비밀번호 누락"
+            ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "502",
                     description = "CODEF_UNMAPPED_ERROR 또는 CODEF_RESPONSE_INVALID - CODEF 응답 오류"
@@ -157,10 +161,14 @@ public interface AccountDocs {
 
     @Operation(
             summary = "외부 계좌 연동",
-            description = "은행 후보를 다시 조회해 선택 Key를 검증한 뒤 Account로 저장합니다.",
+            description = "은행 후보를 다시 조회해 선택 Key를 검증한 뒤 Account로 저장합니다. 필요한 은행의 계좌 자격정보는 서버에 저장된 암호문을 복호화해 사용합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "BANK_ACCOUNT_RECONNECT_REQUIRED - 기존 연결에 계좌 자격정보가 없어 재연결 필요"
+            ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "502",
                     description = "CODEF_UNMAPPED_ERROR 또는 CODEF_RESPONSE_INVALID - CODEF 응답 오류"

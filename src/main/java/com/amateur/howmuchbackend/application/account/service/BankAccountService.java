@@ -1,6 +1,8 @@
 package com.amateur.howmuchbackend.application.account.service;
 
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
+import com.amateur.howmuchbackend.application.account.model.EncryptedBankAccountCredentials;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.ConnectBankUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
@@ -27,6 +29,7 @@ import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -51,6 +54,7 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
     private final SaveAccountPort saveAccountPort;
     private final BankConnectionPort bankConnectionPort;
     private final BankCatalog bankCatalog;
+    private final AccountCredentialProtectionService credentialProtection;
 
     @Override
     @Transactional
@@ -60,8 +64,11 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
         User user = loadUserForUpdate(actor.userId());
         connectionStorePort.validateStorageConfiguration();
         String birthDate = birthDate(command.birthDate(), user);
+        BankAccountCredentials credentials = credentials(command);
+        EncryptedBankAccountCredentials encrypted = credentials == null ? null
+                : credentialProtection.protect(actor.userId(), command.organization(), credentials);
         BankRegistration registration = new BankRegistration(
-                command.organization(), command.loginId(), command.password(), birthDate
+                command.organization(), command.loginId(), command.password(), birthDate, credentials
         );
 
         ExternalConnection connection = connectionStorePort.findActiveByUserId(actor.userId()).orElse(null);
@@ -69,19 +76,24 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
             var result = bankConnectionPort.create(registration);
             connection = connectionStorePort.saveNew(
                     new ExternalConnection(null, actor.userId(), result.connectedId()),
-                    institution(null, command.organization(), result.resultCode())
+                    institution(null, command.organization(), result.resultCode(), encrypted)
             );
         } else if (!connectionStorePort.hasInstitution(connection.id(), command.organization())) {
             var result = bankConnectionPort.add(connection.connectedId(), registration);
-            connectionStorePort.saveInstitution(institution(connection.id(), command.organization(), result.resultCode()));
+            connectionStorePort.saveInstitution(institution(connection.id(), command.organization(), result.resultCode(), encrypted));
         } else {
             bankConnectionPort.update(connection.connectedId(), registration);
+            if (encrypted != null) {
+                connectionStorePort.updateInstitutionCredentials(
+                        connection.id(), command.organization(), encrypted.localCiphertext(), encrypted.kmsCiphertext()
+                );
+            }
         }
 
         Set<String> linkedKeys = loadAccountPort.findCandidateKeys(connection.id());
         String connectedId = connection.connectedId();
         List<BankConnectionResult.Candidate> candidates = bankConnectionPort
-                .findAccounts(connectedId, command.organization(), birthDate)
+                .findAccounts(connectedId, command.organization(), birthDate, credentials)
                 .stream()
                 .map(candidate -> toResultCandidate(connectedId, command.organization(), candidate, linkedKeys))
                 .toList();
@@ -106,10 +118,12 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
         if (!connectionStorePort.hasInstitution(connection.id(), command.organization())) {
             throw ApplicationException.of(ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID);
         }
+        BankAccountCredentials credentials = bankCatalog.requiresAccountCredentials(command.organization())
+                ? credentialProtection.reveal(actor.userId(), connection.id(), command.organization()) : null;
 
         Map<String, ExternalAccountCandidate> candidates = new LinkedHashMap<>();
         for (ExternalAccountCandidate candidate : bankConnectionPort.findAccounts(
-                connection.connectedId(), command.organization(), birthDate(command.birthDate(), user)
+                connection.connectedId(), command.organization(), birthDate(command.birthDate(), user), credentials
         )) {
             candidates.put(candidateKey(connection.connectedId(), command.organization(), candidate.externalAccountKey()), candidate);
         }
@@ -163,10 +177,24 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
         return requested != null ? requested : user.birthDate() == null ? null : CODEF_DATE.format(user.birthDate());
     }
 
-    private ConnectedInstitution institution(Long connectionId, String organization, String resultCode) {
+    private ConnectedInstitution institution(
+            Long connectionId, String organization, String resultCode, EncryptedBankAccountCredentials encrypted
+    ) {
         return new ConnectedInstitution(
-                null, connectionId, organization, ExternalConnectionStatus.CONNECTED, resultCode
+                null, connectionId, organization, ExternalConnectionStatus.CONNECTED, resultCode,
+                encrypted == null ? null : encrypted.localCiphertext(),
+                encrypted == null ? null : encrypted.kmsCiphertext()
         );
+    }
+
+    private BankAccountCredentials credentials(ConnectBankCommand command) {
+        if (!bankCatalog.requiresAccountCredentials(command.organization())) {
+            return null;
+        }
+        if (!StringUtils.hasText(command.accountNumber()) || !StringUtils.hasText(command.accountPassword())) {
+            throw ApplicationException.of(ExternalConnectionStatusCode.BANK_ACCOUNT_CREDENTIAL_REQUIRED);
+        }
+        return new BankAccountCredentials(command.accountNumber(), command.accountPassword());
     }
 
     private BankConnectionResult.Candidate toResultCandidate(

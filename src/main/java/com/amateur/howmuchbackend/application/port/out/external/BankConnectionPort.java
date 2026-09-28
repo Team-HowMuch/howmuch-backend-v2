@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.port.out.external;
 
+import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
 import com.amateur.howmuchbackend.domain.account.AccountType;
 
 import java.math.BigDecimal;
@@ -12,9 +13,22 @@ public interface BankConnectionPort {
 
     ConnectionResult update(String connectedId, BankRegistration registration);
 
-    List<ExternalAccountCandidate> findAccounts(String connectedId, String organization, String birthDate);
+    List<ExternalAccountCandidate> findAccounts(
+            String connectedId, String organization, String birthDate, BankAccountCredentials credentials
+    );
 
-    record BankRegistration(String organization, String loginId, String password, String birthDate) {
+    record BankRegistration(
+            String organization,
+            String loginId,
+            String password,
+            String birthDate,
+            BankAccountCredentials credentials
+    ) {
+        @Override
+        public String toString() {
+            return "BankRegistration[organization=%s, loginId=***, password=***, birthDate=***, credentials=***]"
+                    .formatted(organization);
+        }
     }
 
     record ConnectionResult(String connectedId, String resultCode) {
