@@ -7,6 +7,7 @@ ALTER TABLE connected_institutions
 
 UPDATE common_code_group
 SET attr3_name = '계좌번호/비밀번호 필요 여부',
+    revision = revision + 1,
     updated_at = CURRENT_TIMESTAMP
 WHERE group_code = 'BANK';
 
