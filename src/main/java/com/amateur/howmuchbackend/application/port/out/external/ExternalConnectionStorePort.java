@@ -14,9 +14,17 @@ public interface ExternalConnectionStorePort {
 
     boolean hasInstitution(Long connectionId, String organization);
 
+    Optional<ConnectedInstitution> findInstitution(Long connectionId, String organization);
+
     ExternalConnection saveNew(ExternalConnection connection, ConnectedInstitution institution);
 
     void saveInstitution(ConnectedInstitution institution);
+
+    void updateInstitutionCredentials(Long connectionId, String organization, String localCiphertext, String kmsCiphertext);
+
+    void saveKmsCredentialsIfAbsent(Long connectionId, String organization, String kmsCiphertext);
+
+    void clearCredentialsByUserId(Long userId);
 
     int deactivateIncompatibleConnections(String currentFingerprint);
 }

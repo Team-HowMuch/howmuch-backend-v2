@@ -10,6 +10,12 @@ For a server-owned Compose file that still names a branch tag, use an explicit o
 
 Re-running only deploy reuses the successful build's output. Re-running all jobs can produce a new digest; deploy uses that new build output. Concurrency still serializes deployments per branch, but does not guarantee commit ordering or automatic rollback.
 
+## Bank account login credential encryption
+
+Before deploying the bank-credential feature, provide `ACCOUNT_CREDENTIAL_LOCAL_KEY` as a dedicated, randomly generated 32-byte key encoded in Base64. Do not reuse `CODEF_CONNECTED_ID_ENCRYPTION_KEY`. Store this key outside the repository and retain it for as long as any bank-credential ciphertext exists; changing it without re-encrypting existing rows makes those rows unreadable.
+
+Optionally set `ACCOUNT_CREDENTIAL_KMS_KEY_ID` to a symmetric AWS KMS key ARN/ID/alias and grant the app identity `kms:Encrypt` and `kms:Decrypt`. The AWS SDK uses its normal region and credential provider chain. When configured, each credential has both a LOCAL AES-256-GCM ciphertext and a KMS ciphertext. A transient KMS outage falls back to LOCAL; a permission denial or invalid KMS ciphertext does not. A successful LOCAL read fills a missing KMS ciphertext after service recovery. An unset KMS key ID means LOCAL-only mode. KMS-only key deletion does not make the dual-protected data unreadable; protect and rotate the LOCAL key separately. Never log either key or the plaintext credentials.
+
 ## iOS APNs key and environment
 
 The iOS native token sender uses `apns-topic: com.teamhowmuch.app`. Set `APNS_ENVIRONMENT=dev` for a development build and the Sandbox endpoint, or `APNS_ENVIRONMENT=prod` for a production-signed build and `api.push.apple.com`. The `prod` Spring profile defaults to `prod`; other profiles default to `dev`. Each server selects one APNs environment for all its tokens. Firebase Console's uploaded APNs key is not available to this server. Keep the original `.p8` file outside the repository and mount it read-only into the `app` container. The container runs as UID `10001`, which must be able to read the file. The key must be authorized for the selected APNs environment.

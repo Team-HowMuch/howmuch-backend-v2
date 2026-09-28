@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.application.port.in.user.DeleteMyAccountUseCas
 import com.amateur.howmuchbackend.application.port.in.user.command.DeleteMyAccountCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
@@ -45,6 +46,7 @@ public class DeleteMyAccountService implements DeleteMyAccountUseCase {
     private final LoadUserSettlementStatePort loadUserSettlementStatePort;
     private final AuthSessionPort authSessionPort;
     private final UserPushTargetStorePort userPushTargetStorePort;
+    private final ExternalConnectionStorePort externalConnectionStorePort;
     private final ProfileImageStoragePort profileImageStoragePort;
     private final PinPolicy pinPolicy;
     private final PasswordEncoder passwordEncoder;
@@ -87,6 +89,7 @@ public class DeleteMyAccountService implements DeleteMyAccountUseCase {
                 now
         ));
         userPushTargetStorePort.clear(user.id(), now);
+        externalConnectionStorePort.clearCredentialsByUserId(user.id());
         authSessionPort.deleteByUserId(user.id());
         scheduleAvatarCleanup(previousAvatarFileName);
     }

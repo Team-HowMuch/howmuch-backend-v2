@@ -77,7 +77,7 @@ class SettlementReceivingAccountServiceTest {
                 account(4L, false, 3, AccountType.DEPOSIT_TRUST, "12", "KRW")
         ));
         when(bankCatalog.getAllBanks()).thenReturn(List.of(
-                new BankCatalogResult("0020", "우리은행", "woori.png")
+                new BankCatalogResult("0020", "우리은행", "woori.png", false)
         ));
 
         var result = service.get(SETTLEMENT_ID);
