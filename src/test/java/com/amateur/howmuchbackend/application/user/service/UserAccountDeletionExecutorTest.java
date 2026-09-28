@@ -96,16 +96,18 @@ class UserAccountDeletionExecutorTest {
     }
 
     @Test
-    void avatarIsDeletedOnlyAfterCommit() {
+    void sessionAndAvatarAreDeletedOnlyAfterCommit() {
         User user = user("avatar.png");
         when(loadGroupMemberPort.findActiveByUserId(user.id())).thenReturn(List.of());
         when(passwordEncoder.encode(anyString())).thenReturn("new-pin-hash");
         TransactionSynchronizationManager.initSynchronization();
         try {
             executor().delete(user, NOW);
+            verify(authSessionPort, never()).deleteByUserId(user.id());
             verify(imageStoragePort, never()).delete("avatar.png");
             TransactionSynchronizationManager.getSynchronizations()
                     .forEach(synchronization -> synchronization.afterCommit());
+            verify(authSessionPort).deleteByUserId(user.id());
             verify(imageStoragePort).delete("avatar.png");
         } finally {
             TransactionSynchronizationManager.clearSynchronization();

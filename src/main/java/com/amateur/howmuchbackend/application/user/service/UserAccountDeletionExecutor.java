@@ -63,8 +63,7 @@ public class UserAccountDeletionExecutor {
                 now
         ));
         userPushTargetStorePort.clear(user.id(), now);
-        authSessionPort.deleteByUserId(user.id());
-        scheduleAvatarCleanup(previousAvatarFileName);
+        schedulePostCommitCleanup(user.id(), previousAvatarFileName);
     }
 
     private List<GroupMember> lockActiveGroupMembers(Long userId) {
@@ -91,20 +90,27 @@ public class UserAccountDeletionExecutor {
         };
     }
 
-    private void scheduleAvatarCleanup(String avatarFileName) {
-        if (avatarFileName == null) {
-            return;
-        }
+    private void schedulePostCommitCleanup(Long userId, String avatarFileName) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            deleteSafely(avatarFileName);
+            cleanupAfterCommit(userId, avatarFileName);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                deleteSafely(avatarFileName);
+                cleanupAfterCommit(userId, avatarFileName);
             }
         });
+    }
+
+    private void cleanupAfterCommit(Long userId, String avatarFileName) {
+        try {
+            authSessionPort.deleteByUserId(userId);
+        } finally {
+            if (avatarFileName != null) {
+                deleteSafely(avatarFileName);
+            }
+        }
     }
 
     private void deleteSafely(String fileName) {

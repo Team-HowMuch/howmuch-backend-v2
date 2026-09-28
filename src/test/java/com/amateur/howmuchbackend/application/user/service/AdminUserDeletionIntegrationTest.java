@@ -3,7 +3,9 @@ package com.amateur.howmuchbackend.application.user.service;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.user.command.SearchAdminUserCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.AuthAuditPort;
+import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.domain.auth.session.AuthSession;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +16,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -29,6 +32,7 @@ class AdminUserDeletionIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 28, 12, 0);
     @Autowired private AdminUserDeletionService service;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private AuthSessionPort authSessionPort;
     @MockitoBean private CurrentActorPort currentActorPort;
     @MockitoSpyBean private AuthAuditPort authAuditPort;
     private Long adminId;
@@ -40,11 +44,14 @@ class AdminUserDeletionIntegrationTest {
         adminId = insertUser("ADMIN", randomPhone());
         targetPhone = randomPhone();
         targetId = insertUser("USER", targetPhone);
+        authSessionPort.save(new AuthSession(targetId, "test-session", "test-refresh",
+                LocalDateTime.now(ZoneOffset.UTC).plusMinutes(10)));
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(adminId));
     }
 
     @AfterEach
     void tearDown() {
+        authSessionPort.deleteByUserId(targetId);
         jdbc.update("DELETE FROM auth_audit_logs WHERE user_id = ? OR target_user_id = ?", adminId, targetId);
         jdbc.update("DELETE FROM users WHERE id IN (?, ?)", adminId, targetId);
     }
@@ -60,6 +67,7 @@ class AdminUserDeletionIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT active FROM users WHERE id = ?", Boolean.class, targetId)).isFalse();
         assertThat(jdbc.queryForObject("SELECT phone_number FROM users WHERE id = ?", String.class, targetId))
                 .isNotEqualTo(targetPhone);
+        assertThat(authSessionPort.findByUserId(targetId)).isEmpty();
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM auth_audit_logs
                 WHERE user_id = ? AND target_user_id = ? AND event_type = 'ADMIN_USER_DELETION'
@@ -80,6 +88,7 @@ class AdminUserDeletionIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT active FROM users WHERE id = ?", Boolean.class, targetId)).isTrue();
         assertThat(jdbc.queryForObject("SELECT phone_number FROM users WHERE id = ?", String.class, targetId))
                 .isEqualTo(targetPhone);
+        assertThat(authSessionPort.findByUserId(targetId)).isPresent();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_audit_logs WHERE target_user_id = ?",
                 Integer.class, targetId)).isZero();
     }
