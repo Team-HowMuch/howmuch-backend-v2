@@ -190,6 +190,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 settlement.allocationType(),
                 settlement.status(),
                 settlement.createdAt(),
+                endedAt(settlement),
                 viewerRole,
                 creatorName,
                 bankName,
@@ -207,6 +208,13 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 items.stream().map(com.amateur.howmuchbackend.application.port.in.settlement.result
                         .SettlementItemResult::from).toList()
         );
+    }
+
+    private LocalDateTime endedAt(Settlement settlement) {
+        return switch (settlement.status()) {
+            case COMPLETED, SUSPENDED -> settlement.updatedAt();
+            default -> null;
+        };
     }
 
     private LocalDateTime reminderNextAvailableAt(

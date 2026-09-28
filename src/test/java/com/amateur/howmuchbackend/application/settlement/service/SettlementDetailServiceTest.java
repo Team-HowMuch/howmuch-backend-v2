@@ -113,6 +113,7 @@ class SettlementDetailServiceTest {
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
+        assertThat(result.endedAt()).isNull();
         assertThat(result.viewerRole()).isEqualTo(SettlementDetailResult.ViewerRole.CREATOR);
         assertThat(result.creatorName()).isEqualTo("생성자");
         assertThat(result.bankName()).isEqualTo("NH농협");
@@ -141,6 +142,28 @@ class SettlementDetailServiceTest {
     }
 
     @Test
+    void settlementDetail_suspended_usesSuspensionTimeAsEndedAt() {
+        givenSettlement(PAYER_ID);
+        Settlement suspended = settlement(SettlementStatus.SUSPENDED);
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(suspended));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.endedAt()).isEqualTo(suspended.updatedAt());
+    }
+
+    @Test
+    void settlementDetail_completed_usesCompletionTimeAsEndedAt() {
+        givenSettlement(PAYER_ID);
+        Settlement completed = settlement(SettlementStatus.COMPLETED);
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(completed));
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.endedAt()).isEqualTo(completed.updatedAt());
+    }
+
+    @Test
     @DisplayName("생성자 상세에 연결된 미납 참여자의 다음 독촉 가능 시각을 반환한다")
     void settlementDetail_creatorView_restoresReminderCooldown() {
         givenSettlement(CREATOR_ID, List.of());
@@ -152,6 +175,7 @@ class SettlementDetailServiceTest {
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
+        assertThat(result.endedAt()).isNull();
         assertThat(result.reminderNextAvailableAt()).isEqualTo(nextAvailableAt);
     }
 
@@ -222,6 +246,7 @@ class SettlementDetailServiceTest {
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
+        assertThat(result.endedAt()).isNull();
         assertThat(result.reminderNextAvailableAt()).isEqualTo(nextAvailableAt);
         assertThat(result.participants()).first().satisfies(payment ->
                 assertThat(payment.paymentStatus())
@@ -765,6 +790,10 @@ class SettlementDetailServiceTest {
     }
 
     private Settlement settlement() {
+        return settlement(SettlementStatus.AWAITING_DEPOSIT);
+    }
+
+    private Settlement settlement(SettlementStatus status) {
         return new Settlement(
                 SETTLEMENT_ID,
                 CREATOR_ID,
@@ -772,7 +801,7 @@ class SettlementDetailServiceTest {
                 1_400,
                 SettlementAllocationType.DUTCH_PAY,
                 10L,
-                SettlementStatus.AWAITING_DEPOSIT,
+                status,
                 NOW,
                 NOW
         );

@@ -57,6 +57,8 @@ public interface SettlementDocs {
     @Operation(
             summary = "정산 상세 조회",
             description = "정산 생성자는 전체 납부 현황을, 연결 참여자는 자신의 납부 행을 조회합니다. "
+                    + "endedAt은 완료·중단 상태의 공통 종료 시각이며 COMPLETED는 완료 시각, "
+                    + "SUSPENDED는 현재 중단 시각입니다. 그 외 상태는 null이며 UTC 기준 offset 없는 값입니다. "
                     + "참여자의 avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없거나 비회원이면 null입니다. "
                     + "실제 입금 확인액, 미납액, 진행률과 참여자별 납부 상태를 반환하며 "
                     + "내부 사용자 ID, 연락처와 계좌번호는 노출하지 않습니다.",

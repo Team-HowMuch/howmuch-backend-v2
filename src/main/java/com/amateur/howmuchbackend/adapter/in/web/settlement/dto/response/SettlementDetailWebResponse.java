@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Schema(requiredProperties = {
-        "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt",
+        "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt", "endedAt",
         "viewerRole", "creatorName", "bankName", "accountNumber", "institutionIconUrl",
         "paymentInfo", "paymentSummary",
         "reminderNextAvailableAt", "participants", "items"
@@ -23,6 +23,9 @@ public record SettlementDetailWebResponse(
         SettlementAllocationType allocationType,
         SettlementStatus status,
         LocalDateTime createdAt,
+        @Schema(nullable = true, description = "공통 종료 시각. COMPLETED는 완료 시각, SUSPENDED는 현재 중단 시각이며 "
+                + "그 외 상태는 null입니다. UTC 기준 offset 없는 값입니다.")
+        LocalDateTime endedAt,
         SettlementDetailResult.ViewerRole viewerRole,
         String creatorName,
         @Schema(nullable = true)
@@ -50,6 +53,7 @@ public record SettlementDetailWebResponse(
                 result.allocationType(),
                 result.status(),
                 result.createdAt(),
+                result.endedAt(),
                 result.viewerRole(),
                 result.creatorName(),
                 result.bankName(),

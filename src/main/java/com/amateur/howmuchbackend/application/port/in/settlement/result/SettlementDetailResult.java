@@ -14,6 +14,7 @@ public record SettlementDetailResult(
         SettlementAllocationType allocationType,
         SettlementStatus status,
         LocalDateTime createdAt,
+        LocalDateTime endedAt,
         ViewerRole viewerRole,
         String creatorName,
         String bankName,
@@ -34,7 +35,7 @@ public record SettlementDetailResult(
             LocalDateTime reminderNextAvailableAt, List<ParticipantPayment> participants
     ) {
         this(settlementId, title, totalAmount, allocationType, status, createdAt,
-                viewerRole, creatorName, bankName, accountNumber, institutionIconUrl,
+                null, viewerRole, creatorName, bankName, accountNumber, institutionIconUrl,
                 paymentInfo, paymentSummary, reminderNextAvailableAt, participants, List.of());
     }
 
