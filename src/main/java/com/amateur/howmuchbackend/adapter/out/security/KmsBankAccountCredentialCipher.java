@@ -18,8 +18,12 @@ import software.amazon.awssdk.services.kms.model.DecryptRequest;
 import software.amazon.awssdk.services.kms.model.EncryptRequest;
 import software.amazon.awssdk.services.kms.model.KmsException;
 
-import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLKeyException;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLProtocolException;
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.Base64;
 import java.util.Map;
 
@@ -87,15 +91,19 @@ public class KmsBankAccountCredentialCipher implements KmsAccountCredentialCiphe
         if (exception instanceof ApiCallTimeoutException || exception instanceof ApiCallAttemptTimeoutException) {
             return new TemporaryKmsUnavailableException(exception);
         }
+        boolean transportFailure = false;
         for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
-            if (cause instanceof SSLException) {
+            if (cause instanceof GeneralSecurityException
+                    || cause instanceof SSLPeerUnverifiedException
+                    || cause instanceof SSLKeyException
+                    || cause instanceof SSLProtocolException) {
                 return storageInvalid();
             }
-            if (cause instanceof IOException) {
-                return new TemporaryKmsUnavailableException(exception);
+            if (cause instanceof IOException && !(cause instanceof SSLHandshakeException)) {
+                transportFailure = true;
             }
         }
-        return ApplicationException.of(ExternalConnectionStatusCode.BANK_ACCOUNT_CREDENTIAL_STORAGE_INVALID);
+        return transportFailure ? new TemporaryKmsUnavailableException(exception) : storageInvalid();
     }
 
     private ApplicationException storageInvalid() {

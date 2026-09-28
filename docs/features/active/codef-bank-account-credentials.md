@@ -13,7 +13,7 @@
 - [x] `GET /api/v2/accounts/banks`에 `requiresAccountCredentials`를 반환한다. `attr3`가 정확히 `"1"`일 때만 true이며 null/기타 값은 false다. 대구은행도 지원 은행 목록에 포함한다.
 - [x] 연결 요청에서 필요한 두 값을 CODEF 호출 전에 검증하고 create/add/update 로그인과 account-list에 전달한다. 이후 link의 account-list에는 저장값을 사용한다.
 - [x] 기관별 자격정보는 LOCAL AES-256-GCM 암호문을 필수 저장하고, KMS 사용 시 KMS 암호문도 저장한다. 평문은 DB·API 응답·로그·trace·Kafka에 남기지 않는다.
-- [x] KMS 일시 장애 때 LOCAL 암호문으로 자동 복호화하고, 복구 후 누락 KMS 암호문을 보충한다. 암호문 손상·KMS 권한 거부에는 자동 전환하지 않는다.
+- [x] KMS 일시 장애(서비스 오류·연결 끊김·TLS 전송 중단) 때 LOCAL 암호문으로 자동 복호화하고, 복구 후 누락 KMS 암호문을 보충한다. 암호문 손상·KMS 권한 거부·인증서 검증 실패에는 자동 전환하지 않는다.
 - [x] [CODEF 개인 은행 수시입출 거래내역 명세](https://docs.google.com/spreadsheets/d/1urqr97NxnJJhTOpeOb5WzfnNQrI9jsAI/edit?gid=622680604#gid=622680604)의 우리은행 `M11`·대구은행 `P11`은 `accountPassword`가 모두 `-`(미제공)다. 두 은행의 transaction-list에는 저장한 비밀번호를 전달하지 않는다. 필수 `account`는 기존 Backend·Connector 요청에 이미 있다.
 - [x] 회원 탈퇴 시 두 암호문을 제거하고 기존 은행·connectedId 흐름을 회귀시키지 않는다.
 
@@ -25,7 +25,7 @@
 2. 연결: `ConnectBankWebRequest` → `ConnectBankCommand` → `BankAccountService.connect`; `accountNumber`·`accountPassword`를 조건부 필수로 확인한 후 LOCAL 암호화, 가능하면 KMS 암호화, CODEF create/add/update와 account-list를 수행한다. 성공한 기관의 암호문만 저장하며 재연결은 두 암호문을 교체한다.
 3. 후속 조회: `BankAccountService.link`는 소유자의 기관 암호문을 복호화해 account-list에 사용한다. 필요한 값이 없는 기존 연결은 CODEF를 호출하지 않고 재연결을 요구한다.
 4. 거래조회: 위 CODEF 명세상 두 은행의 transaction-list는 계좌 비밀번호 입력 대상이 아니다. `AccountQueryService`·`SettlementDepositService`의 직접 조회와 Finance Connector의 비동기 조회 모두 기존 `account` 필드를 유지하고 암호문/평문 전달 계약을 추가하지 않는다.
-5. 실패: KMS 네트워크/서비스 일시 오류만 LOCAL로 자동 전환한다. 잘못된 암호문·context·권한 오류는 실패로 드러낸다. KMS가 없는 환경은 LOCAL-only로 작동한다.
+5. 실패: KMS 네트워크/서비스 일시 오류만 LOCAL로 자동 전환한다. TLS 연결 끊김과 하위 전송 오류가 있는 핸드셰이크 중단은 일시 오류다. 인증서·호스트명·TLS 프로토콜 설정 실패, 잘못된 암호문·context·권한 오류는 실패로 드러낸다. KMS가 없는 환경은 LOCAL-only로 작동한다.
 
 ## 저장·보안 결정
 
@@ -42,7 +42,7 @@
 4. [x] CODEF transaction-list 명세의 우리은행·대구은행 셀을 확인했다. 추가 자격정보 필드가 없어 Backend/Connector 변경은 하지 않는다.
 5. [x] Swagger·테스트를 갱신하고 기능 PR #441을 migration PR 브랜치 위에 제출했다. #440 병합 후 #441의 base를 `develop`로 재설정해야 한다.
 
-커밋 경계: `feat(account): 은행 로그인 자격정보와 이중 암호화 지원` → `test(account): 은행 로그인 자격정보 경로 검증` → `docs(account): 계좌 자격정보 계약과 검증 기록`. 첫 커밋은 신규 Port의 실제 호출자와 구현을 함께 포함하며 `compileJava`를 통과시킨다.
+커밋 경계: `feat(account): 은행 로그인 자격정보와 이중 암호화 지원` → `test(account): 은행 로그인 자격정보 경로 검증` → `docs(account): 계좌 자격정보 계약과 검증 기록` → `fix(account): KMS 일시 TLS 장애의 로컬 전환 수정`. 첫 커밋은 신규 Port의 실제 호출자와 구현을 함께 포함하며 `compileJava`를 통과시킨다.
 
 ## 검증과 미확정 사항
 
