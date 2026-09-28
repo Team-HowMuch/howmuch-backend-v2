@@ -6,8 +6,15 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+import java.util.Optional;
+
 public interface ConnectedInstitutionJpaRepository extends JpaRepository<ConnectedInstitutionJpaEntity, Long> {
     boolean existsByExternalConnection_IdAndOrganization(Long connectionId, String organization);
+
+    Optional<ConnectedInstitutionJpaEntity> findByExternalConnection_IdAndOrganization(Long connectionId, String organization);
+
+    List<ConnectedInstitutionJpaEntity> findAllByExternalConnection_User_Id(Long userId);
 
     @Modifying
     @Query("delete from ConnectedInstitutionJpaEntity institution where institution.externalConnection.id = :connectionId")

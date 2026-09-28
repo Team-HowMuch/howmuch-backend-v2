@@ -94,8 +94,8 @@ class AccountQueryServiceTest {
         when(loadTransactionPort.findLastUsedAtByAccountIds(anyList()))
                 .thenReturn(Map.of(second.id(), recent));
         when(bankCatalog.getAllBanks()).thenReturn(List.of(
-                new BankCatalogResult("0020", "우리은행", "woori.png"),
-                new BankCatalogResult("0004", "국민은행", "kb.png")
+                new BankCatalogResult("0020", "우리은행", "woori.png", false),
+                new BankCatalogResult("0004", "국민은행", "kb.png", false)
         ));
 
         var defaults = service.getAccounts(new GetAccountsQuery("0020", AccountSort.DEFAULT));
@@ -120,7 +120,7 @@ class AccountQueryServiceTest {
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
         when(loadTransactionPort.findSummary(account.id(), AUGUST)).thenReturn(Optional.of(summary));
         when(bankCatalog.getAllBanks()).thenReturn(List.of(
-                new BankCatalogResult("0020", "우리은행", "woori.png")
+                new BankCatalogResult("0020", "우리은행", "woori.png", false)
         ));
 
         var result = service.getAccountDetail(account.id(), AUGUST);
@@ -155,7 +155,7 @@ class AccountQueryServiceTest {
                 )));
         when(loadTransactionPort.calculateSummary(account.id(), AUGUST)).thenReturn(calculated);
         when(bankCatalog.getAllBanks()).thenReturn(List.of(
-                new BankCatalogResult("0020", "우리은행", "woori.png")
+                new BankCatalogResult("0020", "우리은행", "woori.png", false)
         ));
 
         service.getAccountDetail(account.id(), AUGUST);
@@ -184,7 +184,7 @@ class AccountQueryServiceTest {
         when(loadTransactionPort.findSummary(account.id(), currentMonth)).thenReturn(Optional.of(summary));
         when(refreshStorePort.isFresh(account.id(), currentMonth)).thenReturn(true);
         when(bankCatalog.getAllBanks()).thenReturn(List.of(
-                new BankCatalogResult("0020", "우리은행", "woori.png")
+                new BankCatalogResult("0020", "우리은행", "woori.png", false)
         ));
 
         var result = service.getAccountDetail(account.id(), currentMonth);
@@ -222,7 +222,7 @@ class AccountQueryServiceTest {
         )));
         when(loadTransactionPort.calculateSummary(account.id(), currentMonth)).thenReturn(summary);
         when(bankCatalog.getAllBanks()).thenReturn(List.of(
-                new BankCatalogResult("0020", "우리은행", "woori.png")
+                new BankCatalogResult("0020", "우리은행", "woori.png", false)
         ));
 
         TransactionSynchronizationManager.initSynchronization();

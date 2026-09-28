@@ -24,15 +24,25 @@ public record ConnectBankWebRequest(
 
         @Pattern(regexp = "^(?:\\d{6}|\\d{8})$", message = "생년월일은 6자리 또는 8자리 숫자여야 합니다.")
         @Schema(description = "기관이 요구하는 생년월일", example = "19990101", nullable = true)
-        String birthDate
+        String birthDate,
+
+        @Size(max = 100, message = "계좌번호는 100자 이하여야 합니다.")
+        @Schema(description = "은행 로그인에 계좌 자격정보가 필요할 때 입력하는 계좌번호", accessMode = Schema.AccessMode.WRITE_ONLY)
+        String accountNumber,
+
+        @Size(max = 100, message = "계좌 비밀번호는 100자 이하여야 합니다.")
+        @Schema(description = "은행 로그인에 계좌 자격정보가 필요할 때 입력하는 계좌 비밀번호", accessMode = Schema.AccessMode.WRITE_ONLY)
+        String accountPassword
 ) {
     public ConnectBankCommand toCommand() {
-        return new ConnectBankCommand(organization, loginId, password, birthDate);
+        return new ConnectBankCommand(
+                organization, loginId, password, birthDate, accountNumber, accountPassword
+        );
     }
 
     @Override
     public String toString() {
-        return "ConnectBankWebRequest[organization=%s, loginId=***, password=***, birthDate=***]"
-                .formatted(organization);
+        return ("ConnectBankWebRequest[organization=%s, loginId=***, password=***, birthDate=***, "
+                + "accountNumber=***, accountPassword=***]").formatted(organization);
     }
 }

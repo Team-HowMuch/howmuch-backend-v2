@@ -47,15 +47,41 @@ public class ConnectedInstitutionJpaEntity extends BaseTimeJpaEntity {
     @Column(name = "last_result_code", length = 30)
     private String lastResultCode;
 
+    @Column(name = "account_credentials_local_ciphertext", columnDefinition = "text")
+    private String localCredentialsCiphertext;
+
+    @Column(name = "account_credentials_kms_ciphertext", columnDefinition = "text")
+    private String kmsCredentialsCiphertext;
+
     public ConnectedInstitutionJpaEntity(
             ExternalConnectionJpaEntity externalConnection,
             String organization,
             ExternalConnectionStatus status,
-            String lastResultCode
+            String lastResultCode,
+            String localCredentialsCiphertext,
+            String kmsCredentialsCiphertext
     ) {
         this.externalConnection = externalConnection;
         this.organization = organization;
         this.status = status;
         this.lastResultCode = lastResultCode;
+        this.localCredentialsCiphertext = localCredentialsCiphertext;
+        this.kmsCredentialsCiphertext = kmsCredentialsCiphertext;
+    }
+
+    public void updateCredentials(String localCiphertext, String kmsCiphertext) {
+        this.localCredentialsCiphertext = localCiphertext;
+        this.kmsCredentialsCiphertext = kmsCiphertext;
+    }
+
+    public void saveKmsCredentialsIfAbsent(String kmsCiphertext) {
+        if (this.kmsCredentialsCiphertext == null) {
+            this.kmsCredentialsCiphertext = kmsCiphertext;
+        }
+    }
+
+    public void clearCredentials() {
+        this.localCredentialsCiphertext = null;
+        this.kmsCredentialsCiphertext = null;
     }
 }

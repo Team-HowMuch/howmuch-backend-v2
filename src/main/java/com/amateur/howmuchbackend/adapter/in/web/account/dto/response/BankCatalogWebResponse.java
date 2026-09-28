@@ -11,9 +11,14 @@ public record BankCatalogWebResponse(
         String name,
 
         @Schema(description = "은행 아이콘 URL")
-        String iconUrl
+        String iconUrl,
+
+        @Schema(description = "계좌번호와 계좌 비밀번호가 은행 로그인에 필요한지 여부", example = "true")
+        boolean requiresAccountCredentials
 ) {
     public static BankCatalogWebResponse from(BankCatalogResult result) {
-        return new BankCatalogWebResponse(result.organization(), result.name(), result.iconUrl());
+        return new BankCatalogWebResponse(
+                result.organization(), result.name(), result.iconUrl(), result.requiresAccountCredentials()
+        );
     }
 }

@@ -9,6 +9,10 @@ import lombok.RequiredArgsConstructor;
 public enum ExternalConnectionStatusCode implements StatusCode {
     CODEF_CONFIGURATION_INVALID("CODEF 연동 설정이 올바르지 않습니다.", 500),
     BANK_CREDENTIAL_INVALID("은행 로그인 정보를 확인해주세요.", 422),
+    BANK_ACCOUNT_CREDENTIAL_REQUIRED("계좌번호와 계좌 비밀번호를 입력해주세요.", 400),
+    BANK_ACCOUNT_RECONNECT_REQUIRED("계좌 인증 정보를 다시 입력해 은행을 재연결해주세요.", 409),
+    BANK_ACCOUNT_CREDENTIAL_STORAGE_INVALID("저장된 계좌 인증 정보를 사용할 수 없습니다.", 500),
+    BANK_ACCOUNT_CREDENTIAL_CONFIGURATION_INVALID("계좌 인증 정보 암호화 설정이 올바르지 않습니다.", 500),
     BANK_CREDENTIAL_LOCKED("은행 로그인 계정이 잠겼습니다. 해당 은행에서 잠금을 해제한 뒤 다시 시도해주세요.", 423),
     CODEF_ADDITIONAL_AUTH_REQUIRED("금융기관 추가 인증이 필요하지만 현재 지원하지 않습니다.", 409),
     CODEF_USER_ACTION_TIMEOUT("금융기관 인증 입력 시간이 만료되었습니다. 처음부터 다시 시도해주세요.", 408),

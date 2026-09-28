@@ -20,7 +20,7 @@ import java.util.Set;
 public class BankCatalog implements GetBankCatalogUseCase {
     private static final String GROUP_CODE = "BANK";
     private static final Set<String> ID_PASSWORD_BANKS = Set.of(
-            "0003", "0004", "0011", "0020", "0037",
+            "0003", "0004", "0011", "0020", "0031", "0037",
             "0039", "0045", "0071", "0081", "0088"
     );
 
@@ -35,8 +35,16 @@ public class BankCatalog implements GetBankCatalogUseCase {
 
     public List<BankCatalogResult> getAllBanks() {
         return loadCommonCodePort.findActiveByGroupCode(GROUP_CODE).stream()
-                .map(bank -> new BankCatalogResult(bank.code(), bank.name(), bank.attr1()))
+                .map(bank -> new BankCatalogResult(
+                        bank.code(), bank.name(), bank.attr1(), "1".equals(bank.attr3())
+                ))
                 .toList();
+    }
+
+    public boolean requiresAccountCredentials(String organization) {
+        return loadCommonCodePort.findActiveByGroupCodeAndCode(GROUP_CODE, organization)
+                .map(bank -> "1".equals(bank.attr3()))
+                .orElse(false);
     }
 
     public void validate(String organization) {

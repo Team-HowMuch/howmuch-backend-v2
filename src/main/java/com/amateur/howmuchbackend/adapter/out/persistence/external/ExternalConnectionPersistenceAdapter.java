@@ -10,6 +10,8 @@ import com.amateur.howmuchbackend.application.port.out.external.ExternalConnecti
 import com.amateur.howmuchbackend.domain.external.ConnectedInstitution;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.infra.codef.config.CodefConfigurationFingerprint;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +56,17 @@ public class ExternalConnectionPersistenceAdapter implements ExternalConnectionS
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<ConnectedInstitution> findInstitution(Long connectionId, String organization) {
+        return institutionRepository.findByExternalConnection_IdAndOrganization(connectionId, organization)
+                .map(entity -> new ConnectedInstitution(
+                        entity.getId(), connectionId, entity.getOrganization(), entity.getStatus(),
+                        entity.getLastResultCode(), entity.getLocalCredentialsCiphertext(),
+                        entity.getKmsCredentialsCiphertext()
+                ));
+    }
+
+    @Override
     @Transactional
     public ExternalConnection saveNew(ExternalConnection connection, ConnectedInstitution institution) {
         String ciphertext = cipher.encryptConnectedId(connection.userId(), connection.connectedId());
@@ -64,7 +77,8 @@ public class ExternalConnectionPersistenceAdapter implements ExternalConnectionS
                         userRepository.getReferenceById(connection.userId()), ciphertext, fingerprint
                 )));
         institutionRepository.save(new ConnectedInstitutionJpaEntity(
-                saved, institution.organization(), institution.status(), institution.lastResultCode()
+                saved, institution.organization(), institution.status(), institution.lastResultCode(),
+                institution.localCredentialsCiphertext(), institution.kmsCredentialsCiphertext()
         ));
         return new ExternalConnection(saved.getId(), connection.userId(), connection.connectedId());
     }
@@ -74,8 +88,30 @@ public class ExternalConnectionPersistenceAdapter implements ExternalConnectionS
     public void saveInstitution(ConnectedInstitution institution) {
         institutionRepository.save(new ConnectedInstitutionJpaEntity(
                 connectionRepository.getReferenceById(institution.externalConnectionId()),
-                institution.organization(), institution.status(), institution.lastResultCode()
+                institution.organization(), institution.status(), institution.lastResultCode(),
+                institution.localCredentialsCiphertext(), institution.kmsCredentialsCiphertext()
         ));
+    }
+
+    @Override
+    @Transactional
+    public void updateInstitutionCredentials(
+            Long connectionId, String organization, String localCiphertext, String kmsCiphertext
+    ) {
+        requiredInstitution(connectionId, organization).updateCredentials(localCiphertext, kmsCiphertext);
+    }
+
+    @Override
+    @Transactional
+    public void saveKmsCredentialsIfAbsent(Long connectionId, String organization, String kmsCiphertext) {
+        requiredInstitution(connectionId, organization).saveKmsCredentialsIfAbsent(kmsCiphertext);
+    }
+
+    @Override
+    @Transactional
+    public void clearCredentialsByUserId(Long userId) {
+        institutionRepository.findAllByExternalConnection_User_Id(userId)
+                .forEach(ConnectedInstitutionJpaEntity::clearCredentials);
     }
 
     @Override
@@ -92,5 +128,12 @@ public class ExternalConnectionPersistenceAdapter implements ExternalConnectionS
         institutionRepository.deleteAllByConnectionId(connection.getId());
         connection.reactivate(ciphertext, fingerprint);
         return connection;
+    }
+
+    private ConnectedInstitutionJpaEntity requiredInstitution(Long connectionId, String organization) {
+        return institutionRepository.findByExternalConnection_IdAndOrganization(connectionId, organization)
+                .orElseThrow(() -> ApplicationException.of(
+                        ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND
+                ));
     }
 }

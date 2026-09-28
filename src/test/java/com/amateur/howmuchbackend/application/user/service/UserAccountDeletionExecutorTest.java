@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.user.service;
 
 import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
+import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
@@ -45,6 +46,7 @@ class UserAccountDeletionExecutorTest {
     @Mock private LoadUserSettlementStatePort settlementStatePort;
     @Mock private AuthSessionPort authSessionPort;
     @Mock private UserPushTargetStorePort pushTargetStorePort;
+    @Mock private ExternalConnectionStorePort externalConnectionStorePort;
     @Mock private ProfileImageStoragePort imageStoragePort;
     @Mock private PasswordEncoder passwordEncoder;
 
@@ -69,6 +71,7 @@ class UserAccountDeletionExecutorTest {
         assertThat(userCaptor.getValue().phoneNumber()).isNotEqualTo(user.phoneNumber());
         assertThat(userCaptor.getValue().pinHash()).isEqualTo("new-pin-hash");
         verify(pushTargetStorePort).clear(user.id(), NOW);
+        verify(externalConnectionStorePort).clearCredentialsByUserId(user.id());
         verify(authSessionPort).deleteByUserId(user.id());
     }
 
@@ -92,6 +95,7 @@ class UserAccountDeletionExecutorTest {
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(UserStatusCode.USER_DELETION_BLOCKED_BY_SETTLEMENT));
         verify(saveUserPort, never()).update(org.mockito.ArgumentMatchers.any());
+        verify(externalConnectionStorePort, never()).clearCredentialsByUserId(user.id());
         verify(authSessionPort, never()).deleteByUserId(user.id());
     }
 
@@ -117,7 +121,7 @@ class UserAccountDeletionExecutorTest {
     private UserAccountDeletionExecutor executor() {
         return new UserAccountDeletionExecutor(saveUserPort, loadGroupPort, loadGroupMemberPort,
                 saveGroupMemberPort, settlementStatePort, authSessionPort, pushTargetStorePort,
-                imageStoragePort, passwordEncoder, new ConservativeUserDeletionPolicy());
+                externalConnectionStorePort, imageStoragePort, passwordEncoder, new ConservativeUserDeletionPolicy());
     }
 
     private Group group() {

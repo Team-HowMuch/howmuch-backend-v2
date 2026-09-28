@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.user.service;
 
 import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
+import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
@@ -37,6 +38,7 @@ public class UserAccountDeletionExecutor {
     private final LoadUserSettlementStatePort loadUserSettlementStatePort;
     private final AuthSessionPort authSessionPort;
     private final UserPushTargetStorePort userPushTargetStorePort;
+    private final ExternalConnectionStorePort externalConnectionStorePort;
     private final ProfileImageStoragePort profileImageStoragePort;
     private final PasswordEncoder passwordEncoder;
     private final UserDeletionPolicy userDeletionPolicy;
@@ -63,6 +65,7 @@ public class UserAccountDeletionExecutor {
                 now
         ));
         userPushTargetStorePort.clear(user.id(), now);
+        externalConnectionStorePort.clearCredentialsByUserId(user.id());
         schedulePostCommitCleanup(user.id(), previousAvatarFileName);
     }
 
