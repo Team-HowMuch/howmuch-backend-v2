@@ -34,11 +34,21 @@ public class AuthAuditJpaEntity {
     @Column(name = "user_agent", length = 500)
     private String userAgent;
 
+    @Column(name = "target_user_id")
+    private Long targetUserId;
+
     public AuthAuditJpaEntity(Long userId, LocalDateTime occurredAt, String clientIp, String userAgent) {
         this.userId = userId;
         this.eventType = "LOGOUT";
         this.occurredAt = occurredAt;
         this.clientIp = clientIp;
         this.userAgent = userAgent;
+    }
+
+    public AuthAuditJpaEntity(Long adminUserId, Long targetUserId, LocalDateTime occurredAt) {
+        this.userId = adminUserId;
+        this.eventType = "ADMIN_USER_DELETION";
+        this.targetUserId = targetUserId;
+        this.occurredAt = occurredAt;
     }
 }

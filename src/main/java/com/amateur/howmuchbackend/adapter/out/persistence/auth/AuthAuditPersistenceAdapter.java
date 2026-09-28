@@ -15,4 +15,9 @@ public class AuthAuditPersistenceAdapter implements AuthAuditPort {
     public void recordLogout(Long userId, LocalDateTime occurredAt, String clientIp, String userAgent) {
         repository.save(new AuthAuditJpaEntity(userId, occurredAt, clientIp, userAgent));
     }
+
+    @Override
+    public void recordAdminUserDeletion(Long adminUserId, Long targetUserId, LocalDateTime occurredAt) {
+        repository.save(new AuthAuditJpaEntity(adminUserId, targetUserId, occurredAt));
+    }
 }
