@@ -482,6 +482,11 @@ class SettlementListPersistenceIntegrationTest {
                 assertThat(unfiltered).singleElement().satisfies(item ->
                         assertThat(item.completedAt()).isEqualTo(
                                 state == SettlementStatus.COMPLETED ? completedAt : null));
+                assertThat(unfiltered).singleElement().satisfies(item ->
+                        assertThat(item.endedAt()).isEqualTo(
+                                state == SettlementStatus.COMPLETED || state == SettlementStatus.SUSPENDED
+                                        ? completedAt
+                                        : null));
             }
         }
         jdbcTemplate.update("UPDATE settlements SET status = 'COMPLETED' WHERE id = ?", receiveSettlementId);

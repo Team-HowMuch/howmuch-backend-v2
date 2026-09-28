@@ -11,6 +11,7 @@ public record SettlementListItemResult(
         UUID settlementId,
         SettlementStatus status,
         LocalDateTime requestedAt,
+        LocalDateTime endedAt,
         LocalDateTime completedAt,
         Long totalAmount,
         SettlementAllocationType allocationType,
