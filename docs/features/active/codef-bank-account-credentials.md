@@ -3,6 +3,7 @@
 - 상태: 구현 중 (2026-09-28)
 - 기능 이슈: [#438](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/438)
 - 저장 구조 이슈/PR: [#439](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/439), [#440](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/440)
+- 기능 PR: [#441](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/441) (`feat/439-bank-credentials-migration` 대상)
 - 관련 기능: [CODEF 은행 계좌 연결](../completed/codef-bank-account-connection.md)
 
 ## 목적과 완료 기준
@@ -39,7 +40,7 @@
 2. [x] 은행 목록과 조건부 입력·CODEF 로그인/계좌조회 경로를 구현한다.
 3. [x] LOCAL/KMS 암호화·자동 전환·암호문 저장·탈퇴 정리를 구현한다.
 4. [ ] CODEF transaction-list 필수 여부를 확인하고 필요하면 Backend/Connector 연계를 구현한다.
-5. [ ] Swagger·테스트를 갱신하고 별도 기능 PR을 만든다. migration PR이 미병합이면 이를 base로 하는 stacked PR로 제출하고 merge 후 `develop`로 재설정한다.
+5. [x] Swagger·테스트를 갱신하고 기능 PR #441을 migration PR 브랜치 위에 제출했다. #440 병합 후 #441의 base를 `develop`로 재설정해야 한다.
 
 커밋 경계: `feat(account): 은행 로그인 자격정보와 이중 암호화 지원` → `test(account): 은행 로그인 자격정보 경로 검증` → `docs(account): 계좌 자격정보 계약과 검증 기록`. 첫 커밋은 신규 Port의 실제 호출자와 구현을 함께 포함하며 `compileJava`를 통과시킨다.
 
@@ -47,5 +48,6 @@
 
 - `attr3=1`/null/기타, 누락·잘못된 자격정보, create/add/update와 account-list, 기존 은행 회귀를 검증한다.
 - LOCAL/KMS round-trip, KMS 일시 오류 fallback, 권한 거부·변조 시 실패, KMS 복구 보충, 재연결 교체, 탈퇴 정리를 검증한다. 테스트에는 가짜 값만 사용한다.
-- 임시 PostgreSQL·Redis에서 `bash scripts/test.sh test` 전체 통과, 집중 Unit/통합 테스트 통과. 최종 편집 후 `./gradlew compileJava`와 `git diff --check`를 재확인한다. 실제 은행·AWS KMS 인증 경로는 합성 테스트와 별도로 확인해야 한다.
+- 임시 PostgreSQL·Redis에서 `bash scripts/test.sh test` 전체 통과, 집중 Unit/통합 테스트와 `./gradlew compileJava` 통과. `git diff --check` 통과. 실제 은행·AWS KMS 인증 경로는 합성 테스트와 별도로 확인해야 한다.
+- stacked PR #441은 저장소 workflow의 PR 대상 브랜치 필터(`develop`/`main`)에 걸리지 않아 CI가 자동 시작하지 않는다. 선행 PR #440의 CI는 재실행해도 실패했고 GitHub 로그 다운로드가 실패하여 원인은 미확인이다. 로컬의 전체·집중 테스트 결과와 CI 결과를 혼동하지 않는다.
 - 미확정: CODEF의 API별 정확한 계좌 필드명/암호화 규칙과 transaction-list 필요 여부. 확인 전 임의 CODEF 필드나 Connector 평문 계약을 추가하지 않는다.
