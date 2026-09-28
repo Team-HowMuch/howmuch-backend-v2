@@ -771,7 +771,7 @@ class SettlementDetailServiceTest {
                         NOW
                 )));
         lenient().when(bankCatalog.getAllBanks()).thenReturn(List.of(
-                new BankCatalogResult("0020", "NH농협", "https://cdn.example.com/nh.png")
+                new BankCatalogResult("0020", "NH농협", "https://cdn.example.com/nh.png", false)
         ));
     }
 

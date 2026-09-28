@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.codef;
 
+import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
 import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
@@ -7,14 +8,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.ObjectMapper;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CODEF 계좌 연결 Adapter")
@@ -29,6 +35,38 @@ class CodefBankConnectionAdapterTest {
     private CodefObservability observability;
 
     @Test
+    @DisplayName("계좌 자격정보는 CODEF 로그인과 계좌조회에 전달하고 비밀번호는 RSA 암호화한다")
+    void credentialsIncludedInLoginAndAccountList() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var credentials = new BankAccountCredentials("123-456", "1234");
+        when(rsaEncryptor.encrypt("password")).thenReturn("encrypted-login-password");
+        when(rsaEncryptor.encrypt("1234")).thenReturn("encrypted-account-password");
+        when(client.post(eq("/v1/account/create"), any())).thenReturn(mapper.readTree("""
+                {"result":{"code":"CF-00000"},"data":{"connectedId":"CID-1","successList":[{"organization":"0020"}]}}
+                """));
+        when(client.post(eq("/v1/kr/bank/p/account/account-list"), any())).thenReturn(mapper.readTree("""
+                {"result":{"code":"CF-00000"},"data":{"resDepositTrust":[]}}
+                """));
+        var adapter = new CodefBankConnectionAdapter(client, rsaEncryptor, observability);
+
+        adapter.create(new BankConnectionPort.BankRegistration("0020", "login", "password", null, credentials));
+        adapter.findAccounts("CID-1", "0020", null, credentials);
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(client).post(eq("/v1/account/create"), payload.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> registration = (Map<String, Object>) ((List<?>) ((Map<?, ?>) payload.getValue())
+                .get("accountList")).getFirst();
+        assertThat(registration).containsEntry("withdrawAccountNo", "123-456")
+                .containsEntry("withdrawAccountPassword", "encrypted-account-password");
+        verify(client).post(eq("/v1/kr/bank/p/account/account-list"), payload.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> accountList = (Map<String, Object>) payload.getValue();
+        assertThat(accountList).containsEntry("withdrawAccountNo", "123-456")
+                .containsEntry("withdrawAccountPassword", "encrypted-account-password");
+    }
+
+    @Test
     @DisplayName("공식 매핑에 없는 CODEF 오류는 미분류 외부 오류로 구분한다")
     void codefFailure_unknownCode_classifiedAsExternal() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
@@ -39,7 +77,7 @@ class CodefBankConnectionAdapterTest {
         CodefBankConnectionAdapter adapter = new CodefBankConnectionAdapter(client, rsaEncryptor, observability);
 
         assertThatThrownBy(() -> adapter.create(
-                new BankConnectionPort.BankRegistration("0020", "login", "password", null)))
+                new BankConnectionPort.BankRegistration("0020", "login", "password", null, null)))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR));
     }
@@ -55,7 +93,7 @@ class CodefBankConnectionAdapterTest {
         CodefBankConnectionAdapter adapter = new CodefBankConnectionAdapter(client, rsaEncryptor, observability);
 
         assertThatThrownBy(() -> adapter.create(
-                new BankConnectionPort.BankRegistration("0020", "login", "password", null)))
+                new BankConnectionPort.BankRegistration("0020", "login", "password", null, null)))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID));
     }
@@ -89,7 +127,7 @@ class CodefBankConnectionAdapterTest {
         );
         CodefBankConnectionAdapter adapter = new CodefBankConnectionAdapter(client, rsaEncryptor, observability);
 
-        var result = adapter.findAccounts("CID-1", "0031", null);
+        var result = adapter.findAccounts("CID-1", "0031", null, null);
 
         assertThat(result).hasSize(2);
         assertThat(result.getFirst().balance()).isEqualByComparingTo("1000000");
