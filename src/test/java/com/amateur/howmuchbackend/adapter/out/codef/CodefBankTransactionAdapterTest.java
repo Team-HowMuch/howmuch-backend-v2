@@ -170,7 +170,8 @@ class CodefBankTransactionAdapterTest {
                 .containsEntry("startDate", "20260801")
                 .containsEntry("endDate", "20260831")
                 .containsEntry("orderBy", "1")
-                .containsEntry("inquiryType", "1");
+                .containsEntry("inquiryType", "1")
+                .doesNotContainKeys("accountPassword", "withdrawAccountNo", "withdrawAccountPassword");
         assertThat(result).hasSize(2);
         assertThat(result.getFirst()).satisfies(transaction -> {
             assertThat(transaction.type()).isEqualTo(AccountTransactionType.EXPENSE);
