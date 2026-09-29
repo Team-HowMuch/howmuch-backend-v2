@@ -299,6 +299,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                     submitted && !discountPending
                             ? SettlementDetailResult.PaymentStatus.PAID
                             : SettlementDetailResult.PaymentStatus.NOT_READY,
+                    submitted,
                     avatarVersion,
                     discountShare
             );
@@ -316,6 +317,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 share.amount(),
                 confirmedAmount,
                 status,
+                submitted,
                 avatarVersion,
                 discountShare
         );

@@ -118,7 +118,7 @@ public record SettlementDetailWebResponse(
     }
 
     @Schema(requiredProperties = {
-            "participantId", "displayName", "linked", "expectedAmount", "confirmedAmount", "paymentStatus", "avatarUrl", "discountShare"
+            "participantId", "displayName", "linked", "expectedAmount", "confirmedAmount", "paymentStatus", "submitted", "avatarUrl", "discountShare"
     })
     public record ParticipantPayment(
             UUID participantId,
@@ -128,6 +128,8 @@ public record SettlementDetailWebResponse(
             Long expectedAmount,
             long confirmedAmount,
             SettlementDetailResult.PaymentStatus paymentStatus,
+            @Schema(description = "품목 선택 제출 기록이 있으면 true. 납부 상태 및 Share 계산 여부와 무관하다.")
+            boolean submitted,
             @Schema(nullable = true, description = "인증이 필요한 프로필 이미지 상대 경로. 사진이 없거나 비회원이면 null")
             String avatarUrl,
             long discountShare
@@ -144,6 +146,7 @@ public record SettlementDetailWebResponse(
                     result.expectedAmount(),
                     result.confirmedAmount(),
                     result.paymentStatus(),
+                    result.submitted(),
                     result.avatarVersion() == null ? null
                             : viewerRole == SettlementDetailResult.ViewerRole.PARTICIPANT
                                     ? "/api/v2/user/me/avatar?v=" + result.avatarVersion()

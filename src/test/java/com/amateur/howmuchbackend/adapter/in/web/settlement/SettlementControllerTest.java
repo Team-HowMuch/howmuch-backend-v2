@@ -229,6 +229,7 @@ class SettlementControllerTest {
                         )
                 ))
                 .andExpect(jsonPath("$.data.participants[0].paymentStatus").value("PARTIALLY_PAID"))
+                .andExpect(jsonPath("$.data.participants[0].submitted").value(true))
                 .andExpect(jsonPath("$.data.creatorId").doesNotExist())
                 .andExpect(jsonPath("$.data.receivingAccountId").doesNotExist());
     }
@@ -1001,7 +1002,9 @@ class SettlementControllerTest {
                         8_000L,
                         4_000,
                         SettlementDetailResult.PaymentStatus.PARTIALLY_PAID,
-                        hasAvatar ? IMAGE_VERSION : null
+                        true,
+                        hasAvatar ? IMAGE_VERSION : null,
+                        0
                 )),
                 List.of()
         );
