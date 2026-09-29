@@ -80,6 +80,7 @@ public record SettlementDetailResult(
             Long expectedAmount,
             long confirmedAmount,
             PaymentStatus paymentStatus,
+            boolean submitted,
             String avatarVersion,
             long discountShare
     ) {
@@ -88,7 +89,7 @@ public record SettlementDetailResult(
                 long confirmedAmount, PaymentStatus paymentStatus, String avatarVersion
         ) {
             this(participantId, displayName, linked, expectedAmount,
-                    confirmedAmount, paymentStatus, avatarVersion, 0);
+                    confirmedAmount, paymentStatus, false, avatarVersion, 0);
         }
     }
 }

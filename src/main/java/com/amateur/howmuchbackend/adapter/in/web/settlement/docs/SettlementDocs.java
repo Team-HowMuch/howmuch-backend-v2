@@ -61,6 +61,7 @@ public interface SettlementDocs {
                     + "SUSPENDED는 현재 중단 시각입니다. 그 외 상태는 null이며 UTC 기준 offset 없는 값입니다. "
                     + "참여자의 avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없거나 비회원이면 null입니다. "
                     + "실제 입금 확인액, 미납액, 진행률과 참여자별 납부 상태를 반환하며 "
+                    + "참여자별 submitted는 품목 선택 제출 기록 여부를 나타냅니다. "
                     + "내부 사용자 ID, 연락처와 계좌번호는 노출하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
