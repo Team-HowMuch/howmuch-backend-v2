@@ -1,6 +1,6 @@
 # 정산 상세 참여자별 품목 제출 여부
 
-- Status: In progress
+- Status: Completed
 - Last updated: 2026-09-29
 - Related issue: #448
 
@@ -28,6 +28,10 @@
 2. `feat(settlement): 상세 응답에 참여자별 제출 여부 추가` — 결과부터 웹 응답까지 연결, Swagger 갱신.
 3. `test(settlement): 제출 여부 상세 응답 검증 보강` — 기존 테스트에 제출·미제출 경계 검증.
 
-## 진행 기록
+## 완료 및 검증
 
-- 2026-09-29: 최신 `origin/develop`에서 설계 확인. 구현 및 검증 예정.
+- 2026-09-29: 최신 `origin/develop`에서 설계 확인 후 `submitted`를 결과·웹 응답·Swagger에 연결했다. 할인 정산의 일부 제출, 전원 제출, Share가 이미 있는 경우를 테스트했다.
+- `./gradlew compileJava compileTestJava --no-daemon`: 통과.
+- `./gradlew test --tests '*SettlementDetailServiceTest' --tests '*SettlementControllerTest' --no-daemon`: 통과.
+- OpenAPI 통합 및 전체 테스트: 로컬 Docker 데몬과 일회용 PostgreSQL·Redis 설정이 없어 미실행. OpenAPI 테스트 소스는 컴파일 확인.
+- DB migration 및 운영 환경 변경은 없다.

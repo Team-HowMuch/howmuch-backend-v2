@@ -72,7 +72,7 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "ParticipantPayment",
                 "participantId", "displayName", "linked", "expectedAmount",
-                "confirmedAmount", "paymentStatus", "avatarUrl"
+                "confirmedAmount", "paymentStatus", "submitted", "avatarUrl"
         );
         assertRequired(document, "RegisterPushTargetWebRequest", "firebaseInstallationId");
         assertNullable(

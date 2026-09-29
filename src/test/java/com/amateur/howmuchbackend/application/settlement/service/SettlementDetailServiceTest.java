@@ -503,16 +503,44 @@ class SettlementDetailServiceTest {
         assertThat(result.participants()).satisfiesExactly(
                 payment -> {
                     assertThat(payment.expectedAmount()).isEqualTo(1_000);
+                    assertThat(payment.submitted()).isFalse();
                     assertThat(payment.paymentStatus())
                             .isEqualTo(SettlementDetailResult.PaymentStatus.UNPAID);
                 },
                 payment -> {
                     assertThat(payment.expectedAmount()).isEqualTo(0L);
+                    assertThat(payment.submitted()).isTrue();
                     assertThat(payment.confirmedAmount()).isZero();
                     assertThat(payment.paymentStatus())
                             .isEqualTo(SettlementDetailResult.PaymentStatus.PAID);
                 }
         );
+    }
+
+    @Test
+    @DisplayName("할인 정산에서 일부만 제출해도 각 참여자의 제출 여부를 구별한다")
+    void discountedItemAllocation_requestedWithPartialSubmissions_distinguishesSubmitted() {
+        givenDiscountedItemSettlement(
+                SettlementStatus.REQUESTED,
+                List.of(SettlementItemSelection.create(
+                        SETTLEMENT_ID, PAYER_ITEM_ID, PAYER_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.HALF, 1, NOW
+                )),
+                List.of(),
+                List.of(PAYER_PARTICIPANT_ID)
+        );
+
+        SettlementDetailResult result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.participants()).allSatisfy(payment -> {
+            assertThat(payment.expectedAmount()).isNull();
+            assertThat(payment.paymentStatus())
+                    .isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
+        });
+        assertThat(result.participants()).extracting(
+                SettlementDetailResult.ParticipantPayment::submitted
+        ).containsExactly(true, false);
+        assertThat(result.paymentSummary().completedParticipantCount()).isZero();
     }
 
     @Test
@@ -524,13 +552,15 @@ class SettlementDetailServiceTest {
                         SETTLEMENT_ID, PAYER_ITEM_ID, PAYER_PARTICIPANT_ID,
                         SettlementItemAllocationFraction.HALF, 1, NOW
                 )),
-                List.of()
+                List.of(),
+                List.of(CREATOR_PARTICIPANT_ID, PAYER_PARTICIPANT_ID, CONTACT_PARTICIPANT_ID)
         );
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
         assertThat(result.participants()).allSatisfy(payment -> {
             assertThat(payment.expectedAmount()).isNull();
+            assertThat(payment.submitted()).isTrue();
             assertThat(payment.paymentStatus())
                     .isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
         });
@@ -548,11 +578,13 @@ class SettlementDetailServiceTest {
                 )),
                 List.of(new SettlementShare(
                         PAYER_SHARE_ID, SETTLEMENT_ID, PAYER_PARTICIPANT_ID, 1_400, NOW
-                ))
+                )),
+                List.of(CREATOR_PARTICIPANT_ID, PAYER_PARTICIPANT_ID, CONTACT_PARTICIPANT_ID)
         );
 
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
+        assertThat(result.participants().getFirst().submitted()).isTrue();
         assertThat(result.participants().get(1).expectedAmount()).isZero();
         assertThat(result.participants().get(1).paymentStatus())
                 .isEqualTo(SettlementDetailResult.PaymentStatus.PAID);
@@ -730,7 +762,8 @@ class SettlementDetailServiceTest {
     private void givenDiscountedItemSettlement(
             SettlementStatus status,
             List<SettlementItemSelection> selections,
-            List<SettlementShare> shares
+            List<SettlementShare> shares,
+            List<UUID> submittedParticipantIds
     ) {
         SettlementExpense expense = SettlementExpense.receiptOcr(
                 SETTLEMENT_ID, "receipt-1", "상호", 1_400, null, 0, NOW, 100
@@ -750,8 +783,8 @@ class SettlementDetailServiceTest {
         when(itemAllocationStorePort.findAllSelections(SETTLEMENT_ID))
                 .thenReturn(selections);
         when(itemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
-                .thenReturn(participants().stream().map(participant ->
-                        SettlementItemSubmission.submit(SETTLEMENT_ID, participant.id(), NOW)
+                .thenReturn(submittedParticipantIds.stream().map(participantId ->
+                        SettlementItemSubmission.submit(SETTLEMENT_ID, participantId, NOW)
                 ).toList());
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
                 .thenReturn(shares);
