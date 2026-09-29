@@ -564,6 +564,9 @@ class SettlementDetailServiceTest {
             assertThat(payment.paymentStatus())
                     .isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
         });
+        assertThat(result.paymentSummary()).isEqualTo(
+                new SettlementDetailResult.PaymentSummary(1_400, 0, 1_400, 0, 2, 2, 0)
+        );
         assertThat(result.paymentSummary().completedParticipantCount()).isZero();
     }
 
