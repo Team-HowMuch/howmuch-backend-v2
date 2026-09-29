@@ -335,7 +335,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 .reduce(0L, Math::addExact);
         long expectedAmount = settlement.allocationType()
                 == SettlementAllocationType.ITEM_ALLOCATION
-                && settlement.status() == SettlementStatus.REQUESTED
+                && (settlement.status() == SettlementStatus.REQUESTED
+                        || settlement.status() == SettlementStatus.SUSPENDED)
                 ? requestedItemExpectedAmount(settlement, creatorParticipant, receiptDiscount)
                 : shareExpectedAmount;
         long confirmedAmount = payments.stream()
