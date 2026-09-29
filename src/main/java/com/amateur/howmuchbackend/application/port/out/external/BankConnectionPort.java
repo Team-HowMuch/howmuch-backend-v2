@@ -5,8 +5,11 @@ import com.amateur.howmuchbackend.domain.account.AccountType;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 
 public interface BankConnectionPort {
+    Set<String> registeredOrganizations(String connectedId);
+
     ConnectionResult create(BankRegistration registration);
 
     ConnectionResult add(String connectedId, BankRegistration registration);

@@ -110,6 +110,19 @@ public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, Lo
                set account.active = false,
                    account.updatedAt = :updatedAt
              where account.active = true
+               and account.externalConnection.id = :connectionId
+            """)
+    int deactivateByConnectionId(
+            @Param("connectionId") Long connectionId,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
+
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update AccountJpaEntity account
+               set account.active = false,
+                   account.updatedAt = :updatedAt
+             where account.active = true
                and account.externalConnection.active = false
             """)
     int deactivateForInactiveConnections(@Param("updatedAt") LocalDateTime updatedAt);

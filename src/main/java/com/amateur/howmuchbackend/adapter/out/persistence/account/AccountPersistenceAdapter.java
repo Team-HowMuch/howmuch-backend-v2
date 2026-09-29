@@ -143,6 +143,12 @@ public class AccountPersistenceAdapter implements
 
     @Override
     @Transactional
+    public int deactivateByConnectionId(Long connectionId) {
+        return accountRepository.deactivateByConnectionId(connectionId, LocalDateTime.now(ZoneOffset.UTC));
+    }
+
+    @Override
+    @Transactional
     public int deactivateAccountsForInactiveConnections() {
         return accountRepository.deactivateForInactiveConnections(LocalDateTime.now(ZoneOffset.UTC));
     }

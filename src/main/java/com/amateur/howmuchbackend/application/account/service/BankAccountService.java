@@ -2,7 +2,6 @@ package com.amateur.howmuchbackend.application.account.service;
 
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
-import com.amateur.howmuchbackend.application.account.model.EncryptedBankAccountCredentials;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.ConnectBankUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
@@ -14,14 +13,12 @@ import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort;
-import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort.BankRegistration;
 import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort.ExternalAccountCandidate;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
-import com.amateur.howmuchbackend.domain.external.ConnectedInstitution;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.external.ExternalConnectionStatus;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
@@ -29,12 +26,10 @@ import com.amateur.howmuchbackend.domain.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -45,8 +40,6 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsUseCase {
-    private static final DateTimeFormatter CODEF_DATE = DateTimeFormatter.BASIC_ISO_DATE;
-
     private final CurrentActorPort currentActorPort;
     private final LoadUserPort loadUserPort;
     private final ExternalConnectionStorePort connectionStorePort;
@@ -55,45 +48,16 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
     private final BankConnectionPort bankConnectionPort;
     private final BankCatalog bankCatalog;
     private final AccountCredentialProtectionService credentialProtection;
+    private final BankConnectionRegistrationService registrationService;
 
     @Override
-    @Transactional
     public BankConnectionResult connect(ConnectBankCommand command) {
-        bankCatalog.validate(command.organization());
-        CurrentActor actor = currentActorPort.getCurrentActor();
-        User user = loadUserForUpdate(actor.userId());
-        connectionStorePort.validateStorageConfiguration();
-        String birthDate = birthDate(command.birthDate(), user);
-        BankAccountCredentials credentials = credentials(command);
-        EncryptedBankAccountCredentials encrypted = credentials == null ? null
-                : credentialProtection.protect(actor.userId(), command.organization(), credentials);
-        BankRegistration registration = new BankRegistration(
-                command.organization(), command.loginId(), command.password(), birthDate, credentials
-        );
-
-        ExternalConnection connection = connectionStorePort.findActiveByUserId(actor.userId()).orElse(null);
-        if (connection == null) {
-            var result = bankConnectionPort.create(registration);
-            connection = connectionStorePort.saveNew(
-                    new ExternalConnection(null, actor.userId(), result.connectedId()),
-                    institution(null, command.organization(), result.resultCode(), encrypted)
-            );
-        } else if (!connectionStorePort.hasInstitution(connection.id(), command.organization())) {
-            var result = bankConnectionPort.add(connection.connectedId(), registration);
-            connectionStorePort.saveInstitution(institution(connection.id(), command.organization(), result.resultCode(), encrypted));
-        } else {
-            bankConnectionPort.update(connection.connectedId(), registration);
-            if (encrypted != null) {
-                connectionStorePort.updateInstitutionCredentials(
-                        connection.id(), command.organization(), encrypted.localCiphertext(), encrypted.kmsCiphertext()
-                );
-            }
-        }
-
+        var registered = registrationService.register(command);
+        ExternalConnection connection = registered.connection();
         Set<String> linkedKeys = loadAccountPort.findCandidateKeys(connection.id());
         String connectedId = connection.connectedId();
         List<BankConnectionResult.Candidate> candidates = bankConnectionPort
-                .findAccounts(connectedId, command.organization(), birthDate, credentials)
+                .findAccounts(connectedId, command.organization(), registered.birthDate(), registered.credentials())
                 .stream()
                 .map(candidate -> toResultCandidate(connectedId, command.organization(), candidate, linkedKeys))
                 .toList();
@@ -107,7 +71,7 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
     public LinkedAccountsResult link(LinkBankAccountsCommand command) {
         bankCatalog.validate(command.organization());
         CurrentActor actor = currentActorPort.getCurrentActor();
-        User user = loadUserForUpdate(actor.userId());
+        loadUserForUpdate(actor.userId());
         connectionStorePort.validateStorageConfiguration();
         ExternalConnection connection = connectionStorePort.findActiveByIdAndUserId(
                         command.connectionId(), actor.userId()
@@ -123,7 +87,7 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
 
         Map<String, ExternalAccountCandidate> candidates = new LinkedHashMap<>();
         for (ExternalAccountCandidate candidate : bankConnectionPort.findAccounts(
-                connection.connectedId(), command.organization(), birthDate(command.birthDate(), user), credentials
+                connection.connectedId(), command.organization(), command.birthDate(), credentials
         )) {
             candidates.put(candidateKey(connection.connectedId(), command.organization(), candidate.externalAccountKey()), candidate);
         }
@@ -171,30 +135,6 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
         return loadUserPort.findByIdForUpdate(userId)
                 .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
-    }
-
-    private String birthDate(String requested, User user) {
-        return requested != null ? requested : user.birthDate() == null ? null : CODEF_DATE.format(user.birthDate());
-    }
-
-    private ConnectedInstitution institution(
-            Long connectionId, String organization, String resultCode, EncryptedBankAccountCredentials encrypted
-    ) {
-        return new ConnectedInstitution(
-                null, connectionId, organization, ExternalConnectionStatus.CONNECTED, resultCode,
-                encrypted == null ? null : encrypted.localCiphertext(),
-                encrypted == null ? null : encrypted.kmsCiphertext()
-        );
-    }
-
-    private BankAccountCredentials credentials(ConnectBankCommand command) {
-        if (!bankCatalog.requiresAccountCredentials(command.organization())) {
-            return null;
-        }
-        if (!StringUtils.hasText(command.accountNumber()) || !StringUtils.hasText(command.accountPassword())) {
-            throw ApplicationException.of(ExternalConnectionStatusCode.BANK_ACCOUNT_CREDENTIAL_REQUIRED);
-        }
-        return new BankAccountCredentials(command.accountNumber(), command.accountPassword());
     }
 
     private BankConnectionResult.Candidate toResultCandidate(

@@ -70,6 +70,7 @@ class AccountQueryServiceTest {
     @Mock private ExternalConnectionStorePort connectionStorePort;
     @Mock private BankTransactionPort bankTransactionPort;
     @Mock private BankCatalog bankCatalog;
+    @Mock private AccountCredentialProtectionService credentialProtection;
 
     private AccountQueryService service;
 
@@ -77,7 +78,7 @@ class AccountQueryServiceTest {
     void setUp() {
         service = new AccountQueryService(
                 currentActorPort, loadAccountPort, loadTransactionPort, saveTransactionPort, refreshStorePort,
-                connectionStorePort, bankTransactionPort, bankCatalog,
+                connectionStorePort, bankTransactionPort, bankCatalog, credentialProtection,
                 new AccountTransactionDisplayNormalizer(), CLOCK
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
@@ -145,7 +146,7 @@ class AccountQueryServiceTest {
                 .thenReturn(Optional.of(new ExternalConnection(account.externalConnectionId(), USER_ID, "CID-1")));
         when(loadAccountPort.findActiveByIdAndUserIdForUpdate(account.id(), USER_ID))
                 .thenReturn(Optional.of(account));
-        when(bankTransactionPort.fetch("CID-1", "0020", "1002123456789", AUGUST.atDay(1), AUGUST.atEndOfMonth()))
+        when(bankTransactionPort.fetch("CID-1", "0020", "1002123456789", AUGUST.atDay(1), AUGUST.atEndOfMonth(), null))
                 .thenReturn(List.of(new BankTransactionPort.BankTransaction(
                         AccountTransactionType.EXPENSE,
                         new BigDecimal("12500"),
@@ -212,7 +213,7 @@ class AccountQueryServiceTest {
                 .thenReturn(Optional.of(account));
         when(bankTransactionPort.fetch(
                 "CID-1", "0020", account.externalAccountKey(),
-                currentMonth.atDay(1), TODAY
+                currentMonth.atDay(1), TODAY, null
         )).thenReturn(List.of(new BankTransactionPort.BankTransaction(
                 AccountTransactionType.EXPENSE,
                 new BigDecimal("12500"),
@@ -232,7 +233,7 @@ class AccountQueryServiceTest {
 
             verify(bankTransactionPort).fetch(
                     "CID-1", "0020", account.externalAccountKey(),
-                    currentMonth.atDay(1), TODAY
+                    currentMonth.atDay(1), TODAY, null
             );
             verify(refreshStorePort, never()).markFresh(
                     account.id(), currentMonth, java.time.Duration.ofMinutes(1)
@@ -322,7 +323,7 @@ class AccountQueryServiceTest {
         verify(bankTransactionPort, never()).fetch(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()
         );
     }
 

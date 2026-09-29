@@ -7,5 +7,7 @@ import java.util.List;
 public interface SaveAccountPort {
     List<Account> saveAll(List<Account> accounts);
 
+    int deactivateByConnectionId(Long connectionId);
+
     int deactivateAccountsForInactiveConnections();
 }

@@ -31,6 +31,9 @@ class CodefBankTransactionAdapterTest {
     private CodefClient client;
 
     @Mock
+    private CodefRsaEncryptor rsaEncryptor;
+
+    @Mock
     private CodefObservability observability;
 
     @ParameterizedTest
@@ -78,9 +81,9 @@ class CodefBankTransactionAdapterTest {
                 .thenThrow(new CodefClient.CodefHttpException(httpStatus, "", null));
         when(client.decode("")).thenReturn(new ObjectMapper().readTree("{}"));
 
-        assertThatThrownBy(() -> new CodefBankTransactionAdapter(client, observability).fetch(
+        assertThatThrownBy(() -> new CodefBankTransactionAdapter(client, rsaEncryptor, observability).fetch(
                 "CID-1", "0020", "1002123456789",
-                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)))
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), null))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(expected));
@@ -106,8 +109,8 @@ class CodefBankTransactionAdapterTest {
         ));
         when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any())).thenReturn(response);
         LocalDate queryDate = LocalDate.parse(date, java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
-        var transactions = new CodefBankTransactionAdapter(client, observability)
-                .fetch("CID-1", "0020", "1002123456789", queryDate, queryDate);
+        var transactions = new CodefBankTransactionAdapter(client, rsaEncryptor, observability)
+                .fetch("CID-1", "0020", "1002123456789", queryDate, queryDate, null);
 
         assertThat(transactions).singleElement().satisfies(transaction -> {
             assertThat(transaction.type()).isEqualTo(AccountTransactionType.INCOME);
@@ -153,11 +156,11 @@ class CodefBankTransactionAdapterTest {
                         }
                         """)
         );
-        CodefBankTransactionAdapter adapter = new CodefBankTransactionAdapter(client, observability);
+        CodefBankTransactionAdapter adapter = new CodefBankTransactionAdapter(client, rsaEncryptor, observability);
 
         var result = adapter.fetch(
                 "CID-1", "0020", "1002123456789",
-                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), null
         );
 
         @SuppressWarnings("unchecked")

@@ -24,6 +24,7 @@ import com.amateur.howmuchbackend.application.port.in.account.SetDefaultAccountU
 import com.amateur.howmuchbackend.application.port.in.account.UpdateAccountDisplayOrderUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -130,7 +131,7 @@ public class AccountController implements AccountDocs {
     @Override
     @PostMapping("/connections/banks")
     public ApiResponse<BankConnectionWebResponse> connectBank(
-            @RequestBody ConnectBankWebRequest request
+            @Valid @RequestBody ConnectBankWebRequest request
     ) {
         return ApiResponse.success(BankConnectionWebResponse.from(connectBankUseCase.connect(request.toCommand())));
     }

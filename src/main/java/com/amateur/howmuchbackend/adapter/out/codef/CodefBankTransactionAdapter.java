@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.codef;
 
+import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
 import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
@@ -32,6 +33,7 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final CodefClient client;
+    private final CodefRsaEncryptor rsaEncryptor;
     private final CodefObservability observability;
 
     @Override
@@ -40,7 +42,8 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
             String organization,
             String account,
             LocalDate startDate,
-            LocalDate endDate
+            LocalDate endDate,
+            BankAccountCredentials credentials
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("connectedId", connectedId);
@@ -50,6 +53,10 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         payload.put("endDate", CODEF_DATE.format(endDate));
         payload.put("orderBy", "1");
         payload.put("inquiryType", "1");
+        if (credentials != null) {
+            payload.put("withdrawAccountNo", credentials.number());
+            payload.put("withdrawAccountPassword", rsaEncryptor.encrypt(credentials.password()));
+        }
 
         JsonNode response = post(organization, payload);
         List<BankTransaction> transactions = new ArrayList<>();
