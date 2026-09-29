@@ -130,6 +130,7 @@ class BankAccountServiceTest {
         when(connectionStorePort.findActiveByUserId(userId))
                 .thenReturn(Optional.of(new ExternalConnection(connectionId, userId, connectedId)));
         when(connectionStorePort.hasInstitution(connectionId, organization)).thenReturn(true);
+        when(bankConnectionPort.registeredOrganizations(connectedId)).thenReturn(Set.of(organization));
         when(loadAccountPort.findCandidateKeys(connectionId)).thenReturn(Set.of());
         when(bankConnectionPort.findAccounts(connectedId, organization, null, null))
                 .thenReturn(List.of(candidate("2002123456789", "yong 통장")));
@@ -178,9 +179,13 @@ class BankAccountServiceTest {
     }
 
     private BankAccountService service() {
+        var registrationService = new BankConnectionRegistrationService(
+                currentActorPort, loadUserPort, connectionStorePort, saveAccountPort,
+                bankConnectionPort, bankCatalog, credentialProtection
+        );
         return new BankAccountService(
                 currentActorPort, loadUserPort, connectionStorePort, loadAccountPort,
-                saveAccountPort, bankConnectionPort, bankCatalog, credentialProtection
+                saveAccountPort, bankConnectionPort, bankCatalog, credentialProtection, registrationService
         );
     }
 
