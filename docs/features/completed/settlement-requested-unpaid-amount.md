@@ -1,8 +1,10 @@
 # Feature Plan: 품목 정산 선택 대기 중 미수금 계산
 
 - Status: Completed
-- Last updated: 2026-09-14
-- Related issue: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/373
+- Last updated: 2026-09-29
+- Related issues:
+  - https://github.com/Team-HowMuch/howmuch-backend-v2/issues/373
+  - https://github.com/Team-HowMuch/howmuch-backend-v2/issues/450
 - Related ADR: N/A
 
 ## 1. Purpose
@@ -21,7 +23,7 @@
 
 ### Success criteria
 
-- [x] `ITEM_ALLOCATION` 정산이 `REQUESTED`이면 Share가 없어도 `expectedAmount`와
+- [x] `ITEM_ALLOCATION` 정산이 `REQUESTED` 또는 `SUSPENDED`이면 Share가 없어도 `expectedAmount`와
   `unpaidAmount`가 정산 총액에서 생성자의 확정 품목 금액을 제외한 값을 기준으로 계산된다.
 - [x] 일부 Share의 입금이 확인된 경우 `unpaidAmount`는 이 기준 금액에서 확인 입금액을 뺀 값이다.
 - [x] Share가 없는 참여자 행은 금액을 추측하지 않고 `expectedAmount = null`,
@@ -46,7 +48,7 @@
 
 | Term | Meaning | Code representation |
 |---|---|---|
-| 선택 대기 | 품목 정산 참여자의 Share가 아직 모두 확정되지 않은 상태 | `ITEM_ALLOCATION` + `REQUESTED` |
+| 선택 대기 | 품목 정산 참여자의 Share가 아직 모두 확정되지 않은 상태 | `ITEM_ALLOCATION` + `REQUESTED` 또는 `SUSPENDED` |
 | 확인 입금액 | Share에 연결된 실제 입금 거래 금액 합계 | `confirmedAmount` |
 | 미수금 | 선택 대기 중인 금액을 포함해 생성자가 아직 받지 못한 금액 | `unpaidAmount` |
 
@@ -85,10 +87,10 @@
 
 ### Boundary conditions
 
-- 일부 참여자의 Share와 확인 입금이 이미 있어도 `REQUESTED`이면 정산 총액에서 생성자의
+- 일부 참여자의 Share와 확인 입금이 이미 있어도 `REQUESTED` 또는 `SUSPENDED`이면 정산 총액에서 생성자의
   확정 품목 금액을 제외한 값을 분모로 삼는다.
 - 확인 입금액은 Share 금액까지만 인정하고 진행률은 기존처럼 100을 넘지 않는다.
-- `AWAITING_DEPOSIT`, `SUSPENDED`, `COMPLETED`에서는 확정된 납부 대상 Share 합계를 사용한다.
+- `AWAITING_DEPOSIT`, `COMPLETED`에서는 확정된 납부 대상 Share 합계를 사용한다.
 
 ## 4. Contracts
 
@@ -153,7 +155,7 @@ Authentication: required
 ### Technology and patterns
 
 - Constraint to solve: 확정 전에는 참여자별 Share 합계만으로 전체 미수금을 알 수 없다.
-- Selected approach: `ITEM_ALLOCATION`이면서 `REQUESTED`인 동안 `expectedAmount`를
+- Selected approach: `ITEM_ALLOCATION`이면서 `REQUESTED` 또는 `SUSPENDED`인 동안 `expectedAmount`를
   `Settlement.totalAmount - creatorItemAmount`로 사용하고, 다른 상태·배분 유형은 기존
   Share 합계를 사용한다.
 - Reason for selection: 이슈의 결제 총액 기준 요구를 충족하면서 참여자별 미확정 금액을
@@ -225,6 +227,7 @@ git status --short --untracked-files=all
 
 - [x] Share가 전혀 없는 `REQUESTED` 품목 정산의 총 미수금을 검증한다.
 - [x] 일부 Share·입금만 있는 `REQUESTED` 품목 정산의 총 미수금을 검증한다.
+- [x] Share가 없는 `SUSPENDED` 품목 정산의 총 미수금과 진행률을 검증한다.
 - [x] 생성자가 요청 전에 품목을 선택한 경우 그 금액이 미수금에서 제외되는지 검증한다.
 - [x] 참여자별 미확정 금액과 기존 더치페이 계산이 유지되는지 검증한다.
 - [x] 문서와 실제 계산이 일치하는지 확인한다.
@@ -235,8 +238,8 @@ git status --short --untracked-files=all
 |---|---|---|
 | 변경 전 집중 테스트 | Passed | 기존 `SettlementDetailServiceTest` |
 | 변경 후 집중 테스트 | Passed | `SettlementDetailServiceTest` |
-| 리뷰 반영 집중 테스트 | Passed | 생성자 400원 선택 시 1,400원 중 1,000원만 미수금으로 계산 |
-| 전체 회귀 테스트 | Passed | Java 1,139건, JavaScript 35건, 실패 0 |
+| 리뷰 반영 집중 테스트 | Passed | `SUSPENDED` 상태에서 예상 1,400원, 미수 1,400원, 진행률 0% 검증 |
+| 전체 회귀 테스트 | Passed | Java 1,363건, JavaScript 35건, 실패 0 |
 | 컴파일 | Passed | `./gradlew compileJava --console=plain` |
 | 저장소 검사 | Passed | `git diff --check`, `git status --short --untracked-files=all` |
 
@@ -247,6 +250,7 @@ git status --short --untracked-files=all
 | 2026-09-14 | 이슈와 상세 계산 흐름 분석, Flyway 불필요 확인 | 회귀 테스트와 계산 수정 | 참여자별 미확정 금액은 계속 nullable이어야 한다. |
 | 2026-09-14 | 계산 수정, 집중·전체 회귀 검증 완료 | PR 게시 | API 구조·DB·외부 연동 변경 없음 |
 | 2026-09-14 | PR 리뷰에 따라 생성자 사전 선택 금액 제외, 회귀 테스트 추가 | 전체 회귀 검증과 푸시 | DRAFT 제출은 생성자 Share를 만들지 않으므로 선택 데이터로 계산해야 한다. |
+| 2026-09-29 | 중단 상태의 미수금 계산과 회귀 테스트·문서 보강 | PR 리뷰 반영 | SUSPENDED도 Share가 없어 총액 기준 계산이 필요하다. |
 
 ## 10. Decision log
 
@@ -254,11 +258,12 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-09-14 | 선택 대기 중인 품목 정산만 총액을 요약 분모로 사용 | Share 합계가 아직 전체 금액을 표현할 수 없다 | 다른 상태·배분 유형은 기존 Share 합계를 유지 |
 | 2026-09-14 | 선택 대기 요약에서 생성자 선택 금액을 제외 | 생성자는 돈을 받는 주체라 자기 품목 금액은 미수금이 아니다 | 기존 품목 금액 Policy를 재사용해 새 계산 규칙을 만들지 않음 |
+| 2026-09-29 | `SUSPENDED` 품목 정산도 총액을 요약 분모로 사용 | 중단은 Share가 없는 상태에서도 발생하므로 Share 합계가 전체 미수금을 표현하지 못한다 | `REQUESTED`와 같은 계산을 재사용 |
 
 ## 11. Completion record
 
 - Completed on: 2026-09-14
-- Final behavior: `REQUESTED` 품목 정산 상세는 미확정 참여자 몫을 누락하지 않되, 정산 총액에서
+- Final behavior: `REQUESTED`와 `SUSPENDED` 품목 정산 상세는 미확정 참여자 몫을 누락하지 않되, 정산 총액에서
   생성자가 선택한 자기 몫과 확인 입금액을 뺀 미수금을 반환한다. 참여자별 미확정 금액은 계속
   nullable로 반환한다.
 - Unverified items: 없음
