@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.account.service.AccountCredentialProtectionService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
@@ -87,6 +89,8 @@ class SettlementDepositServiceTest {
     @Mock private SaveAccountTransactionPort saveTransactionPort;
     @Mock private ExternalConnectionStorePort connectionStorePort;
     @Mock private BankTransactionPort bankTransactionPort;
+    @Mock private BankCatalog bankCatalog;
+    @Mock private AccountCredentialProtectionService credentialProtection;
 
     private SettlementDepositService service;
 
@@ -116,6 +120,8 @@ class SettlementDepositServiceTest {
                 loadSnapshotPort,
                 connectionStorePort,
                 bankTransactionPort,
+                bankCatalog,
+                credentialProtection,
                 writer,
                 reader
         );
@@ -160,7 +166,8 @@ class SettlementDepositServiceTest {
                 eq("0020"),
                 eq("1002123456789"),
                 any(LocalDate.class),
-                any(LocalDate.class)
+                any(LocalDate.class),
+                eq(null)
         );
         accountUpdateOrder.verify(loadAccountPort)
                 .findActiveByIdAndUserIdForUpdate(7L, CREATOR_ID);
@@ -335,7 +342,8 @@ class SettlementDepositServiceTest {
                 eq("0020"),
                 eq("1002123456789"),
                 any(LocalDate.class),
-                any(LocalDate.class)
+                any(LocalDate.class),
+                eq(null)
         )).thenThrow(new IllegalStateException("injected external failure"));
 
         assertThatThrownBy(() -> service.reconcile(SETTLEMENT_ID))
@@ -361,7 +369,8 @@ class SettlementDepositServiceTest {
                 eq("0020"),
                 eq("1002123456789"),
                 any(LocalDate.class),
-                any(LocalDate.class)
+                any(LocalDate.class),
+                eq(null)
         )).thenReturn(List.of());
         Transaction transaction = transaction("6000");
         when(loadTransactionPort.findIncomeByAccountIdBetween(eq(7L), eq(CREATED_AT), any()))
@@ -418,7 +427,8 @@ class SettlementDepositServiceTest {
                 .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
         var writer = mock(SettlementDepositWriter.class);
         var queryService = new SettlementDepositService(currentActorPort, loadSettlementPort, loadSnapshotPort,
-                connectionStorePort, bankTransactionPort, writer, mock(SettlementDepositReader.class));
+                connectionStorePort, bankTransactionPort, bankCatalog, credentialProtection,
+                writer, mock(SettlementDepositReader.class));
         try (var clock = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
             clock.when(() -> LocalDateTime.now(ZoneOffset.UTC)).thenReturn(now);
             queryService.reconcile(SETTLEMENT_ID);
@@ -426,7 +436,7 @@ class SettlementDepositServiceTest {
         var startCaptor = ArgumentCaptor.forClass(LocalDate.class);
         var endCaptor = ArgumentCaptor.forClass(LocalDate.class);
         verify(bankTransactionPort, times(starts.size())).fetch(eq("CID-1"), eq("0020"),
-                eq("1002123456789"), startCaptor.capture(), endCaptor.capture());
+                eq("1002123456789"), startCaptor.capture(), endCaptor.capture(), eq(null));
         assertThat(startCaptor.getAllValues()).containsExactlyElementsOf(starts);
         assertThat(endCaptor.getAllValues()).containsExactlyElementsOf(ends);
         verify(writer).reconcile(SETTLEMENT_ID, CREATOR_ID, fixedSnapshot, List.of(), now);
@@ -499,7 +509,8 @@ class SettlementDepositServiceTest {
                 eq("0020"),
                 eq("1002123456789"),
                 any(LocalDate.class),
-                any(LocalDate.class)
+                any(LocalDate.class),
+                eq(null)
         )).thenReturn(List.of(new BankTransactionPort.BankTransaction(
                 AccountTransactionType.INCOME,
                 savedTransaction.amount(),

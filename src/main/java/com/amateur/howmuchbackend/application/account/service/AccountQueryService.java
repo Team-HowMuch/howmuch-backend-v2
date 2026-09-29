@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.account.service;
 
 import com.amateur.howmuchbackend.application.account.AccountTransactionKey;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
 import com.amateur.howmuchbackend.application.account.policy.AccountTransactionDisplayNormalizer;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountDetailUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransactionsUseCase;
@@ -60,6 +61,7 @@ public class AccountQueryService
     private final ExternalConnectionStorePort connectionStorePort;
     private final BankTransactionPort bankTransactionPort;
     private final BankCatalog bankCatalog;
+    private final AccountCredentialProtectionService credentialProtection;
     private final AccountTransactionDisplayNormalizer transactionDisplayNormalizer;
     private final Clock clock;
 
@@ -205,6 +207,8 @@ public class AccountQueryService
                         account.id(), account.userId()
                 )
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
+        BankAccountCredentials credentials = bankCatalog.requiresAccountCredentials(activeAccount.organization())
+                ? credentialProtection.reveal(account.userId(), connection.id(), activeAccount.organization()) : null;
         LocalDate endDate = yearMonth.equals(YearMonth.from(today))
                 ? today
                 : yearMonth.atEndOfMonth();
@@ -213,7 +217,8 @@ public class AccountQueryService
                         activeAccount.organization(),
                         activeAccount.externalAccountKey(),
                         yearMonth.atDay(1),
-                        endDate
+                        endDate,
+                        credentials
                 ).stream()
                 .map(transaction -> new Transaction(
                         null,

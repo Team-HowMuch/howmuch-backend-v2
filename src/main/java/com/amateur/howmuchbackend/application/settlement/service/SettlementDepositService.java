@@ -1,5 +1,8 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
+import com.amateur.howmuchbackend.application.account.service.AccountCredentialProtectionService;
 import com.amateur.howmuchbackend.application.account.AccountTransactionKey;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementDepositSummaryUseCase;
@@ -42,6 +45,8 @@ public class SettlementDepositService implements
     private final LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
     private final ExternalConnectionStorePort connectionStorePort;
     private final BankTransactionPort bankTransactionPort;
+    private final BankCatalog bankCatalog;
+    private final AccountCredentialProtectionService credentialProtection;
     private final SettlementDepositWriter writer;
     private final SettlementDepositReader reader;
 
@@ -97,6 +102,8 @@ public class SettlementDepositService implements
         if (startDate.isAfter(endDate)) {
             return List.of();
         }
+        BankAccountCredentials credentials = bankCatalog.requiresAccountCredentials(snapshot.organization())
+                ? credentialProtection.reveal(connection.userId(), connection.id(), snapshot.organization()) : null;
 
         List<Transaction> result = new ArrayList<>();
         YearMonth month = YearMonth.from(startDate);
@@ -111,7 +118,8 @@ public class SettlementDepositService implements
                     snapshot.organization(),
                     snapshot.accountNumber(),
                     periodStart,
-                    periodEnd
+                    periodEnd,
+                    credentials
             ).stream()
                     .map(transaction -> new Transaction(
                             null,
