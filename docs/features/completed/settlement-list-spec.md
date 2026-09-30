@@ -7,6 +7,13 @@
 - Product requirement: [일회성 정산 PRD](../../product/settlement-prd.md)
 - Prerequisites: [정산 초안 및 기본 정보 Spec](settlement-core-spec.md), [정산 참여자 선택 및 관리 Spec](settlement-participants-spec.md), [정산 요청·공통 링크 Spec](settlement-request-link-spec.md)
 
+> 2026-09-30 후속 계약: `PAY`의 `ITEM_ALLOCATION` + `REQUESTED`/`SUSPENDED`에서는
+> 본인 Share가 없을 때 `amountToPay`에 정산 총액을 목록 표시값으로 반환한다.
+> 이는 생성자 몫을 포함한 총액이며 실제 개인 납부액은 아니다. 본인 Share가 있으면 그 금액을
+> 우선하고, 나머지 Share 부재와 `RECEIVE`는 기존 nullable 계약을 유지한다.
+> 아래 초기 설계의 "Share가 없으면 null" 규칙은 이 두 상태에서만 대체된다.
+> 변경 근거와 검증은 [미확정 목록 금액 보정](settlement-list-unconfirmed-amount.md)을 참고한다.
+
 ## 1. Purpose
 
 ### Problem
