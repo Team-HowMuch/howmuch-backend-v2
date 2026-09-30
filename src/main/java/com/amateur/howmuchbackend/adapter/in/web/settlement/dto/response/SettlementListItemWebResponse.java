@@ -43,7 +43,10 @@ public record SettlementListItemWebResponse(
         Integer payableParticipantCount,
         @Schema(nullable = true, description = "납부를 마친 인원. 생성자를 제외한다.")
         Integer completedParticipantCount,
-        @Schema(nullable = true)
+        @Schema(nullable = true, description = "PAY 탭의 확정 개인 납부 금액. "
+                + "ITEM_ALLOCATION의 REQUESTED·SUSPENDED 상태에서 개인 금액이 미확정이면 "
+                + "생성자 몫을 포함한 정산 총액을 목록 표시값으로 반환하며 실제 개인 납부액을 뜻하지 않습니다. "
+                + "그 외 금액 미확정 상태와 RECEIVE 탭에서는 null입니다.")
         Long amountToPay,
         @Schema(nullable = true)
         String requesterName,

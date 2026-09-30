@@ -37,7 +37,14 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     END) AS payableParticipantCount,
                 MAX(payment_summary.completed_participant_count) AS completedParticipantCount,
                 MAX(CASE
-                        WHEN participant.linked_user_id = :userId THEN share.amount
+                        WHEN participant.linked_user_id = :userId THEN
+                            CASE
+                                WHEN share.amount IS NULL
+                                     AND settlement.allocation_type = 'ITEM_ALLOCATION'
+                                     AND settlement.status IN ('REQUESTED', 'SUSPENDED')
+                                THEN settlement.total_amount
+                                ELSE share.amount
+                            END
                     END) AS amountToPay
               FROM settlements settlement
               JOIN users creator
