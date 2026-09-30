@@ -12,6 +12,8 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -138,6 +140,47 @@ class SettlementListServiceTest {
         assertThat(result).singleElement().satisfies(item -> {
             assertThat(item.endedAt()).isEqualTo(suspendedAt);
             assertThat(item.completedAt()).isNull();
+        });
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {
+            "PAY, ITEM_ALLOCATION, REQUESTED, null, 6000",
+            "PAY, ITEM_ALLOCATION, SUSPENDED, null, 6000",
+            "PAY, ITEM_ALLOCATION, AWAITING_DEPOSIT, null, null",
+            "PAY, ITEM_ALLOCATION, COMPLETED, null, null",
+            "PAY, DUTCH_PAY, REQUESTED, null, null",
+            "PAY, DUTCH_PAY, SUSPENDED, null, null",
+            "PAY, DUTCH_PAY, AWAITING_DEPOSIT, null, null",
+            "PAY, DUTCH_PAY, COMPLETED, null, null",
+            "PAY, null, REQUESTED, null, null",
+            "PAY, ITEM_ALLOCATION, REQUESTED, 2000, 2000",
+            "PAY, ITEM_ALLOCATION, SUSPENDED, 2000, 2000",
+            "PAY, ITEM_ALLOCATION, AWAITING_DEPOSIT, 2000, 2000",
+            "PAY, ITEM_ALLOCATION, COMPLETED, 2000, 2000",
+            "RECEIVE, ITEM_ALLOCATION, REQUESTED, null, null",
+            "RECEIVE, ITEM_ALLOCATION, SUSPENDED, 2000, null"
+    }, nullValues = "null")
+    void settlementList_rawAmounts_displayedByTabAndAllocationState(
+            SettlementListTab tab,
+            SettlementAllocationType allocationType,
+            SettlementStatus status,
+            Long shareAmount,
+            Long expectedAmount
+    ) {
+        var readModel = new SettlementListReadModel(
+                SETTLEMENT_ID, status, LocalDateTime.of(2026, 9, 30, 0, 0), null, null,
+                6_000L, allocationType, null, null, null, shareAmount, null, List.of());
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(loadSettlementListPort.findAll(USER_ID, tab, SettlementListStatusFilter.ALL, null, null))
+                .thenReturn(List.of(readModel));
+
+        var result = new SettlementListService(currentActorPort, loadSettlementListPort).get(
+                new GetSettlementsCommand(tab, SettlementListStatusFilter.ALL, null, null));
+
+        assertThat(result).singleElement().satisfies(item -> {
+            assertThat(item.amountToPay()).isEqualTo(expectedAmount);
+            assertThat(item.totalAmount()).isEqualTo(tab == SettlementListTab.RECEIVE ? 6_000L : null);
         });
     }
 }

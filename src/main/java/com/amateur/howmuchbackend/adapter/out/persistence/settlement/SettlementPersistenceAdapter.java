@@ -152,7 +152,7 @@ public class SettlementPersistenceAdapter implements
                 projection.getCompletedAt() == null
                         ? null
                         : LocalDateTime.ofInstant(projection.getCompletedAt(), ZoneOffset.UTC),
-                tab == SettlementListTab.RECEIVE ? projection.getTotalAmount() : null,
+                projection.getTotalAmount(),
                 projection.getAllocationType() == null
                         ? null
                         : SettlementAllocationType.valueOf(projection.getAllocationType()),
@@ -163,7 +163,7 @@ public class SettlementPersistenceAdapter implements
                         ? Math.toIntExact(projection.getPayableParticipantCount())
                         : null,
                 tab == SettlementListTab.RECEIVE ? completedParticipantCount : null,
-                tab == SettlementListTab.PAY ? projection.getAmountToPay() : null,
+                projection.getAmountToPay(),
                 tab == SettlementListTab.PAY ? projection.getRequesterName() : null,
                 groups
         );

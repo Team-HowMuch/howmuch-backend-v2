@@ -2,9 +2,13 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSettlementsCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,12 +32,12 @@ public class SettlementListService implements GetSettlementsUseCase {
                         item.requestedAt(),
                         item.endedAt(),
                         item.completedAt(),
-                        item.totalAmount(),
+                        command.tab() == SettlementListTab.RECEIVE ? item.totalAmount() : null,
                         item.allocationType(),
                         item.participantCount(),
                         item.payableParticipantCount(),
                         item.completedParticipantCount(),
-                        item.amountToPay(),
+                        amountToPay(item, command.tab()),
                         item.requesterName(),
                         item.groups().stream()
                                 .map(group -> new SettlementListItemResult.GroupSummary(
@@ -44,5 +48,18 @@ public class SettlementListService implements GetSettlementsUseCase {
                                 .toList()
                 ))
                 .toList();
+    }
+
+    private Long amountToPay(SettlementListReadModel item, SettlementListTab tab) {
+        if (tab != SettlementListTab.PAY) {
+            return null;
+        }
+        if (item.amountToPay() == null
+                && item.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
+                && (item.status() == SettlementStatus.REQUESTED
+                || item.status() == SettlementStatus.SUSPENDED)) {
+            return item.totalAmount();
+        }
+        return item.amountToPay();
     }
 }

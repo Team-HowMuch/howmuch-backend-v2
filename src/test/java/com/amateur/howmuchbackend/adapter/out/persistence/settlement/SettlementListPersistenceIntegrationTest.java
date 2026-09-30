@@ -10,7 +10,11 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementShareJpaRepository;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSettlementsCommand;
+import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
+import com.amateur.howmuchbackend.application.settlement.service.SettlementListService;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
@@ -26,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -34,6 +39,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
+import static org.mockito.Mockito.when;
 import static java.time.temporal.ChronoUnit.MICROS;
 
 @SpringBootTest
@@ -44,6 +50,12 @@ class SettlementListPersistenceIntegrationTest {
 
     @Autowired
     private SettlementPersistenceAdapter settlementPersistenceAdapter;
+
+    @Autowired
+    private SettlementListService settlementListService;
+
+    @MockitoBean
+    private CurrentActorPort currentActorPort;
 
     @Autowired
     private SettlementJpaRepository settlementJpaRepository;
@@ -371,7 +383,7 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(item.status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
             assertThat(item.amountToPay()).isEqualTo(6_000L);
             assertThat(item.requesterName()).isEqualTo("다른 사람");
-            assertThat(item.totalAmount()).isNull();
+            assertThat(item.totalAmount()).isEqualTo(6_000L);
             assertThat(item.participantCount()).isNull();
             assertThat(item.groups()).isEmpty();
         });
@@ -409,16 +421,30 @@ class SettlementListPersistenceIntegrationTest {
 
         assertThat(result).singleElement().satisfies(item -> {
             assertThat(item.settlementId()).isEqualTo(paySettlementId);
-            assertThat(item.amountToPay()).isEqualTo(expectedAmount);
-            assertThat(item.totalAmount()).isNull();
+            assertThat(item.amountToPay()).isNull();
+            assertThat(item.totalAmount()).isEqualTo(6_000L);
             assertThat(item.requesterName()).isEqualTo("다른 사람");
         });
         assertThat(settlementPersistenceAdapter.findAll(
                 otherUserId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null))
                 .singleElement().satisfies(item -> {
                     assertThat(item.totalAmount()).isEqualTo(6_000L);
-                    assertThat(item.amountToPay()).isNull();
+                    assertThat(item.amountToPay()).isEqualTo(1_000L);
                     assertThat(item.participantCount()).isEqualTo(2);
+                });
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(payerId));
+        assertThat(settlementListService.get(new GetSettlementsCommand(
+                SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null)))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.amountToPay()).isEqualTo(expectedAmount);
+                    assertThat(item.totalAmount()).isNull();
+                });
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(otherUserId));
+        assertThat(settlementListService.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null)))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.amountToPay()).isNull();
+                    assertThat(item.totalAmount()).isEqualTo(6_000L);
                 });
     }
 
