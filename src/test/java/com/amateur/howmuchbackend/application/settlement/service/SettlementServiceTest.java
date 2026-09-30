@@ -12,6 +12,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementDeletionPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementSuspensionPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -91,6 +92,7 @@ class SettlementServiceTest {
                 saveSettlementParticipantPort,
                 settlementItemAllocationStorePort,
                 new SettlementDeletionPolicy(),
+                new SettlementSuspensionPolicy(),
                 loadUserPort,
                 allocationDraftInvalidator
         );
