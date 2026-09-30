@@ -43,15 +43,16 @@ SettlementListWebRequest -> GetSettlementsCommand -> GetSettlementsUseCase
 -> SettlementListReadModel -> SettlementListItemResult -> SettlementListItemWebResponse
 ```
 
-새 UseCase·Command·Result·Output Port·Policy는 없다. SQL 읽기 모델의 기존 금액 투영과
-Web 응답의 금액 설명을 수정한다. 응답 필드·타입은 유지한다.
+새 UseCase·Command·Result·Output Port·Policy는 없다. Persistence는 원본 Share 금액과 총액을
+반환하고 `SettlementListService`가 상태·배분 유형·탭에 따라 표시 금액을 결정한다.
+응답 필드·타입은 유지한다. 별도 Policy 없이 Service의 지역 helper로 규칙을 표현한다.
 
 - Flyway migration required: **No** — 기존 컬럼 조회식만 수정한다.
 - DB Entity·제약·저장 데이터, Redis, 외부 API, 환경 설정: 변경 없음.
 
 ## 5. 설계 결정
 
-본인 Share를 우선 사용하고, 품목 정산의 선택 대기·중단 상태에서 Share가 없을 때만
+`SettlementListService`가 본인 Share를 우선 사용하고, 품목 정산의 선택 대기·중단 상태에서 Share가 없을 때만
 `total_amount`를 사용한다. 이는 이슈가 허용한 정산 총액 기준 표시값이며 실제 개인 납부액은 아니다.
 상세의 `requestedItemExpectedAmount()`는 생성자 몫을 제외한 전체 미수금이므로 개인 금액으로
 복사하지 않는다. 목록 총액에는 생성자 몫도 포함된다. 이 차이를 Swagger에 명시한다.
@@ -63,17 +64,19 @@ Web 응답의 금액 설명을 수정한다. 응답 필드·타입은 유지한�
 
 | 영역 | 변경 |
 |---|---|
-| Persistence | `SettlementJpaRepository.findAllForUser`의 `amountToPay` 투영 |
+| Persistence | `SettlementJpaRepository`는 원본 Share 금액 투영, `SettlementPersistenceAdapter`는 양쪽 탭에 원본 총액·Share 제공 |
+| Application | `SettlementListService`가 미확정 표시값 보정과 탭별 총액·개인 금액 가시성 결정 |
 | Web API | `SettlementListItemWebResponse.amountToPay` Swagger 설명 |
-| 검증 | `SettlementListPersistenceIntegrationTest`의 상태·배분 유형·Share 유무 회귀 검증 |
+| 검증 | `SettlementListServiceTest`와 실제 DB 통합 테스트의 상태·배분 유형·Share 유무 회귀 검증 |
 | 문서 | 이 계획과 검증 결과 |
 
-Application·Domain·Security·Infra는 변경하지 않는다. RECEIVE와 총무 목록 계약도 유지한다.
+Domain·Security·Infra는 변경하지 않는다. RECEIVE와 총무 목록 계약도 유지한다.
 
 ## 7. 구현 계획과 커밋 경계
 
 - [x] Migration-only PR: N/A — 스키마 변경 없음.
-- [x] UseCase·Command·Result·Output Port·Domain·Policy·Service: N/A — 기존 조회 재사용.
+- [x] UseCase·Command·Result·Output Port·Domain·Policy: N/A — 기존 조회 재사용.
+- [x] 리뷰 반영: Service에서 원본 조회 사실로 목록 금액 결정, persistence는 원본 값만 제공.
 - [x] Output Adapter 목록 쿼리 보정.
 - [x] Web Response Swagger 설명 갱신. Request·Controller는 N/A.
 - [x] Infra: N/A — 설정 변경 없음.
@@ -83,6 +86,8 @@ Application·Domain·Security·Infra는 변경하지 않는다. RECEIVE와 총�
 fix(settlement): 미확정 품목 정산 목록 금액을 총액으로 보정
 test(settlement): 목록 금액 보정의 상태별 회귀 검증 추가
 docs(settlement): 미확정 목록 금액 보정 검증 기록
+refactor(settlement): 목록 금액 보정 규칙을 Application으로 이동
+docs(settlement): 목록 금액 규칙 리뷰 반영 기록
 ```
 
 ## 8. 검증
@@ -109,6 +114,7 @@ git status --short --untracked-files=all
 | 컴파일 | Passed — `./gradlew compileJava` |
 | 수정 전 재현 | `REQUESTED`·`SUSPENDED`에서 본인 Share 부재 시 예상 6,000원 대신 null을 반환하는 실패 확인 |
 | 집중 테스트 | Passed — 목록 persistence·service, Controller, OpenAPI, 총무 persistence 68건, 실패·오류·skip 0 |
+| 리뷰 반영 집중 테스트 | Passed — 동일 5개 클래스 Java 83건, 실패·오류·skip 0. Service 15개 시나리오와 원본 DB→Service 금액 흐름 추가 검증 |
 | JavaScript | Passed — `scripts/test.sh`에서 35건 |
 | 문서·diff 검사 | Passed — 상대 링크·참조 소스 확인, `git diff --check` |
 
@@ -130,3 +136,11 @@ git status --short --untracked-files=all
 - 미검증 항목: 전체 Java 스위트와 운영 HTTP 수동 호출은 미수행. 변경된 SQL을 실제 PostgreSQL에서 집중 검증하고 기존 응답·OpenAPI 계약을 확인했다.
 - 남은 제한: Share 생성 전 총액은 실제 개인 납부 의무를 뜻하지 않는다.
 - 후속 작업: 별도 범위 확장 없음.
+
+### 리뷰 반영 결과
+
+- 리뷰: https://github.com/Team-HowMuch/howmuch-backend-v2/pull/453#discussion_r4144524968
+- 판단: 타당. 상태와 배분 유형에 따른 표시 금액 선택은 Application 책임이다.
+- 변경: SQL 보정 제거, 원본 총액·Share 제공, Service에서 기존 표시 규칙 적용.
+- 검증: Service의 원본 조회 mock과 실제 DB→Service 흐름에서 동일 표시 규칙과 탭별 금액 가시성을 확인했다. 컴파일, Java 83건·JavaScript 35건, diff 검사 통과.
+- Flyway: 기존 컬럼과 읽기 모델 재사용으로 여전히 불필요하다.
