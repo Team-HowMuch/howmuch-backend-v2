@@ -17,6 +17,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementDeletionPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementSuspensionPolicy;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
@@ -48,6 +49,7 @@ public class SettlementService implements
     private final SaveSettlementParticipantPort saveSettlementParticipantPort;
     private final SettlementItemAllocationStorePort settlementItemAllocationStorePort;
     private final SettlementDeletionPolicy settlementDeletionPolicy;
+    private final SettlementSuspensionPolicy settlementSuspensionPolicy;
     private final LoadUserPort loadUserPort;
     private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
@@ -112,7 +114,11 @@ public class SettlementService implements
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        return SettlementResult.from(saveSettlementPort.update(settlement.suspendManually(now)));
+        Settlement suspended = settlement.suspendManually(now);
+        settlementSuspensionPolicy.validate(
+                !settlementItemAllocationStorePort.findAllSubmissions(settlementId).isEmpty()
+        );
+        return SettlementResult.from(saveSettlementPort.update(suspended));
     }
 
     @Override
