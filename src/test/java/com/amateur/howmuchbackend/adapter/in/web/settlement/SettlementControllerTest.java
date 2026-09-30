@@ -443,6 +443,18 @@ class SettlementControllerTest {
     }
 
     @Test
+    @DisplayName("이미 제출된 품목 정산의 수동 중단은 409와 전용 오류 코드를 반환한다")
+    void settlement_submittedItems_suspendReturnsConflict() throws Exception {
+        when(suspendSettlementUseCase.suspend(SETTLEMENT_ID))
+                .thenThrow(ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_SUSPENDABLE));
+
+        mockMvc.perform(post("/api/v2/settlements/{settlementId}/suspend", SETTLEMENT_ID))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_NOT_SUSPENDABLE"));
+    }
+
+    @Test
     @DisplayName("생성자가 중단된 정산을 재개하고 최신 상태를 받는다")
     void settlementLifecycle_suspendedState_resumesWithLatestState() throws Exception {
         when(resumeSettlementUseCase.resume(SETTLEMENT_ID)).thenReturn(

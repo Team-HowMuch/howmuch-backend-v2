@@ -16,6 +16,8 @@ import com.amateur.howmuchbackend.application.settlement.policy.SettlementSuspen
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
@@ -29,8 +31,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,6 +48,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -179,19 +187,68 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("생성자가 요청 중인 정산을 수동 중단하고 저장한다")
+    @DisplayName("제출 기록이 없으면 생성자가 요청 중인 정산을 수동 중단하고 저장한다")
     void settlement_creator_suspendRequested_suspendedAndSaved() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(requested()));
+        when(settlementItemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
+                .thenReturn(List.of());
         when(saveSettlementPort.update(any(Settlement.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = settlementService.suspend(SETTLEMENT_ID);
 
         assertThat(result.status()).isEqualTo(SettlementStatus.SUSPENDED);
-        verify(saveSettlementPort).update(argThat(settlement ->
+        var order = inOrder(loadSettlementPort, settlementItemAllocationStorePort, saveSettlementPort);
+        order.verify(loadSettlementPort).findByIdForUpdate(SETTLEMENT_ID);
+        order.verify(settlementItemAllocationStorePort).findAllSubmissions(SETTLEMENT_ID);
+        order.verify(saveSettlementPort).update(argThat(settlement ->
                 settlement.status() == SettlementStatus.SUSPENDED));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("생성자 또는 다른 참여자가 제출하면 Share가 없어도 수동 중단을 저장하지 않는다")
+    void settlement_anyParticipantSubmitted_manualSuspendRejected(boolean creatorSubmitted) {
+        UUID creatorParticipantId = UUID.fromString("19551c82-2a7c-49a6-a56e-64c684db174c");
+        UUID otherParticipantId = UUID.fromString("c7cce13e-0cff-4db2-9683-22a9a1c5461a");
+        UUID submittedParticipantId = creatorSubmitted ? creatorParticipantId : otherParticipantId;
+        Settlement settlement = draft().selectAllocationType(
+                SettlementAllocationType.ITEM_ALLOCATION, CREATED_AT
+        ).request(CREATED_AT.plusMinutes(1));
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
+        when(settlementItemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
+                .thenReturn(List.of(SettlementItemSubmission.submit(
+                        SETTLEMENT_ID, submittedParticipantId, CREATED_AT.plusMinutes(2)
+                )));
+
+        assertThatThrownBy(() -> settlementService.suspend(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_SUSPENDABLE));
+
+        assertThat(settlement.status()).isEqualTo(SettlementStatus.REQUESTED);
+        verifyNoInteractions(saveSettlementPort, loadSettlementSharePort, deleteSettlementPort);
+        verify(settlementItemAllocationStorePort, never()).deleteAllSubmissions(SETTLEMENT_ID);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SettlementStatus.class, names = "REQUESTED", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("중단 불가능한 상태는 제출 조회 전에 기존 상태 전이 오류를 반환한다")
+    void settlement_invalidSuspendStatus_rejectedBeforeSubmissionLookup(SettlementStatus status) {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(
+                new Settlement(SETTLEMENT_ID, CREATOR_ID, "회식 정산", 10_000,
+                        status, CREATED_AT, CREATED_AT)
+        ));
+
+        assertThatThrownBy(() -> settlementService.suspend(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_STATUS_TRANSITION));
+        verifyNoInteractions(settlementItemAllocationStorePort, saveSettlementPort);
     }
 
     @Test
@@ -223,6 +280,7 @@ class SettlementServiceTest {
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
         verify(saveSettlementPort, never()).update(any(Settlement.class));
+        verifyNoInteractions(settlementItemAllocationStorePort);
     }
 
     @Test

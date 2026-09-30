@@ -1,6 +1,11 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementSharePort;
+import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
@@ -26,8 +32,10 @@ class SettlementItemAllocationAtomicityIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 31, 10, 0);
 
     @Autowired private SettlementItemAllocationWriter writer;
+    @Autowired private SettlementService settlementService;
     @Autowired private JdbcTemplate jdbcTemplate;
     @MockitoBean private SaveSettlementSharePort saveSettlementSharePort;
+    @MockitoBean private CurrentActorPort currentActorPort;
 
     private Long creatorId;
     private Long payerId;
@@ -133,6 +141,56 @@ class SettlementItemAllocationAtomicityIntegrationTest {
                 String.class,
                 settlementId
         )).isEqualTo("REQUESTED");
+    }
+
+    @Test
+    @DisplayName("생성자만 제출하고 다른 참여자는 미제출이어도 수동 중단은 저장되지 않는다")
+    void itemAllocation_creatorOnlySubmission_blocksManualSuspend() {
+        jdbcTemplate.update("DELETE FROM settlement_item_submissions WHERE settlement_id = ?", settlementId);
+        writer.submit(settlementId, creatorParticipantId, NOW.plusMinutes(1),
+                SettlementItemAllocationEntry.CREATOR);
+
+        assertManualSuspendBlockedWithoutMutation();
+    }
+
+    @Test
+    @DisplayName("다른 참여자의 제출도 Share 존재 여부와 무관하게 수동 중단을 막는다")
+    void itemAllocation_otherParticipantSubmission_blocksManualSuspend() {
+        assertManualSuspendBlockedWithoutMutation();
+    }
+
+    @Test
+    @DisplayName("품목 선택이 저장되어 있어도 제출 전이면 수동 중단하며 선택을 보존한다")
+    void itemAllocation_selectionsWithoutSubmission_allowsManualSuspend() {
+        jdbcTemplate.update("DELETE FROM settlement_item_submissions WHERE settlement_id = ?", settlementId);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+
+        assertThat(settlementService.suspend(settlementId).status()).isEqualTo(SettlementStatus.SUSPENDED);
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM settlements WHERE id = ?", String.class, settlementId
+        )).isEqualTo("SUSPENDED");
+        assertThat(count("SELECT COUNT(*) FROM settlement_item_selections WHERE settlement_id = ?",
+                settlementId)).isEqualTo(2);
+    }
+
+    private void assertManualSuspendBlockedWithoutMutation() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+
+        assertThatThrownBy(() -> settlementService.suspend(settlementId))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_SUSPENDABLE));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM settlements WHERE id = ?", String.class, settlementId
+        )).isEqualTo("REQUESTED");
+        assertThat(count("SELECT COUNT(*) FROM settlement_item_submissions WHERE settlement_id = ?",
+                settlementId)).isOne();
+        assertThat(count("SELECT COUNT(*) FROM settlement_item_selections WHERE settlement_id = ?",
+                settlementId)).isEqualTo(2);
+        assertThat(count("SELECT COUNT(*) FROM settlement_shares WHERE settlement_id = ?",
+                settlementId)).isZero();
     }
 
     private Long insertUser(String prefix) {
