@@ -20,6 +20,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -373,6 +375,68 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(item.participantCount()).isNull();
             assertThat(item.groups()).isEmpty();
         });
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {
+            "ITEM_ALLOCATION, REQUESTED, 6000",
+            "ITEM_ALLOCATION, SUSPENDED, 6000",
+            "ITEM_ALLOCATION, AWAITING_DEPOSIT, null",
+            "ITEM_ALLOCATION, COMPLETED, null",
+            "DUTCH_PAY, REQUESTED, null",
+            "DUTCH_PAY, SUSPENDED, null",
+            "DUTCH_PAY, AWAITING_DEPOSIT, null",
+            "DUTCH_PAY, COMPLETED, null"
+    }, nullValues = "null")
+    @DisplayName("본인 Share가 없는 품목 정산은 선택 대기·중단 상태에서만 총액을 표시한다")
+    void paySettlement_missingShare_totalFallbackOnlyWhileItemAmountUnconfirmed(
+            SettlementAllocationType allocationType,
+            SettlementStatus status,
+            Long expectedAmount
+    ) {
+        jdbcTemplate.update("DELETE FROM settlement_shares WHERE settlement_id = ?", paySettlementId);
+        jdbcTemplate.update("UPDATE settlements SET allocation_type = ?, status = ? WHERE id = ?",
+                allocationType.name(), status.name(), paySettlementId);
+        // 다른 참여자의 Share가 있어도 본인 Share 부재를 기준으로 보정한다.
+        UUID creatorParticipantId = jdbcTemplate.queryForObject(
+                "SELECT id FROM settlement_participants WHERE settlement_id = ? AND linked_user_id = ?",
+                UUID.class, paySettlementId, otherUserId);
+        settlementShareJpaRepository.saveAndFlush(new SettlementShareJpaEntity(
+                UUID.randomUUID(), paySettlementId, creatorParticipantId, 1_000L, CREATED_AT));
+
+        var result = settlementPersistenceAdapter.findAll(
+                payerId, SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null);
+
+        assertThat(result).singleElement().satisfies(item -> {
+            assertThat(item.settlementId()).isEqualTo(paySettlementId);
+            assertThat(item.amountToPay()).isEqualTo(expectedAmount);
+            assertThat(item.totalAmount()).isNull();
+            assertThat(item.requesterName()).isEqualTo("다른 사람");
+        });
+        assertThat(settlementPersistenceAdapter.findAll(
+                otherUserId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.totalAmount()).isEqualTo(6_000L);
+                    assertThat(item.amountToPay()).isNull();
+                    assertThat(item.participantCount()).isEqualTo(2);
+                });
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "REQUESTED, 2000", "SUSPENDED, 2000",
+            "AWAITING_DEPOSIT, 2000", "COMPLETED, 2000"
+    })
+    @DisplayName("품목 정산의 확정 개인 금액은 총액과 달라도 유지한다")
+    void paySettlement_existingItemShare_preservesPersonalAmount(SettlementStatus status, long amount) {
+        jdbcTemplate.update("UPDATE settlements SET allocation_type = 'ITEM_ALLOCATION', status = ? WHERE id = ?",
+                status.name(), paySettlementId);
+        jdbcTemplate.update("UPDATE settlement_shares SET amount = ? WHERE payer_participant_id = ?",
+                amount, payPayerParticipantId);
+
+        assertThat(settlementPersistenceAdapter.findAll(
+                payerId, SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> assertThat(item.amountToPay()).isEqualTo(amount));
     }
 
     @Test
