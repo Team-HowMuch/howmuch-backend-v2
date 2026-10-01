@@ -12,6 +12,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
@@ -31,7 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +49,7 @@ public class SettlementService implements
     private final SaveSettlementPort saveSettlementPort;
     private final DeleteSettlementPort deleteSettlementPort;
     private final LoadSettlementSharePort loadSettlementSharePort;
+    private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final SaveSettlementParticipantPort saveSettlementParticipantPort;
     private final SettlementItemAllocationStorePort settlementItemAllocationStorePort;
     private final SettlementDeletionPolicy settlementDeletionPolicy;
@@ -115,8 +119,17 @@ public class SettlementService implements
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         Settlement suspended = settlement.suspendManually(now);
+        var submissions = settlementItemAllocationStorePort.findAllSubmissions(settlementId);
+        Set<UUID> creatorParticipantIds = submissions.isEmpty()
+                ? Set.of()
+                : loadSettlementParticipantPort.findAllBySettlementId(settlementId).stream()
+                        .filter(participant -> participant.isLinkedTo(settlement.creatorId()))
+                        .map(SettlementParticipant::id)
+                        .collect(Collectors.toSet());
+        boolean hasNonCreatorSubmissions = submissions.stream()
+                .anyMatch(submission -> !creatorParticipantIds.contains(submission.participantId()));
         settlementSuspensionPolicy.validate(
-                !settlementItemAllocationStorePort.findAllSubmissions(settlementId).isEmpty()
+                hasNonCreatorSubmissions
         );
         return SettlementResult.from(saveSettlementPort.update(suspended));
     }

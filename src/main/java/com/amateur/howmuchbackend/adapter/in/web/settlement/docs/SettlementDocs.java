@@ -163,11 +163,11 @@ public interface SettlementDocs {
     @Operation(
             summary = "정산 수동 중단",
             description = "현재 로그인한 생성자가 REQUESTED 상태의 정산을 SUSPENDED 상태로 중단합니다. "
-                    + "생성자를 포함한 전체 참여자 중 품목 선택을 제출한 사람이 있으면 중단할 수 없습니다. "
-                    + "제출 전 품목 선택만 저장한 경우에는 중단할 수 있습니다. "
+                    + "생성자 외 참여자가 품목 선택을 제출한 경우 중단할 수 없습니다. "
+                    + "생성자 본인만 제출했거나 제출 전 품목 선택만 저장한 경우에는 중단할 수 있습니다. "
                     + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
                     + "허용되지 않은 상태면 INVALID_SETTLEMENT_STATUS_TRANSITION, "
-                    + "제출된 품목 선택이 있으면 SETTLEMENT_NOT_SUSPENDABLE을 반환합니다.",
+                    + "생성자 외 참여자의 제출이 있으면 SETTLEMENT_NOT_SUSPENDABLE을 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -191,7 +191,7 @@ public interface SettlementDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
                     description = "INVALID_SETTLEMENT_STATUS_TRANSITION - 허용되지 않은 상태 변경, "
-                            + "SETTLEMENT_NOT_SUSPENDABLE - 생성자를 포함한 참여자의 품목 선택 제출 기록 존재"
+                            + "SETTLEMENT_NOT_SUSPENDABLE - 생성자 외 참여자의 품목 선택 제출 기록 존재"
             )
     })
     ApiResponse<SettlementWebResponse> suspendSettlement(UUID settlementId);

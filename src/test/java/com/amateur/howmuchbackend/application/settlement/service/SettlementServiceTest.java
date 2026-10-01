@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateS
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
@@ -33,7 +34,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -76,6 +76,9 @@ class SettlementServiceTest {
     private LoadSettlementSharePort loadSettlementSharePort;
 
     @Mock
+    private LoadSettlementParticipantPort loadSettlementParticipantPort;
+
+    @Mock
     private SaveSettlementParticipantPort saveSettlementParticipantPort;
 
     @Mock
@@ -97,6 +100,7 @@ class SettlementServiceTest {
                 saveSettlementPort,
                 deleteSettlementPort,
                 loadSettlementSharePort,
+                loadSettlementParticipantPort,
                 saveSettlementParticipantPort,
                 settlementItemAllocationStorePort,
                 new SettlementDeletionPolicy(),
@@ -207,21 +211,50 @@ class SettlementServiceTest {
                 settlement.status() == SettlementStatus.SUSPENDED));
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    @DisplayName("생성자 또는 다른 참여자가 제출하면 Share가 없어도 수동 중단을 저장하지 않는다")
-    void settlement_anyParticipantSubmitted_manualSuspendRejected(boolean creatorSubmitted) {
+    @Test
+    @DisplayName("생성자만 제출한 경우 다른 참여자가 미제출이면 수동 중단한다")
+    void settlement_creatorOnlySubmitted_manualSuspendAllowed() {
         UUID creatorParticipantId = UUID.fromString("19551c82-2a7c-49a6-a56e-64c684db174c");
         UUID otherParticipantId = UUID.fromString("c7cce13e-0cff-4db2-9683-22a9a1c5461a");
-        UUID submittedParticipantId = creatorSubmitted ? creatorParticipantId : otherParticipantId;
         Settlement settlement = draft().selectAllocationType(
                 SettlementAllocationType.ITEM_ALLOCATION, CREATED_AT
         ).request(CREATED_AT.plusMinutes(1));
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                participant(creatorParticipantId, CREATOR_ID, "생성자", 0),
+                participant(otherParticipantId, OTHER_USER_ID, "참여자", 1)
+        ));
         when(settlementItemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
                 .thenReturn(List.of(SettlementItemSubmission.submit(
-                        SETTLEMENT_ID, submittedParticipantId, CREATED_AT.plusMinutes(2)
+                        SETTLEMENT_ID, creatorParticipantId, CREATED_AT.plusMinutes(2)
+                )));
+        when(saveSettlementPort.update(any(Settlement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = settlementService.suspend(SETTLEMENT_ID);
+
+        assertThat(result.status()).isEqualTo(SettlementStatus.SUSPENDED);
+        verify(saveSettlementPort).update(argThat(value -> value.status() == SettlementStatus.SUSPENDED));
+    }
+
+    @Test
+    @DisplayName("다른 참여자가 제출하면 Share가 없어도 수동 중단을 저장하지 않는다")
+    void settlement_otherParticipantSubmitted_manualSuspendRejected() {
+        UUID creatorParticipantId = UUID.fromString("19551c82-2a7c-49a6-a56e-64c684db174c");
+        UUID otherParticipantId = UUID.fromString("c7cce13e-0cff-4db2-9683-22a9a1c5461a");
+        Settlement settlement = draft().selectAllocationType(
+                SettlementAllocationType.ITEM_ALLOCATION, CREATED_AT
+        ).request(CREATED_AT.plusMinutes(1));
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                participant(creatorParticipantId, CREATOR_ID, "생성자", 0),
+                participant(otherParticipantId, OTHER_USER_ID, "참여자", 1)
+        ));
+        when(settlementItemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
+                .thenReturn(List.of(SettlementItemSubmission.submit(
+                        SETTLEMENT_ID, otherParticipantId, CREATED_AT.plusMinutes(2)
                 )));
 
         assertThatThrownBy(() -> settlementService.suspend(SETTLEMENT_ID))
@@ -232,6 +265,47 @@ class SettlementServiceTest {
         assertThat(settlement.status()).isEqualTo(SettlementStatus.REQUESTED);
         verifyNoInteractions(saveSettlementPort, loadSettlementSharePort, deleteSettlementPort);
         verify(settlementItemAllocationStorePort, never()).deleteAllSubmissions(SETTLEMENT_ID);
+    }
+
+    @Test
+    @DisplayName("생성자 참여자 기록이 없으면 제출된 정산의 수동 중단을 거부한다")
+    void settlement_creatorParticipantMissing_manualSuspendRejected() {
+        UUID creatorParticipantId = UUID.fromString("19551c82-2a7c-49a6-a56e-64c684db174c");
+        Settlement settlement = draft().selectAllocationType(
+                SettlementAllocationType.ITEM_ALLOCATION, CREATED_AT
+        ).request(CREATED_AT.plusMinutes(1));
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                participant(UUID.fromString("c7cce13e-0cff-4db2-9683-22a9a1c5461a"),
+                        OTHER_USER_ID, "참여자", 0)
+        ));
+        when(settlementItemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
+                .thenReturn(List.of(SettlementItemSubmission.submit(
+                        SETTLEMENT_ID, creatorParticipantId, CREATED_AT.plusMinutes(2)
+                )));
+
+        assertThatThrownBy(() -> settlementService.suspend(SETTLEMENT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_SUSPENDABLE));
+
+        verifyNoInteractions(saveSettlementPort);
+    }
+
+    private SettlementParticipant participant(UUID id, Long userId, String name, int order) {
+        return new SettlementParticipant(
+                id,
+                SETTLEMENT_ID,
+                SettlementParticipantSource.REGISTERED_USER,
+                userId,
+                null,
+                null,
+                name,
+                order,
+                CREATED_AT,
+                CREATED_AT
+        );
     }
 
     @ParameterizedTest
