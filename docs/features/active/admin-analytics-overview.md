@@ -97,4 +97,4 @@ Authorization: Bearer accessToken (active ADMIN)
 - `GET /api/v2/admin/analytics/overview`를 추가했다. 서비스가 활성 ADMIN을 확인하고 KST 기본 30일·최대 30일을 검증한다. 외부 호출 중 DB 트랜잭션을 잡지 않도록 서비스에 조회 트랜잭션을 두지 않았다.
 - Amplitude Dashboard REST Event Segmentation을 다섯 번 순차 조회한다. 세 이벤트의 `totals`, `split_type` 그룹별 `totals`, `total_amount`의 `value_avg`를 사용한다. 설정이 없거나 외부 오류·예상하지 못한 응답이면 503이며, 빈 이벤트 날짜만 0으로 채운다.
 - `./gradlew compileJava`와 집중 테스트 3개 클래스·8개 케이스가 통과했다. PostgreSQL·Redis·실제 Amplitude를 쓰지 않는 검증이다. 전체 통합 테스트와 실제 Amplitude 값 대조는 수행하지 않았다.
-- 테스트 후 분리된 서브에이전트 리뷰에서 금액별 `totals` 그룹 조회의 1,000개 상한이 전체 대시보드 503을 유발할 수 있다고 지적했다. `value_avg` 조회로 변경하고 집중 테스트를 재실행했다. 실제 `value_avg` 응답과 평균 분모는 Secret Key 확보 후 검증한다.
+- 테스트 후 분리된 서브에이전트 리뷰에서 금액별 `totals` 그룹 조회의 1,000개 상한이 전체 대시보드 503을 유발할 수 있다고 지적했다. `value_avg` 조회로 변경하고 집중 테스트를 재실행했다. 재검토에서 확정 결함은 발견되지 않았다. 현재 파서는 `value_avg`가 단일 시계열이라고 가정하고, 다중 시계열이면 503을 반환한다. 서로 다른 금액이 2개 이상인 실제 응답과 평균 분모는 Secret Key 확보 후 검증한다.
