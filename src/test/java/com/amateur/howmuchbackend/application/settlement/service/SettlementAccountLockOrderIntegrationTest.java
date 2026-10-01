@@ -34,7 +34,8 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @TestPropertySource(properties = {
         "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused",
-        "howmuch.codef.connected-id-encryption-key=aG93bXVjaC1jb2RlZi1tb2NrLWtleS0zMi1ieXRlcyE="
+        "howmuch.codef.connected-id-encryption-key=aG93bXVjaC1jb2RlZi1tb2NrLWtleS0zMi1ieXRlcyE=",
+        "howmuch.persistence.lock-timeout=5s"
 })
 @DisplayName("정산 계좌 잠금 순서 통합")
 class SettlementAccountLockOrderIntegrationTest {
@@ -147,8 +148,8 @@ class SettlementAccountLockOrderIntegrationTest {
         ready.await(5, TimeUnit.SECONDS);
         start.countDown();
         return new Outcome(
-                selectionResult.get(5, TimeUnit.SECONDS),
-                deletionResult.get(5, TimeUnit.SECONDS)
+                selectionResult.get(10, TimeUnit.SECONDS),
+                deletionResult.get(10, TimeUnit.SECONDS)
         );
     }
 
