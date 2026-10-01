@@ -31,14 +31,18 @@ class AmplitudeAnalyticsAdapterTest {
     }
 
     @Test
-    void mapsFiveQueriesAndAverageWithoutTurningMissingIntoZero() {
+    void mapsRealResponseShapeAndOmitsDatesWithoutAmount() {
         expect("signup_completed", "totals", false, data("[2,0]", "[\"all\"]"));
         expect("settlement_request_sent", "totals", false, data("[0,3]", "[\"all\"]"));
         expect("settlement_closed", "totals", false, data("[0,0]", "[\"all\"]"));
         expect("settlement_request_sent", "totals", true,
-                data("[0,2],[0,1]", "[\"dutch\",\"itemized\"]"));
+                data("[0,2],[0,1]", "[[0,\"dutch\"],[0,\"itemized\"]]"));
         expect("settlement_request_sent", "value_avg", true,
-                data("[null,1333.33]", "[\"all\"]"));
+                data("[0,1333.33]", "[0]"));
+        server.expect(request -> {
+                    assertThat(request.getURI().getRawQuery()).contains("m=totals", "set+is", "total_amount");
+                })
+                .andRespond(withSuccess(data("[0,3]", "[0]"), MediaType.APPLICATION_JSON));
 
         var snapshot = adapter.fetch(from, to);
 
@@ -47,6 +51,22 @@ class AmplitudeAnalyticsAdapterTest {
         assertThat(snapshot.splitCounts()).containsEntry("dutch", 2L).containsEntry("itemized", 1L);
         assertThat(snapshot.averageAmounts()).containsEntry(to, new BigDecimal("1333.33"));
         assertThat(snapshot.averageAmounts()).doesNotContainKey(from);
+        server.verify();
+    }
+
+    @Test
+    void keepsRealZeroAmountWhenPropertyIsPresent() {
+        expect("signup_completed", "totals", false, data("[0,0]", "[0]"));
+        expect("settlement_request_sent", "totals", false, data("[1,1]", "[0]"));
+        expect("settlement_closed", "totals", false, data("[0,0]", "[0]"));
+        expect("settlement_request_sent", "totals", true, data("[1,1]", "[[0,\"dutch\"]]"));
+        expect("settlement_request_sent", "value_avg", true, data("[0,0]", "[0]"));
+        server.expect(request -> assertThat(request.getURI().getRawQuery()).contains("set+is"))
+                .andRespond(withSuccess(data("[1,0]", "[0]"), MediaType.APPLICATION_JSON));
+
+        var snapshot = adapter.fetch(from, to);
+
+        assertThat(snapshot.averageAmounts()).containsEntry(from, BigDecimal.ZERO).doesNotContainKey(to);
         server.verify();
     }
 
@@ -76,7 +96,7 @@ class AmplitudeAnalyticsAdapterTest {
     private void expect(String event, String metric, boolean grouped, String body) {
         server.expect(request -> {
                     assertThat(request.getURI().getPath()).isEqualTo("/api/2/events/segmentation");
-                    assertThat(request.getURI().getRawQuery()).contains("ce%3A" + event);
+                    assertThat(request.getURI().getRawQuery()).contains(event).doesNotContain("ce%3A");
                     assertThat(request.getURI().getRawQuery()).contains("m=" + metric);
                     if (grouped) {
                         assertThat(request.getURI().getRawQuery()).contains("group_by");

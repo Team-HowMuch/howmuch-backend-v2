@@ -55,20 +55,25 @@ public class AmplitudeAnalyticsAdapter implements FetchAnalyticsPort {
                 counts(query("settlement_request_sent", null, from, to), from, to),
                 counts(query("settlement_closed", null, from, to), from, to),
                 splitCounts(query("settlement_request_sent", "split_type", from, to), from, to),
-                averageAmounts(query("settlement_request_sent", "total_amount", "value_avg", from, to), from, to)
+                averageAmounts(
+                        query("settlement_request_sent", "total_amount", "value_avg", false, from, to),
+                        counts(query("settlement_request_sent", null, "totals", true, from, to), from, to),
+                        from, to)
         );
     }
 
     private JsonNode query(String event, String groupBy, LocalDate from, LocalDate to) {
-        return query(event, groupBy, "totals", from, to);
+        return query(event, groupBy, "totals", false, from, to);
     }
 
-    private JsonNode query(String event, String groupBy, String metric, LocalDate from, LocalDate to) {
+    private JsonNode query(String event, String groupBy, String metric, boolean amountPresentOnly,
+                           LocalDate from, LocalDate to) {
         try {
-            String eventJson = groupBy == null
-                    ? "{\"event_type\":\"ce:%s\"}".formatted(event)
-                    : "{\"event_type\":\"ce:%s\",\"group_by\":[{\"type\":\"event\",\"value\":\"%s\"}]}"
-                            .formatted(event, groupBy);
+            String eventJson = "{\"event_type\":\"%s\"".formatted(event)
+                    + (groupBy == null ? "" : ",\"group_by\":[{\"type\":\"event\",\"value\":\"%s\"}]"
+                            .formatted(groupBy))
+                    + (amountPresentOnly ? ",\"filters\":[{\"subprop_type\":\"event\",\"subprop_key\":\"total_amount\",\"subprop_op\":\"set is\",\"subprop_value\":[]}]" : "")
+                    + "}";
             String uri = ENDPOINT + "?e=" + URLEncoder.encode(eventJson, StandardCharsets.UTF_8)
                     + "&start=" + API_DATE.format(from) + "&end=" + API_DATE.format(to)
                     + "&i=1&m=" + metric + (groupBy == null ? "" : "&limit=" + GROUP_LIMIT);
@@ -103,7 +108,7 @@ public class AmplitudeAnalyticsAdapter implements FetchAnalyticsPort {
         requireGroups(series, labels);
         Map<String, Long> result = new HashMap<>();
         for (int i = 0; i < series.size(); i++) {
-            String label = label(labels.get(i));
+            String label = groupLabel(labels.get(i));
             long total = dailyCounts(data, series.get(i), from, to).values().stream()
                     .mapToLong(Long::longValue).sum();
             result.merge(label, total, Math::addExact);
@@ -111,7 +116,8 @@ public class AmplitudeAnalyticsAdapter implements FetchAnalyticsPort {
         return Map.copyOf(result);
     }
 
-    private Map<LocalDate, BigDecimal> averageAmounts(JsonNode data, LocalDate from, LocalDate to) {
+    private Map<LocalDate, BigDecimal> averageAmounts(JsonNode data, Map<LocalDate, Long> presentAmounts,
+                                                       LocalDate from, LocalDate to) {
         JsonNode series = data.path("series");
         if (series.size() > 1) {
             throw unavailable();
@@ -132,7 +138,7 @@ public class AmplitudeAnalyticsAdapter implements FetchAnalyticsPort {
                 if (date.isBefore(from) || date.isAfter(to) || result.containsKey(date)) {
                     throw unavailable();
                 }
-                if (value.isNull()) {
+                if (presentAmounts.getOrDefault(date, 0L) == 0) {
                     continue;
                 }
                 if (!value.isNumber()) {
@@ -187,6 +193,13 @@ public class AmplitudeAnalyticsAdapter implements FetchAnalyticsPort {
             throw unavailable();
         }
         return value.stringValue();
+    }
+
+    private String groupLabel(JsonNode value) {
+        if (!value.isArray() || value.size() != 2 || !value.get(0).isIntegralNumber()) {
+            throw unavailable();
+        }
+        return label(value.get(1));
     }
 
     private ApplicationException unavailable() {
