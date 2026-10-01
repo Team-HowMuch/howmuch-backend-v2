@@ -6,8 +6,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class SettlementSuspensionPolicy {
-    public void validate(boolean hasItemSubmissions) {
-        if (hasItemSubmissions) {
+    public void validate(boolean hasNonCreatorSubmissions) {
+        if (hasNonCreatorSubmissions) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_SUSPENDABLE);
         }
     }

@@ -28,7 +28,7 @@ class SettlementOpenApiIntegrationTest {
     @Autowired private ObjectMapper objectMapper;
 
     @Test
-    @DisplayName("수동 중단의 생성자 포함 제출 검사와 409 오류를 공개한다")
+    @DisplayName("수동 중단의 생성자 외 참여자 제출 검사와 409 오류를 공개한다")
     void settlementApi_suspendSubmissionConflict_documented() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -38,7 +38,7 @@ class SettlementOpenApiIntegrationTest {
                 .path("/api/v2/settlements/{settlementId}/suspend").path("post");
 
         assertThat(operation.path("description").stringValue())
-                .contains("생성자를 포함한 전체 참여자", "제출 전 품목 선택만 저장한 경우");
+                .contains("생성자 외 참여자", "생성자 본인만 제출했거나", "제출 전 품목 선택만 저장한 경우");
         assertThat(operation.path("responses").path("409").path("description").stringValue())
                 .contains("SETTLEMENT_NOT_SUSPENDABLE", "INVALID_SETTLEMENT_STATUS_TRANSITION");
     }

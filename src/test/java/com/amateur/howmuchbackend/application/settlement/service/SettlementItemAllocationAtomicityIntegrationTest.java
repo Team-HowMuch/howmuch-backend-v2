@@ -144,13 +144,24 @@ class SettlementItemAllocationAtomicityIntegrationTest {
     }
 
     @Test
-    @DisplayName("생성자만 제출하고 다른 참여자는 미제출이어도 수동 중단은 저장되지 않는다")
-    void itemAllocation_creatorOnlySubmission_blocksManualSuspend() {
+    @DisplayName("생성자만 제출하고 다른 참여자는 미제출이면 수동 중단한다")
+    void itemAllocation_creatorOnlySubmission_allowsManualSuspend() {
         jdbcTemplate.update("DELETE FROM settlement_item_submissions WHERE settlement_id = ?", settlementId);
         writer.submit(settlementId, creatorParticipantId, NOW.plusMinutes(1),
                 SettlementItemAllocationEntry.CREATOR);
 
-        assertManualSuspendBlockedWithoutMutation();
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+
+        assertThat(settlementService.suspend(settlementId).status()).isEqualTo(SettlementStatus.SUSPENDED);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM settlements WHERE id = ?", String.class, settlementId
+        )).isEqualTo("SUSPENDED");
+        assertThat(count("SELECT COUNT(*) FROM settlement_item_submissions WHERE settlement_id = ?",
+                settlementId)).isOne();
+        assertThat(count("SELECT COUNT(*) FROM settlement_item_selections WHERE settlement_id = ?",
+                settlementId)).isEqualTo(2);
+        assertThat(count("SELECT COUNT(*) FROM settlement_shares WHERE settlement_id = ?",
+                settlementId)).isZero();
     }
 
     @Test
