@@ -96,6 +96,6 @@ Authorization: Bearer accessToken (active ADMIN)
 
 - `GET /api/v2/admin/analytics/overview`를 추가했다. 서비스가 활성 ADMIN을 확인하고 KST 기본 30일·최대 30일을 검증한다. 외부 호출 중 DB 트랜잭션을 잡지 않도록 서비스에 조회 트랜잭션을 두지 않았다.
 - Amplitude Dashboard REST Event Segmentation을 여섯 번 순차 조회한다. 세 이벤트의 `totals`, `split_type` 그룹별 `totals`, `total_amount`의 `value_avg`와 `total_amount`가 설정된 이벤트 건수를 사용한다. 설정이 없거나 외부 오류·예상하지 못한 응답이면 503이며, 빈 이벤트 날짜만 0으로 채운다.
-- `./gradlew compileJava`와 집중 테스트 3개 클래스·9개 케이스가 통과했다. 이 테스트는 PostgreSQL·Redis·실제 Amplitude를 쓰지 않는다. 별도 읽기 전용 실조회에서 최근 30일 세 이벤트 3/10/3건, 분배 방식 9/1건, 금액이 설정된 요청 10건을 확인했다. 실제 금액 8개 그룹의 가중 평균과 `value_avg`가 요청이 있던 3일 모두 일치했다. 전체 통합 테스트와 인증된 백엔드 API 호출은 수행하지 않았다.
+- `./gradlew compileJava`와 집중 테스트 3개 클래스·9개 케이스가 통과했다. 이 테스트는 PostgreSQL·Redis·실제 Amplitude를 쓰지 않는다. 별도 읽기 전용 실조회에서 최근 30일 세 이벤트 3/10/3건, 분배 방식 9/1건, 금액이 설정된 요청 10건을 확인했다. 실제 금액 8개 그룹의 가중 평균과 `value_avg`가 요청이 있던 3일 모두 일치했다. 이후 CI와 같은 Java 21·Node 22·일회용 PostgreSQL 18·Redis 8 환경에서 `bash scripts/test.sh` 전체 Java 1,411건·JavaScript 35건과 PyYAML 6.0.2 기반 배포 스크립트 테스트 8건이 모두 통과했다(실패·오류·건너뜀 0건). 인증된 백엔드 API 호출과 실제 GitHub Actions 실행·배포는 수행하지 않았다.
 - 테스트 후 분리된 서브에이전트 리뷰에서 금액별 `totals` 그룹 조회의 1,000개 상한이 전체 대시보드 503을 유발할 수 있다고 지적했다. `value_avg` 조회로 변경했다. 이후 실조회에서 단일 시계열과 3일의 가중 평균 일치를 확인했고, 그룹 라벨·이벤트명·결측일 처리도 실제 응답에 맞춰 수정했다.
 - 최종 독립 재검토에서 확정 결함은 발견되지 않았다. 프로젝트 KST 설정, 프론트의 결측일·최대 기간 계약, 향후 비수치 `total_amount`가 들어올 때의 Amplitude 동작은 확인이 남았다.
