@@ -52,7 +52,7 @@ Authorization: Bearer accessToken (active ADMIN)
 
 ## 4. 외부 조회 방식과 구현 전 증거
 
-**1차 후보는 Dashboard REST Event Segmentation**이다. 공식 문서에 기간 `start`/`end`, 일 단위 `i=1`, 이벤트 발생 횟수 `m=totals`, 속성 평균 `m=value_avg`, `series/seriesLabels/xValues`, 프로젝트 타임존이 명시돼 있다. 프로젝트 API Key와 Secret Key로 인증한다. 요청마다 기간이 달라지는 현재 API에 맞고 저장 차트 사전 생성도 필요 없다. [Dashboard REST 문서](https://amplitude.com/docs/apis/analytics/dashboard-rest)
+**선택한 방식은 Dashboard REST Event Segmentation**이다. 공식 문서에 기간 `start`/`end`, 일 단위 `i=1`, 이벤트 발생 횟수 `m=totals`, 속성 평균 `m=value_avg`, `series/seriesLabels/xValues`, 프로젝트 타임존이 명시돼 있다. 프로젝트 API Key와 Secret Key로 인증한다. 날짜별 금액 평균은 `total_amount`를 수치 속성으로 지정한 `value_avg` 조회를 쓴다. 실제 평균 분모·결측 처리와 응답 형태는 Secret Key 확보 후 검증해야 한다. [Dashboard REST 문서](https://amplitude.com/docs/apis/analytics/dashboard-rest)
 
 저장 차트의 **Chart Query API는 별도 Developer API**다. 기간 재지정은 가능하지만 Bearer 토큰(PAT/OAuth)과 `analytics:read` 권한, 저장 차트 ID가 필요하다. 원안의 “모든 API가 Basic 인증”이라는 설명은 수정한다. 차트와 권한이 이미 준비돼 있고 실조회 결과가 유리할 때만 대안으로 선택한다. [Developer API 인증](https://amplitude.com/docs/apis/developer), [Chart Query](https://amplitude.com/docs/apis/developer/analytics/query-chart)
 
@@ -63,11 +63,11 @@ Authorization: Bearer accessToken (active ADMIN)
 | 프로젝트·타임존 | 자격 증명 대상이 `864419`이고 집계 타임존이 `Asia/Seoul`임을 확인 |
 | 건수 | 세 이벤트를 같은 기간에 `m=totals`로 조회하고 날짜·응답 배열·빈 기간을 확인 |
 | 방식 | `split_type`의 실제 반환 라벨, null·미지 값, 그룹 누락·상한을 확인 |
-| 금액 | `total_amount`의 `value_avg` 응답과 결측·0원 처리, 유효값 필터 동작을 확인 |
+| 금액 | `total_amount`의 `value_avg` 응답, 결측·0원 처리와 평균 분모를 확인 |
 | 데이터 범위 | 테스트/QA 이벤트가 섞이는지 확인하고 표시 정책을 결정 |
 | 실패·한도 | 권한 부족·429·시간 초과·잘린 결과와 조회 비용을 확인 |
 
-2026-10-01 사용자 요청에 따라 자격 증명 확보 전에 공식 응답 스키마를 기준으로 구현한다. 응답 형태가 다르면 정상 0건으로 만들지 않고 503으로 반환한다. 실제 응답 검증 전까지 이 동작은 임시 계약이다. Amplitude는 비용 기반 조회 제한이 있으므로 실제 호출 수·기간의 비용을 계산한다. 호출량이 관측되기 전까지 캐시는 추가하지 않는다.
+2026-10-01 사용자 요청에 따라 자격 증명 확보 전에 공식 응답 스키마를 기준으로 구현한다. 응답 형태가 다르면 정상 0건으로 만들지 않고 503으로 반환한다. 실제 응답 검증 전까지 이 동작은 임시 계약이다. 한 화면 조회에 Event Segmentation 5회(기본 30일, 그룹 조회 2회)를 순차 호출한다. 호출량이 관측되기 전까지 캐시는 추가하지 않는다.
 
 ## 5. 구현 순서와 영향 범위
 
@@ -91,3 +91,10 @@ Authorization: Bearer accessToken (active ADMIN)
 - 프론트 인계 문서에는 `averageAmountTrend`의 값 타입이 `number`이고 기본 조회가 최근 30일이라고 적혀 있다. 실제 `howmuch-admin-dashboard` 저장소는 로컬과 접근 가능한 Team-HowMuch 저장소 목록에서 찾지 못했다. 값이 없는 날짜 생략과 최대 30일 제한은 제안 상태이며 프론트 코드 또는 담당자의 확인 전에는 확정하지 않는다.
 - `develop` 8b500f75의 CI는 테스트 단계 실패로 배포가 건너뛰어졌다. 최신 커밋의 서버 반영을 주장하지 않는다.
 - 사용자 요청에 따라 이슈 #458을 만들고 `origin/develop` 8b500f75에서 `feat/458-admin-analytics-overview`를 분기했다. PR 생성 전까지 구현·테스트·독립 코드 리뷰를 진행한다. 실제 Amplitude 응답과 프론트 계약은 Secret Key 및 저장소 접근 후 재검증한다.
+
+## 7. 구현·리뷰 기록
+
+- `GET /api/v2/admin/analytics/overview`를 추가했다. 서비스가 활성 ADMIN을 확인하고 KST 기본 30일·최대 30일을 검증한다. 외부 호출 중 DB 트랜잭션을 잡지 않도록 서비스에 조회 트랜잭션을 두지 않았다.
+- Amplitude Dashboard REST Event Segmentation을 다섯 번 순차 조회한다. 세 이벤트의 `totals`, `split_type` 그룹별 `totals`, `total_amount`의 `value_avg`를 사용한다. 설정이 없거나 외부 오류·예상하지 못한 응답이면 503이며, 빈 이벤트 날짜만 0으로 채운다.
+- `./gradlew compileJava`와 집중 테스트 3개 클래스·8개 케이스가 통과했다. PostgreSQL·Redis·실제 Amplitude를 쓰지 않는 검증이다. 전체 통합 테스트와 실제 Amplitude 값 대조는 수행하지 않았다.
+- 테스트 후 분리된 서브에이전트 리뷰에서 금액별 `totals` 그룹 조회의 1,000개 상한이 전체 대시보드 503을 유발할 수 있다고 지적했다. `value_avg` 조회로 변경하고 집중 테스트를 재실행했다. 실제 `value_avg` 응답과 평균 분모는 Secret Key 확보 후 검증한다.
