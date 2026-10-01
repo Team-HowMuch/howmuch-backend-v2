@@ -282,6 +282,24 @@ class ReceiptOcrHttpAdapterTest {
                 .isEqualTo(SettlementStatusCode.RECEIPT_OCR_UNAVAILABLE);
     }
 
+    @Test
+    @DisplayName("배달비를 결과로 옮긴다")
+    void receiptOcr_deliveryFee_mapped() {
+        server.expect(requestTo(BASE_URL + "/ocr/receipt"))
+                .andRespond(withSuccess("""
+                        {"ok": true, "result": {
+                          "items": [{"name": "짬뽕", "quantity": 1, "price": 9000}],
+                          "discount": 0, "delivery_fee": 3000,
+                          "total_amount": 12000, "total_verified": true}}
+                        """, MediaType.APPLICATION_JSON));
+
+        ReceiptAnalysisResult result = adapter.analyze("receipt.jpg", "image/jpeg", IMAGE);
+
+        assertThat(result.deliveryFee()).isEqualTo(3_000L);
+        assertThat(result.discount()).isZero();
+        server.verify();
+    }
+
     private String okBody() {
         return "{\"ok\": true, \"elapsed_sec\": 1.0, \"raw\": \"\", \"result\": {\"total_verified\": true}}";
     }

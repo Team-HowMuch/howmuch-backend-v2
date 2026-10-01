@@ -17,6 +17,12 @@ public interface ReceiptOcrDocs {
                     + "대부분의 값은 읽지 못하면 null입니다. `totalVerified`가 false면 "
                     + "합계를 사용자에게 확인받는 흐름을 권장합니다.\n\n"
                     + "품목 옵션은 각 품목의 `subItems` 필드로 반환합니다.\n\n"
+                    + "배달비는 품목이 아니라 `deliveryFee` 필드로 반환합니다. "
+                    + "`deliveryFee`가 null이면 분석 서비스가 배달비를 따로 주지 않은 경우라 품목에 섞여 있을 수 있습니다.\n\n"
+                    + "품목 한 줄의 최종 금액은 `price + Σ subItems.price − items[].discount`입니다. "
+                    + "계약상 `Σ(줄 최종 금액) − 최상위 discount + deliveryFee`가 `totalAmount`와 같지만, "
+                    + "인식 오류로 어긋날 수 있습니다. `totalVerified`는 합계 숫자만 검증하고 "
+                    + "품목 합까지 보장하지는 않습니다.\n\n"
                     + "이미지는 분석에만 쓰이고 서버에 보관하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )

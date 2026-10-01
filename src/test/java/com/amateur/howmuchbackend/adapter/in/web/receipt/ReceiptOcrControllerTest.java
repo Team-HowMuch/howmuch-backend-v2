@@ -90,6 +90,26 @@ class ReceiptOcrControllerTest {
     }
 
     @Test
+    @DisplayName("배달비를 camelCase로 내보내고, 값이 없으면 null로 내보낸다")
+    void receiptAnalysis_deliveryFee_returned() throws Exception {
+        when(analyzeReceiptUseCase.analyze(any())).thenReturn(
+                new ReceiptAnalysisResult("가게", null, List.of(), 12_000L, "카드", true, 0L, 3_000L),
+                new ReceiptAnalysisResult(null, null, List.of(), null, null, false));
+
+        mockMvc.perform(multipart("/api/v2/receipts/ocr")
+                        .file(image("bytes".getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deliveryFee").value(3_000))
+                .andExpect(jsonPath("$.data.discount").value(0))
+                .andExpect(jsonPath("$.data.delivery_fee").doesNotExist());
+
+        mockMvc.perform(multipart("/api/v2/receipts/ocr")
+                        .file(image("bytes".getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"deliveryFee\":null")));
+    }
+
+    @Test
     @DisplayName("빈 파일은 400이고 분석까지 가지 않는다")
     void receiptUpload_emptyFile_returnsBadRequestWithoutAnalysis() throws Exception {
         mockMvc.perform(multipart("/api/v2/receipts/ocr").file(image(new byte[0])))
