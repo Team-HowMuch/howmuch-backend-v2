@@ -36,6 +36,10 @@ spring:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=60s
 howmuch:
+  analytics:
+    amplitude:
+      api-key: ${AMPLITUDE_API_KEY:}
+      secret-key: ${AMPLITUDE_SECRET_KEY:}
   persistence:
     lock-timeout: ${DB_LOCK_TIMEOUT:500ms}
   group:
