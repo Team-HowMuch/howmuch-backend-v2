@@ -41,8 +41,19 @@ public record CreateSettlementReceiptExpenseWebRequest(
         @NotEmpty(message = "영수증 품목은 하나 이상이어야 합니다.")
         List<@NotNull @Valid Item> items,
         @PositiveOrZero(message = "영수증 전체 할인은 0원 이상이어야 합니다.")
-        Long discount
+        Long discount,
+        @PositiveOrZero(message = "배달비는 0원 이상이어야 합니다.")
+        @Schema(description = "배달팁 할인을 반영한 순 배달비. 생략하거나 null이면 0원이며 전체 할인 상한에는 포함하지 않습니다.",
+                example = "3000")
+        Long deliveryFee
 ) {
+    public CreateSettlementReceiptExpenseWebRequest(
+            String receiptReference, String storeName, LocalDateTime paidAt,
+            List<Item> items, Long discount
+    ) {
+        this(receiptReference, storeName, paidAt, items, discount, null);
+    }
+
     public CreateSettlementReceiptExpenseWebRequest(
             String receiptReference, String storeName, LocalDateTime paidAt, List<Item> items
     ) {
@@ -55,7 +66,8 @@ public record CreateSettlementReceiptExpenseWebRequest(
                 storeName,
                 paidAt,
                 items.stream().map(Item::toCommand).toList(),
-                discount == null ? 0 : discount
+                discount == null ? 0 : discount,
+                deliveryFee == null ? 0 : deliveryFee
         );
     }
 

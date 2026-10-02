@@ -66,6 +66,45 @@ class SettlementReceiptExpenseServiceTest {
     }
 
     @Test
+    @DisplayName("배달비를 할인 후 품목 합계에 더해 저장에 전달한다")
+    void receiptExpense_deliveryFee_addedAfterDiscount() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        var command = new CreateSettlementReceiptExpenseCommand(
+                "fee", "식사", PAID_AT,
+                List.of(new CreateSettlementReceiptExpenseCommand.Item("식사", 1, 10_000, 1_000, List.of())),
+                2_000, 3_000
+        );
+
+        service.create(SETTLEMENT_ID, command);
+
+        var captor = org.mockito.ArgumentCaptor.forClass(ExtractReceiptItemsPort.ReceiptExtraction.class);
+        verify(receiptExpenseWriter).write(org.mockito.ArgumentMatchers.eq(SETTLEMENT_ID),
+                org.mockito.ArgumentMatchers.eq(CREATOR_ID), org.mockito.ArgumentMatchers.eq("fee"),
+                org.mockito.ArgumentMatchers.eq(PAID_AT), captor.capture());
+        assertThat(captor.getValue().totalAmount()).isEqualTo(10_000);
+        assertThat(captor.getValue().discount()).isEqualTo(2_000);
+        assertThat(captor.getValue().deliveryFee()).isEqualTo(3_000);
+    }
+
+    @Test
+    @DisplayName("음수 배달비와 배달비 합계 overflow를 거부하며 배달비로 할인 상한을 늘리지 않는다")
+    void receiptExpense_invalidDeliveryFeeOrDiscount_rejectedBeforeWrite() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        for (long[] amounts : new long[][]{
+                {10_000, 0, -1}, {Long.MAX_VALUE, 0, 1}, {10_000, 10_000, 3_000}, {10_000, 10_001, 3_000}
+        }) {
+            var command = new CreateSettlementReceiptExpenseCommand("fee", "식사", null,
+                    List.of(new CreateSettlementReceiptExpenseCommand.Item("식사", 1, amounts[0])),
+                    amounts[1], amounts[2]);
+            assertThatThrownBy(() -> service.create(SETTLEMENT_ID, command))
+                    .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                            assertThat(exception.getStatusCode())
+                                    .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_RECEIPT_IMPORT_REQUEST));
+        }
+        verifyNoInteractions(receiptExpenseWriter);
+    }
+
+    @Test
     @DisplayName("앱 영수증 품목의 행 금액 합계를 서버에서 계산해 Writer에 전달한다")
     void receiptExpense_appItems_calculatesTotalOnServer() {
         CreateSettlementReceiptExpenseCommand command =

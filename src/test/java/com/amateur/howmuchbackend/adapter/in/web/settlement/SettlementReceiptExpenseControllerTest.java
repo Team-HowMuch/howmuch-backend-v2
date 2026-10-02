@@ -71,6 +71,40 @@ class SettlementReceiptExpenseControllerTest {
     }
 
     @Test
+    @DisplayName("배달비의 생략·null·0은 0원으로 정규화하고 양수는 Command에 전달한다")
+    void receiptExpense_deliveryFee_normalizedAndMapped() throws Exception {
+        when(createExpenseUseCase.create(org.mockito.ArgumentMatchers.eq(SETTLEMENT_ID),
+                org.mockito.ArgumentMatchers.any())).thenReturn(
+                new SettlementReceiptExpenseMutationResult(expenseResult(), List.of(itemResult()), 10_000));
+        for (String field : List.of("", ",\"deliveryFee\":null", ",\"deliveryFee\":0", ",\"deliveryFee\":3000")) {
+            mockMvc.perform(post("/api/v2/settlements/{settlementId}/expenses/receipt", SETTLEMENT_ID)
+                            .contentType("application/json").content("""
+                                    {"receiptReference":"fee","storeName":"식사",
+                                     "items":[{"name":"식사","quantity":1,"amount":10000}]%s}
+                                    """.formatted(field)))
+                    .andExpect(status().isOk());
+        }
+        var captor = org.mockito.ArgumentCaptor.forClass(CreateSettlementReceiptExpenseCommand.class);
+        org.mockito.Mockito.verify(createExpenseUseCase, org.mockito.Mockito.times(4))
+                .create(org.mockito.ArgumentMatchers.eq(SETTLEMENT_ID), captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getAllValues())
+                .extracting(CreateSettlementReceiptExpenseCommand::deliveryFee)
+                .containsExactly(0L, 0L, 0L, 3_000L);
+    }
+
+    @Test
+    @DisplayName("음수 배달비는 UseCase 호출 전에 거부한다")
+    void receiptExpense_negativeDeliveryFee_rejected() throws Exception {
+        mockMvc.perform(post("/api/v2/settlements/{settlementId}/expenses/receipt", SETTLEMENT_ID)
+                        .contentType("application/json").content("""
+                                {"receiptReference":"fee","storeName":"식사","deliveryFee":-1,
+                                 "items":[{"name":"식사","quantity":1,"amount":10000}]}
+                                """))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(createExpenseUseCase);
+    }
+
+    @Test
     @DisplayName("앱이 읽은 영수증 품목과 결제 정보를 등록한다")
     void receiptExpense_appResult_mapsItemsAndPayment() throws Exception {
         CreateSettlementReceiptExpenseCommand command =

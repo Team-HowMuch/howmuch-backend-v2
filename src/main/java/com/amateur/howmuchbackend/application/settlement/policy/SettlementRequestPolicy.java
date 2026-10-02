@@ -166,6 +166,9 @@ public class SettlementRequestPolicy {
             for (SettlementExpense expense : expenses) {
                 itemTotal = Math.subtractExact(itemTotal, expense.discount());
             }
+            for (SettlementExpense expense : expenses) {
+                itemTotal = Math.addExact(itemTotal, expense.deliveryFee());
+            }
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(
                     SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH,

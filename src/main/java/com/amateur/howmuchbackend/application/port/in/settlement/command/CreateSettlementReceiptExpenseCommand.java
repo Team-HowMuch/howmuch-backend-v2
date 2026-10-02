@@ -8,8 +8,16 @@ public record CreateSettlementReceiptExpenseCommand(
         String storeName,
         LocalDateTime paidAt,
         List<Item> items,
-        long discount
+        long discount,
+        long deliveryFee
 ) {
+    public CreateSettlementReceiptExpenseCommand(
+            String receiptReference, String storeName, LocalDateTime paidAt,
+            List<Item> items, long discount
+    ) {
+        this(receiptReference, storeName, paidAt, items, discount, 0);
+    }
+
     public CreateSettlementReceiptExpenseCommand(
             String receiptReference, String storeName, LocalDateTime paidAt, List<Item> items
     ) {
