@@ -220,7 +220,8 @@ public class SettlementItemAllocationPolicy {
                 baseAmounts.computeIfAbsent(selection.participantId(),
                         id -> calculateBaseAmount(items, selections, id));
             }
-            return distributeProportionally(baseAmounts, deliveryFee).getOrDefault(participantId, 0L);
+            return distributeDeliveryFee(items, selections, baseAmounts, deliveryFee)
+                    .getOrDefault(participantId, 0L);
         }
         return BigInteger.valueOf(deliveryFee)
                 .multiply(BigInteger.valueOf(calculateBaseAmount(items, selections, participantId)))
@@ -249,33 +250,69 @@ public class SettlementItemAllocationPolicy {
     }
 
     private Map<UUID, Long> distributeProportionally(Map<UUID, Long> baseAmounts, long adjustment) {
-        long total = baseAmounts.values().stream().mapToLong(Long::longValue)
-                .reduce(0L, Math::addExact);
-        if (adjustment < 0 || baseAmounts.values().stream().anyMatch(amount -> amount < 0)
-                || (adjustment > 0 && total <= 0)) {
+        Map<UUID, BigInteger> weights = new HashMap<>();
+        baseAmounts.forEach((id, amount) -> weights.put(id, BigInteger.valueOf(amount)));
+        return distributeByWeights(weights, adjustment);
+    }
+
+    private Map<UUID, Long> distributeDeliveryFee(
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            Map<UUID, Long> baseAmounts,
+            long deliveryFee
+    ) {
+        if (deliveryFee == 0 || baseAmounts.values().stream().anyMatch(amount -> amount != 0)) {
+            return distributeProportionally(baseAmounts, deliveryFee);
+        }
+        // 모든 원금이 0원으로 내림된 경우에는 품목별 분모를 통일해 내림 전 비율을 보존한다.
+        BigInteger commonDenominator = BigInteger.ONE;
+        for (SettlementItem item : items) {
+            if (item.netAmount() == 0) {
+                continue;
+            }
+            BigInteger units = BigInteger.valueOf(item.totalAllocationUnits());
+            commonDenominator = commonDenominator.divide(commonDenominator.gcd(units)).multiply(units);
+        }
+        Map<UUID, BigInteger> weights = new HashMap<>();
+        for (SettlementItem item : items) {
+            if (item.netAmount() == 0) {
+                continue;
+            }
+            BigInteger weightPerUnit = BigInteger.valueOf(item.netAmount())
+                    .multiply(commonDenominator.divide(BigInteger.valueOf(item.totalAllocationUnits())));
+            for (SettlementItemSelection selection : selections) {
+                if (selection.itemId().equals(item.id())) {
+                    weights.merge(selection.participantId(),
+                            weightPerUnit.multiply(BigInteger.valueOf(selection.allocatedUnits())), BigInteger::add);
+                }
+            }
+        }
+        return distributeByWeights(weights, deliveryFee);
+    }
+
+    private Map<UUID, Long> distributeByWeights(Map<UUID, BigInteger> weights, long adjustment) {
+        BigInteger total = weights.values().stream().reduce(BigInteger.ZERO, BigInteger::add);
+        if (adjustment < 0 || weights.values().stream().anyMatch(weight -> weight.signum() < 0)
+                || (adjustment > 0 && total.signum() <= 0)) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL);
         }
         if (adjustment == 0) {
             return Map.of();
         }
-        BigInteger divisor = BigInteger.valueOf(total);
         Map<UUID, Long> shares = new HashMap<>();
         Map<UUID, BigInteger> remainders = new HashMap<>();
         long assigned = 0;
-        for (var entry : baseAmounts.entrySet()) {
-            if (entry.getValue() < 0) {
-                throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL);
-            }
+        for (var entry : weights.entrySet()) {
             BigInteger[] division = BigInteger.valueOf(adjustment)
-                    .multiply(BigInteger.valueOf(entry.getValue()))
-                    .divideAndRemainder(divisor);
+                    .multiply(entry.getValue())
+                    .divideAndRemainder(total);
             long share = division[0].longValueExact();
             shares.put(entry.getKey(), share);
             remainders.put(entry.getKey(), division[1]);
             assigned = Math.addExact(assigned, share);
         }
         List<UUID> remainderOrder = remainders.keySet().stream()
-                .filter(id -> baseAmounts.get(id) > 0)
+                .filter(id -> weights.get(id).signum() > 0)
                 .sorted(Comparator.<UUID, BigInteger>comparing(remainders::get)
                         .reversed().thenComparing(UUID::compareTo))
                 .toList();
@@ -493,7 +530,8 @@ public class SettlementItemAllocationPolicy {
         }
         try {
             Map<UUID, Long> discountShares = distributeDiscount(amountByParticipant, receiptDiscount);
-            Map<UUID, Long> deliveryFeeShares = distributeProportionally(amountByParticipant, deliveryFee);
+            Map<UUID, Long> deliveryFeeShares = distributeDeliveryFee(items, selections, amountByParticipant, deliveryFee);
+            hasPositiveShare |= deliveryFeeShares.values().stream().anyMatch(amount -> amount > 0);
             amountByParticipant.replaceAll((id, amount) -> Math.addExact(
                     Math.subtractExact(amount, discountShares.getOrDefault(id, 0L)),
                     deliveryFeeShares.getOrDefault(id, 0L)

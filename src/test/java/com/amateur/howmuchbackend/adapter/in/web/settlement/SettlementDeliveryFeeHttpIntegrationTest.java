@@ -9,7 +9,8 @@ import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.domain.auth.session.AuthSession;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -50,9 +51,13 @@ class SettlementDeliveryFeeHttpIntegrationTest {
     private Long account;
     private UUID settlement;
 
-    @Test
+    @ParameterizedTest
+    @CsvSource({"10000, 1000, 3003, 6002, 6001", "1, 0, 3, 2, 1"})
     @DisplayName("할인과 홀수 배달비를 저장하고 전원 제출 후 상세·링크·송금 금액을 일치시킨다")
-    void deliveryReceipt_registrationToTransfer_preservesExactTotal() throws Exception {
+    void deliveryReceipt_registrationToTransfer_preservesFeeAndTransferAmounts(
+            long itemAmount, long discount, long deliveryFee, long creatorAmount, long payerAmount
+    ) throws Exception {
+        long totalAmount = itemAmount - discount + deliveryFee;
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         creator = insertUser("생성자", now);
         payer = insertUser("참여자", now);
@@ -71,8 +76,8 @@ class SettlementDeliveryFeeHttpIntegrationTest {
         settlement = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO settlements(id,creator_id,title,total_amount,status,receiving_account_id,created_at,updated_at)
-                VALUES (?, ?, '배달비 HTTP 검증', 12003, 'DRAFT', ?, ?, ?)
-                """, settlement, creator, account, now, now);
+                VALUES (?, ?, '배달비 HTTP 검증', ?, 'DRAFT', ?, ?, ?)
+                """, settlement, creator, totalAmount, account, now, now);
         // 같은 품목 원금이면 UUID가 작은 생성자가 배달비의 마지막 1원을 부담한다.
         UUID creatorParticipant = new UUID(0, 1);
         UUID payerParticipant = new UUID(0, 2);
@@ -80,19 +85,19 @@ class SettlementDeliveryFeeHttpIntegrationTest {
         insertParticipant(payerParticipant, payer, 1, now);
         String path = "/api/v2/settlements/" + settlement;
         String receipt = """
-                {"receiptReference":"delivery-http","storeName":"식사","discount":1000,"deliveryFee":3003,
-                 "items":[{"name":"피자","quantity":1,"amount":10000}]}
-                """;
+                {"receiptReference":"delivery-http","storeName":"식사","discount":%d,"deliveryFee":%d,
+                 "items":[{"name":"피자","quantity":1,"amount":%d}]}
+                """.formatted(discount, deliveryFee, itemAmount);
         assertThat(request("POST", path + "/expenses/receipt", creatorToken,
-                receipt.replace("3003", "-1"), null).statusCode()).isEqualTo(400);
+                receipt.replace("\"deliveryFee\":" + deliveryFee, "\"deliveryFee\":-1"), null).statusCode()).isEqualTo(400);
         JsonNode created = data("POST", path + "/expenses/receipt", creatorToken, receipt);
-        assertThat(created.path("expense").path("deliveryFee").asLong()).isEqualTo(3_003);
-        assertThat(created.path("expense").path("amount").asLong()).isEqualTo(12_003);
-        assertThat(created.path("totalExpenseAmount").asLong()).isEqualTo(12_003);
+        assertThat(created.path("expense").path("deliveryFee").asLong()).isEqualTo(deliveryFee);
+        assertThat(created.path("expense").path("amount").asLong()).isEqualTo(totalAmount);
+        assertThat(created.path("totalExpenseAmount").asLong()).isEqualTo(totalAmount);
         String itemId = created.path("items").get(0).path("itemId").stringValue();
-        assertThat(data("GET", path + "/items", creatorToken, null).path("deliveryFee").asLong()).isEqualTo(3_003);
+        assertThat(data("GET", path + "/items", creatorToken, null).path("deliveryFee").asLong()).isEqualTo(deliveryFee);
         assertThat(data("GET", path + "/expenses", creatorToken, null)
-                .path("expenses").get(0).path("deliveryFee").asLong()).isEqualTo(3_003);
+                .path("expenses").get(0).path("deliveryFee").asLong()).isEqualTo(deliveryFee);
         jdbc.update("UPDATE settlements SET allocation_type='ITEM_ALLOCATION' WHERE id=?", settlement);
 
         data("PUT", path + "/my-items/" + itemId, creatorToken, "{\"fraction\":\"HALF\",\"units\":1}");
@@ -101,26 +106,26 @@ class SettlementDeliveryFeeHttpIntegrationTest {
         assertThat(requested.path("status").stringValue()).isEqualTo("REQUESTED");
         JsonNode pending = data("PUT", path + "/my-item-selection/" + itemId,
                 payerToken, "{\"fraction\":\"HALF\",\"units\":1}");
-        assertThat(pending.path("deliveryFeeShare").asLong()).isEqualTo(1_501);
+        assertThat(pending.path("deliveryFeeShare").asLong()).isEqualTo(deliveryFee * (itemAmount / 2) / itemAmount);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM settlement_shares WHERE settlement_id=?",
                 Long.class, settlement)).isZero();
 
         JsonNode submitted = data("POST", path + "/my-item-selection/submission", payerToken, null);
         assertThat(submitted.path("phase").stringValue()).isEqualTo("TRANSFER_READY");
-        assertThat(submitted.path("personalAmount").asLong()).isEqualTo(6_001);
-        assertThat(submitted.path("deliveryFeeShare").asLong()).isEqualTo(1_501);
+        assertThat(submitted.path("personalAmount").asLong()).isEqualTo(payerAmount);
+        assertThat(submitted.path("deliveryFeeShare").asLong()).isEqualTo(deliveryFee / 2);
         JsonNode creatorItems = data("GET", path + "/my-items", creatorToken, null);
-        assertThat(creatorItems.path("personalAmount").asLong()).isEqualTo(6_002);
-        assertThat(creatorItems.path("deliveryFeeShare").asLong()).isEqualTo(1_502);
+        assertThat(creatorItems.path("personalAmount").asLong()).isEqualTo(creatorAmount);
+        assertThat(creatorItems.path("deliveryFeeShare").asLong()).isEqualTo(deliveryFee / 2 + deliveryFee % 2);
         assertThat(jdbc.queryForObject("SELECT SUM(amount) FROM settlement_shares WHERE settlement_id=?",
-                Long.class, settlement)).isEqualTo(12_003);
+                Long.class, settlement)).isEqualTo(creatorAmount + payerAmount);
 
         JsonNode detail = data("GET", path, creatorToken, null);
-        assertThat(detail.path("paymentInfo").path("deliveryFee").asLong()).isEqualTo(3_003);
-        assertThat(detail.path("paymentSummary").path("expectedAmount").asLong()).isEqualTo(6_001);
-        assertThat(detail.path("participants").get(0).path("deliveryFeeShare").asLong()).isEqualTo(1_501);
+        assertThat(detail.path("paymentInfo").path("deliveryFee").asLong()).isEqualTo(deliveryFee);
+        assertThat(detail.path("paymentSummary").path("expectedAmount").asLong()).isEqualTo(payerAmount);
+        assertThat(detail.path("participants").get(0).path("deliveryFeeShare").asLong()).isEqualTo(deliveryFee / 2);
         assertThat(data("GET", path + "/my-transfer-instruction", payerToken, null).path("amount").asLong())
-                .isEqualTo(6_001);
+                .isEqualTo(payerAmount);
 
         String linkPath = URI.create(requested.path("url").stringValue()).getPath();
         String rawLink = linkPath.substring(linkPath.lastIndexOf('/') + 1);
@@ -129,9 +134,9 @@ class SettlementDeliveryFeeHttpIntegrationTest {
                 + payerParticipant + "/items", null, null, context.id());
         assertThat(linked.statusCode()).isEqualTo(200);
         JsonNode linkData = json.readTree(linked.body()).path("data");
-        assertThat(linkData.path("deliveryFee").asLong()).isEqualTo(3_003);
-        assertThat(linkData.path("deliveryFeeShare").asLong()).isEqualTo(1_501);
-        assertThat(linkData.path("personalAmount").asLong()).isEqualTo(6_001);
+        assertThat(linkData.path("deliveryFee").asLong()).isEqualTo(deliveryFee);
+        assertThat(linkData.path("deliveryFeeShare").asLong()).isEqualTo(deliveryFee / 2);
+        assertThat(linkData.path("personalAmount").asLong()).isEqualTo(payerAmount);
     }
 
     private Long insertUser(String name, LocalDateTime now) {
