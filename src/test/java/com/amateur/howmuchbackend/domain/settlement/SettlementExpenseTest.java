@@ -174,6 +174,41 @@ class SettlementExpenseTest {
         assertThat(expense.createdAt()).isEqualTo(NOW);
     }
 
+    @Test
+    @DisplayName("영수증은 배달비를 보존하고 기존 생성 경로는 0원을 사용한다")
+    void deliveryFee_receiptAndLegacyDefaults_preserved() {
+        var receipt = SettlementExpense.receiptOcr(
+                SETTLEMENT_ID, "receipt-fee", "식사", 32_000, PAID_AT, 0, NOW, 1_000, 3_000
+        );
+
+        assertThat(receipt.deliveryFee()).isEqualTo(3_000);
+        assertThat(manualExpense().deliveryFee()).isZero();
+        assertThat(SettlementExpense.receiptOcr(
+                SETTLEMENT_ID, "legacy", "식사", 30_000, PAID_AT, 0, NOW, 1_000
+        ).deliveryFee()).isZero();
+    }
+
+    @Test
+    @DisplayName("음수 배달비와 영수증 외 지출의 배달비를 거부한다")
+    void deliveryFee_negativeOrNonReceipt_rejected() {
+        assertThatThrownBy(() -> SettlementExpense.receiptOcr(
+                SETTLEMENT_ID, "receipt-fee", "식사", 30_000, PAID_AT, 0, NOW, 0, -1
+        )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_AMOUNT));
+        for (var source : new SettlementExpenseSource[]{
+                SettlementExpenseSource.MANUAL, SettlementExpenseSource.PAYMENT_HISTORY
+        }) {
+            assertThatThrownBy(() -> new SettlementExpense(
+                    UUID.randomUUID(), SETTLEMENT_ID, source,
+                    source == SettlementExpenseSource.MANUAL ? null : "payment-ref",
+                    null, "식사", 30_000, PAID_AT, 0, NOW, NOW, 0, 1_000
+            )).isInstanceOfSatisfying(ApplicationException.class, exception ->
+                    assertThat(exception.getStatusCode())
+                            .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_AMOUNT));
+        }
+    }
+
     private SettlementExpense manualExpense() {
         return SettlementExpense.manual(
                 SETTLEMENT_ID,

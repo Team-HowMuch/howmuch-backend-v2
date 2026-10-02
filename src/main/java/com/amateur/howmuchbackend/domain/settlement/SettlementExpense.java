@@ -19,10 +19,21 @@ public record SettlementExpense(
         int displayOrder,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        long discount
+        long discount,
+        long deliveryFee
 ) {
     public static final int MAX_DESCRIPTION_LENGTH = 500;
     public static final int MAX_SOURCE_REFERENCE_LENGTH = 255;
+
+    public SettlementExpense(
+            UUID id, UUID settlementId, SettlementExpenseSource source,
+            String sourceReference, Long sourceAccountId, String description,
+            long amount, LocalDateTime paidAt, int displayOrder,
+            LocalDateTime createdAt, LocalDateTime updatedAt, long discount
+    ) {
+        this(id, settlementId, source, sourceReference, sourceAccountId, description,
+                amount, paidAt, displayOrder, createdAt, updatedAt, discount, 0);
+    }
 
     public SettlementExpense(
             UUID id, UUID settlementId, SettlementExpenseSource source,
@@ -94,10 +105,10 @@ public record SettlementExpense(
         sourceAccountId = normalizeSourceAccountId(source, sourceAccountId);
         description = normalizeDescription(description);
         validateAmount(amount);
-        if (discount < 0) {
+        if (discount < 0 || deliveryFee < 0) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_AMOUNT);
         }
-        if (source != SettlementExpenseSource.RECEIPT_OCR && discount != 0) {
+        if (source != SettlementExpenseSource.RECEIPT_OCR && (discount != 0 || deliveryFee != 0)) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_AMOUNT);
         }
         validateDisplayOrder(displayOrder);
@@ -190,6 +201,15 @@ public record SettlementExpense(
             long amount, LocalDateTime paidAt, int displayOrder,
             LocalDateTime now, long discount
     ) {
+        return receiptOcr(settlementId, sourceReference, description, amount,
+                paidAt, displayOrder, now, discount, 0);
+    }
+
+    public static SettlementExpense receiptOcr(
+            UUID settlementId, String sourceReference, String description,
+            long amount, LocalDateTime paidAt, int displayOrder,
+            LocalDateTime now, long discount, long deliveryFee
+    ) {
         Objects.requireNonNull(now, "OCR 영수증 지출 생성 시각은 필수입니다.");
         return new SettlementExpense(
                 UUID.randomUUID(),
@@ -203,7 +223,8 @@ public record SettlementExpense(
                 displayOrder,
                 now,
                 now,
-                discount
+                discount,
+                deliveryFee
         );
     }
 
@@ -230,7 +251,8 @@ public record SettlementExpense(
                 displayOrder,
                 createdAt,
                 Objects.requireNonNull(now, "정산 지출 수정 시각은 필수입니다."),
-                discount
+                discount,
+                deliveryFee
         );
     }
 

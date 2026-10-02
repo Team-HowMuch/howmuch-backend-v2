@@ -104,6 +104,26 @@ class SettlementExpensePersistenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("V42 배달비를 저장하고 재조회 및 갱신할 때 보존한다")
+    void receiptDeliveryFee_roundTrip_preserved() {
+        var expense = SettlementExpense.receiptOcr(
+                settlementId, "receipt-fee", "배달 식사", 32_000,
+                CREATED_AT, 0, CREATED_AT, 1_000, 3_000
+        );
+        settlementExpensePersistenceAdapter.save(expense);
+
+        var loaded = settlementExpensePersistenceAdapter
+                .findBySettlementIdAndId(settlementId, expense.id()).orElseThrow();
+        assertThat(loaded.deliveryFee()).isEqualTo(3_000);
+        assertThat(loaded.discount()).isEqualTo(1_000);
+        assertThat(loaded.amount()).isEqualTo(32_000);
+        assertThat(settlementExpensePersistenceAdapter.update(loaded).deliveryFee()).isEqualTo(3_000);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT delivery_fee FROM settlement_expenses WHERE id = ?", Long.class, expense.id()
+        )).isEqualTo(3_000);
+    }
+
+    @Test
     @DisplayName("V11 스키마에 지출을 표시 순서대로 저장하고 누적액을 계산한다")
     void settlementExpenses_displayOrder_savedAndTotalCalculated() {
         settlementExpensePersistenceAdapter.save(manualExpense("카페", 8_000, 1));
