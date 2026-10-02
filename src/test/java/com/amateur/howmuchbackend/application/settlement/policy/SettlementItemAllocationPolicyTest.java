@@ -352,6 +352,157 @@ class SettlementItemAllocationPolicyTest {
                 .satisfies(share -> assertThat(share.amount()).isEqualTo(1_000));
     }
 
+    @Test
+    @DisplayName("품목 순액 비율로 할인과 배달비를 각각 나누어 결제액 합을 보존한다")
+    void deliveryFee_withDiscount_matchesPaidTotal() {
+        var first = itemWithDiscount(7_000, 500);
+        var second = itemWithDiscount(3_900, 0);
+        var third = itemWithDiscount(2_600, 0);
+        var items = List.of(first, second, third);
+        var selections = List.of(selectionFor(first, FIRST_PARTICIPANT_ID),
+                selectionFor(second, SECOND_PARTICIPANT_ID), selectionFor(third, THIRD_PARTICIPANT_ID));
+
+        var result = policy.finalizeAllocation(SETTLEMENT_ID, 15_000, participants(),
+                items, selections, NOW, 1_000, 3_000);
+
+        assertThat(result.valid()).isTrue();
+        assertThat(result.shares()).extracting(share -> share.amount()).containsExactly(7_500L, 4_500L, 3_000L);
+        assertThat(policy.calculateDeliveryFeeShare(items, selections, FIRST_PARTICIPANT_ID, 3_000, true))
+                .isEqualTo(1_500);
+        assertThat(policy.calculatePersonalAmount(items, selections, FIRST_PARTICIPANT_ID, 1_000, 3_000, true))
+                .isEqualTo(7_500);
+        assertThat(policy.finalizeAllocation(SETTLEMENT_ID, 12_000, participants(),
+                items, selections, NOW, 1_000, 3_000).valid()).isFalse();
+    }
+
+    @Test
+    @DisplayName("선택을 모두 채워도 확정 전에는 품목 총액 기준 잠정 배달비만 반환한다")
+    void deliveryFee_beforeFinalization_returnsProvisionalShare() {
+        var items = List.of(item());
+        var first = selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF);
+        var second = selection(SECOND_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF);
+
+        assertThat(policy.calculateDeliveryFeeShare(items, List.of(first), FIRST_PARTICIPANT_ID, 3, false))
+                .isEqualTo(1);
+        assertThat(policy.calculateDeliveryFeeShare(items, List.of(first, second), FIRST_PARTICIPANT_ID, 3, false))
+                .isEqualTo(1);
+        assertThat(policy.calculateDeliveryFeeShare(items, List.of(first), SECOND_PARTICIPANT_ID, 3, false))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("확정 배달비의 원 단위 잔액은 UUID 순으로 배분하며 합계를 보존한다")
+    void deliveryFee_remainder_isExactAndDeterministic() {
+        var ids = List.of(new UUID(0, 1), new UUID(0, 2), new UUID(0, 3));
+        var items = List.of(itemWithDiscount(1, 0), itemWithDiscount(1, 0), itemWithDiscount(1, 0));
+        var selections = List.of(selectionFor(items.get(0), ids.get(0)),
+                selectionFor(items.get(1), ids.get(1)), selectionFor(items.get(2), ids.get(2)));
+        assertThat(ids.stream().map(id -> policy.calculateDeliveryFeeShare(items, selections, id, 2, true)).toList())
+                .containsExactly(1L, 1L, 0L);
+        assertThat(ids.stream().map(id -> policy.calculateDeliveryFeeShare(items, selections.reversed(), id, 2, true)).toList())
+                .containsExactly(1L, 1L, 0L);
+    }
+
+    @Test
+    @DisplayName("품목 합계보다 큰 배달비와 BIGINT 경계를 안전하게 계산한다")
+    void deliveryFee_largeAmount_doesNotUseDiscountUpperBound() {
+        var items = List.of(item());
+        var selections = List.of(selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.ONE));
+        long fee = Long.MAX_VALUE - 1_000;
+        assertThat(policy.calculatePersonalAmount(items, selections, FIRST_PARTICIPANT_ID, 0, fee, false))
+                .isEqualTo(Long.MAX_VALUE);
+        var finalized = policy.finalizeAllocation(SETTLEMENT_ID, Long.MAX_VALUE, participants(),
+                items, selections, NOW, 0, fee);
+        assertThat(finalized.valid()).isTrue();
+        assertThat(finalized.shares()).singleElement().satisfies(share ->
+                assertThat(share.amount()).isEqualTo(Long.MAX_VALUE));
+        assertThat(policy.finalizeAllocation(SETTLEMENT_ID, Long.MAX_VALUE, participants(),
+                items, selections, NOW, 0, Long.MAX_VALUE).valid()).isFalse();
+        assertThatThrownBy(() -> policy.calculateDeliveryFeeShare(items, selections, FIRST_PARTICIPANT_ID, -1, false))
+                .isInstanceOf(ApplicationException.class);
+    }
+
+    @Test
+    @DisplayName("0원 품목 참여자에게 배달비를 부과하지 않고 원금 내림 잔액 정책을 유지한다")
+    void deliveryFee_zeroBaseAndRoundedBase_preserveExistingRules() {
+        var free = itemWithDiscount(500, 500);
+        var paid = itemWithDiscount(1_000, 0);
+        var result = policy.finalizeAllocation(SETTLEMENT_ID, 4_000, participants(),
+                List.of(free, paid), List.of(selectionFor(free, FIRST_PARTICIPANT_ID),
+                        selectionFor(paid, SECOND_PARTICIPANT_ID)), NOW, 0, 3_000);
+        assertThat(result.valid()).isTrue();
+        assertThat(result.shares()).singleElement().satisfies(share -> {
+            assertThat(share.payerParticipantId()).isEqualTo(SECOND_PARTICIPANT_ID);
+            assertThat(share.amount()).isEqualTo(4_000);
+        });
+        var rounded = policy.finalizeAllocation(SETTLEMENT_ID, 1_004, participants(), List.of(item(1_001)),
+                List.of(selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF),
+                        selection(SECOND_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF)), NOW, 0, 3);
+        assertThat(rounded.valid()).isTrue();
+        assertThat(rounded.shares().stream().mapToLong(share -> share.amount()).sum()).isEqualTo(1_003);
+    }
+
+    @Test
+    @DisplayName("품목 몫이 모두 0원으로 내림되어도 배달비를 확정하고 조회 금액과 일치시킨다")
+    void deliveryFee_allBasesRoundedToZero_finalizesFromFractionalWeights() {
+        UUID first = new UUID(0, 1);
+        UUID second = new UUID(0, 2);
+        var items = List.of(item(1));
+        var selections = List.of(selection(first, SettlementItemAllocationFraction.HALF),
+                selection(second, SettlementItemAllocationFraction.HALF));
+        var participants = List.of(participant(first, 1L, "생성자", 0),
+                participant(second, 2L, "참여자", 1));
+
+        for (long fee : List.of(3L, Long.MAX_VALUE - 1)) {
+            var result = policy.finalizeAllocation(SETTLEMENT_ID, 1 + fee, participants,
+                    items, selections, NOW, 0, fee);
+
+            assertThat(result.valid()).isTrue();
+            assertThat(result.shares()).extracting(share -> share.amount())
+                    .containsExactly(fee / 2 + fee % 2, fee / 2);
+            assertThat(result.shares().stream().mapToLong(share -> share.amount()).sum()).isEqualTo(fee);
+            assertThat(policy.findInvalidItemIds(SETTLEMENT_ID, 1 + fee, participants,
+                    items, selections, 0, fee)).isEmpty();
+            assertThat(policy.calculateDeliveryFeeShare(items, selections.reversed(), first, fee, true))
+                    .isEqualTo(fee / 2 + fee % 2);
+            assertThat(policy.calculatePersonalAmount(items, selections, second, 0, fee, true))
+                    .isEqualTo(fee / 2);
+        }
+        // 배달비가 없는 기존 0원 몫의 확정 거부는 유지한다.
+        assertThat(policy.finalizeAllocation(SETTLEMENT_ID, 1, participants,
+                items, selections, NOW, 0, 0).valid()).isFalse();
+    }
+
+    @Test
+    @DisplayName("0원 내림 시 품목 수량별 분모를 보존하고 실제 무료 품목은 배달비에서 제외한다")
+    void deliveryFee_allBasesRoundedToZero_preservesDifferentItemRatios() {
+        var firstItem = item(1, 2);
+        var secondItem = new SettlementItem(UUID.randomUUID(), SETTLEMENT_ID, EXPENSE_ID,
+                "다른 수량", 3, 1, 1, NOW, NOW);
+        var freeItem = itemWithDiscount(500, 500);
+        var items = List.of(firstItem, secondItem, freeItem);
+        var selections = List.of(
+                selection(FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.ONE),
+                selection(SECOND_PARTICIPANT_ID, SettlementItemAllocationFraction.ONE),
+                new SettlementItemSelection(UUID.randomUUID(), SETTLEMENT_ID, secondItem.id(),
+                        FIRST_PARTICIPANT_ID, SettlementItemAllocationFraction.ONE, 1, NOW, NOW),
+                new SettlementItemSelection(UUID.randomUUID(), SETTLEMENT_ID, secondItem.id(),
+                        SECOND_PARTICIPANT_ID, SettlementItemAllocationFraction.ONE, 2, NOW, NOW),
+                selectionFor(freeItem, THIRD_PARTICIPANT_ID)
+        );
+
+        var result = policy.finalizeAllocation(SETTLEMENT_ID, 14, participants(),
+                items, selections, NOW, 0, 12);
+
+        // 1/2 + 1/3 : 1/2 + 2/3 = 5 : 7. 품목 원금 내림 잔액 2원은 기존대로 유지한다.
+        assertThat(result.valid()).isTrue();
+        assertThat(result.shares()).extracting(share -> share.amount()).containsExactly(5L, 7L);
+        assertThat(policy.calculateDeliveryFeeShare(items, selections, FIRST_PARTICIPANT_ID, 12, true))
+                .isEqualTo(5);
+        assertThat(policy.calculateDeliveryFeeShare(items, selections, THIRD_PARTICIPANT_ID, 12, true))
+                .isZero();
+    }
+
     private SettlementItem itemWithDiscount(long amount, long discount) {
         return new SettlementItem(
                 UUID.randomUUID(), SETTLEMENT_ID, EXPENSE_ID, "품목", 1,

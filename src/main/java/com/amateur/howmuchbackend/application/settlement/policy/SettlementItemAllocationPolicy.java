@@ -103,8 +103,26 @@ public class SettlementItemAllocationPolicy {
             UUID participantId,
             long receiptDiscount
     ) {
-        return Math.subtractExact(calculateBaseAmount(items, selections, participantId),
-                calculateDiscountShare(items, selections, participantId, receiptDiscount));
+        return calculatePersonalAmount(items, selections, participantId, receiptDiscount, 0, false);
+    }
+
+    public long calculatePersonalAmount(
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            UUID participantId,
+            long receiptDiscount,
+            long deliveryFee,
+            boolean finalized
+    ) {
+        try {
+            return Math.addExact(
+                    Math.subtractExact(calculateBaseAmount(items, selections, participantId),
+                            calculateDiscountShare(items, selections, participantId, receiptDiscount)),
+                    calculateDeliveryFeeShare(items, selections, participantId, deliveryFee, finalized)
+            );
+        } catch (ArithmeticException exception) {
+            throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL, exception);
+        }
     }
 
     private long calculateBaseAmount(
@@ -180,6 +198,36 @@ public class SettlementItemAllocationPolicy {
                 .divide(BigInteger.valueOf(itemTotal)).longValueExact();
     }
 
+    /** 배달비는 전원 확정 전 품목 총액 기준 잠정치, 확정 후 최대 잔여법으로 배분한다. */
+    public long calculateDeliveryFeeShare(
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            UUID participantId,
+            long deliveryFee,
+            boolean finalized
+    ) {
+        if (deliveryFee == 0) {
+            return 0;
+        }
+        long itemTotal = items.stream().mapToLong(SettlementItem::netAmount)
+                .reduce(0L, Math::addExact);
+        if (deliveryFee < 0 || itemTotal <= 0) {
+            throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL);
+        }
+        if (finalized && fullyAllocated(items, selections)) {
+            Map<UUID, Long> baseAmounts = new HashMap<>();
+            for (SettlementItemSelection selection : selections) {
+                baseAmounts.computeIfAbsent(selection.participantId(),
+                        id -> calculateBaseAmount(items, selections, id));
+            }
+            return distributeDeliveryFee(items, selections, baseAmounts, deliveryFee)
+                    .getOrDefault(participantId, 0L);
+        }
+        return BigInteger.valueOf(deliveryFee)
+                .multiply(BigInteger.valueOf(calculateBaseAmount(items, selections, participantId)))
+                .divide(BigInteger.valueOf(itemTotal)).longValueExact();
+    }
+
     private boolean fullyAllocated(
             List<SettlementItem> items, List<SettlementItemSelection> selections
     ) {
@@ -198,31 +246,77 @@ public class SettlementItemAllocationPolicy {
         if (receiptDiscount < 0 || receiptDiscount > total) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL);
         }
-        if (receiptDiscount == 0 || total == 0) {
+        return distributeProportionally(baseAmounts, receiptDiscount);
+    }
+
+    private Map<UUID, Long> distributeProportionally(Map<UUID, Long> baseAmounts, long adjustment) {
+        Map<UUID, BigInteger> weights = new HashMap<>();
+        baseAmounts.forEach((id, amount) -> weights.put(id, BigInteger.valueOf(amount)));
+        return distributeByWeights(weights, adjustment);
+    }
+
+    private Map<UUID, Long> distributeDeliveryFee(
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            Map<UUID, Long> baseAmounts,
+            long deliveryFee
+    ) {
+        if (deliveryFee == 0 || baseAmounts.values().stream().anyMatch(amount -> amount != 0)) {
+            return distributeProportionally(baseAmounts, deliveryFee);
+        }
+        // 모든 원금이 0원으로 내림된 경우에는 품목별 분모를 통일해 내림 전 비율을 보존한다.
+        BigInteger commonDenominator = BigInteger.ONE;
+        for (SettlementItem item : items) {
+            if (item.netAmount() == 0) {
+                continue;
+            }
+            BigInteger units = BigInteger.valueOf(item.totalAllocationUnits());
+            commonDenominator = commonDenominator.divide(commonDenominator.gcd(units)).multiply(units);
+        }
+        Map<UUID, BigInteger> weights = new HashMap<>();
+        for (SettlementItem item : items) {
+            if (item.netAmount() == 0) {
+                continue;
+            }
+            BigInteger weightPerUnit = BigInteger.valueOf(item.netAmount())
+                    .multiply(commonDenominator.divide(BigInteger.valueOf(item.totalAllocationUnits())));
+            for (SettlementItemSelection selection : selections) {
+                if (selection.itemId().equals(item.id())) {
+                    weights.merge(selection.participantId(),
+                            weightPerUnit.multiply(BigInteger.valueOf(selection.allocatedUnits())), BigInteger::add);
+                }
+            }
+        }
+        return distributeByWeights(weights, deliveryFee);
+    }
+
+    private Map<UUID, Long> distributeByWeights(Map<UUID, BigInteger> weights, long adjustment) {
+        BigInteger total = weights.values().stream().reduce(BigInteger.ZERO, BigInteger::add);
+        if (adjustment < 0 || weights.values().stream().anyMatch(weight -> weight.signum() < 0)
+                || (adjustment > 0 && total.signum() <= 0)) {
+            throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL);
+        }
+        if (adjustment == 0) {
             return Map.of();
         }
-        BigInteger divisor = BigInteger.valueOf(total);
         Map<UUID, Long> shares = new HashMap<>();
         Map<UUID, BigInteger> remainders = new HashMap<>();
         long assigned = 0;
-        for (var entry : baseAmounts.entrySet()) {
-            if (entry.getValue() < 0) {
-                throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL);
-            }
-            BigInteger[] division = BigInteger.valueOf(receiptDiscount)
-                    .multiply(BigInteger.valueOf(entry.getValue()))
-                    .divideAndRemainder(divisor);
+        for (var entry : weights.entrySet()) {
+            BigInteger[] division = BigInteger.valueOf(adjustment)
+                    .multiply(entry.getValue())
+                    .divideAndRemainder(total);
             long share = division[0].longValueExact();
             shares.put(entry.getKey(), share);
             remainders.put(entry.getKey(), division[1]);
             assigned = Math.addExact(assigned, share);
         }
         List<UUID> remainderOrder = remainders.keySet().stream()
-                .filter(id -> baseAmounts.get(id) > 0)
+                .filter(id -> weights.get(id).signum() > 0)
                 .sorted(Comparator.<UUID, BigInteger>comparing(remainders::get)
                         .reversed().thenComparing(UUID::compareTo))
                 .toList();
-        long remaining = receiptDiscount - assigned;
+        long remaining = adjustment - assigned;
         for (int index = 0; index < remaining; index++) {
             UUID id = remainderOrder.get(index);
             shares.put(id, shares.get(id) + 1);
@@ -271,13 +365,27 @@ public class SettlementItemAllocationPolicy {
             LocalDateTime now,
             long receiptDiscount
     ) {
+        return finalizeAllocation(settlementId, settlementTotalAmount, participants, items, selections, now, receiptDiscount, 0);
+    }
+
+    public Finalization finalizeAllocation(
+            UUID settlementId,
+            long settlementTotalAmount,
+            List<SettlementParticipant> participants,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            LocalDateTime now,
+            long receiptDiscount,
+            long deliveryFee
+    ) {
         AllocationEvaluation evaluation = evaluateAllocation(
                 settlementId,
                 settlementTotalAmount,
                 participants,
                 items,
                 selections,
-                receiptDiscount
+                receiptDiscount,
+                deliveryFee
         );
         if (!evaluation.valid()) {
             return Finalization.invalid(evaluation.invalidItemIds());
@@ -315,13 +423,26 @@ public class SettlementItemAllocationPolicy {
             List<SettlementItemSelection> selections,
             long receiptDiscount
     ) {
+        return findInvalidItemIds(settlementId, settlementTotalAmount, participants, items, selections, receiptDiscount, 0);
+    }
+
+    public List<UUID> findInvalidItemIds(
+            UUID settlementId,
+            long settlementTotalAmount,
+            List<SettlementParticipant> participants,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            long receiptDiscount,
+            long deliveryFee
+    ) {
         return evaluateAllocation(
                 settlementId,
                 settlementTotalAmount,
                 participants,
                 items,
                 selections,
-                receiptDiscount
+                receiptDiscount,
+                deliveryFee
         ).invalidItemIds();
     }
 
@@ -331,7 +452,8 @@ public class SettlementItemAllocationPolicy {
             List<SettlementParticipant> participants,
             List<SettlementItem> items,
             List<SettlementItemSelection> selections,
-            long receiptDiscount
+            long receiptDiscount,
+            long deliveryFee
     ) {
         Map<UUID, SettlementItem> itemById = new HashMap<>();
         items.forEach(item -> itemById.put(item.id(), item));
@@ -403,22 +525,24 @@ public class SettlementItemAllocationPolicy {
         }
         // 내림 때문에 합이 총액보다 적을 수 있다. 그 차액은 생성자가 부담한다.
         // 다만 선택 하나당 최대 1원까지만 줄어들 수 있어, 그보다 크게 어긋나면 배분이 잘못된 것이다.
-        if (receiptDiscount < 0 || receiptDiscount > shareTotal) {
+        if (receiptDiscount < 0 || receiptDiscount > shareTotal || deliveryFee < 0) {
             return AllocationEvaluation.invalid(items.stream().map(SettlementItem::id).toList());
         }
-        Map<UUID, Long> discountShares = distributeDiscount(
-                amountByParticipant, receiptDiscount
-        );
-        discountShares.forEach((participantId, share) -> amountByParticipant.computeIfPresent(
-                participantId, (id, amount) -> Math.subtractExact(amount, share)
-        ));
-        long shortfall = Math.subtractExact(
-                settlementTotalAmount, Math.subtractExact(shareTotal, receiptDiscount)
-        );
-        if (shortfall < 0L || shortfall > selections.size() || !hasPositiveShare) {
-            return AllocationEvaluation.invalid(
-                    items.stream().map(SettlementItem::id).toList()
-            );
+        try {
+            Map<UUID, Long> discountShares = distributeDiscount(amountByParticipant, receiptDiscount);
+            Map<UUID, Long> deliveryFeeShares = distributeDeliveryFee(items, selections, amountByParticipant, deliveryFee);
+            hasPositiveShare |= deliveryFeeShares.values().stream().anyMatch(amount -> amount > 0);
+            amountByParticipant.replaceAll((id, amount) -> Math.addExact(
+                    Math.subtractExact(amount, discountShares.getOrDefault(id, 0L)),
+                    deliveryFeeShares.getOrDefault(id, 0L)
+            ));
+            long shortfall = Math.subtractExact(settlementTotalAmount,
+                    Math.addExact(Math.subtractExact(shareTotal, receiptDiscount), deliveryFee));
+            if (shortfall < 0L || shortfall > selections.size() || !hasPositiveShare) {
+                return AllocationEvaluation.invalid(items.stream().map(SettlementItem::id).toList());
+            }
+        } catch (ApplicationException | ArithmeticException exception) {
+            return AllocationEvaluation.invalid(items.stream().map(SettlementItem::id).toList());
         }
         return AllocationEvaluation.valid(amountByParticipant);
     }

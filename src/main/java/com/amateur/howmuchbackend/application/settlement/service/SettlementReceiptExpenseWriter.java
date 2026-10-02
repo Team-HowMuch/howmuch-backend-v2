@@ -71,7 +71,8 @@ public class SettlementReceiptExpenseWriter {
                 paidAt,
                 loadSettlementExpensePort.nextDisplayOrder(settlement.id()),
                 now,
-                validated.discount()
+                validated.discount(),
+                validated.deliveryFee()
         );
         long totalExpenseAmount = addToTotal(
                 loadSettlementExpensePort.totalAmount(settlement.id()),
@@ -101,6 +102,7 @@ public class SettlementReceiptExpenseWriter {
                 || extraction.description().strip().length() > 500
                 || extraction.totalAmount() <= 0
                 || extraction.discount() < 0
+                || extraction.deliveryFee() < 0
                 || extraction.items() == null
                 || extraction.items().isEmpty()) {
             throw invalidExtraction();
@@ -142,21 +144,23 @@ public class SettlementReceiptExpenseWriter {
                         List.copyOf(options)
                 ));
             }
+            if (extraction.discount() >= itemTotal
+                    || Math.addExact(itemTotal - extraction.discount(), extraction.deliveryFee())
+                    != extraction.totalAmount()) {
+                throw invalidExtraction();
+            }
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(
                     SettlementStatusCode.SETTLEMENT_RECEIPT_EXTRACTION_INVALID,
                     exception
             );
         }
-        if (Math.subtractExact(itemTotal, extraction.discount())
-                != extraction.totalAmount()) {
-            throw invalidExtraction();
-        }
         return new ValidatedExtraction(
                 extraction.description().strip(),
                 extraction.totalAmount(),
                 List.copyOf(items),
-                extraction.discount()
+                extraction.discount(),
+                extraction.deliveryFee()
         );
     }
 
@@ -232,7 +236,8 @@ public class SettlementReceiptExpenseWriter {
             String description,
             long totalAmount,
             List<ExtractReceiptItemsPort.ReceiptItem> items,
-            long discount
+            long discount,
+            long deliveryFee
     ) {
     }
 }

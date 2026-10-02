@@ -20,6 +20,8 @@ public interface SettlementMyItemAllocationDocs {
     @Operation(
             summary = "내 품목 몫 조회",
             description = "품목별 할당 정산에서 생성자 본인의 품목 목록과 현재 선택을 조회합니다. "
+                    + "deliveryFee는 전체 순 배달비, deliveryFeeShare는 품목 순액 비율로 계산한 내 배달비 몫입니다. "
+                    + "전체 제출 전에는 잠정 금액이며 배분 확정 후 원 단위 잔액을 반영합니다. "
                     + "알림 발송 전 DRAFT 상태에서도 호출할 수 있는 점만 링크 경로와 다릅니다. "
                     + "배분 유형이 품목별이 아니면 SETTLEMENT_ITEM_ALLOCATION_REQUIRED, "
                     + "품목이 없으면 SETTLEMENT_ITEM_REQUIRED를 반환합니다.",

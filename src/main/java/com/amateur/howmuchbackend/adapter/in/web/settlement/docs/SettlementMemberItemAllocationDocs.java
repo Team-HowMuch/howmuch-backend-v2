@@ -20,6 +20,8 @@ public interface SettlementMemberItemAllocationDocs {
     @Operation(
             summary = "내 품목 몫 조회",
             description = "로그인 회원이 이 정산의 참여자면 자기 몫을 조회합니다. "
+                    + "deliveryFee는 전체 순 배달비, deliveryFeeShare는 품목 순액 비율로 계산한 내 배달비 몫입니다. "
+                    + "전체 제출 전에는 잠정 금액이며 배분 확정 후 원 단위 잔액을 반영합니다. "
                     + "참여자가 아니면 SETTLEMENT_ACCESS_DENIED를 반환합니다. "
                     + "생성자 전용 my-items와 달리 DRAFT에서는 동작하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")

@@ -71,6 +71,40 @@ class SettlementReceiptExpenseControllerTest {
     }
 
     @Test
+    @DisplayName("배달비의 생략·null·0은 0원으로 정규화하고 양수는 Command에 전달한다")
+    void receiptExpense_deliveryFee_normalizedAndMapped() throws Exception {
+        when(createExpenseUseCase.create(org.mockito.ArgumentMatchers.eq(SETTLEMENT_ID),
+                org.mockito.ArgumentMatchers.any())).thenReturn(
+                new SettlementReceiptExpenseMutationResult(expenseResult(), List.of(itemResult()), 10_000));
+        for (String field : List.of("", ",\"deliveryFee\":null", ",\"deliveryFee\":0", ",\"deliveryFee\":3000")) {
+            mockMvc.perform(post("/api/v2/settlements/{settlementId}/expenses/receipt", SETTLEMENT_ID)
+                            .contentType("application/json").content("""
+                                    {"receiptReference":"fee","storeName":"식사",
+                                     "items":[{"name":"식사","quantity":1,"amount":10000}]%s}
+                                    """.formatted(field)))
+                    .andExpect(status().isOk());
+        }
+        var captor = org.mockito.ArgumentCaptor.forClass(CreateSettlementReceiptExpenseCommand.class);
+        org.mockito.Mockito.verify(createExpenseUseCase, org.mockito.Mockito.times(4))
+                .create(org.mockito.ArgumentMatchers.eq(SETTLEMENT_ID), captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getAllValues())
+                .extracting(CreateSettlementReceiptExpenseCommand::deliveryFee)
+                .containsExactly(0L, 0L, 0L, 3_000L);
+    }
+
+    @Test
+    @DisplayName("음수 배달비는 UseCase 호출 전에 거부한다")
+    void receiptExpense_negativeDeliveryFee_rejected() throws Exception {
+        mockMvc.perform(post("/api/v2/settlements/{settlementId}/expenses/receipt", SETTLEMENT_ID)
+                        .contentType("application/json").content("""
+                                {"receiptReference":"fee","storeName":"식사","deliveryFee":-1,
+                                 "items":[{"name":"식사","quantity":1,"amount":10000}]}
+                                """))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(createExpenseUseCase);
+    }
+
+    @Test
     @DisplayName("앱이 읽은 영수증 품목과 결제 정보를 등록한다")
     void receiptExpense_appResult_mapsItemsAndPayment() throws Exception {
         CreateSettlementReceiptExpenseCommand command =
@@ -121,11 +155,11 @@ class SettlementReceiptExpenseControllerTest {
                                 List.of(new CreateSettlementReceiptExpenseCommand.Option(
                                         "샷 추가", 100
                                 ))
-                        )), 100
+                        )), 100, 3_000
                 );
         SettlementExpenseResult expense = new SettlementExpenseResult(
                 EXPENSE_ID, SETTLEMENT_ID, SettlementExpenseSource.RECEIPT_OCR,
-                "커피점", 900, 0, CREATED_AT, CREATED_AT, 100
+                "커피점", 3_900, 0, CREATED_AT, CREATED_AT, 100, 3_000
         );
         SettlementItemResult item = new SettlementItemResult(
                 ITEM_ID, SETTLEMENT_ID, EXPENSE_ID, "커피", 1, 1_100,
@@ -133,18 +167,19 @@ class SettlementReceiptExpenseControllerTest {
                 List.of(new SettlementItemOptionResult("샷 추가", 100))
         );
         when(createExpenseUseCase.create(SETTLEMENT_ID, command)).thenReturn(
-                new SettlementReceiptExpenseMutationResult(expense, List.of(item), 900)
+                new SettlementReceiptExpenseMutationResult(expense, List.of(item), 3_900)
         );
 
         mockMvc.perform(post("/api/v2/settlements/{settlementId}/expenses/receipt",
                         SETTLEMENT_ID).contentType("application/json").content("""
                         {"receiptReference":"receipt-discount","storeName":"커피점",
-                         "paidAt":"2026-08-31T17:40:00","discount":100,
+                         "paidAt":"2026-08-31T17:40:00","discount":100,"deliveryFee":3000,
                          "items":[{"name":"커피","quantity":1,"amount":1100,
                                    "discount":100,"options":[{"name":"샷 추가","price":100}]}]}
                         """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.expense.amount").value(900))
+                .andExpect(jsonPath("$.data.expense.amount").value(3_900))
+                .andExpect(jsonPath("$.data.expense.deliveryFee").value(3_000))
                 .andExpect(jsonPath("$.data.expense.discount").value(100))
                 .andExpect(jsonPath("$.data.items[0].discount").value(100))
                 .andExpect(jsonPath("$.data.items[0].options[0].name").value("샷 추가"))
@@ -204,7 +239,7 @@ class SettlementReceiptExpenseControllerTest {
     @DisplayName("정산에 저장된 OCR 품목과 전체 합계를 반환한다")
     void settlementItems_request_returnsSavedItemsAndTotal() throws Exception {
         when(getSettlementItemsUseCase.get(SETTLEMENT_ID))
-                .thenReturn(new SettlementItemListResult(List.of(itemResult()), 10_000));
+                .thenReturn(new SettlementItemListResult(List.of(itemResult()), 10_000, 100, 3_000));
 
         mockMvc.perform(get(
                         "/api/v2/settlements/{settlementId}/items",
@@ -214,7 +249,8 @@ class SettlementReceiptExpenseControllerTest {
                 .andExpect(jsonPath("$.data.items[0].expenseId")
                         .value(EXPENSE_ID.toString()))
                 .andExpect(jsonPath("$.data.items[0].displayOrder").value(0))
-                .andExpect(jsonPath("$.data.totalItemAmount").value(10_000));
+                .andExpect(jsonPath("$.data.totalItemAmount").value(10_000))
+                .andExpect(jsonPath("$.data.deliveryFee").value(3_000));
     }
 
     @Test

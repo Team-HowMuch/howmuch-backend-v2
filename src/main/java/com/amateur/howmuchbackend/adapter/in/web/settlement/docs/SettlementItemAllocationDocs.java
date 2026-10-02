@@ -16,8 +16,11 @@ public interface SettlementItemAllocationDocs {
     @Operation(
             summary = "내 품목 배분 상태 조회",
             description = "링크와 참여 문맥이 가리키는 참여자의 품목 선택, "
-                    + "옵션·할인, 예정 금액, 전체 제출 현황을 조회합니다. "
-                    + "discountShare는 현재 선택 기준의 할인 몫이며 전체 제출 후 확정됩니다."
+                    + "옵션·할인·배달비, 예정 금액, 전체 제출 현황을 조회합니다. "
+                    + "personalAmount는 품목 순액 몫 - discountShare + deliveryFeeShare입니다. "
+                    + "deliveryFeeShare는 전체 제출 전 품목 순액 비율의 잠정치이며, 배분 확정 시 "
+                    + "최대 잔여법으로 원 단위 잔액을 나눠 전체 deliveryFee와 합을 맞춥니다. "
+                    + "전체 할인 또는 배달비가 있으면 배분 확정 후 송금할 수 있습니다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -123,7 +126,8 @@ public interface SettlementItemAllocationDocs {
 
     @Operation(
             summary = "품목 선택 제출",
-            description = "자신의 선택을 잠그고 제출합니다. 마지막 참여자가 제출하면 "
+            description = "자신의 선택을 잠그고 제출합니다. 전체 할인 또는 배달비가 있으면 "
+                    + "전원 제출까지 송금액 확정을 기다립니다. 마지막 참여자가 제출하면 "
                     + "전체 배분을 검증해 Share와 AWAITING_DEPOSIT을 생성하거나, "
                     + "미배분 품목이 있으면 Share 없이 SUSPENDED로 전환합니다."
     )

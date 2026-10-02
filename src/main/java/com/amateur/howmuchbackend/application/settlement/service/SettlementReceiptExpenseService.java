@@ -86,11 +86,11 @@ public class SettlementReceiptExpenseService implements
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
         try {
+            List<SettlementExpense> expenses = loadSettlementExpensePort.findAllBySettlementId(settlement.id());
             return SettlementItemListResult.from(
                     loadSettlementItemPort.findAllBySettlementId(settlement.id()),
-                    loadSettlementExpensePort.findAllBySettlementId(settlement.id())
-                            .stream().mapToLong(SettlementExpense::discount)
-                            .reduce(0L, Math::addExact)
+                    expenses.stream().mapToLong(SettlementExpense::discount).reduce(0L, Math::addExact),
+                    expenses.stream().mapToLong(SettlementExpense::deliveryFee).reduce(0L, Math::addExact)
             );
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(
@@ -147,9 +147,10 @@ public class SettlementReceiptExpenseService implements
         }
 
         long itemTotal = 0L;
+        long totalAmount;
         List<ExtractReceiptItemsPort.ReceiptItem> items = new ArrayList<>(command.items().size());
         try {
-            if (command.discount() < 0) {
+            if (command.discount() < 0 || command.deliveryFee() < 0) {
                 throw invalidImportRequest();
             }
             for (CreateSettlementReceiptExpenseCommand.Item item : command.items()) {
@@ -188,23 +189,25 @@ public class SettlementReceiptExpenseService implements
                         List.copyOf(options)
                 ));
             }
+            if (command.discount() >= itemTotal) {
+                throw invalidImportRequest();
+            }
+            totalAmount = Math.addExact(itemTotal - command.discount(), command.deliveryFee());
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(
                     SettlementStatusCode.INVALID_SETTLEMENT_RECEIPT_IMPORT_REQUEST,
                     exception
             );
         }
-        if (command.discount() >= itemTotal) {
-            throw invalidImportRequest();
-        }
         return new SubmittedReceipt(
                 receiptReference,
                 command.paidAt(),
                 new ExtractReceiptItemsPort.ReceiptExtraction(
                         storeName,
-                        itemTotal - command.discount(),
+                        totalAmount,
                         List.copyOf(items),
-                        command.discount()
+                        command.discount(),
+                        command.deliveryFee()
                 )
         );
     }

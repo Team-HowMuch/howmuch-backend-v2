@@ -113,9 +113,9 @@ class SettlementItemAllocationWriter {
         List<SettlementItemSelection> selections = allocationStorePort
                 .findAllSelections(settlementId);
 
-        // 전체 할인은 모든 몫이 정해져야 원 단위 나머지를 확정할 수 있다.
-        // 할인 없는 정산의 기존 즉시 송금 흐름은 유지한다.
-        if (state.receiptDiscount() == 0) {
+        // 전체 할인·배달비는 모든 몫이 정해져야 원 단위 나머지를 확정할 수 있다.
+        // 할인·배달비 없는 정산의 기존 즉시 송금 흐름은 유지한다.
+        if (!state.hasReceiptAdjustments()) {
             allocationPolicy.buildShareFor(
                     settlementId, state.items(), selections, participantId, now
             ).ifPresent(share -> saveSettlementSharePort.saveAll(List.of(share)));
@@ -131,10 +131,10 @@ class SettlementItemAllocationWriter {
 
         // 전원이 제출했다. 안 채워진 품목이 있으면 생성자가 손봐야 하므로 멈춘다.
         boolean fullyAllocated;
-        if (state.receiptDiscount() > 0) {
+        if (state.hasReceiptAdjustments()) {
             var finalization = allocationPolicy.finalizeAllocation(
                     settlementId, state.settlement().totalAmount(), participants,
-                    state.items(), selections, now, state.receiptDiscount()
+                    state.items(), selections, now, state.receiptDiscount(), state.deliveryFee()
             );
             fullyAllocated = finalization.valid();
             if (fullyAllocated) {

@@ -116,6 +116,22 @@ class SettlementRequestPolicyTest {
         )).isEmpty();
     }
 
+    @Test
+    @DisplayName("정산 요청의 품목 합계 검증에 배달비를 포함한다")
+    void settlementRequest_deliveryFee_includedInItemTotal() {
+        var expense = SettlementExpense.receiptOcr(
+                SETTLEMENT_ID, "fee", "식사", 12_000, null, 0, NOW, 1_000, 3_000);
+        var item = SettlementItem.fromReceipt(SETTLEMENT_ID, expense.id(), "식사", 1, 10_000, 0, NOW);
+        var settlement = new Settlement(SETTLEMENT_ID, 1L, "배달", 12_000,
+                SettlementAllocationType.ITEM_ALLOCATION, 7L, SettlementStatus.DRAFT, NOW, NOW);
+
+        assertThat(policy.prepareShares(settlement, participants(), List.of(expense), List.of(item), List.of(), NOW))
+                .isEmpty();
+        assertThatThrownBy(() -> policy.validateItemTotal(List.of(item), List.of(expense), 9_000))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH));
+    }
+
     private void assertStatus(
             List<SettlementDutchPayAllocation> allocations,
             SettlementStatusCode expected

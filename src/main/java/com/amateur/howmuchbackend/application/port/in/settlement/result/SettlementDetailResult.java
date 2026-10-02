@@ -55,8 +55,13 @@ public record SettlementDetailResult(
             long amount,
             String storeName,
             LocalDateTime paidAt,
-            long discount
+            long discount,
+            long deliveryFee
     ) {
+        public PaymentInfo(long amount, String storeName, LocalDateTime paidAt, long discount) {
+            this(amount, storeName, paidAt, discount, 0);
+        }
+
         public PaymentInfo(long amount, String storeName, LocalDateTime paidAt) {
             this(amount, storeName, paidAt, 0);
         }
@@ -82,8 +87,18 @@ public record SettlementDetailResult(
             PaymentStatus paymentStatus,
             boolean submitted,
             String avatarVersion,
-            long discountShare
+            long discountShare,
+            long deliveryFeeShare
     ) {
+        public ParticipantPayment(
+                UUID participantId, String displayName, boolean linked, Long expectedAmount,
+                long confirmedAmount, PaymentStatus paymentStatus, boolean submitted,
+                String avatarVersion, long discountShare
+        ) {
+            this(participantId, displayName, linked, expectedAmount, confirmedAmount,
+                    paymentStatus, submitted, avatarVersion, discountShare, 0);
+        }
+
         public ParticipantPayment(
                 UUID participantId, String displayName, boolean linked, Long expectedAmount,
                 long confirmedAmount, PaymentStatus paymentStatus, String avatarVersion

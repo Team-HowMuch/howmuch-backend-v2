@@ -249,6 +249,31 @@ class SettlementItemAllocationServiceTest {
                 .findBySettlementIdAndId(any(), any());
     }
 
+    @Test
+    @DisplayName("배달비가 있으면 내 제출 후에도 Share를 만들지 않고 잠정 배달비를 조회한다")
+    void itemAllocation_deliveryFee_waitsAndReturnsProvisionalAmount() {
+        arrangeRequestedAccess();
+        var settlementWithFee = new Settlement(SETTLEMENT_ID, 1L, "배달 정산", 1_003,
+                SettlementAllocationType.ITEM_ALLOCATION, 7L, SettlementStatus.REQUESTED, CREATED_AT, CREATED_AT);
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlementWithFee));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlementWithFee));
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                com.amateur.howmuchbackend.domain.settlement.SettlementExpense.receiptOcr(
+                        SETTLEMENT_ID, "fee", "피자", 1_003, null, 0, CREATED_AT, 0, 3)));
+        when(allocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(exactSelections());
+        when(allocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of(
+                SettlementItemSubmission.submit(SETTLEMENT_ID, FIRST_PARTICIPANT_ID, CREATED_AT)));
+
+        var result = service.submit(RAW_TOKEN, CONTEXT_ID, FIRST_PARTICIPANT_ID);
+
+        assertThat(result.phase().name()).isEqualTo("WAITING_FOR_OTHERS");
+        assertThat(result.deliveryFee()).isEqualTo(3);
+        assertThat(result.deliveryFeeShare()).isEqualTo(1);
+        assertThat(result.personalAmount()).isEqualTo(501);
+        verify(saveSettlementSharePort, never()).saveAll(any());
+        verify(saveSettlementPort, never()).update(any());
+    }
+
     private void arrangeRequestedAccess() {
         arrangeLink();
         when(loadParticipantContextPort.findByToken(CONTEXT_ID)).thenReturn(Optional.of(

@@ -10,8 +10,13 @@ public interface ExtractReceiptItemsPort {
             String description,
             long totalAmount,
             List<ReceiptItem> items,
-            long discount
+            long discount,
+            long deliveryFee
     ) {
+        public ReceiptExtraction(String description, long totalAmount, List<ReceiptItem> items, long discount) {
+            this(description, totalAmount, items, discount, 0);
+        }
+
         public ReceiptExtraction(String description, long totalAmount, List<ReceiptItem> items) {
             this(description, totalAmount, items, 0);
         }

@@ -175,6 +175,45 @@ class SettlementReceiptExpenseWriterTest {
         verify(saveSettlementExpensePort, never()).save(any());
     }
 
+    @Test
+    @DisplayName("배달비와 할인을 지출에 함께 저장하고 전체 지출 합계에 반영한다")
+    void receiptExpense_deliveryFee_persistedWithTotal() {
+        givenOwnedDraft();
+        when(saveSettlementExpensePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(saveSettlementItemPort.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(loadSettlementExpensePort.totalAmount(SETTLEMENT_ID)).thenReturn(5_000L);
+        var extraction = new ExtractReceiptItemsPort.ReceiptExtraction("식사", 12_000,
+                List.of(new ExtractReceiptItemsPort.ReceiptItem("식사", 1, 10_000)), 1_000, 3_000);
+
+        var result = writer.write(SETTLEMENT_ID, CREATOR_ID, "fee", extraction);
+
+        var captor = ArgumentCaptor.forClass(SettlementExpense.class);
+        verify(saveSettlementExpensePort).save(captor.capture());
+        assertThat(captor.getValue().deliveryFee()).isEqualTo(3_000);
+        assertThat(captor.getValue().discount()).isEqualTo(1_000);
+        assertThat(result.expense().amount()).isEqualTo(12_000);
+        assertThat(result.totalExpenseAmount()).isEqualTo(17_000);
+    }
+
+    @Test
+    @DisplayName("추출값의 배달비 오류·할인 상한·배달비 미포함 합계를 저장 전에 거부한다")
+    void receiptExpense_invalidDeliveryExtraction_rejected() {
+        givenOwnedDraft();
+        for (long[] amounts : new long[][]{
+                {10_000, 10_000, 0, -1}, {10_000, 10_000, 0, 3_000},
+                {3_000, 10_000, 10_000, 3_000}, {Long.MAX_VALUE, Long.MAX_VALUE, 0, 1}
+        }) {
+            var extraction = new ExtractReceiptItemsPort.ReceiptExtraction("식사", amounts[0],
+                    List.of(new ExtractReceiptItemsPort.ReceiptItem("식사", 1, amounts[1])), amounts[2], amounts[3]);
+            assertThatThrownBy(() -> writer.write(SETTLEMENT_ID, CREATOR_ID, "fee", extraction))
+                    .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                            assertThat(exception.getStatusCode())
+                                    .isEqualTo(SettlementStatusCode.SETTLEMENT_RECEIPT_EXTRACTION_INVALID));
+        }
+        verify(saveSettlementExpensePort, never()).save(any());
+        verify(saveSettlementItemPort, never()).saveAll(any());
+    }
+
     private void givenOwnedDraft() {
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
                 .thenReturn(Optional.of(new Settlement(
