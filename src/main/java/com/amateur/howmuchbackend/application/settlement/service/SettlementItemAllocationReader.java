@@ -57,7 +57,8 @@ class SettlementItemAllocationReader {
                         participants,
                         state.items(),
                         selections,
-                        state.receiptDiscount()
+                        state.receiptDiscount(),
+                        state.deliveryFee()
                 )
                 : List.of();
         SettlementItemAllocationPhase phase = resolvePhase(
@@ -68,13 +69,15 @@ class SettlementItemAllocationReader {
         List<SettlementItemAllocationItemResult> itemResults = state.items().stream()
                 .map(item -> toItemResult(item, selections, participantById))
                 .toList();
+        boolean finalized = state.settlement().status() == SettlementStatus.AWAITING_DEPOSIT;
         return new SettlementItemAllocationResult(
                 settlementId,
                 participantId,
                 state.participant().displayName(),
                 phase,
                 allocationPolicy.calculatePersonalAmount(
-                        state.items(), selections, participantId, state.receiptDiscount()
+                        state.items(), selections, participantId, state.receiptDiscount(),
+                        state.deliveryFee(), finalized
                 ),
                 submissions.size(),
                 participants.size(),
@@ -83,6 +86,10 @@ class SettlementItemAllocationReader {
                 state.receiptDiscount(),
                 allocationPolicy.calculateDiscountShare(
                         state.items(), selections, participantId, state.receiptDiscount()
+                ),
+                state.deliveryFee(),
+                allocationPolicy.calculateDeliveryFeeShare(
+                        state.items(), selections, participantId, state.deliveryFee(), finalized
                 )
         );
     }

@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
@@ -57,10 +58,12 @@ class SettlementItemAllocationStateLoader {
         if (items.isEmpty()) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ITEM_REQUIRED);
         }
-        long receiptDiscount = loadSettlementExpensePort.findAllBySettlementId(settlement.id())
-                .stream().mapToLong(expense -> expense.discount())
+        List<SettlementExpense> expenses = loadSettlementExpensePort.findAllBySettlementId(settlement.id());
+        long receiptDiscount = expenses.stream().mapToLong(SettlementExpense::discount)
                 .reduce(0L, Math::addExact);
-        return new State(settlement, participant, items, receiptDiscount);
+        long deliveryFee = expenses.stream().mapToLong(SettlementExpense::deliveryFee)
+                .reduce(0L, Math::addExact);
+        return new State(settlement, participant, items, receiptDiscount, deliveryFee);
     }
 
     /** 생성자는 알림 발송 전 DRAFT에서도 자기 몫을 봐야 한다. 링크는 요청 이후만 본다. */
@@ -81,10 +84,15 @@ class SettlementItemAllocationStateLoader {
             Settlement settlement,
             SettlementParticipant participant,
             List<SettlementItem> items,
-            long receiptDiscount
+            long receiptDiscount,
+            long deliveryFee
     ) {
         State {
             items = List.copyOf(items);
+        }
+
+        boolean hasReceiptAdjustments() {
+            return receiptDiscount > 0 || deliveryFee > 0;
         }
     }
 }

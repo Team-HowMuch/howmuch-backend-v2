@@ -18,6 +18,8 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -35,7 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("전체 할인 영수증의 품목 제출")
+@DisplayName("전체 할인·배달비 영수증의 품목 제출")
 class SettlementDiscountedAllocationWriterTest {
     private static final UUID SETTLEMENT_ID = UUID.randomUUID();
     private static final UUID FIRST_ID = UUID.randomUUID();
@@ -67,10 +69,11 @@ class SettlementDiscountedAllocationWriterTest {
         );
     }
 
-    @Test
-    @DisplayName("첫 제출에는 할인 나머지가 확정되지 않아 Share를 만들지 않는다")
-    void discountedReceipt_firstSubmission_waitsForOthers() {
-        arrangeState(FIRST_ID);
+    @ParameterizedTest
+    @CsvSource({"100, 0", "0, 3000", "100, 3000"})
+    @DisplayName("첫 제출에는 할인·배달비 나머지가 확정되지 않아 Share를 만들지 않는다")
+    void discountedReceipt_firstSubmission_waitsForOthers(long discount, long deliveryFee) {
+        arrangeState(FIRST_ID, discount, deliveryFee);
         when(allocationStore.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of(selection));
         when(participantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(participants());
         when(allocationStore.findAllSubmissions(SETTLEMENT_ID))
@@ -82,10 +85,11 @@ class SettlementDiscountedAllocationWriterTest {
         verify(settlementPort, never()).update(any());
     }
 
-    @Test
-    @DisplayName("마지막 제출에는 정확한 할인 금액의 Share를 생성한다")
-    void discountedReceipt_lastSubmission_finalizesShares() {
-        arrangeState(SECOND_ID);
+    @ParameterizedTest
+    @CsvSource({"100, 0", "0, 3000", "100, 3000"})
+    @DisplayName("마지막 제출에는 할인·배달비를 반영한 Share를 생성한다")
+    void discountedReceipt_lastSubmission_finalizesShares(long discount, long deliveryFee) {
+        arrangeState(SECOND_ID, discount, deliveryFee);
         when(allocationStore.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of(selection));
         when(participantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(participants());
         when(allocationStore.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of(
@@ -99,15 +103,33 @@ class SettlementDiscountedAllocationWriterTest {
         ArgumentCaptor<List<SettlementShare>> shares = ArgumentCaptor.forClass(List.class);
         verify(sharePort).saveAll(shares.capture());
         assertThat(shares.getValue()).singleElement()
-                .satisfies(share -> assertThat(share.amount()).isEqualTo(900));
+                .satisfies(share -> assertThat(share.amount()).isEqualTo(1_000 - discount + deliveryFee));
         ArgumentCaptor<Settlement> settlement = ArgumentCaptor.forClass(Settlement.class);
         verify(settlementPort).update(settlement.capture());
         assertThat(settlement.getValue().status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
     }
 
-    private void arrangeState(UUID currentParticipantId) {
+    @Test
+    @DisplayName("배달비가 있는 정산은 전원 제출해도 미배분 품목이 남으면 Share 없이 중단한다")
+    void deliveryReceipt_incompleteAllocation_suspendsWithoutShares() {
+        arrangeState(SECOND_ID, 0, 3_000);
+        when(allocationStore.findAllSelections(SETTLEMENT_ID)).thenReturn(List.of());
+        when(participantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(participants());
+        when(allocationStore.findAllSubmissions(SETTLEMENT_ID)).thenReturn(List.of(
+                SettlementItemSubmission.submit(SETTLEMENT_ID, FIRST_ID, NOW),
+                SettlementItemSubmission.submit(SETTLEMENT_ID, SECOND_ID, NOW)));
+
+        writer.submit(SETTLEMENT_ID, SECOND_ID, NOW, SettlementItemAllocationEntry.LINK);
+
+        verify(sharePort, never()).saveAll(any());
+        var captor = ArgumentCaptor.forClass(Settlement.class);
+        verify(settlementPort).update(captor.capture());
+        assertThat(captor.getValue().status()).isEqualTo(SettlementStatus.SUSPENDED);
+    }
+
+    private void arrangeState(UUID currentParticipantId, long discount, long deliveryFee) {
         Settlement settlement = new Settlement(
-                SETTLEMENT_ID, 1L, "영수증", 900,
+                SETTLEMENT_ID, 1L, "영수증", 1_000 - discount + deliveryFee,
                 SettlementAllocationType.ITEM_ALLOCATION, 7L,
                 SettlementStatus.REQUESTED, NOW, NOW
         );
@@ -117,7 +139,7 @@ class SettlementDiscountedAllocationWriterTest {
                         settlement,
                         currentParticipantId.equals(FIRST_ID)
                                 ? participants().getFirst() : participants().get(1),
-                        List.of(item), 100
+                        List.of(item), discount, deliveryFee
                 ));
         when(allocationStore.findSubmission(SETTLEMENT_ID, currentParticipantId))
                 .thenReturn(Optional.empty());
