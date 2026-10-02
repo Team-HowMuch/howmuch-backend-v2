@@ -2,7 +2,7 @@
 
 The [workflow](../.github/workflows/backend-ci-cd.yml) publishes branch tags for compatibility and stable Release tags for production promotion, but deploys the immutable image reference returned by that build. The build summary and SSH deployment logs record the commit, run ID, attempt, and full image reference. A successful SSH log also includes the verified local image ID.
 
-A published stable GitHub Release deploys to the production environment only when its tag commit is reachable from `main`. Prereleases and tags outside `main` do not deploy; `workflow_dispatch` remains verification-only. Release deployments share production concurrency with pushes to `main`.
+A published or promoted-to-stable GitHub Release deploys to the production environment only when its tag commit is reachable from `main`. Prereleases and tags outside `main` do not deploy; `workflow_dispatch` remains verification-only. Release deployments share production concurrency with pushes to `main`.
 
 The EC2 directory (`APP_DIR`, default `/opt/howmuch-infra`) must contain `compose.yml` with an `app` service and its existing runtime configuration. Deployment overlays only that service's image, pulls it by digest, starts it with `--no-build --pull never`, and compares the running container's image ID with the pulled image. Existing dependency images must already be available on the host. The override is temporary; the server-owned Compose file is not rewritten.
 

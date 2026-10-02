@@ -16,6 +16,7 @@ on:
   release:
     types:
       - published
+      - released
   workflow_dispatch:
 
 env:

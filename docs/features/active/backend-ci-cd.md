@@ -22,7 +22,7 @@ Both environments need automatic deployment before backend delivery can proceed 
 - [x] A successful `develop` push targets the GitHub `development` environment.
 - [x] A successful `main` push targets the GitHub `production` environment.
 - [x] EC2 deployment pulls the branch image and starts it with Docker Compose.
-- [ ] A stable published Release whose tag commit is reachable from `main` publishes its image and deploys to production.
+- [ ] A stable Release published or promoted from prerelease whose tag commit is reachable from `main` publishes its image and deploys to production.
 - [ ] Prereleases do not deploy, and stable Release tags outside `main` fail before image publication.
 - [x] `workflow_dispatch` remains verification-only and does not publish or deploy.
 - [ ] Both environment workflows have completed successfully against their EC2 targets.
@@ -76,7 +76,7 @@ Both environments need automatic deployment before backend delivery can proceed 
 2. A successful branch push builds and publishes the branch-tagged Docker image to GHCR.
 3. The deploy job connects to the preconfigured EC2 directory.
 4. Compose pulls the branch image and starts the application.
-5. A stable published Release verifies its tag commit is reachable from `main`, publishes the tag image, and deploys the digest to production. A prerelease runs verification/build only.
+5. A stable Release published or promoted from prerelease verifies its tag commit is reachable from `main`, publishes the tag image, and deploys the digest to production. A prerelease runs verification/build only.
 
 ### Failure flow
 
@@ -215,7 +215,7 @@ Runtime verification requires Docker Compose, an EC2-owned integrated Compose fi
 
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
-| 2026-10-03 | Deploy only stable Releases whose tag commit is reachable from `main` | A Release is an explicit production promotion; prereleases and off-main tags must not deploy | Manual dispatch remains verification-only |
+| 2026-10-03 | Deploy only stable Releases whose tag commit is reachable from `main`, including prerelease promotion | Promotion emits the `released` activity type; prereleases and off-main tags must not deploy | Manual dispatch remains verification-only |
 | 2026-08-05 | Use one workflow and GitHub Environment-scoped settings | Removes duplicate development and production deployment logic | Both environments must use the same secret and variable names |
 | 2026-08-06 | Deploy branch tags with `docker compose pull` | Matches the supplied pipeline and keeps server setup small | The running image is not immutable |
 | 2026-08-06 | Keep the integrated Compose file server-owned | The server already owns PostgreSQL and Redis storage; the repository only publishes the app image | Keep the server Compose and `.env` synchronized with the image tag |
