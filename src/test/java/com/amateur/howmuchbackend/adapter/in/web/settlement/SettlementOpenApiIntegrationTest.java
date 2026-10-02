@@ -72,7 +72,7 @@ class SettlementOpenApiIntegrationTest {
                 "paymentInfo", "paymentSummary",
                 "reminderNextAvailableAt", "participants", "items"
         );
-        assertRequired(document, "PaymentInfo", "amount", "storeName", "paidAt");
+        assertRequired(document, "PaymentInfo", "amount", "storeName", "paidAt", "deliveryFee");
         assertRequired(
                 document,
                 "SettlementReminderWebResponse",
@@ -88,8 +88,14 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "ParticipantPayment",
                 "participantId", "displayName", "linked", "expectedAmount",
-                "confirmedAmount", "paymentStatus", "submitted", "avatarUrl"
+                "confirmedAmount", "paymentStatus", "submitted", "avatarUrl", "deliveryFeeShare"
         );
+        for (String schemaName : List.of("SettlementExpenseWebResponse", "SettlementItemListWebResponse",
+                "SettlementItemAllocationWebResponse", "CreateSettlementReceiptExpenseWebRequest")) {
+            assertThat(schema(document, schemaName).path("properties").has("deliveryFee")).isTrue();
+        }
+        assertThat(schema(document, "SettlementItemAllocationWebResponse").path("properties").has("deliveryFeeShare"))
+                .isTrue();
         assertRequired(document, "RegisterPushTargetWebRequest", "firebaseInstallationId");
         assertNullable(
                 document,

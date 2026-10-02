@@ -711,6 +711,56 @@ class SettlementDetailServiceTest {
         org.mockito.Mockito.verifyNoMoreInteractions(loadUserPort);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = SettlementStatus.class, names = {"REQUESTED", "SUSPENDED"})
+    @DisplayName("배달비만 있는 정산도 미확정 납부 상태와 생성자 몫을 뺀 미납 합계를 반환한다")
+    void deliveryItemAllocation_pending_includesFeeInExpectedAmount(SettlementStatus status) {
+        var selections = List.of(
+                SettlementItemSelection.create(SETTLEMENT_ID, PAYER_ITEM_ID, CREATOR_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.HALF, 1, NOW),
+                SettlementItemSelection.create(SETTLEMENT_ID, PAYER_ITEM_ID, PAYER_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.HALF, 1, NOW));
+        givenDiscountedItemSettlement(status, selections, List.of(), List.of(PAYER_PARTICIPANT_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(new Settlement(
+                SETTLEMENT_ID, CREATOR_ID, "배달 정산", 4_500, SettlementAllocationType.ITEM_ALLOCATION,
+                7L, status, NOW, NOW)));
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                SettlementExpense.receiptOcr(SETTLEMENT_ID, "fee", "식사", 4_500, null, 0, NOW, 0, 3_000)));
+
+        var result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.paymentInfo().deliveryFee()).isEqualTo(3_000);
+        assertThat(result.paymentSummary().expectedAmount()).isEqualTo(2_250);
+        assertThat(result.paymentSummary().unpaidAmount()).isEqualTo(2_250);
+        assertThat(result.participants().getFirst().deliveryFeeShare()).isEqualTo(1_500);
+        assertThat(result.participants().getFirst().expectedAmount()).isNull();
+        assertThat(result.participants().getFirst().paymentStatus()).isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
+        assertThat(result.participants().get(1).deliveryFeeShare()).isZero();
+    }
+
+    @Test
+    @DisplayName("확정된 배달비 몫을 상세에 반환하고 0원 참여자는 납부 완료로 표시한다")
+    void deliveryItemAllocation_finalized_returnsFeeShare() {
+        givenDiscountedItemSettlement(SettlementStatus.AWAITING_DEPOSIT,
+                List.of(SettlementItemSelection.create(SETTLEMENT_ID, PAYER_ITEM_ID, PAYER_PARTICIPANT_ID,
+                        SettlementItemAllocationFraction.ONE, 1, NOW)),
+                List.of(new SettlementShare(PAYER_SHARE_ID, SETTLEMENT_ID, PAYER_PARTICIPANT_ID, 4_400, NOW)),
+                List.of(CREATOR_PARTICIPANT_ID, PAYER_PARTICIPANT_ID, CONTACT_PARTICIPANT_ID));
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                SettlementExpense.receiptOcr(SETTLEMENT_ID, "fee", "식사", 4_400, null, 0, NOW, 100, 3_000)));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(new Settlement(
+                SETTLEMENT_ID, CREATOR_ID, "배달 정산", 4_400, SettlementAllocationType.ITEM_ALLOCATION,
+                7L, SettlementStatus.AWAITING_DEPOSIT, NOW, NOW)));
+
+        var result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.participants().getFirst().expectedAmount()).isEqualTo(4_400);
+        assertThat(result.participants().getFirst().deliveryFeeShare()).isEqualTo(3_000);
+        assertThat(result.participants().getFirst().discountShare()).isEqualTo(100);
+        assertThat(result.participants().get(1).deliveryFeeShare()).isZero();
+        assertThat(result.participants().get(1).paymentStatus()).isEqualTo(SettlementDetailResult.PaymentStatus.PAID);
+    }
+
     private void givenSettlement(Long actorId) {
         givenSettlement(
                 actorId,

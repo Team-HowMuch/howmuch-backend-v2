@@ -214,6 +214,8 @@ class SettlementControllerTest {
                         .value("https://cdn.example.com/nh.png"))
                 .andExpect(jsonPath("$.data.viewerRole").value("CREATOR"))
                 .andExpect(jsonPath("$.data.paymentInfo.amount").value(10_000))
+                .andExpect(jsonPath("$.data.paymentInfo.deliveryFee").value(3_000))
+                .andExpect(jsonPath("$.data.participants[0].deliveryFeeShare").value(1_500))
                 .andExpect(jsonPath("$.data.paymentInfo.storeName").value("롯데리아"))
                 .andExpect(jsonPath("$.data.paymentInfo.paidAt")
                         .value("2026-08-21T08:30:00"))
@@ -1003,7 +1005,7 @@ class SettlementControllerTest {
                 new SettlementDetailResult.PaymentInfo(
                         10_000,
                         "롯데리아",
-                        LocalDateTime.of(2026, 8, 21, 8, 30)
+                        LocalDateTime.of(2026, 8, 21, 8, 30), 0, 3_000
                 ),
                 new SettlementDetailResult.PaymentSummary(8_000, 4_000, 4_000, 50, 1, 1, 0),
                 LocalDateTime.of(2026, 8, 21, 9, 0),
@@ -1016,7 +1018,8 @@ class SettlementControllerTest {
                         SettlementDetailResult.PaymentStatus.PARTIALLY_PAID,
                         true,
                         hasAvatar ? IMAGE_VERSION : null,
-                        0
+                        0,
+                        1_500
                 )),
                 List.of()
         );

@@ -7,8 +7,13 @@ import java.util.List;
 public record SettlementItemListResult(
         List<SettlementItemResult> items,
         long totalItemAmount,
-        long discount
+        long discount,
+        long deliveryFee
 ) {
+    public SettlementItemListResult(List<SettlementItemResult> items, long totalItemAmount, long discount) {
+        this(items, totalItemAmount, discount, 0);
+    }
+
     public SettlementItemListResult(List<SettlementItemResult> items, long totalItemAmount) {
         this(items, totalItemAmount, 0);
     }
@@ -20,6 +25,12 @@ public record SettlementItemListResult(
     public static SettlementItemListResult from(
             List<SettlementItem> items, long receiptDiscount
     ) {
+        return from(items, receiptDiscount, 0);
+    }
+
+    public static SettlementItemListResult from(
+            List<SettlementItem> items, long receiptDiscount, long deliveryFee
+    ) {
         long total = 0L;
         for (SettlementItem item : items) {
             total = Math.addExact(total, item.amount());
@@ -27,7 +38,8 @@ public record SettlementItemListResult(
         return new SettlementItemListResult(
                 items.stream().map(SettlementItemResult::from).toList(),
                 total,
-                receiptDiscount
+                receiptDiscount,
+                deliveryFee
         );
     }
 }

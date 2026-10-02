@@ -3,6 +3,8 @@ package com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementItemAllocationPhase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementItemAllocationResult;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -17,7 +19,11 @@ public record SettlementItemAllocationWebResponse(
         List<SettlementItemAllocationItemWebResponse> items,
         List<UUID> invalidItemIds,
         long discount,
-        long discountShare
+        long discountShare,
+        @Schema(description = "영수증 전체 순 배달비 합계", minimum = "0")
+        long deliveryFee,
+        @Schema(description = "품목 순액 비율로 배분한 배달비. 전체 제출 전 잠정치이며 배분 확정 후 원 단위 잔액을 포함합니다.", minimum = "0")
+        long deliveryFeeShare
 ) {
     public static SettlementItemAllocationWebResponse from(
             SettlementItemAllocationResult result
@@ -35,7 +41,9 @@ public record SettlementItemAllocationWebResponse(
                         .toList(),
                 result.invalidItemIds(),
                 result.discount(),
-                result.discountShare()
+                result.discountShare(),
+                result.deliveryFee(),
+                result.deliveryFeeShare()
         );
     }
 }

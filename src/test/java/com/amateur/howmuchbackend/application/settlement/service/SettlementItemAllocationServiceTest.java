@@ -253,7 +253,10 @@ class SettlementItemAllocationServiceTest {
     @DisplayName("배달비가 있으면 내 제출 후에도 Share를 만들지 않고 잠정 배달비를 조회한다")
     void itemAllocation_deliveryFee_waitsAndReturnsProvisionalAmount() {
         arrangeRequestedAccess();
-        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlement(SettlementStatus.REQUESTED)));
+        var settlementWithFee = new Settlement(SETTLEMENT_ID, 1L, "배달 정산", 1_003,
+                SettlementAllocationType.ITEM_ALLOCATION, 7L, SettlementStatus.REQUESTED, CREATED_AT, CREATED_AT);
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlementWithFee));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(settlementWithFee));
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
                 com.amateur.howmuchbackend.domain.settlement.SettlementExpense.receiptOcr(
                         SETTLEMENT_ID, "fee", "피자", 1_003, null, 0, CREATED_AT, 0, 3)));

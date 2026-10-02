@@ -71,18 +71,20 @@ public record SettlementDetailWebResponse(
         );
     }
 
-    @Schema(requiredProperties = {"amount", "storeName", "paidAt", "discount"})
+    @Schema(requiredProperties = {"amount", "storeName", "paidAt", "discount", "deliveryFee"})
     public record PaymentInfo(
             long amount,
             @Schema(nullable = true, description = "상호명. 영수증·결제내역 지출을 합쳐 한 건일 때만 채워진다.")
             String storeName,
             @Schema(nullable = true, description = "결제일(UTC, offset 없는 값). 영수증·결제내역 지출을 합쳐 한 건일 때만 채워지며 알 수 없으면 null이다.")
             LocalDateTime paidAt,
-            long discount
+            long discount,
+            @Schema(description = "영수증 전체 순 배달비 합계", minimum = "0")
+            long deliveryFee
     ) {
         private static PaymentInfo from(SettlementDetailResult.PaymentInfo result) {
             return new PaymentInfo(result.amount(), result.storeName(), result.paidAt(),
-                    result.discount());
+                    result.discount(), result.deliveryFee());
         }
     }
 
@@ -118,7 +120,7 @@ public record SettlementDetailWebResponse(
     }
 
     @Schema(requiredProperties = {
-            "participantId", "displayName", "linked", "expectedAmount", "confirmedAmount", "paymentStatus", "submitted", "avatarUrl", "discountShare"
+            "participantId", "displayName", "linked", "expectedAmount", "confirmedAmount", "paymentStatus", "submitted", "avatarUrl", "discountShare", "deliveryFeeShare"
     })
     public record ParticipantPayment(
             UUID participantId,
@@ -132,7 +134,9 @@ public record SettlementDetailWebResponse(
             boolean submitted,
             @Schema(nullable = true, description = "인증이 필요한 프로필 이미지 상대 경로. 사진이 없거나 비회원이면 null")
             String avatarUrl,
-            long discountShare
+            long discountShare,
+            @Schema(description = "품목 순액 비율로 배분한 배달비. 전체 제출 전 잠정치이며 배분 확정 후 원 단위 잔액을 포함합니다.", minimum = "0")
+            long deliveryFeeShare
     ) {
         private static ParticipantPayment from(
                 UUID settlementId,
@@ -155,7 +159,8 @@ public record SettlementDetailWebResponse(
                                             result.participantId(),
                                             result.avatarVersion()
                                     ),
-                    result.discountShare()
+                    result.discountShare(),
+                    result.deliveryFeeShare()
             );
         }
     }

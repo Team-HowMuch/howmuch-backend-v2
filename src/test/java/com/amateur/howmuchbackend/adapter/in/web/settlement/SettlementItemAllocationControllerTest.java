@@ -126,6 +126,21 @@ class SettlementItemAllocationControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    @DisplayName("정산 링크의 품목 응답은 전체 배달비와 내 배달비 몫을 반환한다")
+    void itemAllocation_deliveryFee_returnedOnLink() throws Exception {
+        when(getUseCase.get(TOKEN, CONTEXT_ID, PARTICIPANT_ID)).thenReturn(
+                new SettlementItemAllocationResult(SETTLEMENT_ID, PARTICIPANT_ID, "참여자",
+                        SettlementItemAllocationPhase.TRANSFER_READY, 2_000, 2, 2, List.of(), List.of(),
+                        0, 0, 3_000, 1_500));
+        mockMvc.perform(get(BASE_PATH + "/items", TOKEN, PARTICIPANT_ID)
+                        .header("Link-Participant-Context", CONTEXT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deliveryFee").value(3_000))
+                .andExpect(jsonPath("$.data.deliveryFeeShare").value(1_500))
+                .andExpect(jsonPath("$.data.personalAmount").value(2_000));
+    }
+
     private SettlementItemAllocationResult result(SettlementItemAllocationPhase phase) {
         return new SettlementItemAllocationResult(
                 SETTLEMENT_ID,

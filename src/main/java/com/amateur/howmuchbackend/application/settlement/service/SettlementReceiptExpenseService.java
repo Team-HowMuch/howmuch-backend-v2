@@ -86,11 +86,11 @@ public class SettlementReceiptExpenseService implements
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadOwnedSettlement(settlementId, actor.userId());
         try {
+            List<SettlementExpense> expenses = loadSettlementExpensePort.findAllBySettlementId(settlement.id());
             return SettlementItemListResult.from(
                     loadSettlementItemPort.findAllBySettlementId(settlement.id()),
-                    loadSettlementExpensePort.findAllBySettlementId(settlement.id())
-                            .stream().mapToLong(SettlementExpense::discount)
-                            .reduce(0L, Math::addExact)
+                    expenses.stream().mapToLong(SettlementExpense::discount).reduce(0L, Math::addExact),
+                    expenses.stream().mapToLong(SettlementExpense::deliveryFee).reduce(0L, Math::addExact)
             );
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(
