@@ -1,7 +1,7 @@
 # Feature Plan: Backend CI/CD
 
-- Status: Implemented, pending EC2 verification
-- Last updated: 2026-08-06
+- Status: Stable Release deployment configured; live Release verification pending
+- Last updated: 2026-10-03
 - Related issue:
 - Related ADR:
 
@@ -9,7 +9,7 @@
 
 ### Problem
 
-The backend has development and production branches but no repeatable build, image publication, or EC2 deployment path. Manual JAR deployment would duplicate server setup and can deploy different artifacts to each environment.
+The backend already builds and deploys on branch pushes. Stable published GitHub Releases should also promote their tagged code to production; manual workflow dispatch remains verification-only.
 
 ### Why now
 
@@ -22,12 +22,16 @@ Both environments need automatic deployment before backend delivery can proceed 
 - [x] A successful `develop` push targets the GitHub `development` environment.
 - [x] A successful `main` push targets the GitHub `production` environment.
 - [x] EC2 deployment pulls the branch image and starts it with Docker Compose.
+- [ ] A stable Release published or promoted from prerelease whose tag commit is reachable from `main` publishes its image and deploys to production.
+- [ ] Prereleases do not deploy, and stable Release tags outside `main` fail before image publication.
+- [x] `workflow_dispatch` remains verification-only and does not publish or deploy.
 - [ ] Both environment workflows have completed successfully against their EC2 targets.
 
 ### Out of scope
 
 - Provisioning EC2, DNS, TLS, or a reverse proxy
 - Committing the server-owned integrated Compose file to this repository
+- Deploying prereleases or Release tags whose commit is not reachable from `main`
 - Adding an external HTTP health endpoint
 - Adding new test cases
 - Authoring database migrations beyond the application-owned Flyway scripts
@@ -46,6 +50,7 @@ Both environments need automatic deployment before backend delivery can proceed 
 |---|---|---|
 | Development deployment | Image built from a successful `develop` push | GitHub `development` environment |
 | Production deployment | Image built from a successful `main` push | GitHub `production` environment |
+| Release deployment | Image built from a stable published Release reachable from `main` | GitHub `production` environment |
 | Runtime environment | Secrets and connection settings owned by one EC2 host | `${APP_DIR}/.env` |
 | Deployment image | Image selected by the target branch | GHCR branch tag |
 
@@ -59,28 +64,30 @@ Both environments need automatic deployment before backend delivery can proceed 
 
 ### State and invariants
 
-- State transitions: compiled commit -> published branch tag -> deployed environment.
-- Rules that must always hold: pull requests never publish or deploy; only `develop` targets development; only `main` targets production; application secrets never enter the image or repository.
-- Invalid states: deployment without `.env`, a missing branch image, or concurrent deployments to the same branch environment.
+- State transitions: compiled commit -> published branch or Release tag -> image digest -> selected environment deployment.
+- Rules that must always hold: pull requests never publish or deploy; only `develop` targets development; `main` pushes and stable Releases from `main` target production; prereleases and manual dispatch do not deploy; application secrets never enter the image or repository.
+- Invalid states: a stable Release tag outside `main`, deployment without `.env`, a missing image digest, or concurrent deployments to the same environment.
 
 ## 3. Scenarios
 
 ### Normal flow
 
-1. A pull request or branch push runs the Gradle build without tests.
+1. A pull request or branch push runs the workflow verification and image build.
 2. A successful branch push builds and publishes the branch-tagged Docker image to GHCR.
 3. The deploy job connects to the preconfigured EC2 directory.
 4. Compose pulls the branch image and starts the application.
+5. A stable Release published or promoted from prerelease verifies its tag commit is reachable from `main`, publishes the tag image, and deploys the digest to production. A prerelease runs verification/build only.
 
 ### Failure flow
 
 - Gradle or Docker build failure: no image is published and no deployment starts.
+- A stable Release tag outside `main`: the workflow fails before image publication or deployment.
 - Missing EC2 configuration: deployment fails before changing the running container.
 - Pull or startup failure: the deploy job fails and the existing container is left for manual inspection.
 
 ### Boundary conditions
 
-- The deployment concurrency group permits only one deployment per branch environment at a time.
+- The deployment concurrency group permits only one deployment per environment at a time; main pushes and Releases share production concurrency.
 - GHCR authentication for private image pulls is refreshed by the deploy job using `GHCR_PAT`.
 
 ## 4. Contracts
@@ -107,7 +114,7 @@ N/A: no endpoint changes.
 
 - Database Entity, constraint, or query changes: none; each server supplies an existing PostgreSQL schema.
 - Redis key, TTL, or serialization changes: none; each server supplies its Redis connection.
-- External API or message changes: GHCR image publishing, GHCR pull authentication, and SSH-based EC2 deployment.
+- External API or message changes: GHCR image publishing for branches and Releases, GHCR pull authentication, and SSH-based deployment.
 - Environment variable or profile changes: production requires `REDIS_HOST`, `AUTH_IDENTITY_HMAC_SECRET`, and `JWT_SECRET`; production SMS defaults to `solapi` and therefore requires existing SOLAPI settings.
 
 ## 5. Design decisions
@@ -120,9 +127,9 @@ N/A: no endpoint changes.
 
 ### Technology and patterns
 
-- Constraint to solve: deploy the same Java 21 application automatically to two EC2 environments with minimal server tooling.
-- Selected approach: one GitHub Actions workflow, one multi-stage Dockerfile, one app-only repository Compose file, and one server-owned Compose file that runs app, PostgreSQL, and Redis together; GHCR branch tags and GitHub Environments provide target-specific deployment settings.
-- Reason for selection: this follows the supplied pipeline shape and keeps the deployment path to `docker compose pull` and `docker compose up -d`.
+- Constraint to solve: keep existing branch deployment behavior while making stable Release publication promote the same Java 21 application to production.
+- Selected approach: one GitHub Actions workflow builds and publishes a Release tag only for stable Releases whose tagged commit is reachable from `main`, then deploys its immutable image digest using the production Environment.
+- Reason for selection: it preserves branch deployment behavior, makes a Release an explicit production promotion, and prevents prereleases and off-main tags from reaching production.
 - Alternatives considered: JAR plus systemd was rejected because it requires Java and release wiring on each host; separate environment workflows were rejected because their build and deployment logic would drift.
 - Trade-offs and limits: branch tags are mutable, deployment has no automatic rollback, and `up -d` does not wait for application readiness.
 
@@ -135,8 +142,8 @@ N/A: no endpoint changes.
 | Domain | None | Existing domain models |
 | Persistence | PostgreSQL is managed by the server-owned Compose file | `application.yaml`, server Compose |
 | Redis | Redis is managed by the server-owned Compose file | `application-prod.yaml`, `application-dev.yaml`, server Compose |
-| Security | Runtime secrets remain EC2-owned; GHCR pull credentials are provided by the deploy job | `.env`, GitHub Environment secrets |
-| Configuration | Adds production profile and container deployment | `application-prod.yaml`, `compose.yml` |
+| Security | Runtime secrets remain host-owned; GHCR pull credentials are provided by the deploy job | `.env`, GitHub Environment secrets |
+| Configuration | Stable Release promotion selects the production Environment | `.github/workflows/backend-ci-cd.yml` |
 | Documentation | Records setup, exclusions, and verification | This Feature Plan |
 
 Existing behavior that must remain unchanged:
@@ -153,14 +160,13 @@ Existing behavior that must remain unchanged:
 - [x] Application Service: N/A.
 - [x] Output Adapters: N/A.
 - [x] Web DTOs, Controllers, and Swagger: N/A; no endpoint added.
-- [x] Infra configuration and Bean wiring: production profile, Dockerfile, Compose, and workflow added.
+- [x] Infra configuration and Bean wiring: no Application or runtime Infra changes; CI deployment routing only.
 - [x] Documentation and local verification results recorded.
 
 ### Expected commit boundaries
 
 ```text
-docs(deploy): CI/CD 배포 계약 문서화
-ci(deploy): EC2 자동 배포 파이프라인 구성
+ci(deploy): 안정 Release를 production에 배포
 ```
 
 ## 8. Verification
@@ -176,7 +182,7 @@ git diff --check
 git status --short --untracked-files=all
 ```
 
-The current CI build intentionally skips tests to match the requested minimal pipeline. Runtime verification requires Docker Compose, an EC2-owned integrated Compose file and `.env`, existing database volume data, and a GHCR credential with package pull access.
+Runtime verification requires Docker Compose, an EC2-owned integrated Compose file and `.env`, existing database volume data, and a GHCR credential with package pull access. Publishing an actual stable Release triggers a production deployment and is not part of local verification.
 
 ### Completion criteria
 
@@ -185,27 +191,31 @@ The current CI build intentionally skips tests to match the requested minimal pi
 - [ ] Verified normal deployment against production EC2.
 - [x] Confirmed no API or Swagger contract changed.
 - [x] Recorded EC2 verification as not performed because host access and environment configuration are external prerequisites.
+- [x] Recorded live Release deployment verification as pending the first stable Release.
 
 ### Results
 
 | Item | Result | Evidence |
 |---|---|---|
-| Repository files | Passed | YAML syntax, Compose config, and `git diff --check` passed locally |
-| Existing test | Not part of CI | The requested minimal workflow uses `-x test`; local test verification was performed separately |
+| Repository files | Passed | Ruby YAML parse, local documentation link check, and `git diff --check`; `actionlint` unavailable |
+| Application tests | Not rerun | Workflow-only change; pull-request CI will run the existing Gradle and JavaScript tests |
 | Docker image | Passed | Multi-stage image built and ran as the non-root `appuser` |
 | Compose startup | Not run against EC2 | The workflow uses `docker compose up -d` on the target host |
 | EC2 deployment | Not run | GitHub Environments and EC2 bootstrap are not configured in this worktree |
+| Release deployment | Not run | Requires publishing a stable Release and would deploy to production |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
+| 2026-10-03 | Added stable Release-to-production workflow routing and documented the contract | Verify the first stable Release deployment | Publishing a stable Release deploys production |
 | 2026-08-06 | Simplified the workflow to the supplied GHCR and SSH Compose pattern | Configure both EC2 targets | Branch tags are mutable and failed startup requires manual recovery |
 
 ## 10. Decision log
 
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
+| 2026-10-03 | Deploy only stable Releases whose tag commit is reachable from `main`, including prerelease promotion | Promotion emits the `released` activity type; prereleases and off-main tags must not deploy | Manual dispatch remains verification-only |
 | 2026-08-05 | Use one workflow and GitHub Environment-scoped settings | Removes duplicate development and production deployment logic | Both environments must use the same secret and variable names |
 | 2026-08-06 | Deploy branch tags with `docker compose pull` | Matches the supplied pipeline and keeps server setup small | The running image is not immutable |
 | 2026-08-06 | Keep the integrated Compose file server-owned | The server already owns PostgreSQL and Redis storage; the repository only publishes the app image | Keep the server Compose and `.env` synchronized with the image tag |
@@ -215,7 +225,7 @@ The current CI build intentionally skips tests to match the requested minimal pi
 ## 11. Completion record
 
 - Completed on:
-- Final behavior: Repository-side implementation follows the supplied minimal GHCR and SSH Compose pipeline; EC2 validation remains.
-- Unverified items: Both real EC2 deployments and recovery behavior.
+- Final behavior: Stable Releases promote the tagged image digest to production; workflow configuration is locally validated.
+- Unverified items: Actual Release-to-production deployment and recovery behavior.
 - Remaining risks: Mutable tags, no automatic rollback, SSH reachability from GitHub Actions, and EC2 CPU architecture.
-- Follow-up work: Configure GitHub Environments and bootstrap each EC2 host before merging.
+- Follow-up work: Verify production deployment by publishing the first stable Release after merge.
