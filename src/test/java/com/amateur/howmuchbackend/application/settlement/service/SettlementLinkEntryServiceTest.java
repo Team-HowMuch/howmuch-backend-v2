@@ -254,15 +254,15 @@ class SettlementLinkEntryServiceTest {
     }
 
     @Test
-    @DisplayName("결제내역 정산이면 상호명과 결제일을 함께 준다")
-    void settlementLink_paymentHistory_returnsStoreAndPaidAt() {
+    @DisplayName("결제내역 정산이면 상호명 없이 결제일을 준다")
+    void settlementLink_paymentHistory_returnsNullStoreAndPaidAt() {
         arrangeItemAllocationAccess();
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(
                 List.of(SettlementExpense.paymentHistory(
                         SETTLEMENT_ID,
                         1L,
                         "ocr-1",
-                        "행복식당",
+                        "실시간이체 토스페이 농협 test-account",
                         10_000,
                         PAID_AT,
                         0,
@@ -273,7 +273,7 @@ class SettlementLinkEntryServiceTest {
 
         var result = service.resolve(RAW_TOKEN);
 
-        assertThat(result.storeName()).isEqualTo("행복식당");
+        assertThat(result.storeName()).isNull();
         assertThat(result.paidAt()).isEqualTo(PAID_AT);
     }
 
