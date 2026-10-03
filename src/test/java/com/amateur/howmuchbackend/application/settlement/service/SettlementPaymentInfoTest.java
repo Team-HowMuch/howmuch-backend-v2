@@ -21,7 +21,7 @@ class SettlementPaymentInfoTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("paymentInfoCases")
-    void paymentInfo_multipleEligibleExpenses_resolvesOnlyOne(
+    void paymentInfo_expenseSources_resolvesStoreAndPaidAt(
             String scenario,
             List<SettlementExpense> expenses,
             String expectedStoreName,
@@ -48,14 +48,14 @@ class SettlementPaymentInfoTest {
                 SETTLEMENT_ID, 1L, "legacy-1", "행복식당", 10_000, null, 0, NOW
         );
         return Stream.of(
-                Arguments.of("단일 결제내역", List.of(payment), "행복식당", PAID_AT),
+                Arguments.of("단일 결제내역", List.of(payment), null, PAID_AT),
                 Arguments.of("단일 영수증", List.of(receipt), "행복식당", PAID_AT),
                 Arguments.of("결제내역 두 건", List.of(payment, anotherPayment), null, null),
                 Arguments.of("같은 상호의 영수증과 결제내역", List.of(receipt, payment), null, null),
                 Arguments.of("수동 지출만 존재", List.of(manual), null, null),
-                Arguments.of("결제내역 한 건과 수동 지출", List.of(payment, manual), "행복식당", PAID_AT),
+                Arguments.of("결제내역 한 건과 수동 지출", List.of(payment, manual), null, PAID_AT),
                 Arguments.of("영수증 한 건과 수동 지출", List.of(receipt, manual), "행복식당", PAID_AT),
-                Arguments.of("결제일 없는 기존 결제내역", List.of(legacyPayment), "행복식당", null),
+                Arguments.of("결제일 없는 기존 결제내역", List.of(legacyPayment), null, null),
                 Arguments.of("빈 목록", List.of(), null, null),
                 Arguments.of("null 목록", null, null, null)
         );

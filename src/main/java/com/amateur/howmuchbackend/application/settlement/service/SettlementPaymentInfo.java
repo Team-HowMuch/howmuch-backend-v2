@@ -13,7 +13,7 @@ import java.util.List;
  *
  * <pre>
  * SettlementPaymentInfo payment = SettlementPaymentInfo.resolve(expenses);
- * payment.storeName();  // 표시 대상 지출이 한 건이 아니면 null
+ * payment.storeName();  // 표시 대상 지출이 단일 영수증일 때만 상호명을 반환한다.
  * </pre>
  */
 record SettlementPaymentInfo(
@@ -22,7 +22,7 @@ record SettlementPaymentInfo(
 ) {
     private static final SettlementPaymentInfo EMPTY = new SettlementPaymentInfo(null, null);
 
-    /** 영수증·결제내역 지출을 합쳐 정확히 한 건일 때만 어느 가게에서 언제 결제했는지 확정할 수 있다. */
+    /** 영수증·결제내역 지출을 합쳐 한 건일 때 결제일을 반환하고, 상호명은 영수증에만 제공한다. */
     static SettlementPaymentInfo resolve(List<SettlementExpense> expenses) {
         if (expenses == null) {
             return EMPTY;
@@ -36,7 +36,8 @@ record SettlementPaymentInfo(
         }
         SettlementExpense paymentExpense = paymentExpenses.getFirst();
         return new SettlementPaymentInfo(
-                paymentExpense.description(),
+                paymentExpense.source() == SettlementExpenseSource.RECEIPT_OCR
+                        ? paymentExpense.description() : null,
                 paymentExpense.paidAt()
         );
     }
