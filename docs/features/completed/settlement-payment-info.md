@@ -5,6 +5,9 @@
 - Related issue: [#282](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/282), [#283](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/283), [#284](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/284)
 - Related ADR: N/A (기존 구조 유지)
 
+> 후속 변경: [#467의 표시 계약](settlement-payment-history-store-name.md)에서 PAYMENT_HISTORY의 storeName을 null로 수정했다.
+> 아래 내용은 당시 구현 기록이며, 현재 결제내역은 거래 설명을 보존하되 상세·링크에는 결제일만 제공한다.
+
 ## 1. Purpose
 
 ### Problem / Why now

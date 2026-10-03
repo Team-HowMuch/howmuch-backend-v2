@@ -301,8 +301,8 @@ class SettlementDetailServiceTest {
     }
 
     @Test
-    @DisplayName("단일 결제내역 정산의 총액과 상호명과 결제일을 반환한다")
-    void settlementHistory_singleImport_returnsStoreDateAndTotal() {
+    @DisplayName("단일 결제내역 정산은 상호명 없이 총액과 결제일을 반환한다")
+    void settlementHistory_singleImport_returnsNullStoreAndDateTotal() {
         LocalDateTime paidAt = LocalDateTime.of(2026, 8, 25, 19, 30);
         givenSettlement(CREATOR_ID);
         when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID))
@@ -310,7 +310,7 @@ class SettlementDetailServiceTest {
                         SETTLEMENT_ID,
                         1L,
                         "receipt-app-1",
-                        "롯데리아",
+                        "실시간이체 토스페이 농협 test-account",
                         1_400,
                         paidAt,
                         0,
@@ -320,7 +320,7 @@ class SettlementDetailServiceTest {
         SettlementDetailResult result = service.get(SETTLEMENT_ID);
 
         assertThat(result.paymentInfo()).isEqualTo(
-                new SettlementDetailResult.PaymentInfo(1_400, "롯데리아", paidAt)
+                new SettlementDetailResult.PaymentInfo(1_400, null, paidAt)
         );
     }
 

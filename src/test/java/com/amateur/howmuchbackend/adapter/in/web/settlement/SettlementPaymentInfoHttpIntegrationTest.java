@@ -56,10 +56,11 @@ class SettlementPaymentInfoHttpIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"2026-08-31T15:05:00", "2026-12-31T15:05:00"})
-    @DisplayName("기동 시간대와 관계없이 월말·연말 거래 시각을 저장·상세·링크까지 보존한다")
-    void paymentExpense_realHttp_preservesMonthEndTransaction(String paidAt) throws Exception {
+    @DisplayName("월말·연말 거래 설명과 결제일을 보존하고 상세·링크의 상호명은 null이다")
+    void paymentExpense_realHttp_preservesTransactionWithoutStore(String paidAt) throws Exception {
         assertThat(TimeZone.getDefault().toZoneId().normalized()).isEqualTo(ZoneOffset.UTC);
         String suffix = UUID.randomUUID().toString();
+        String description = "실시간이체 토스페이 농협 test-account";
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
         user = jdbc.queryForObject("""
@@ -78,8 +79,8 @@ class SettlementPaymentInfoHttpIntegrationTest {
                 """, Long.class, user, connection, suffix, cipher.encryptAccountKey(user, connection, "synthetic"), now, now);
         Long transaction = jdbc.queryForObject("""
                 INSERT INTO account_transactions(account_id,external_transaction_key,transaction_type,
-                amount,transacted_at,description) VALUES (?, ?, 'EXPENSE', 10000, CAST(? AS timestamp), '행복식당') RETURNING id
-                """, Long.class, account, "b".repeat(64), paidAt);
+                amount,transacted_at,description) VALUES (?, ?, 'EXPENSE', 10000, CAST(? AS timestamp), ?) RETURNING id
+                """, Long.class, account, "b".repeat(64), paidAt, description);
         settlement = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO settlements(id,creator_id,title,total_amount,status,created_at,updated_at)
@@ -95,10 +96,13 @@ class SettlementPaymentInfoHttpIntegrationTest {
             assertThat(imported.statusCode()).isEqualTo(200);
             assertThat(jdbc.queryForObject("SELECT paid_at::text FROM settlement_expenses WHERE settlement_id=?",
                     String.class, settlement)).isEqualTo(paidAt.replace('T', ' '));
+            assertThat(jdbc.queryForObject("SELECT description FROM settlement_expenses WHERE settlement_id=?",
+                    String.class, settlement)).isEqualTo(description);
             HttpResponse<String> detailResponse = request("GET", path, token, null);
             assertThat(detailResponse.statusCode()).isEqualTo(200);
             JsonNode detail = json.readTree(detailResponse.body()).path("data").path("paymentInfo");
-            assertThat(detail.path("storeName").stringValue()).isEqualTo("행복식당");
+            assertThat(detail.has("storeName")).isTrue();
+            assertThat(detail.path("storeName").isNull()).isTrue();
             assertThat(detail.path("paidAt").stringValue()).isEqualTo(paidAt);
             assertThat(request("GET", path, null, null).statusCode()).isEqualTo(401);
             // 요청·납부 설정을 다시 구성하지 않고 유효한 공유 링크 테스트 데이터를 준비한다.
@@ -111,7 +115,8 @@ class SettlementPaymentInfoHttpIntegrationTest {
             HttpResponse<String> entryResponse = request("GET", "/api/v2/settlement-links/" + link.rawToken(), null, null);
             assertThat(entryResponse.statusCode()).isEqualTo(200);
             JsonNode entry = json.readTree(entryResponse.body()).path("data");
-            assertThat(entry.path("storeName").stringValue()).isEqualTo(detail.path("storeName").stringValue());
+            assertThat(entry.has("storeName")).isTrue();
+            assertThat(entry.path("storeName").isNull()).isTrue();
             assertThat(entry.path("paidAt").stringValue()).isEqualTo(detail.path("paidAt").stringValue());
         } finally {
             sessions.deleteByUserId(user);
