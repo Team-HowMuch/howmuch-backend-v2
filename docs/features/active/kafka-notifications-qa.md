@@ -7,7 +7,7 @@
 
 ## 검증 환경
 
-기존 사용자 checkout의 CI·배포·관측 변경을 보존하고 managed worktree 두 개에서 구현했다. SQL-only 브랜치는 V43 파일 하나만 포함한다. 앱 브랜치는 같은 SQL commit을 선행 이력으로 가지므로 두 PR은 SQL → 앱 순서로 병합한다. SQL PR이 develop에 병합되면 앱 PR의 SQL diff도 사라진다.
+기존 사용자 checkout의 CI·배포·관측 변경을 보존하고 managed worktree 두 개에서 구현했다. [SQL-only PR #475](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/475)는 V43 파일 하나만 포함한다. [앱 PR #476](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/476)은 같은 SQL commit을 선행 이력으로 가지므로 두 PR은 SQL → 앱 순서로 병합한다. SQL 선행 commit이 develop 이력에 포함되면 앱 PR의 SQL diff가 사라진다. squash/rebase 병합 시 앱 브랜치를 최신 develop에 다시 맞추고 SQL 중복 diff가 없는지 확인한다.
 
 테스트에는 새 PostgreSQL 18·Redis 8 컨테이너와 별도 DB를 사용했다. 애플리케이션 `.env`를 읽거나 실제 CODEF·Firebase·APNs 자격 증명을 사용하지 않았다. Kafka 4.2.2 Testcontainers는 테스트별 topic/group을 사용하고 실제 발송 provider 경계만 mock했다. 동일 worktree에서는 Gradle test를 하나씩 실행했다.
 

@@ -199,6 +199,8 @@ lag·outbox oldest age·generation 재시도·stale 회수·DLT·provider outcom
 
 완료 기록: Backend 구현·리뷰·전체 회귀 검증을 마쳤으며 PR 검토 단계다. 운영 배포나 upstream 리캡·모바일 완료 상태로 해석하지 않는다.
 
+검토 PR: [SQL-only #475](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/475) → [앱 구현 #476](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/476) 순서로 병합한다. SQL PR의 병합 방식에 따라 앱 브랜치를 최신 develop에 맞추고 최종 diff에 SQL 중복이 없는지 확인한다.
+
 관련 이슈: [공통 기반 #470](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/470), [SQL #471](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/471), [신규 알림 #472](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/472), [그룹 초대 #473](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/473), [리캡 공개 연계 #474](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/474), [모바일 연계 #358](https://github.com/Team-HowMuch/howmuch-frontend-v2/issues/358).
 
 ## 구현 계약: 초대와 비정산 알림
