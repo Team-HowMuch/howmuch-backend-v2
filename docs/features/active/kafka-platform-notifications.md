@@ -7,6 +7,7 @@
 - 기준: Backend 구현 기준 `origin/develop` HEAD `0a098776`, 참고 브랜치 `feat/account-transaction-sync-request` HEAD `4ac73a0e`, Connector HEAD `4cf5824`
 - 관련 보고서: [Kafka·CODEF·공동인증서 설계](kafka-codef-certificate-architecture.md)
 - 관련 ADR: [Kafka transport와 notification delivery ledger](../../adr/0006-kafka-transport-and-notification-delivery-ledger.md)
+- 운영 전환: [dev·prod 설정과 실행 순서](kafka-dev-prod-setup.md)
 
 ## 1. 목적과 범위
 

@@ -2,6 +2,8 @@
 
 This directory supplies a local broker, an explicit topic catalog, and private dev/production references. It does not activate Kafka in an existing deployment. Application defaults remain `howmuch.messaging.kafka.enabled=false`, `howmuch.notification.delivery-mode=DIRECT`, and both consumer flags `false`.
 
+The team-facing [dev/prod setup checklist](../../docs/features/active/kafka-dev-prod-setup.md) covers server-owned Compose mounts, TLS identities, flags, and rollout. [client-mtls.reference.yml](client-mtls.reference.yml) and [compose-app-mtls.reference.yml](compose-app-mtls.reference.yml) supply an explicit SSL/mTLS client configuration and read-only mounts; copy actual configuration and secrets outside Git. Dev/prod default to SASL_SSL, so choose `KAFKA_SECURITY_PROTOCOL=SSL` explicitly for these mTLS references.
+
 ## Image and deployment shape
 
 The JVM image is pinned to `apache/kafka:4.2.2`. The [official Kafka 4.2 Docker guide](https://kafka.apache.org/42/getting-started/docker/) listed this patch on 2026-10-07. Application dependencies continue to use the Spring Boot 4.1 managed Kafka client; they are not force-upgraded to the broker version. The CODEF Connector's Kafka 3.9.2 client is a separate dependency.

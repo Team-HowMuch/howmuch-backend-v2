@@ -55,6 +55,8 @@
 
 리뷰 수정 후 `bash scripts/test.sh test --tests '*Kafka*' --tests '*Notification*' --tests '*GroupInvitationHttpIntegrationTest'`의 Java **109개 / 17 classes**, JavaScript **35개**가 통과했다. failures/errors/skipped는 0이다. 기존 전체 Java 1506개 결과는 위의 최초 구현 기준이며 리뷰 후 전체 결과는 새 CI 실행으로 확인한다.
 
+[dev·prod 설정 가이드](kafka-dev-prod-setup.md)와 client mTLS YAML·앱 Compose mount 참고를 추가했다. 위 109개에는 새 `externalMtlsReferenceLoadsPasswordsFromMountedConfigTree`가 포함된다. 외부 YAML과 임시 configtree 파일 3개에서 Kafka producer/consumer의 SSL·PKCS12·비밀번호·hostname 검증 설정으로 binding되는 것을 확인했다. dummy 비밀번호만 사용했으며 keystore 유효성이나 실제 TLS handshake 검증은 아니다. Compose는 `.env`를 읽지 않는 `--env-file /dev/null`·`--no-env-resolution`으로 렌더링해 SSL·외부 YAML·두 read-only mount를 확인했다. 문서 상대 링크와 `git diff --check`도 통과했다.
+
 ## 증거 위치
 
 앱의 JUnit/XML/HTML은 `build/test-results/test`, `build/reports/tests/test`에 있다. 본 세션의 전체/관련 실행 로그, runtime HTTP 결과는 `/tmp/howmuch-kafka-development/`에 보존했다. SQL fresh/upgrade/no-op·115 검사·기존 Java 31개 호환 증거는 `/tmp/howmuch-architecture-20261006/migration-v43-*`에 보존했다. 이 임시 경로는 CI 아티팩트나 운영 검증 증거를 대체하지 않는다.
