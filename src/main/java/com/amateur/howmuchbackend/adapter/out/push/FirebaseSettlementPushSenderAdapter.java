@@ -13,6 +13,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
 
 @Component
@@ -50,20 +51,29 @@ public class FirebaseSettlementPushSenderAdapter implements SettlementPushSender
 
     @Override
     public SendResult sendNotification(String firebaseInstallationId, NotificationMessage notification) {
+        Map<String, String> data = notificationData(notification);
         if (isApnsToken(firebaseInstallationId)) {
             return apnsPushSender.send(firebaseInstallationId, notification.title(), notification.body(),
-                    Map.of("notificationId", notification.notificationId().toString(),
-                            "settlementId", notification.settlementId().toString(),
-                            "type", notification.type(), "allocationType", notification.allocationType().name()));
+                    data);
         }
         return send(Message.builder()
                 .setToken(firebaseInstallationId)
                 .setNotification(Notification.builder().setTitle(notification.title()).setBody(notification.body()).build())
-                .putData("notificationId", notification.notificationId().toString())
-                .putData("settlementId", notification.settlementId().toString())
-                .putData("type", notification.type())
-                .putData("allocationType", notification.allocationType().name())
+                .putAllData(data)
                 .build());
+    }
+
+    static Map<String, String> notificationData(NotificationMessage notification) {
+        Map<String, String> data = new HashMap<>();
+        data.put("notificationId", notification.notificationId().toString());
+        data.put("type", notification.type());
+        if (notification.settlementId() != null) data.put("settlementId", notification.settlementId().toString());
+        if (notification.allocationType() != null) data.put("allocationType", notification.allocationType().name());
+        if (notification.target() != null) {
+            data.put("targetType", notification.target().type().name());
+            data.put("targetId", notification.target().id());
+        }
+        return Map.copyOf(data);
     }
 
     private boolean isApnsToken(String token) {

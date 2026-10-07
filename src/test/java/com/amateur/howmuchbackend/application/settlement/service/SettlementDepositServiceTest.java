@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.account.service.AccountCredentialProtectionService;
+import com.amateur.howmuchbackend.application.notification.service.BusinessNotificationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
@@ -77,6 +78,7 @@ class SettlementDepositServiceTest {
     private static final UUID OTHER_SHARE_ID = UUID.fromString("14bdff25-6157-4fac-bbf5-cb4605704aae");
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 20, 0, 0);
 
+    @Mock private BusinessNotificationService notifications;
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private SaveSettlementPort saveSettlementPort;
@@ -112,7 +114,8 @@ class SettlementDepositServiceTest {
                 depositStorePort,
                 saveSettlementPort,
                 new SettlementDepositMatchingPolicy(),
-                reader
+                reader,
+                notifications
         );
         service = new SettlementDepositService(
                 currentActorPort,
@@ -144,6 +147,8 @@ class SettlementDepositServiceTest {
         assertThat(result.confirmedAmount()).isEqualTo(6_000);
         assertThat(result.participantCount()).isOne();
         assertThat(result.completedParticipantCount()).isOne();
+        verify(notifications).settlementPaymentCompleted(any(Settlement.class), eq(PAYER_SHARE_ID), any(String.class), any(LocalDateTime.class));
+        verify(notifications).settlementCompleted(any(Settlement.class), any(LocalDateTime.class));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<SettlementDeposit>> captor = ArgumentCaptor.forClass(List.class);

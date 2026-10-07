@@ -21,6 +21,13 @@ public class SettlementNotificationOutboxPersistenceAdapter
 
     @Override
     @Transactional
+    public boolean deferProcessing(SettlementNotificationOutbox event, LocalDateTime resumeAt, LocalDateTime now) {
+        if (!resumeAt.isAfter(now)) throw new IllegalArgumentException("Deferred delivery must resume in the future.");
+        return repository.deferProcessing(event.id(), event.attemptCount(), resumeAt, now) == 1;
+    }
+
+    @Override
+    @Transactional
     public void saveAll(List<SettlementNotificationOutbox> events) {
         if (events.isEmpty()) {
             return;
@@ -63,6 +70,8 @@ public class SettlementNotificationOutboxPersistenceAdapter
                     .toDomain(entity)
                     .recover(maxAttempts, now);
             entity.apply(recovered);
+            if (recovered.status() == com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutboxStatus.RETRY)
+                entity.resetPublicationForRetry(recovered.nextAttemptAt());
         }
         repository.flush();
         return entities.size();

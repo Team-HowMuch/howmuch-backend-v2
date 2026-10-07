@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SettlementNotificationOutboxPort {
+    boolean deferProcessing(SettlementNotificationOutbox event, LocalDateTime resumeAt, LocalDateTime now);
     void saveAll(List<SettlementNotificationOutbox> events);
 
     Optional<SettlementNotificationOutbox> claimNextReady(LocalDateTime now);

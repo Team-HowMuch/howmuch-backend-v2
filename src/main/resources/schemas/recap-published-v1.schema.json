@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://howmuch.team/schemas/recap-published-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["messageId", "messageType", "schemaVersion", "occurredAt", "userId", "yearMonth", "completedSettlementCount"],
+  "properties": {
+    "messageId": {"type": "string", "format": "uuid"},
+    "messageType": {"const": "RecapPublished"},
+    "schemaVersion": {"const": 1},
+    "occurredAt": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "userId": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+    "yearMonth": {"type": "string", "pattern": "^(?!0000)[0-9]{4}-(0[1-9]|1[0-2])$"},
+    "completedSettlementCount": {"type": "integer", "minimum": 0, "maximum": 2147483647}
+  }
+}

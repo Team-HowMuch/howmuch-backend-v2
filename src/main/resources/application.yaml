@@ -10,6 +10,30 @@ spring:
       max-request-size: 6MB
   profiles:
     default: local
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.block.ms: ${KAFKA_MAX_BLOCK_MS:3000}
+        request.timeout.ms: ${KAFKA_REQUEST_TIMEOUT_MS:3000}
+        delivery.timeout.ms: ${KAFKA_DELIVERY_TIMEOUT_MS:8000}
+        max.request.size: 262144
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      max-poll-records: 1
+      properties:
+        allow.auto.create.topics: false
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+    admin:
+      auto-create: false
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -36,6 +60,20 @@ spring:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=60s
 howmuch:
+  messaging:
+    kafka:
+      enabled: ${KAFKA_ENABLED:false}
+      publish-timeout: ${KAFKA_PUBLISH_TIMEOUT:5s}
+      processing-retry-interval: ${KAFKA_PROCESSING_RETRY_INTERVAL:1s}
+      concurrency: ${KAFKA_CONCURRENCY:1}
+      notification-delivery-topic: notification.delivery.v1
+      notification-delivery-dlt-topic: notification.delivery.v1.dlt
+      notification-delivery-group: howmuch-notification-delivery-v1
+      notification-consumer-enabled: ${NOTIFICATION_KAFKA_CONSUMER_ENABLED:false}
+      recap-published-topic: recap.published.v1
+      recap-published-dlt-topic: recap.published.v1.dlt
+      recap-published-group: howmuch-recap-notification-v1
+      recap-consumer-enabled: ${RECAP_KAFKA_CONSUMER_ENABLED:false}
   analytics:
     amplitude:
       api-key: ${AMPLITUDE_API_KEY:}
@@ -77,6 +115,7 @@ howmuch:
     image:
       storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}
   notification:
+    delivery-mode: ${NOTIFICATION_DELIVERY_MODE:DIRECT}
     firebase:
       enabled: ${FIREBASE_ENABLED:false}
     apns:

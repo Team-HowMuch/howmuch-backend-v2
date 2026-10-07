@@ -9,10 +9,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 
-@Tag(name="알림함 API", description="로그인 회원의 정산 요청·리마인드 알림함")
+@Tag(name="알림함 API", description="로그인 회원의 정산·그룹·리캡 알림함")
 @SecurityRequirement(name="bearerAuth")
 public interface NotificationDocs {
-    @Operation(summary="내 알림 목록", description="최신순 커서 조회. size 기본20, 최대50. readAt=null은 미읽음이며 조회로 읽음 처리하지 않습니다. 시각은 UTC입니다. 정산 삭제 시 settlementId=null, action.enabled=false입니다.")
+    @Operation(summary="내 알림 목록", description="최신순 커서 조회. size 기본20, 최대50. readAt=null은 미읽음이며 조회로 읽음 처리하지 않습니다. 시각은 UTC입니다. action.type과 targetId로 이동하며 삭제·권한 소멸·초대 만료 시 action.enabled=false입니다. 정산 삭제 시 settlementId=null이고 그룹·리캡 allocationType은 null입니다.")
     @ApiResponses({@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="200", useReturnTypeSchema=true),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="400", description="INVALID_NOTIFICATION_CURSOR 또는 INVALID_NOTIFICATION_PAGE_SIZE"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="401", description="인증 필요")})

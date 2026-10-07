@@ -1,3 +1,7 @@
 package com.amateur.howmuchbackend.domain.notification;
 
-public enum NotificationType { SETTLEMENT_REQUEST, SETTLEMENT_REMINDER }
+public enum NotificationType {
+    SETTLEMENT_REQUEST, SETTLEMENT_REMINDER,
+    SETTLEMENT_PAYMENT_COMPLETED, SETTLEMENT_COMPLETED,
+    GROUP_INVITATION, GROUP_MEMBER_LEFT, MONTHLY_RECAP
+}
