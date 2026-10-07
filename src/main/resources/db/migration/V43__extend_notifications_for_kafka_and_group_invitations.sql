@@ -64,9 +64,12 @@ ALTER TABLE user_notifications
             OR (target_type = 'GROUP_INVITATION' AND target_id IS NOT NULL
                 AND target_id ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
             OR (target_type = 'GROUP_DETAIL' AND target_id IS NOT NULL
-                AND target_id ~ '^[1-9][0-9]{0,18}$')
+                AND CASE WHEN target_id ~ '^[1-9][0-9]{0,18}$'
+                    THEN target_id::NUMERIC <= 9223372036854775807
+                    ELSE FALSE END)
             OR (target_type = 'MONTHLY_RECAP' AND target_id IS NOT NULL
-                AND target_id ~ '^[0-9]{4}-(0[1-9]|1[0-2])$')
+                AND target_id ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'
+                AND LEFT(target_id, 4) <> '0000')
         ),
     ADD CONSTRAINT uk_user_notifications_delivery_recipient
         UNIQUE (id, recipient_user_id);
@@ -75,6 +78,31 @@ COMMENT ON COLUMN user_notifications.target_type IS
     'Typed application route. Target existence and current-actor authorization are checked before opening it.';
 COMMENT ON COLUMN user_notifications.target_id IS
     'UUID for settlement/invitation, decimal group ID, or YYYY-MM recap month. NULL preserves old notifications whose settlement was physically deleted.';
+
+-- This SQL-only migration can precede the application rollout. Existing writers
+-- omit target columns for the two legacy types. Preserve explicitly supplied
+-- targets and reject target-less generic types through the existing constraints.
+CREATE FUNCTION populate_legacy_user_notification_target()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.target_type IS NULL
+        AND NEW.notification_type IN ('SETTLEMENT_REQUEST', 'SETTLEMENT_REMINDER') THEN
+        NEW.target_type := CASE
+            WHEN NEW.notification_type = 'SETTLEMENT_REQUEST' THEN 'SETTLEMENT_PARTICIPATION'
+            ELSE 'SETTLEMENT_DETAIL'
+        END;
+        NEW.target_id := NEW.settlement_id::TEXT;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_user_notifications_legacy_target_insert
+    BEFORE INSERT ON user_notifications
+    FOR EACH ROW
+    EXECUTE FUNCTION populate_legacy_user_notification_target();
 
 ALTER TABLE settlement_notification_outbox
     ALTER COLUMN settlement_id DROP NOT NULL,
