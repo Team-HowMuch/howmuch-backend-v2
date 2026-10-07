@@ -1,6 +1,7 @@
 # Feature Plan: 공통 Kafka 기반 구축과 알림 확장
 
 - 상태: 구현·검증 완료, PR 검토 대기
+- 리뷰 후속 완료: #476의 목록 target N+1을 종류별 일괄 조회로 수정했다. API·권한 조건·V43은 유지하며 추가 migration은 없다. 실제 PostgreSQL에서 최대 51개 혼합 페이지 SQL 4개와 만료·소유자 변경·탈퇴·삭제 target을 검증했다. 비정산 알림의 nullable settlement ID 처리도 수정했다. commit 경계는 `fix(notification): 알림 이동 대상 권한 조회 일괄 처리`, `docs(messaging): dev와 prod Kafka 전환 설정 안내`다.
 - 갱신일: 2026-10-07, Asia/Seoul
 - 관련 요청: 서비스에서 공통으로 사용할 Kafka 설정, 기존 알림 전환, 새 알림 5종
 - 기준: Backend 구현 기준 `origin/develop` HEAD `0a098776`, 참고 브랜치 `feat/account-transaction-sync-request` HEAD `4ac73a0e`, Connector HEAD `4cf5824`

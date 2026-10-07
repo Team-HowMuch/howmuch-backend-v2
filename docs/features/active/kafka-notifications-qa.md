@@ -43,6 +43,18 @@
 
 운영 배포·TLS/ACL 실제 집행·broker failover·금융 Connector 실 프로세스 Inbox/result 적용·실은행 호출·단말 표시/클릭은 수행하지 않았다. 리캡 upstream 생성/공개와 모바일 이동은 #474 및 frontend #358 의존 사항이다. provider 성공 직후 결과 저장 실패의 push 중복과 발송 준비 후 좁은 권한/quiet 경계 race는 외부 시스템의 제한으로 남는다.
 
+## PR #476 리뷰 후속
+
+[P2 코멘트](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/476#discussion_r4202790378)의 N+1 조회를 그룹·초대별 bulk ID 조회로 수정했다. 기존 ACTIVE membership, PENDING/수신자/만료/현재 owner 조건은 유지한다. 비정산 알림의 `settlementId=null`이 immutable Set 조회에서 예외를 일으키던 것도 null guard로 수정했다. API와 V43 변경은 없다.
+
+별도 PostgreSQL 18·Redis 8에서 신규 DB 테스트 3개를 통과했다. 실제 앱의 main 초기화와 같은 UTC 설정을 사용하며 fixture는 TX rollback한다.
+
+- 최대 51개 혼합 알림: 페이지 1 + 삭제 정산 1 + 그룹 1 + 초대 1 = SQL 4개. 순서·cursor·저장 문구도 유지한다.
+- 빈 페이지·리캡 전용 페이지: SQL 1개이며 불필요한 target 조회는 하지 않는다.
+- 만료·거절·다른 수신자·owner 변경·LEFT/REMOVED membership·그룹/정산 삭제: 접근 불가 target을 제거한다. 단건 조회와 목록에 owner/멤버십 변경이 반영된다.
+
+리뷰 수정 후 `bash scripts/test.sh test --tests '*Kafka*' --tests '*Notification*' --tests '*GroupInvitationHttpIntegrationTest'`의 Java **109개 / 17 classes**, JavaScript **35개**가 통과했다. failures/errors/skipped는 0이다. 기존 전체 Java 1506개 결과는 위의 최초 구현 기준이며 리뷰 후 전체 결과는 새 CI 실행으로 확인한다.
+
 ## 증거 위치
 
 앱의 JUnit/XML/HTML은 `build/test-results/test`, `build/reports/tests/test`에 있다. 본 세션의 전체/관련 실행 로그, runtime HTTP 결과는 `/tmp/howmuch-kafka-development/`에 보존했다. SQL fresh/upgrade/no-op·115 검사·기존 Java 31개 호환 증거는 `/tmp/howmuch-architecture-20261006/migration-v43-*`에 보존했다. 이 임시 경로는 CI 아티팩트나 운영 검증 증거를 대체하지 않는다.

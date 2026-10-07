@@ -10,18 +10,18 @@ import java.util.*;
 
 public interface UserNotificationJpaRepository extends JpaRepository<UserNotificationJpaEntity, UUID> {
     @Query(value = """
-            SELECT EXISTS(SELECT 1 FROM groups g JOIN group_members m ON m.group_id=g.id
-                WHERE g.id=:groupId AND g.status='ACTIVE' AND g.deleted_at IS NULL
-                  AND m.user_id=:userId AND m.status='ACTIVE')
+            SELECT g.id FROM groups g JOIN group_members m ON m.group_id=g.id
+                WHERE g.id IN (:ids) AND g.status='ACTIVE' AND g.deleted_at IS NULL
+                  AND m.user_id=:userId AND m.status='ACTIVE'
             """, nativeQuery = true)
-    boolean isGroupAccessible(@Param("groupId") Long groupId, @Param("userId") Long userId);
+    List<Long> findAccessibleGroupIds(@Param("ids") Collection<Long> ids, @Param("userId") Long userId);
     @Query(value = """
-            SELECT EXISTS(SELECT 1 FROM group_invitations i JOIN groups g ON g.id=i.group_id
-                WHERE i.id=:invitationId AND i.recipient_user_id=:userId
+            SELECT i.id FROM group_invitations i JOIN groups g ON g.id=i.group_id
+                WHERE i.id IN (:ids) AND i.recipient_user_id=:userId
                   AND i.status='PENDING' AND i.expires_at>:now AND g.status='ACTIVE' AND g.deleted_at IS NULL
-                  AND g.owner_id=i.inviter_user_id)
+                  AND g.owner_id=i.inviter_user_id
             """, nativeQuery = true)
-    boolean isInvitationAccessible(@Param("invitationId") UUID invitationId,
+    List<UUID> findAccessibleInvitationIds(@Param("ids") Collection<UUID> ids,
             @Param("userId") Long userId, @Param("now") LocalDateTime now);
     @Query(value = "SELECT id FROM settlements WHERE id IN (:ids) AND deleted_at IS NOT NULL", nativeQuery = true)
     List<UUID> findDeletedSettlementIds(@Param("ids") Collection<UUID> ids);

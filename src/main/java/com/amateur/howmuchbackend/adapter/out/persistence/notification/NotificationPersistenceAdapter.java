@@ -6,6 +6,7 @@ import com.amateur.howmuchbackend.adapter.out.persistence.notification.repositor
 import com.amateur.howmuchbackend.application.port.out.notification.*;
 import com.amateur.howmuchbackend.domain.notification.UserNotification;
 import com.amateur.howmuchbackend.domain.notification.NotificationTarget;
+import com.amateur.howmuchbackend.domain.notification.NotificationTargetType;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
@@ -28,9 +29,7 @@ public class NotificationPersistenceAdapter implements LoadNotificationPort, Mar
                 .filter(Objects::nonNull).distinct().toList();
         Set<UUID> deletedIds = settlementIds.isEmpty() ? Set.of()
                 : Set.copyOf(repository.findDeletedSettlementIds(settlementIds));
-        return rows.stream().map(row -> NotificationMapper.toDomain(row,
-                deletedIds.contains(row.getSettlementId()) ? null : row.getSettlementId(),
-                visibleTarget(row, deletedIds.contains(row.getSettlementId())))).toList();
+        return toVisibleNotifications(rows, userId, deletedIds);
     }
     @Override
     @Transactional(readOnly = true)
@@ -45,7 +44,7 @@ public class NotificationPersistenceAdapter implements LoadNotificationPort, Mar
     @Transactional(readOnly = true)
     public Optional<UserNotification> findById(UUID id) {
         return repository.findById(id)
-                .map(row -> NotificationMapper.toDomain(row, row.getSettlementId(), visibleTarget(row, false)));
+                .map(row -> toVisibleNotifications(List.of(row), row.getRecipientUserId(), Set.of()).getFirst());
     }
     @Override
     @Transactional
@@ -54,13 +53,33 @@ public class NotificationPersistenceAdapter implements LoadNotificationPort, Mar
             throw new IllegalArgumentException("새 알림에는 이동 대상이 필요합니다.");
         return repository.insertIfAbsent(notification) == 1;
     }
-    private NotificationTarget visibleTarget(UserNotificationJpaEntity row, boolean deletedSettlement) {
+    private List<UserNotification> toVisibleNotifications(List<UserNotificationJpaEntity> rows, Long userId,
+                                                         Set<UUID> deletedSettlementIds) {
+        var groupIds = rows.stream().filter(row -> row.getTargetType() == NotificationTargetType.GROUP_DETAIL)
+                .map(UserNotificationJpaEntity::getTargetId).filter(Objects::nonNull)
+                .map(Long::valueOf).distinct().toList();
+        var invitationIds = rows.stream().filter(row -> row.getTargetType() == NotificationTargetType.GROUP_INVITATION)
+                .map(UserNotificationJpaEntity::getTargetId).filter(Objects::nonNull)
+                .map(UUID::fromString).distinct().toList();
+        Set<Long> accessibleGroups = groupIds.isEmpty() ? Set.of()
+                : Set.copyOf(repository.findAccessibleGroupIds(groupIds, userId));
+        Set<UUID> accessibleInvitations = invitationIds.isEmpty() ? Set.of()
+                : Set.copyOf(repository.findAccessibleInvitationIds(invitationIds, userId,
+                        LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)));
+        return rows.stream().map(row -> {
+            boolean deletedSettlement = row.getSettlementId() != null
+                    && deletedSettlementIds.contains(row.getSettlementId());
+            return NotificationMapper.toDomain(row, deletedSettlement ? null : row.getSettlementId(),
+                    visibleTarget(row, deletedSettlement, accessibleGroups, accessibleInvitations));
+        }).toList();
+    }
+    private NotificationTarget visibleTarget(UserNotificationJpaEntity row, boolean deletedSettlement,
+                                              Set<Long> accessibleGroups, Set<UUID> accessibleInvitations) {
         if (row.getTargetId() == null || deletedSettlement) return null;
         boolean accessible = switch (row.getTargetType()) {
             case SETTLEMENT_PARTICIPATION, SETTLEMENT_DETAIL -> row.getSettlementId() != null;
-            case GROUP_DETAIL -> repository.isGroupAccessible(Long.valueOf(row.getTargetId()), row.getRecipientUserId());
-            case GROUP_INVITATION -> repository.isInvitationAccessible(UUID.fromString(row.getTargetId()),
-                    row.getRecipientUserId(), LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC));
+            case GROUP_DETAIL -> accessibleGroups.contains(Long.valueOf(row.getTargetId()));
+            case GROUP_INVITATION -> accessibleInvitations.contains(UUID.fromString(row.getTargetId()));
             case MONTHLY_RECAP -> true;
         };
         return accessible ? new NotificationTarget(row.getTargetType(), row.getTargetId()) : null;
