@@ -67,7 +67,7 @@ KAFKA_COMMAND_CONFIG=/run/secrets/kafka/admin-client.properties /bin/bash /works
 | API/relay | `notification.delivery.v1` Write/Describe, idempotent producer 권한 | 없음 |
 | 알림 worker | `notification.delivery.v1` Read/Describe, `notification.delivery.v1.dlt` Write/Describe, DLT producer 권한 | `howmuch-notification-delivery-v1` Read |
 | dev 단일 앱 | 위 두 역할의 합집합 | 동일 알림 group Read |
-| Connector | 금융 command Read/Describe, 금융 event Write/Describe, producer 권한 | 기존 Connector group Read; 별도 금융 담당과 확인 |
+| Connector | 금융 command Read/Describe, 금융 event Write/Describe, producer 권한 | `howmuch-finance-connector` Read (현재 기본값) |
 
 idempotent producer의 cluster `IdempotentWrite` 및 client가 요구하는 권한을 운영자가 확인한다. 서비스별 최소 권한으로 배포하고 `allow.everyone.if.no.acl.found=false`를 유지한다. 리캡 producer/consumer와 Backend 금융 consumer ACL은 실제 연계 구현 후 부여한다. [Kafka ACL 지침](https://kafka.apache.org/42/security/authorization-and-acls/)
 
@@ -103,6 +103,12 @@ worker도 같은 PostgreSQL·Redis와 필요한 앱 설정을 사용한다. HTTP
 실제 푸시를 보내는 프로세스에는 기존 Firebase ADC 서비스 자격 증명(`FIREBASE_ENABLED=true`)과 APNs key ID/team ID·`.p8` mount가 필요하다. ADC를 파일로 제공한다면 외부 서비스 계정 파일을 read-only mount하고 `GOOGLE_APPLICATION_CREDENTIALS`에 컨테이너 내부 경로를 지정한다. Firebase Console 설정만으로 Backend ADC가 제공되지는 않는다. APNs는 서버 환경 이름 대신 앱의 `aps-environment` entitlement에 맞춰 `APNS_ENVIRONMENT=dev`(development/sandbox) 또는 `prod`(production)를 선택한다. dev 서버에서 production-signed 빌드를 시험한다면 prod endpoint가 필요하다. [Apple의 환경 구분](https://developer.apple.com/library/archive/technotes/tn2265/_index.html)을 따르며 설정은 [기존 배포 문서](../../deployment.md)를 참고한다. 민감 값과 device token은 출력하지 않는다.
 
 리캡 생성·공개 producer가 없으므로 `RECAP_KAFKA_CONSUMER_ENABLED=false`를 유지한다. 금융 RC2 샘플의 transport 왕복 검증을 실제 CODEF 동기화 완료로 해석하지 않는다.
+
+### CODEF Connector 연결 시 별도로 할 설정
+
+현재 로컬 Connector의 `application.yaml`은 `KAFKA_BOOTSTRAP_SERVERS`와 `KAFKA_CONSUMER_GROUP`(기본 `howmuch-finance-connector`)을 읽는다. Backend의 `KAFKA_ENABLED`·`KAFKA_SECURITY_PROTOCOL`만 복사해도 Connector가 활성화되거나 SSL로 연결되는 것은 아니다. Connector에도 자신의 인증서·truststore·비밀번호 파일과 외부 `spring.kafka.properties` 설정을 mount하고 `SPRING_CONFIG_ADDITIONAL_LOCATION`으로 전달해야 한다. 별도 DB와 기존 `CONNECTOR_INTERNAL_SERVICE_TOKEN`·`CONNECTOR_DATA_KEY` 등은 기존 Connector 계약을 따른다.
+
+Connector는 `FINANCE_MESSAGING_ENABLED`(command consumer), `FINANCE_COLLECTION_ENABLED`(수집 worker), `FINANCE_EVENT_RELAY_ENABLED`(result publisher)를 따로 읽는다. 금융 전체 연계 전에는 모두 `false`를 유지하고, 준비 완료 후 해당 담당의 [Kafka 설정 #2](https://github.com/Team-HowMuch/howmuch-finance-connector/issues/2)·[복구 #4](https://github.com/Team-HowMuch/howmuch-finance-connector/issues/4)에서 단계적으로 활성화한다. 이번 Backend PR에는 금융 command 업무 발행과 result 적용 consumer가 없으므로 알림 Kafka 활성화만으로 CODEF 비동기 동기화가 완성되지 않는다. Connector의 실제 mTLS 연결은 별도 검증한다.
 
 ## 5. 배포·활성화 순서
 
