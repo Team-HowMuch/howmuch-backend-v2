@@ -1,6 +1,6 @@
 # Feature Plan: 미납 현황 집계 API
 
-- Status: In progress
+- Status: Completed
 - Last updated: 2026-10-10
 - Related issue: [#477](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/477), [#479](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/479), [#480](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/480), [#481](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/481)
 - Related ADR: [Capability-oriented Output Ports](../../adr/0003-capability-oriented-output-ports.md)
@@ -11,10 +11,10 @@
 
 ### Success criteria
 
-- [ ] 확인 입금액을 Share별로 차감한 잔액과 미납 참여 건수를 반환한다.
-- [ ] 품목 배분이 끝나지 않은 정산 건수를 별도로 반환한다.
-- [ ] 본인 생성 정산만 조회하고 중단·완료·초안·삭제 정산을 제외한다.
-- [ ] 빈 결과, 0원 제출, 비회원, 부분 납부와 초과 납부를 검증한다.
+- [x] 확인 입금액을 Share별로 차감한 잔액과 미납 참여 건수를 반환한다.
+- [x] 품목 배분이 끝나지 않은 정산 건수를 별도로 반환한다.
+- [x] 본인 생성 정산만 조회하고 중단·완료·초안·삭제 정산을 제외한다.
+- [x] 빈 결과, 0원 제출, 비회원, 부분 납부와 초과 납부를 검증한다.
 
 ### Out of scope
 
@@ -80,6 +80,21 @@ Error: 401 UNAUTHORIZED, 기존 인증 오류 계약
 
 대상은 `creator_id = 인증 회원`, `status IN ('REQUESTED', 'AWAITING_DEPOSIT')`, `deleted_at IS NULL`이다. 생성자와 연결된 참여자 몫은 제외한다.
 
+10,000원 부담에 확인 입금이 3,000원인 참여자 한 명만 남아 있다면 다음과 같이 반환한다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "remainingReceivableAmount": 7000,
+    "unpaidParticipantCount": 1,
+    "unconfirmedSettlementCount": 0
+  }
+}
+```
+
+세 필드는 항상 존재하며 JSON 숫자로 반환한다. Swagger에는 금액을 `integer/int64`, 두 건수를 `integer/int32`로 문서화한다.
+
 ### Persistence and external integrations
 
 - Flyway migration required: **No**. 기존 테이블을 조회하며 Entity·제약·인덱스를 변경하지 않는다.
@@ -107,14 +122,14 @@ Error: 401 UNAUTHORIZED, 기존 인증 오류 계약
 ## 7. Implementation plan
 
 - [x] Migration-only PR: N/A — 저장 구조 변경 없음.
-- [ ] UseCase와 Result 정의.
-- [ ] 실제 호출자와 함께 조회 Output Port 연결.
+- [x] UseCase와 Result 정의.
+- [x] 실제 호출자와 함께 조회 Output Port 연결.
 - [x] Domain 모델·상태 전이 변경: N/A — 기존 사실만 집계.
-- [ ] Application Policy와 Service 구현.
-- [ ] Persistence Adapter 구현.
-- [ ] Controller·Web Response·Swagger 구현.
+- [x] Application Policy와 Service 구현.
+- [x] Persistence Adapter 구현.
+- [x] Controller·Web Response·Swagger 구현.
 - [x] Infra 설정: N/A — 기존 인증과 Bean 탐색 재사용.
-- [ ] 자동화 검증 및 문서 완성.
+- [x] 자동화 검증 및 문서 완성.
 
 ### Expected commit boundaries
 
@@ -132,6 +147,8 @@ docs(settlement): 미납 집계 구현 결과와 검증 기록
 
 일회용 PostgreSQL 18·Redis 8과 Java 21을 사용한다. 환경 설정과 실행 절차는 [Testing](../../testing.md)을 따른다.
 
+로컬 검증에서는 `compose.test.yml`을 별도 프로젝트로 실행하여 PostgreSQL `15432`, Redis `16379` 포트를 사용했다. `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`는 해당 일회용 환경을 지정했다. Kafka와 소비자는 비활성화하고 알림 전달 모드는 `DIRECT`로 설정했다. 실제 인증 검증에서는 발급한 JWT와 Redis 세션을 사용했다.
+
 ```bash
 ./gradlew compileJava
 bash scripts/test.sh test --tests '*SettlementUnpaid*'
@@ -147,16 +164,19 @@ git status --short --untracked-files=all
 
 | 항목 | 결과 | 근거 |
 |---|---|---|
-| 컴파일 | Pending | 구현 후 기록 |
-| 관련 테스트 | Pending | 구현 후 기록 |
-| 전체 회귀 | Pending | 구현 후 기록 |
-| 문서·diff 검사 | Pending | 완료 전 기록 |
+| 컴파일 | 통과 | `./gradlew compileJava` 및 전체 회귀의 clean build |
+| 관련 테스트 | 32건 통과 | Policy 8건, Service 1건, 영속 조회 14건, Web 2건, 실제 HTTP 7건 |
+| 전체 회귀 | 통과 | `bash scripts/test.sh`: Java 1,542건·JavaScript 35건, 실패·오류·건너뜀 없음 |
+| 문서·diff 검사 | 통과 | 상대 링크·로컬 경로 확인, `git diff --check`; 기존 `.DS_Store`만 미추적 상태로 보존 |
 
 ## 9. Progress log
 
 | 날짜 | 완료 작업 | 다음 작업 | 확인 사항 |
 |---|---|---|---|
 | 2026-10-10 | 최신 develop 확인·설계 기록 | 집계 Policy 구현 | 기존 저장 구조로 구현 가능 |
+| 2026-10-10 | Policy·UseCase·조회 Adapter 구현 | 영속 조회 검증 | 입금 선집계와 Share별 잔액 계산 연결 |
+| 2026-10-10 | 영속 조회·Web·실제 HTTP 검증 | 전체 회귀 | 회원별 데이터 분리·부분 납부·세션 무효화·Swagger 확인 |
+| 2026-10-10 | 전체 회귀·문서 검사 완료 | PR 검토 | 신규 32건 포함 Java 1,542건과 JavaScript 35건 통과 |
 
 ## 10. Decision log
 
@@ -168,8 +188,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on: Pending
-- Final behavior: Pending
-- Unverified items: Pending
+- Completed on: 2026-10-10
+- Final behavior: 인증 회원의 진행 중 생성 정산에서 확정 Share별 남은 받을 금액·미납 참여 건수와 미확정 품목 정산 건수를 반환한다. 빈 결과는 모두 0이며 기존 총무 요약 계약은 유지한다.
+- Unverified items: 실제 은행 연동 및 앱 위젯은 이번 구현 범위에서 제외했다. API·저장 조회·인증·Swagger·전체 회귀 검증은 수행했다.
 - Remaining risks: 실제 은행 입금 반영 시점은 기존 입금 대조 처리 주기를 따른다.
 - Follow-up work: 앱에서 집계 API 연동 및 위젯 표시 구현.
