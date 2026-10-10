@@ -156,6 +156,52 @@ ALTER TABLE certificate_registration_sessions
         REFERENCES certificate_registration_claims (session_id, id, claimant_user_id, claim_generation)
         DEFERRABLE INITIALLY DEFERRED;
 
+-- Validate the final state from either side of the relationship, not a queued row snapshot.
+CREATE FUNCTION validate_certificate_current_claim() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+    target_session_id UUID;
+    target_claim_id UUID;
+    current_claim_status VARCHAR(20);
+BEGIN
+    IF TG_TABLE_NAME = 'certificate_registration_sessions' THEN
+        target_session_id := NEW.id;
+    ELSIF TG_OP = 'DELETE' THEN
+        target_session_id := OLD.session_id;
+    ELSE
+        target_session_id := NEW.session_id;
+    END IF;
+
+    -- Serialize cross-table checks; callers should acquire locks session-first.
+    SELECT session.current_claim_id INTO target_claim_id
+    FROM certificate_registration_sessions AS session
+    WHERE session.id = target_session_id
+    FOR UPDATE;
+
+    -- A deleted session or a completed transition no longer has a current claim.
+    IF target_claim_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT claim.status INTO current_claim_status
+    FROM certificate_registration_claims AS claim
+    WHERE claim.id = target_claim_id AND claim.session_id = target_session_id
+    FOR UPDATE;
+
+    IF current_claim_status IS DISTINCT FROM 'RESERVED' THEN
+        RAISE EXCEPTION 'Certificate current claim must remain reserved' USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+CREATE CONSTRAINT TRIGGER trg_certificate_current_claim_session
+    AFTER INSERT OR UPDATE ON certificate_registration_sessions
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION validate_certificate_current_claim();
+CREATE CONSTRAINT TRIGGER trg_certificate_current_claim_change
+    AFTER INSERT OR UPDATE OR DELETE ON certificate_registration_claims
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION validate_certificate_current_claim();
+
 CREATE FUNCTION guard_certificate_approval() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF OLD.approval_id IS NOT NULL AND ROW(
