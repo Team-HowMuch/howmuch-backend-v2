@@ -1,0 +1,10 @@
+# Merge these mounts/environment entries into the server-owned app service.
+# Deployment overlays its image only; it will not install this reference for you.
+services:
+  app:
+    environment:
+      KAFKA_SECURITY_PROTOCOL: SSL
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/kafka-client.yml
+    volumes:
+      - ${KAFKA_CLIENT_CONFIG_FILE:?provide the external kafka-client.yml}:/app/config/kafka-client.yml:ro
+      - ${KAFKA_CLIENT_SECRET_DIR:?provide the service-specific TLS directory}:/run/secrets/kafka-client:ro

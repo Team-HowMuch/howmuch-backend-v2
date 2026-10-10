@@ -1,9 +1,11 @@
 package com.amateur.howmuchbackend.application.group.service;
 
+import com.amateur.howmuchbackend.application.notification.service.BusinessNotificationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.group.policy.GroupMemberExitPolicy;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
+import com.amateur.howmuchbackend.application.port.out.group.GroupInvitationStorePort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberSettlementStatePort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -40,6 +42,8 @@ class GroupMemberExitServiceTest {
     private static final Long MEMBER_ID = 20L;
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 25, 6, 0);
 
+    @Mock private BusinessNotificationService notifications;
+    @Mock private GroupInvitationStorePort invitations;
     @Mock private CurrentActorPort currentActorPort;
     @Mock private GroupAccessService groupAccessService;
     @Mock private LoadGroupMemberPort loadGroupMemberPort;
@@ -56,7 +60,9 @@ class GroupMemberExitServiceTest {
                 loadGroupMemberPort,
                 saveGroupMemberPort,
                 loadSettlementStatePort,
-                new GroupMemberExitPolicy()
+                new GroupMemberExitPolicy(),
+                notifications,
+                invitations
         );
     }
 
@@ -75,6 +81,7 @@ class GroupMemberExitServiceTest {
         verify(saveGroupMemberPort).update(captor.capture());
         assertThat(captor.getValue().status()).isEqualTo(GroupMemberStatus.LEFT);
         assertThat(captor.getValue().leftAt()).isNotNull();
+        verify(notifications).groupMemberLeft(org.mockito.ArgumentMatchers.eq(GROUP_ID), org.mockito.ArgumentMatchers.eq(MEMBER_ID), org.mockito.ArgumentMatchers.eq(MEMBER_USER_ID), any());
     }
 
     @Test

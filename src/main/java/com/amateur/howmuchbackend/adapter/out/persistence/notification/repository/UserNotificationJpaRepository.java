@@ -9,6 +9,20 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 public interface UserNotificationJpaRepository extends JpaRepository<UserNotificationJpaEntity, UUID> {
+    @Query(value = """
+            SELECT g.id FROM groups g JOIN group_members m ON m.group_id=g.id
+                WHERE g.id IN (:ids) AND g.status='ACTIVE' AND g.deleted_at IS NULL
+                  AND m.user_id=:userId AND m.status='ACTIVE'
+            """, nativeQuery = true)
+    List<Long> findAccessibleGroupIds(@Param("ids") Collection<Long> ids, @Param("userId") Long userId);
+    @Query(value = """
+            SELECT i.id FROM group_invitations i JOIN groups g ON g.id=i.group_id
+                WHERE i.id IN (:ids) AND i.recipient_user_id=:userId
+                  AND i.status='PENDING' AND i.expires_at>:now AND g.status='ACTIVE' AND g.deleted_at IS NULL
+                  AND g.owner_id=i.inviter_user_id
+            """, nativeQuery = true)
+    List<UUID> findAccessibleInvitationIds(@Param("ids") Collection<UUID> ids,
+            @Param("userId") Long userId, @Param("now") LocalDateTime now);
     @Query(value = "SELECT id FROM settlements WHERE id IN (:ids) AND deleted_at IS NOT NULL", nativeQuery = true)
     List<UUID> findDeletedSettlementIds(@Param("ids") Collection<UUID> ids);
 
@@ -29,10 +43,11 @@ public interface UserNotificationJpaRepository extends JpaRepository<UserNotific
     @Modifying(flushAutomatically = true)
     @Query(value = """
             INSERT INTO user_notifications (id,recipient_user_id,settlement_id,notification_type,allocation_type,
-                requester_name,title,message,deduplication_key,created_at,updated_at)
+                requester_name,title,message,deduplication_key,created_at,updated_at,target_type,target_id)
             VALUES (:#{#n.id()},:#{#n.recipientUserId()},:#{#n.settlementId()},:#{#n.type().name()},
-                :#{#n.allocationType().name()},:#{#n.requesterName()},:#{#n.title()},:#{#n.message()},
-                :#{#n.deduplicationKey()},:#{#n.createdAt()},:#{#n.createdAt()})
+                :#{#n.allocationType()?.name()},:#{#n.requesterName()},:#{#n.title()},:#{#n.message()},
+                :#{#n.deduplicationKey()},:#{#n.createdAt()},:#{#n.createdAt()},
+                :#{#n.target().type().name()},:#{#n.target().id()})
             ON CONFLICT (recipient_user_id,deduplication_key) DO NOTHING
             """, nativeQuery = true)
     int insertIfAbsent(@Param("n") UserNotification notification);

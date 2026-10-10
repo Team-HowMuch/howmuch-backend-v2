@@ -24,9 +24,10 @@ public record NotificationPageWebResponse(
     public record Item(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"SETTLEMENT_REQUEST", "SETTLEMENT_REMINDER"}) String type,
+                    allowableValues = {"SETTLEMENT_REQUEST", "SETTLEMENT_REMINDER", "SETTLEMENT_PAYMENT_COMPLETED",
+                            "SETTLEMENT_COMPLETED", "GROUP_INVITATION", "GROUP_MEMBER_LEFT", "MONTHLY_RECAP"}) String type,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"DUTCH_PAY", "ITEM_ALLOCATION"}) String allocationType,
+                    allowableValues = {"DUTCH_PAY", "ITEM_ALLOCATION"}, nullable = true) String allocationType,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String message,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
@@ -39,9 +40,9 @@ public record NotificationPageWebResponse(
     ) {
         static Item from(NotificationResult result) {
             return new Item(
-                    result.id(), result.type().name(), result.allocationType().name(),
+                    result.id(), result.type().name(), result.allocationType() == null ? null : result.allocationType().name(),
                     result.title(), result.message(), result.createdAt(), result.readAt(), result.settlementId(),
-                    new Action(result.action().type(), result.action().label(), result.action().enabled())
+                    new Action(result.action().type(), result.action().label(), result.action().enabled(), result.action().targetId())
             );
         }
     }
@@ -49,9 +50,13 @@ public record NotificationPageWebResponse(
     @Schema(name = "NotificationAction")
     public record Action(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = "SETTLEMENT_DETAIL") String type,
+                    allowableValues = {"SETTLEMENT_PARTICIPATION", "SETTLEMENT_DETAIL", "GROUP_INVITATION",
+                            "GROUP_DETAIL", "MONTHLY_RECAP"}) String type,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String label,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    description = "정산 삭제 시 false. 완료된 정산은 상세 조회 가능") boolean enabled
-    ) {}
+                    description = "대상 삭제·권한 소멸·초대 만료 시 false") boolean enabled,
+            @Schema(nullable = true, description = "type별 UUID, 양수 groupId 또는 yyyy-MM. 이동 불가하면 null") String targetId
+    ) {
+        public Action(String type, String label, boolean enabled) { this(type, label, enabled, null); }
+    }
 }

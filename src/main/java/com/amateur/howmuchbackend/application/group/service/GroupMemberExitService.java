@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.group.service;
 
+import com.amateur.howmuchbackend.application.notification.service.BusinessNotificationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.group.policy.GroupMemberExitPolicy;
 import com.amateur.howmuchbackend.application.group.policy.GroupMemberExitType;
@@ -7,6 +8,7 @@ import com.amateur.howmuchbackend.application.port.in.group.LeaveGroupUseCase;
 import com.amateur.howmuchbackend.application.port.in.group.RemoveGroupMemberUseCase;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
+import com.amateur.howmuchbackend.application.port.out.group.GroupInvitationStorePort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberSettlementStatePort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -28,6 +30,8 @@ public class GroupMemberExitService implements LeaveGroupUseCase, RemoveGroupMem
     private final SaveGroupMemberPort saveGroupMemberPort;
     private final LoadGroupMemberSettlementStatePort loadSettlementStatePort;
     private final GroupMemberExitPolicy exitPolicy;
+    private final BusinessNotificationService notifications;
+    private final GroupInvitationStorePort invitations;
 
     @Override
     @Transactional
@@ -41,7 +45,10 @@ public class GroupMemberExitService implements LeaveGroupUseCase, RemoveGroupMem
                 actor.userId(),
                 loadSettlementStatePort.findStatuses(groupId, target.userId())
         );
-        saveGroupMemberPort.update(target.leave(now()));
+        LocalDateTime now = now();
+        saveGroupMemberPort.update(target.leave(now));
+        invitations.cancelPending(groupId, target.userId(), now);
+        notifications.groupMemberLeft(groupId, target.id(), target.userId(), now);
     }
 
     @Override
@@ -60,7 +67,9 @@ public class GroupMemberExitService implements LeaveGroupUseCase, RemoveGroupMem
                 actor.userId(),
                 loadSettlementStatePort.findStatuses(groupId, target.userId())
         );
-        saveGroupMemberPort.update(target.remove(now()));
+        LocalDateTime now = now();
+        saveGroupMemberPort.update(target.remove(now));
+        invitations.cancelPending(groupId, target.userId(), now);
     }
 
     private LocalDateTime now() {

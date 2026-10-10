@@ -13,6 +13,7 @@ import com.amateur.howmuchbackend.application.port.in.group.result.GroupDetailRe
 import com.amateur.howmuchbackend.application.port.in.group.result.GroupMemberResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
+import com.amateur.howmuchbackend.application.port.out.group.GroupInvitationStorePort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
@@ -52,6 +53,7 @@ public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembers
     private final PublicIdPolicy publicIdPolicy;
     private final GroupAccessService groupAccessService;
     private final GroupResultAssembler groupResultAssembler;
+    private final GroupInvitationStorePort invitations;
 
     @Override
     @Transactional
@@ -75,6 +77,7 @@ public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembers
                         now
                 )));
 
+        invitations.cancelPending(group.id(), actor.userId(), now);
         int memberCount = loadGroupMemberPort.countActiveByGroupId(group.id());
         return groupResultAssembler.detail(group, member, memberCount);
     }
@@ -139,6 +142,7 @@ public class GroupMembershipService implements JoinGroupUseCase, GetGroupMembers
                         targetUser.id(),
                         now
                 )));
+        invitations.cancelPending(groupId, targetUser.id(), now);
         return toResult(member, targetUser);
     }
 

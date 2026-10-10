@@ -1,0 +1,17 @@
+# Copy outside Git as kafka-client.yml; mount it at /app/config/kafka-client.yml.
+# Import through SPRING_CONFIG_ADDITIONAL_LOCATION=file:/app/config/kafka-client.yml.
+# This matches the SSL/mTLS private broker references, not their SASL_SSL alternative.
+spring:
+  config:
+    import: "configtree:/run/secrets/kafka-client/"
+  kafka:
+    properties:
+      "security.protocol": SSL
+      "ssl.keystore.type": PKCS12
+      "ssl.keystore.location": /run/secrets/kafka-client/client.keystore.p12
+      "ssl.keystore.password": "${kafka.keystore.password}"
+      "ssl.key.password": "${kafka.key.password}"
+      "ssl.truststore.type": PKCS12
+      "ssl.truststore.location": /run/secrets/kafka-client/cluster.truststore.p12
+      "ssl.truststore.password": "${kafka.truststore.password}"
+      "ssl.endpoint.identification.algorithm": https

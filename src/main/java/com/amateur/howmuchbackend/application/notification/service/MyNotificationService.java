@@ -58,9 +58,23 @@ public class MyNotificationService implements GetMyNotificationsUseCase, CountMy
     }
 
     private NotificationResult toResult(UserNotification n) {
-        String label = n.type() == NotificationType.SETTLEMENT_REMINDER ? "지금 바로 정산하러 가기"
-                : n.allocationType() == SettlementAllocationType.ITEM_ALLOCATION ? "영수증 정산하러 가기" : "정산하러 가기";
+        String label = switch (n.type()) {
+            case SETTLEMENT_REMINDER -> "지금 바로 정산하러 가기";
+            case SETTLEMENT_REQUEST -> n.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
+                    ? "영수증 정산하러 가기" : "정산하러 가기";
+            case SETTLEMENT_PAYMENT_COMPLETED, SETTLEMENT_COMPLETED -> "정산 내역 확인하기";
+            case GROUP_INVITATION -> "초대 확인하기";
+            case GROUP_MEMBER_LEFT -> "그룹 확인하기";
+            case MONTHLY_RECAP -> "리캡 확인하기";
+        };
+        String actionType = n.target() == null ? switch (n.type()) {
+            case GROUP_INVITATION -> "GROUP_INVITATION";
+            case GROUP_MEMBER_LEFT -> "GROUP_DETAIL";
+            case MONTHLY_RECAP -> "MONTHLY_RECAP";
+            default -> "SETTLEMENT_DETAIL";
+        } : n.target().type().name();
         return new NotificationResult(n.id(), n.type(), n.allocationType(), n.title(), n.message(), n.createdAt(),
-                n.readAt(), n.settlementId(), new NotificationResult.Action("SETTLEMENT_DETAIL", label, n.settlementId() != null));
+                n.readAt(), n.settlementId(), new NotificationResult.Action(actionType, label,
+                        n.target() != null, n.target() == null ? null : n.target().id()));
     }
 }

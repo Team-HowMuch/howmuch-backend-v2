@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.out.persistence.notification.entity;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.common.BaseTimeJpaEntity;
 import com.amateur.howmuchbackend.domain.notification.NotificationType;
+import com.amateur.howmuchbackend.domain.notification.NotificationTargetType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -24,7 +25,7 @@ public class UserNotificationJpaEntity extends BaseTimeJpaEntity {
     @Column(name = "notification_type", nullable = false, length = 30)
     private NotificationType notificationType;
     @Enumerated(EnumType.STRING)
-    @Column(name = "allocation_type", nullable = false, length = 30)
+    @Column(name = "allocation_type", length = 30)
     private SettlementAllocationType allocationType;
     @Column(name = "requester_name", nullable = false, length = 100)
     private String requesterName;
@@ -36,4 +37,9 @@ public class UserNotificationJpaEntity extends BaseTimeJpaEntity {
     private String deduplicationKey;
     @Column(name = "read_at", nullable = true)
     private LocalDateTime readAt;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "target_type", nullable = false, length = 40)
+    private NotificationTargetType targetType;
+    @Column(name = "target_id", length = 64)
+    private String targetId;
 }

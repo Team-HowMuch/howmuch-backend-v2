@@ -13,13 +13,27 @@ import java.util.UUID;
 
 public interface SettlementNotificationOutboxJpaRepository
         extends JpaRepository<SettlementNotificationOutboxJpaEntity, UUID> {
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE settlement_notification_outbox
+               SET status = CASE WHEN attempt_count = 1 THEN 'PENDING' ELSE 'RETRY' END,
+                   attempt_count = attempt_count - 1, next_attempt_at = :resumeAt,
+                   processing_started_at = NULL, completed_at = NULL,
+                   last_failure_code = CASE WHEN attempt_count = 1 THEN NULL ELSE last_failure_code END,
+                   delivery_generation = delivery_generation + 1, delivery_message_id = gen_random_uuid(),
+                   publication_status = 'PENDING', publication_attempt_count = 0, next_publication_at = :resumeAt,
+                   publication_lease_token = NULL, publication_lease_until = NULL, published_at = NULL, updated_at = :now
+             WHERE id = :id AND status = 'PROCESSING' AND attempt_count = :attempt
+            """, nativeQuery = true)
+    int deferProcessing(@Param("id") UUID id, @Param("attempt") int attempt,
+            @Param("resumeAt") LocalDateTime resumeAt, @Param("now") LocalDateTime now);
     @Query(value = """
             SELECT event.*
               FROM settlement_notification_outbox event
-              JOIN settlements settlement ON settlement.id = event.settlement_id
+              LEFT JOIN settlements settlement ON settlement.id = event.settlement_id
              WHERE event.status IN ('PENDING', 'RETRY')
                AND event.next_attempt_at <= :now
-               AND settlement.deleted_at IS NULL
+               AND (event.settlement_id IS NULL OR settlement.deleted_at IS NULL)
              ORDER BY event.next_attempt_at, event.created_at, event.id
              LIMIT 1
                FOR UPDATE OF event SKIP LOCKED
@@ -69,6 +83,11 @@ public interface SettlementNotificationOutboxJpaRepository
                    processing_started_at = NULL,
                    completed_at = NULL,
                    last_failure_code = :failureCode,
+                   delivery_generation = delivery_generation + 1,
+                   delivery_message_id = gen_random_uuid(),
+                   publication_status = 'PENDING', publication_attempt_count = 0,
+                   next_publication_at = :nextAttemptAt, publication_lease_token = NULL,
+                   publication_lease_until = NULL, published_at = NULL,
                    updated_at = :updatedAt
              WHERE id = :id
                AND status = 'PROCESSING'

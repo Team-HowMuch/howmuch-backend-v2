@@ -8,16 +8,18 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPush
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementShareLinkStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementNotificationRetryPolicy;
-import com.amateur.howmuchbackend.domain.notification.NotificationType;
+import com.amateur.howmuchbackend.application.notification.service.NotificationDeliveryContentResolver;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationFailureCode;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
-import com.amateur.howmuchbackend.domain.user.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.time.Clock;
+import com.amateur.howmuchbackend.application.notification.policy.NotificationDeliveryTimingPolicy;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.time.ZoneOffset;
 import java.util.Optional;
 
@@ -25,15 +27,22 @@ import java.util.Optional;
 @Slf4j
 public class SettlementNotificationOutboxWorker {
     private final SettlementNotificationOutboxPort outboxPort;
-    private final LoadSettlementPort loadSettlementPort;
-    private final LoadUserPort loadUserPort;
-    private final SettlementShareLinkStorePort shareLinkStorePort;
-    private final SettlementLinkTokenPort linkTokenPort;
     private final SettlementPushSenderPort pushSenderPort;
     private final SettlementNotificationRetryPolicy retryPolicy;
-    private final LoadNotificationPort loadNotificationPort;
     private final TransactionTemplate deliveryTransaction;
+    private final NotificationDeliveryContentResolver contentResolver;
+    private final Clock clock;
 
+    public SettlementNotificationOutboxWorker(SettlementNotificationOutboxPort outboxPort,
+            LoadSettlementPort loadSettlementPort, LoadUserPort loadUserPort,
+            SettlementShareLinkStorePort shareLinkStorePort, SettlementLinkTokenPort linkTokenPort,
+            SettlementPushSenderPort pushSenderPort, SettlementNotificationRetryPolicy retryPolicy,
+            LoadNotificationPort loadNotificationPort, PlatformTransactionManager transactionManager) {
+        this(outboxPort, loadSettlementPort, loadUserPort, shareLinkStorePort, linkTokenPort,
+                pushSenderPort, retryPolicy, loadNotificationPort, transactionManager, Clock.systemUTC());
+    }
+
+    @Autowired
     public SettlementNotificationOutboxWorker(
             SettlementNotificationOutboxPort outboxPort,
             LoadSettlementPort loadSettlementPort,
@@ -43,21 +52,19 @@ public class SettlementNotificationOutboxWorker {
             SettlementPushSenderPort pushSenderPort,
             SettlementNotificationRetryPolicy retryPolicy,
             LoadNotificationPort loadNotificationPort,
-            PlatformTransactionManager transactionManager
+            PlatformTransactionManager transactionManager, Clock clock
     ) {
         this.outboxPort = outboxPort;
-        this.loadSettlementPort = loadSettlementPort;
-        this.loadUserPort = loadUserPort;
-        this.shareLinkStorePort = shareLinkStorePort;
-        this.linkTokenPort = linkTokenPort;
         this.pushSenderPort = pushSenderPort;
         this.retryPolicy = retryPolicy;
-        this.loadNotificationPort = loadNotificationPort;
         this.deliveryTransaction = new TransactionTemplate(transactionManager);
+        this.contentResolver = new NotificationDeliveryContentResolver(loadSettlementPort, loadUserPort,
+                shareLinkStorePort, linkTokenPort, loadNotificationPort, new NotificationDeliveryTimingPolicy());
+        this.clock = clock;
     }
 
     public BatchResult processBatch(int batchSize) {
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = now();
         int recovered = outboxPort.recoverStale(
                 batchSize,
                 retryPolicy.staleBefore(now),
@@ -69,9 +76,10 @@ public class SettlementNotificationOutboxWorker {
         int retried = 0;
         int failed = 0;
         int ownershipLost = 0;
+        int deferred = 0;
         while (claimed < batchSize) {
             Optional<SettlementNotificationOutbox> candidate = outboxPort.claimNextReady(
-                    LocalDateTime.now(ZoneOffset.UTC)
+                    now()
             );
             if (candidate.isEmpty()) {
                 break;
@@ -80,7 +88,7 @@ public class SettlementNotificationOutboxWorker {
             SettlementNotificationOutbox event = candidate.get();
             ProcessingResult result;
             try {
-                result = deliveryTransaction.execute(status -> process(event));
+                result = process(event);
             } catch (RuntimeException exception) {
                 log.warn(
                         "Settlement notification processing transaction failed. "
@@ -97,6 +105,7 @@ public class SettlementNotificationOutboxWorker {
                 case RETRIED -> retried++;
                 case FAILED -> failed++;
                 case OWNERSHIP_LOST -> ownershipLost++;
+                case DEFERRED -> deferred++;
             }
         }
         return new BatchResult(
@@ -105,87 +114,36 @@ public class SettlementNotificationOutboxWorker {
                 succeeded,
                 retried,
                 failed,
-                ownershipLost
+                ownershipLost, deferred
         );
     }
 
     private ProcessingResult process(SettlementNotificationOutbox event) {
         try {
-            if (loadSettlementPort.findByIdForUpdate(event.settlementId()).isEmpty()) {
-                return fail(event, SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
+            var prepared = deliveryTransaction.execute(status -> contentResolver.prepare(event, now()));
+            if (prepared.failure() != null) return fail(event, prepared.failure());
+            if (prepared.deferUntil() != null) {
+                return Boolean.TRUE.equals(deliveryTransaction.execute(status -> outboxPort.deferProcessing(event,
+                        prepared.deferUntil(), now()))) ? ProcessingResult.DEFERRED : ProcessingResult.OWNERSHIP_LOST;
             }
-            Optional<User> recipientCandidate = loadUserPort.findById(event.recipientUserId());
-            if (recipientCandidate.isEmpty()) {
-                return fail(event, SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
-            }
-            User recipient = recipientCandidate.get();
-            if (!recipient.active()
-                    || recipient.fcmToken() == null
-                    || recipient.fcmToken().isBlank()) {
-                return fail(event, SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
-            }
-
-            if (event.notificationId() != null) {
-                var notification = loadNotificationPort.findById(event.notificationId());
-                if (notification.isEmpty()
-                        || !event.recipientUserId().equals(notification.get().recipientUserId())
-                        || !event.settlementId().equals(notification.get().settlementId())) {
-                    return fail(event, SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
-                }
-                var n = notification.get();
-                var result = pushSenderPort.sendNotification(recipient.fcmToken(),
-                        new SettlementPushSenderPort.NotificationMessage(n.id(), n.settlementId(),
-                                n.type() == NotificationType.SETTLEMENT_REQUEST
-                                        ? "SETTLEMENT_PARTICIPATION" : "SETTLEMENT_REMINDER", n.allocationType(), n.title(), n.message()));
-                return result == SettlementPushSenderPort.SendResult.INVALID_TARGET
-                        ? fail(event, SettlementNotificationFailureCode.INVALID_TARGET) : succeed(event);
-            }
-
-            Optional<SettlementShareLinkStorePort.StoredSettlementShareLink> linkCandidate =
-                    shareLinkStorePort.findBySettlementId(event.settlementId());
-            if (linkCandidate.isEmpty()) {
-                return fail(event, SettlementNotificationFailureCode.LINK_UNAVAILABLE);
-            }
-            SettlementShareLinkStorePort.StoredSettlementShareLink storedLink = linkCandidate.get();
-            LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-            if (storedLink.rawToken() == null || !storedLink.link().isUsableAt(now)) {
-                return fail(event, SettlementNotificationFailureCode.LINK_UNAVAILABLE);
-            }
-            if (!storedLink.link().tokenHash().equals(linkTokenPort.hash(storedLink.rawToken()))) {
-                return fail(event, SettlementNotificationFailureCode.LINK_UNAVAILABLE);
-            }
-
-            SettlementPushSenderPort.SendResult sendResult = pushSenderPort
-                    .sendParticipationRequest(
-                            recipient.fcmToken(),
-                            event.settlementId(),
-                            linkTokenPort.url(storedLink.rawToken())
-                    );
-            if (sendResult == SettlementPushSenderPort.SendResult.INVALID_TARGET) {
-                return fail(event, SettlementNotificationFailureCode.INVALID_TARGET);
-            }
-            return succeed(event);
+            // No DB transaction or row lock is held while FCM/APNs accepts the request.
+            var result = prepared.send(pushSenderPort, event);
+            return result == SettlementPushSenderPort.SendResult.INVALID_TARGET
+                    ? fail(event, SettlementNotificationFailureCode.INVALID_TARGET) : succeed(event);
         } catch (RuntimeException exception) {
-            log.warn(
-                    "Settlement participation notification delivery failed. "
-                            + "eventId={}, settlementId={}, recipientUserId={}, attemptCount={}, failureType={}",
-                    event.id(),
-                    event.settlementId(),
-                    event.recipientUserId(),
-                    event.attemptCount(),
-                    exception.getClass().getSimpleName()
-            );
+            log.warn("Notification delivery failed. eventId={}, attemptCount={}, failureType={}",
+                    event.id(), event.attemptCount(), exception.getClass().getSimpleName());
             return retryOrFail(event);
         }
     }
 
     private ProcessingResult succeed(SettlementNotificationOutbox event) {
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = now();
         return transition(event.succeed(now), now, ProcessingResult.SUCCEEDED);
     }
 
     private ProcessingResult retryOrFail(SettlementNotificationOutbox event) {
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = now();
         if (!retryPolicy.canRetry(event.attemptCount())) {
             return transition(
                     event.fail(SettlementNotificationFailureCode.DELIVERY_ERROR, now),
@@ -208,7 +166,7 @@ public class SettlementNotificationOutboxWorker {
             SettlementNotificationOutbox event,
             SettlementNotificationFailureCode failureCode
     ) {
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = now();
         return transition(event.fail(failureCode, now), now, ProcessingResult.FAILED);
     }
 
@@ -217,7 +175,7 @@ public class SettlementNotificationOutboxWorker {
             LocalDateTime transitionedAt,
             ProcessingResult successResult
     ) {
-        if (outboxPort.transitionFromProcessing(event, transitionedAt)) {
+        if (Boolean.TRUE.equals(deliveryTransaction.execute(status -> outboxPort.transitionFromProcessing(event, transitionedAt)))) {
             return successResult;
         }
         log.warn(
@@ -230,11 +188,13 @@ public class SettlementNotificationOutboxWorker {
         return ProcessingResult.OWNERSHIP_LOST;
     }
 
+    private LocalDateTime now() { return LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC); }
+
     private enum ProcessingResult {
         SUCCEEDED,
         RETRIED,
         FAILED,
-        OWNERSHIP_LOST
+        OWNERSHIP_LOST, DEFERRED
     }
 
     public record BatchResult(
@@ -243,7 +203,10 @@ public class SettlementNotificationOutboxWorker {
             int succeeded,
             int retried,
             int failed,
-            int ownershipLost
+            int ownershipLost, int deferred
     ) {
+        public BatchResult(int recovered, int claimed, int succeeded, int retried, int failed, int ownershipLost) {
+            this(recovered, claimed, succeeded, retried, failed, ownershipLost, 0);
+        }
     }
 }

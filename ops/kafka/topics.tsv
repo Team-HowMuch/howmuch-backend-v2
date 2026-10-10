@@ -1,0 +1,9 @@
+# topic partitions retention.ms max.message.bytes
+notification.delivery.v1	3	604800000	8192
+notification.delivery.v1.dlt	3	604800000	8192
+recap.published.v1	3	604800000	8192
+recap.published.v1.dlt	3	604800000	8192
+finance.sync.command.v1	3	604800000	1048576
+finance.sync.event.v1	3	86400000	1048576
+finance.sync.command.v1.dlt	3	604800000	8192
+finance.sync.event.v1.dlt	3	604800000	8192

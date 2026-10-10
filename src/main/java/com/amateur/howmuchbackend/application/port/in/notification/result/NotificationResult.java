@@ -8,5 +8,7 @@ import java.util.UUID;
 public record NotificationResult(UUID id, NotificationType type, SettlementAllocationType allocationType,
         String title, String message, LocalDateTime createdAt, LocalDateTime readAt, UUID settlementId,
         Action action) {
-    public record Action(String type, String label, boolean enabled) {}
+    public record Action(String type, String label, boolean enabled, String targetId) {
+        public Action(String type, String label, boolean enabled) { this(type, label, enabled, null); }
+    }
 }

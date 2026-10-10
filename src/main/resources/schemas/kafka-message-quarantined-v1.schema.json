@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://howmuch.team/schemas/kafka-message-quarantined-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["messageId", "messageType", "schemaVersion", "occurredAt", "sourceTopic", "sourcePartition", "sourceOffset", "payloadSha256", "failureCode"],
+  "properties": {
+    "messageId": {"type": "string", "format": "uuid"},
+    "messageType": {"const": "KafkaMessageQuarantined"},
+    "schemaVersion": {"const": 1},
+    "occurredAt": {"type": "string", "format": "date-time"},
+    "sourceTopic": {"type": "string", "pattern": "^[a-zA-Z0-9._-]{1,249}$"},
+    "sourcePartition": {"type": "integer", "minimum": 0},
+    "sourceOffset": {"type": "integer", "minimum": 0},
+    "payloadSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "failureCode": {"const": "INVALID_CONTRACT"}
+  }
+}

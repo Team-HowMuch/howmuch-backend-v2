@@ -95,6 +95,8 @@ class NotificationInboxIntegrationTest {
     void cleanUp() {
         reset(outbox);
         redis.delete("settlement:reminder:" + settlement + ":" + participant);
+        jdbc.update("DELETE FROM settlement_notification_outbox WHERE recipient_user_id IN (?,?)", creator, recipient);
+        jdbc.update("DELETE FROM user_notifications WHERE recipient_user_id IN (?,?)", creator, recipient);
         jdbc.update("DELETE FROM settlement_deposits WHERE settlement_id=?", settlement);
         jdbc.update("DELETE FROM settlements WHERE id=?", settlement);
         jdbc.update("DELETE FROM account_transactions WHERE account_id=?", account);
