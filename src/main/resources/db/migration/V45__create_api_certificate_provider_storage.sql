@@ -362,6 +362,9 @@ CREATE TABLE certificate_provider_result_outbox (
         AND (completed_at IS NULL OR completed_at >= created_at)
     )
 );
+-- UNKNOWN may precede a definitive result, but success and failure cannot coexist.
+CREATE UNIQUE INDEX uk_certificate_provider_registration_definitive ON certificate_provider_result_outbox (command_message_id)
+    WHERE message_type IN ('REGISTERED', 'REGISTRATION_FAILED');
 CREATE INDEX idx_certificate_provider_result_ready ON certificate_provider_result_outbox (next_attempt_at, message_id) WHERE status IN ('PENDING', 'RETRY');
 CREATE INDEX idx_certificate_provider_result_lease ON certificate_provider_result_outbox (lease_expires_at, message_id) WHERE status = 'PROCESSING';
 
