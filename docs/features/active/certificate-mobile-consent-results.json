@@ -1,0 +1,141 @@
+{
+  "date": "2026-10-11",
+  "java": {
+    "compileJava": "passed",
+    "selectedTests": 103,
+    "failures": 0,
+    "suites": [
+      {
+        "suite": "com.amateur.howmuchbackend.application.certificate.CertificatePolicyTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.adapter.in.kafka.CertificateMessageContractTest",
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.adapter.in.web.certificate.CertificateHttpIntegrationTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "계좌 연동 Application 흐름",
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.adapter.out.codef.CodefCertificateSingleAttemptTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.adapter.out.configuration.CertificateInstitutionCatalogAdapterTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.adapter.out.codef.CodefCertificateRegistrationAdapterTest",
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.application.certificate.CertificatePersistenceIntegrationTest",
+        "tests": 29,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.infra.certificate.CertificateRequestSizeFilterTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "CODEF 계좌 연결 Adapter",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.adapter.out.security.CertificateProtectionTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.adapter.out.security.KmsBankAccountCredentialCipherTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.adapter.out.kafka.CertificateWireSchemaTest",
+        "tests": 8,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.amateur.howmuchbackend.application.certificate.CertificateFailureMigrationTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "electron": {
+    "unitTests": 26,
+    "failures": 0,
+    "realElectronSmoke": "passed",
+    "scenarios": [
+      "reservation check",
+      "BOUND completion check",
+      "concurrent mobile decision while polling",
+      "repeat import without financial deletion",
+      "password and account-password errors",
+      "USB discovery",
+      "close-only custom titlebar"
+    ]
+  },
+  "local": {
+    "apiReadiness": 200,
+    "migrationVersionsApplied": [
+      "46",
+      "47"
+    ],
+    "mobileRoutesJwtRequired": true,
+    "realCertificateOrBankMutationTested": false
+  },
+  "publication": {
+    "commit": false,
+    "push": false,
+    "pullRequest": false
+  },
+  "remaining": [
+    "Mobile app Yes/No UI integration in its own repository",
+    "Real bank create/add/update acceptance with user-approved fresh certificate",
+    "Windows installer rebuild and execution verification"
+  ]
+}

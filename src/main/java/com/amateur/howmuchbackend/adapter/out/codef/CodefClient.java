@@ -36,6 +36,11 @@ public class CodefClient {
         return post(path, requestBody, false);
     }
 
+    /** Certificate creation must not be repeated, including after an HTTP 401. */
+    JsonNode postOnce(String path, Object requestBody) {
+        return post(path, requestBody, true);
+    }
+
     JsonNode decode(String responseBody) {
         if (responseBody == null || responseBody.isBlank()) {
             return objectMapper.createObjectNode();
@@ -62,9 +67,9 @@ public class CodefClient {
                     .body(String.class);
             return decode(rawResponse);
         } catch (RestClientResponseException exception) {
-            if (exception.getStatusCode().value() == 401 && !retried) {
+            if (exception.getStatusCode().value() == 401) {
                 tokenClient.clearCache();
-                return post(path, requestBody, true);
+                if (!retried) return post(path, requestBody, true);
             }
             throw new CodefHttpException(
                     exception.getStatusCode().value(), exception.getResponseBodyAsString(), exception
