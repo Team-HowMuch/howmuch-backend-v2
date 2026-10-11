@@ -82,3 +82,13 @@ SQL은 #500 V46, #501 V47의 독립 SQL-only PR로 develop에 게시하며 서�
 기존 PostgreSQL 통합 검증에 부분 완료 두 형태와 승인 이전 완료 시각의 거부, 정상 원자 완료 및 완료 기록 변경 거부를 추가한다. 수정 전 실패를 재현하고 수정 후 migration/persistence 테스트를 실행한다. 새 테이블·컬럼이나 새 migration 버전은 필요하지 않으며 아직 미병합인 V47 한 파일을 수정한다. SQL은 #504의 `fix(certificate)` 커밋, 회귀 테스트/검증 기록은 #505의 `test(certificate)` 커밋으로 분리한다. 앱과 다른 SQL에는 수정할 리뷰가 없다.
 
 검증 결과: 수정 전 `yesBindsEncryptedUserConnectionAndReusesItOnNextCertificate`가 연결 ID만 저장하는 UPDATE를 거부하지 못해 실패했다. V47 수정 후 `./gradlew compileJava test --tests '*CertificatePersistenceIntegrationTest' --tests '*CertificateFailureMigrationTest' --no-daemon`이 성공했다. PostgreSQL 통합 29개와 V45→V46→V47 migration 검증 1개, 합계 30개 모두 실패·오류·skip 0이다. 서버 PR에는 회귀 테스트와 이 기록만 추가하고 SQL은 #504에만 게시한다.
+
+## PR #505 CI 실패 수정 — 저장소 분리 이후의 계약 검증
+
+CI 로그에서 앱 저장소로 이전한 `apps/windows-certificate/src/user-errors.json`을 서버 테스트가 직접 읽어 실패하는 문제를 확인했다. 앱 파일이 남은 로컬 작업 트리에서는 이 의존이 가려졌다. 현재 connector 앱에 게시한 오류 코드/문구를 서버의 test resource 계약 snapshot으로 명시하고 기존 비교 테스트를 classpath resource 기반으로 바꾼다. 앱 실시간 일치 검증이라는 잘못된 이름도 게시 계약 호환성 검증으로 바꾼다. API·보안·DB 스키마 변경이나 새 migration은 없다. 커밋은 `test(codef): 분리된 앱 파일 의존을 오류 계약 스냅샷으로 교체`로 한 의도로 묶는다.
+
+별개로 #503/V46·#504/V47이 아직 develop에 없어 서버 PR 단독 CI의 migration/승인 통합 테스트가 실패한다. SQL은 기존 PR에 유지한다. 검증은 앱 잔여 파일 없는 Git 추출본에서 진행하고, 실제 서버 테스트에는 두 SQL PR의 게시된 버전만 추가해 전체 회귀를 실행한다. 이 통합 검증을 #505 단독 CI 성공으로 보고하지 않는다. 병합 순서는 #503→#504→#505이며 선행 SQL 병합 후 #505의 develop 반영 및 CI 재실행이 필요하다.
+
+오류 계약 snapshot 출처는 `Team-HowMuch/howmuch-finance-connector`의 `1bfa1a3` 커밋, `apps/windows-certificate/src/user-errors.json`이다. 서버 `src/test/resources/contracts/certificate-user-errors.json`에 보존해 게시한 코드/문구의 호환성을 검증한다. 계약을 의도적으로 변경할 때 서버 snapshot과 connector 앱을 함께 검토한다. 다른 저장소의 최신 파일을 실시간으로 비교하는 테스트는 아니다.
+
+검증 결과: 앱 폴더와 V46/V47이 없는 Git 추출본에서 `./gradlew compileJava test --tests '*CodefFailureMapperTest' --no-daemon`이 성공했다(26개, 실패·오류·skip 0). 같은 추출본에 #503 `570b820b`와 #504 `7d91b6cd`의 SQL만 추가하고 일회용 PostgreSQL 18·Redis 8에서 `bash scripts/test.sh clean compileJava test`를 실행했다. Java 223 suites/1,667개 및 JavaScript 35개가 모두 통과했다. 로컬 앱 잔여 파일을 참조하지 않음을 확인했다. SQL 선행 PR이 아직 미병합이므로 이 결과는 #505 단독 원격 CI 통과를 의미하지 않는다.

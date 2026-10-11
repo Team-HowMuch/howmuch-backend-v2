@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.amateur.howmuchbackend.domain.certificate.CertificateStatusCode;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import tools.jackson.databind.ObjectMapper;
-import java.nio.file.Path;
 
 class CodefFailureMapperTest {
     @ParameterizedTest
@@ -36,12 +36,15 @@ class CodefFailureMapperTest {
     }
 
     @Test
-    void desktopMessagesMatchTheServerAndContainOnlyKnownCodes() {
-        var messages = new ObjectMapper().readTree(Path.of("apps/windows-certificate/src/user-errors.json"));
-        for (var status : ExternalConnectionStatusCode.values())
-            assertThat(messages.path(status.getCode()).asText()).isEqualTo(status.getMessage());
-        for (var status : CertificateStatusCode.values())
-            assertThat(messages.path(status.getCode()).asText()).isEqualTo(status.getMessage());
-        assertThat(messages.size()).isEqualTo(ExternalConnectionStatusCode.values().length + CertificateStatusCode.values().length);
+    void publishedCertificateErrorMessagesRemainCompatibleWithServer() throws IOException {
+        try (var resource = getClass().getResourceAsStream("/contracts/certificate-user-errors.json")) {
+            assertThat(resource).as("Published certificate app error contract").isNotNull();
+            var messages = new ObjectMapper().readTree(resource);
+            for (var status : ExternalConnectionStatusCode.values())
+                assertThat(messages.path(status.getCode()).asText()).isEqualTo(status.getMessage());
+            for (var status : CertificateStatusCode.values())
+                assertThat(messages.path(status.getCode()).asText()).isEqualTo(status.getMessage());
+            assertThat(messages.size()).isEqualTo(ExternalConnectionStatusCode.values().length + CertificateStatusCode.values().length);
+        }
     }
 }
