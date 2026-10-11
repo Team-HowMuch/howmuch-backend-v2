@@ -19,7 +19,7 @@ CREATE TABLE certificate_registration_consents (
   REFERENCES certificate_registration_claims(session_id,id,claimant_user_id,claim_generation),
  FOREIGN KEY (external_connection_id,user_id) REFERENCES external_connections(id,user_id),
  CHECK ((external_connection_id IS NULL AND completed_at IS NULL)
-  OR (external_connection_id IS NOT NULL AND completed_at >= approved_at))
+  OR (external_connection_id IS NOT NULL AND completed_at IS NOT NULL AND completed_at >= approved_at))
 );
 CREATE FUNCTION guard_certificate_consent() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
