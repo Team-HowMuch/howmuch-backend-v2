@@ -1,0 +1,82 @@
+{
+  "scope": "current real local certificate app; authenticated local test account; actual CODEF provider",
+  "phases": [
+    {
+      "phase": "ready",
+      "apiReady": true,
+      "testAccountLoginStatus": 200
+    },
+    {
+      "phase": "qr",
+      "decodedFromCurrentApp": true
+    },
+    {
+      "phase": "reserve",
+      "httpStatus": 201,
+      "status": "RESERVED",
+      "confirmationCodeHasSixDigits": true
+    },
+    {
+      "phase": "inspect",
+      "httpStatus": 200,
+      "organization": "0020"
+    },
+    {
+      "phase": "approve",
+      "httpStatus": 200,
+      "status": "SUBMITTED",
+      "errorCode": null
+    },
+    {
+      "phase": "registration",
+      "status": "SUBMITTED",
+      "failureCode": null
+    },
+    {
+      "phase": "registration",
+      "status": "REGISTERING",
+      "failureCode": null
+    },
+    {
+      "phase": "registration",
+      "status": "BOUND",
+      "failureCode": null
+    },
+    {
+      "phase": "storage",
+      "ownerMappingActiveAndEncrypted": true,
+      "accountCredentialsStored": true
+    },
+    {
+      "phase": "connections",
+      "httpStatus": 200,
+      "approvedInstitutionVisible": true,
+      "errorCode": null
+    },
+    {
+      "phase": "accounts",
+      "state": "QUERYING",
+      "organization": "0020"
+    },
+    {
+      "phase": "accounts",
+      "httpStatus": 200,
+      "candidateCount": 2,
+      "accountTypes": {
+        "DEPOSIT_TRUST": 2
+      },
+      "alreadyLinkedCount": 0
+    },
+    {
+      "phase": "kafka",
+      "commandPublishedProviderSucceededResultPublishedInboxReceived": true
+    },
+    {
+      "phase": "complete",
+      "registrationBound": true,
+      "connectedIdStoredEncrypted": true,
+      "accountQuerySucceeded": true,
+      "accountsWereNotSelectedOrPersisted": true
+    }
+  ]
+}

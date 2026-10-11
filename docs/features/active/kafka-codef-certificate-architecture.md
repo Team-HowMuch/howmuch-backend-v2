@@ -1,5 +1,7 @@
 # HowMuch Kafka·CODEF·공동인증서 연결 설계 보고서
 
+> 2026-10-11 현재: Electron + 로컬 HTML/CSS/JavaScript 앱은 finance-connector 저장소에 관리하고 인증서 접수·CODEF 실행·Inbox/job/Outbox는 Backend API 내부에 둔다. 업로드→QR→로그인 모바일 사용자 Yes/No→CODEF 등록→사용자 연결 저장을 구현했다. 현재 사용자 결정에 따라 별도 금융 명의 일치 검증은 전제하지 않는다. 최신 구현 기준은 [모바일 동의 계획](certificate-mobile-consent.md)과 [ADR-0007](../../adr/0007-api-resident-certificate-execution-and-electron-client.md)이다. 아래 분리형 Connector·WPF 흐름은 최초 검토 당시의 비교/설계 기록이다.
+
 - 작성일: 2026-10-06, Asia/Seoul
 - 상태: 설계 제안 완료 / 기능 구현 전
 - 범위: 본인 담당 Notion 알림 요구사항, Kafka 알림, CODEF Connector Inbox/Outbox, Windows 인증서와 모바일 QR 연결
@@ -21,7 +23,7 @@
 | 거래 확정 | 관측 staging → 완전성 검사 → 대조 → 확정 | 안정 거래 ID가 확인되지 않은 데이터의 중복·메모 변경 처리. 모호한 결과는 보류 |
 | 인증서 UX | PC-first, 등록 성공 뒤 QR, 모바일 claim 예약, PC 승인 | PC 로그인 생략을 유지하면서 QR 탈취에 의한 무단 귀속 방어. 승인 한 단계 추가 |
 | QR 내용 | 짧은 수명의 무작위 일회용 연결권 | `connectedId`, 인증서, 비밀번호, 앱 JWT를 담지 않음. 서버 상태 저장 필요 |
-| Windows 앱 | .NET WPF, 사용자가 선택한 경로에서 읽기 | Windows 전용 목적에 맞는 작은 앱. 팀의 C# 개발·코드서명 부담 |
+| Windows 앱 | Electron + React/TypeScript, main process에서 명시적 파일 선택 | 기존 웹 역량 활용. 별도 설치 artifact·IPC 제한·Windows 검증 필요 |
 | Relay | DB polling부터 시작 | 기존 구조 재사용과 장애 재현이 쉬움. 병목을 측정한 뒤 CDC 평가 |
 
 Kafka를 도입한다고 자동으로 호출 수가 줄거나 푸시가 정확히 한 번 표시되지는 않는다. 호출 감소는 single-flight와 freshness 정책이, 거래 정확성은 대조 정책이, 외부 호출 복구는 job 상태가 각각 책임진다.
@@ -49,7 +51,7 @@ Kafka를 도입한다고 자동으로 호출 수가 줄거나 푸시가 정확�
 | [ALM-STL-003](https://www.notion.so/d2d0c4c8e4e482edbbac81b3c3e29525) | 미참여 회원에게 12시간 주기 리마인드 | KST 03:00~06:00 제외, 해당 시간 예약은 06:00로 연기, 삭제된 정산 제외 |
 | [ALM-001](https://www.notion.so/3e70c4c8e4e48167a8f9f032802ad9b7) | 알림 목록·읽음·푸시 클릭 | 이어 불러오기, 로그인 시 기기 등록/로그아웃 시 해제, 삭제된 정산 알림은 보존하고 이동 비활성 |
 
-**문서와 코드의 차이:** Notion은 특정 회원 초대 기능이 없다고 적지만, 현재 Backend에는 `publicId`로 멤버를 즉시 `ACTIVE`로 추가하는 API가 있다. 이것은 상대방의 수락을 기다리는 초대가 아니다. 따라서 ALM-GRO-001의 “가입 확인 후 이동”을 구현하려면 `PENDING → ACCEPTED/DECLINED/EXPIRED` 초대 모델을 별도로 정의한다. 즉시 가입 알림으로 요구를 바꾸려면 제품 명세도 함께 바꿔야 한다. [현재 GroupController](/Users/wars/Github/howmuch/howmuch-backend-v2/src/main/java/com/amateur/howmuchbackend/adapter/in/web/group/GroupController.java:143)
+**문서와 코드의 차이:** Notion은 특정 회원 초대 기능이 없다고 적지만, 현재 Backend에는 `publicId`로 멤버를 즉시 `ACTIVE`로 추가하는 API가 있다. 이것은 상대방의 수락을 기다리는 초대가 아니다. 따라서 ALM-GRO-001의 “가입 확인 후 이동”을 구현하려면 `PENDING → ACCEPTED/DECLINED/EXPIRED` 초대 모델을 별도로 정의한다. 즉시 가입 알림으로 요구를 바꾸려면 제품 명세도 함께 바꿔야 한다. [현재 GroupController](../../../src/main/java/com/amateur/howmuchbackend/adapter/in/web/group/GroupController.java#L143)
 
 리캡 본체는 Notion에서 다른 담당자의 시작 전 기능이다. 알림 담당자가 리캡 집계까지 다시 만드는 대신 `RecapPublished` 계약으로 연결한다. CODEF 인증 만료·연동 완료 알림은 이번에 확인한 다섯 항목에 없으므로 **별도 확장 후보**로만 둔다.
 
@@ -73,9 +75,9 @@ Kafka를 도입한다고 자동으로 호출 수가 줄거나 푸시가 정확�
 
 예전 작업 기록에는 거래 관측 v2와 대조 실험이 있지만 현재 확인한 tree에서 해당 구현을 찾지 못했다. 당시 테스트 결과를 현재 코드의 성공 증거로 사용하지 않았다. 재사용할 때 별도 작업물 회수와 계약 검증이 먼저 필요하다.
 
-현재 알림 근거: [NotificationRecorder](/Users/wars/Github/howmuch/howmuch-backend-v2/src/main/java/com/amateur/howmuchbackend/application/notification/service/NotificationRecorder.java:17), [Outbox Worker](/Users/wars/Github/howmuch/howmuch-backend-v2/src/main/java/com/amateur/howmuchbackend/application/settlement/service/SettlementNotificationOutboxWorker.java:82), [V38](/Users/wars/Github/howmuch/howmuch-backend-v2/src/main/resources/db/migration/V38__create_notification_creation_outbox.sql:1).
+현재 알림 근거: [NotificationRecorder](../../../src/main/java/com/amateur/howmuchbackend/application/notification/service/NotificationRecorder.java#L17), [Outbox Worker](../../../src/main/java/com/amateur/howmuchbackend/application/settlement/service/SettlementNotificationOutboxWorker.java#L82), [V38](../../../src/main/resources/db/migration/V38__create_notification_creation_outbox.sql#L1).
 
-현재 금융 근거: [AccountQueryService](/Users/wars/Github/howmuch/howmuch-backend-v2/src/main/java/com/amateur/howmuchbackend/application/account/service/AccountQueryService.java:206), [SettlementDepositService](/Users/wars/Github/howmuch/howmuch-backend-v2/src/main/java/com/amateur/howmuchbackend/application/settlement/service/SettlementDepositService.java:54), [Backend V32](/Users/wars/Github/howmuch/howmuch-backend-v2/src/main/resources/db/migration/V32__create_account_transaction_sync_schema.sql:45), [Connector Intake](/Users/wars/Github/howmuch/howmuch-finance-connector/src/main/java/com/amateur/howmuchfinanceconnector/application/sync/service/FinanceCommandIntakeService.java:23), [Collector](/Users/wars/Github/howmuch/howmuch-finance-connector/src/main/java/com/amateur/howmuchfinanceconnector/adapter/out/codef/CodefBankTransactionCollector.java:117), [AMBIGUOUS 판정](/Users/wars/Github/howmuch/howmuch-finance-connector/src/main/java/com/amateur/howmuchfinanceconnector/application/sync/service/FinanceCollectionService.java:61).
+현재 금융 근거: [AccountQueryService](../../../src/main/java/com/amateur/howmuchbackend/application/account/service/AccountQueryService.java#L206), [SettlementDepositService](../../../src/main/java/com/amateur/howmuchbackend/application/settlement/service/SettlementDepositService.java#L54), [Backend V32](../../../src/main/resources/db/migration/V32__create_account_transaction_sync_schema.sql#L45), [Connector Intake](https://github.com/Team-HowMuch/howmuch-finance-connector/blob/develop/src/main/java/com/amateur/howmuchfinanceconnector/application/sync/service/FinanceCommandIntakeService.java#L23), [Collector](https://github.com/Team-HowMuch/howmuch-finance-connector/blob/develop/src/main/java/com/amateur/howmuchfinanceconnector/adapter/out/codef/CodefBankTransactionCollector.java#L117), [AMBIGUOUS 판정](https://github.com/Team-HowMuch/howmuch-finance-connector/blob/develop/src/main/java/com/amateur/howmuchfinanceconnector/application/sync/service/FinanceCollectionService.java#L61).
 
 ## 4. 기술을 이해하는 데 필요한 개념
 
@@ -153,7 +155,7 @@ Kafka에는 `eventId`, `outboxId`, `schemaVersion`, `attemptCount`, `occurredAt`
 | 그룹 탈퇴 | 탈퇴 commit 후 남은 멤버 대상 | `GROUP_MEMBER_LEFT:{membershipId}:{exitVersion}` | 탈퇴자 제외, 재가입 후 탈퇴는 별도 이력 |
 | 리캡 도착 | 해당 월 리캡 저장·공개 성공 | `RECAP_PUBLISHED:{userId}:{yearMonth}` | 스케줄러 실행 시작이나 집계 실패에서는 발행 금지 |
 
-키는 제안이며 실제 모델의 ID·상태 전이에 맞춰 확정한다. 모두 수신자와 함께 UNIQUE로 묶는다. 송금/정산 완료의 삽입점은 현재 `SettlementDepositWriter`의 입금 저장·완료 전이 TX다. 직전과 직후의 완납 상태를 비교해야 한다. [현재 확정 구간](/Users/wars/Github/howmuch/howmuch-backend-v2/src/main/java/com/amateur/howmuchbackend/application/settlement/service/SettlementDepositWriter.java:145)
+키는 제안이며 실제 모델의 ID·상태 전이에 맞춰 확정한다. 모두 수신자와 함께 UNIQUE로 묶는다. 송금/정산 완료의 삽입점은 현재 `SettlementDepositWriter`의 입금 저장·완료 전이 TX다. 직전과 직후의 완납 상태를 비교해야 한다. [현재 확정 구간](../../../src/main/java/com/amateur/howmuchbackend/application/settlement/service/SettlementDepositWriter.java#L145)
 
 마지막 참여자의 송금으로 정산이 완료되면 004와 005는 서로 다른 업무 알림이다. 기본안은 두 기록을 생성하고, 생성자가 완료 수신자에도 포함될 경우 두 개를 받을 수 있다고 명시한다. 두 푸시를 하나로 합치는 것은 별도 문구/제품 정책이 필요하다. 비회원은 앱 알림 수신자가 될 수 없으므로 자동 SMS를 추가하지 않는다.
 
@@ -165,7 +167,7 @@ Kafka에는 `eventId`, `outboxId`, `schemaVersion`, `attemptCount`, `occurredAt`
 
 목표는 `notificationId`, `recipient`, `type`, title/body snapshot, readAt와 **typed target**을 가진 사용자 알림함, 그리고 `notificationId + recipient` 중심의 범용 delivery Outbox다. target은 `SETTLEMENT_PARTICIPATION`, `SETTLEMENT_DETAIL`, `GROUP_INVITATION`, `GROUP_DETAIL`, `MONTHLY_RECAP`을 구분한다. 필수 ID/월을 검증하고 존재·권한 확인이 실패하면 표시 기록을 보존하면서 action을 비활성화한다.
 
-모바일도 새 알림 종류와 이동 분기를 함께 바꿔야 한다. 기존 클라이언트용 정산 필드는 호환기간 동안 유지하고 모르는 종류는 안전한 목록 항목으로 표시한다. [현재 타입](/Users/wars/Github/howmuch/howmuch-frontend-v2/src/entities/notification/api/types.ts:1), [현재 참여 화면 분기](/Users/wars/Github/howmuch/howmuch-frontend-v2/src/entities/notification/lib/getNotificationParticipationParams.ts:9)
+모바일도 새 알림 종류와 이동 분기를 함께 바꿔야 한다. 기존 클라이언트용 정산 필드는 호환기간 동안 유지하고 모르는 종류는 안전한 목록 항목으로 표시한다. [현재 타입](https://github.com/Team-HowMuch/howmuch-frontend-v2/blob/develop/src/entities/notification/api/types.ts#L1), [현재 참여 화면 분기](https://github.com/Team-HowMuch/howmuch-frontend-v2/blob/develop/src/entities/notification/lib/getNotificationParticipationParams.ts#L9)
 
 ### 6.4 알림 생성까지 비동기화하는 선택안
 
@@ -197,7 +199,7 @@ Kafka에는 `eventId`, `outboxId`, `schemaVersion`, `attemptCount`, `occurredAt`
 
 ### 7.3 거래 동일성은 별도 대조 정책
 
-Inbox는 같은 이벤트 재전달을 막지만 다른 job이 다시 조회한 같은 은행 거래를 알아보지는 못한다. 현재 Backend 거래 hash에는 description이 들어가 메모 변경만으로 새 거래로 인식될 수 있다. [현재 AccountTransactionKey](/Users/wars/Github/howmuch/howmuch-backend-v2/src/main/java/com/amateur/howmuchbackend/application/account/AccountTransactionKey.java:18)
+Inbox는 같은 이벤트 재전달을 막지만 다른 job이 다시 조회한 같은 은행 거래를 알아보지는 못한다. 현재 Backend 거래 hash에는 description이 들어가 메모 변경만으로 새 거래로 인식될 수 있다. [현재 AccountTransactionKey](../../../src/main/java/com/amateur/howmuchbackend/application/account/AccountTransactionKey.java#L18)
 
 v2는 시각·입출금·금액·잔액·설명 슬롯·관측 순서·조회 범위를 보존한다. 기존 거래와 앞뒤의 식별 가능한 거래 문맥을 비교해 유일한 메모 변경이면 기존 거래 ID와 정산 연결을 유지한다. 확실한 신규 거래만 추가하고, 구분할 수 없는 같은 금액·시각의 반복 거래는 임의 병합하지 않는다.
 

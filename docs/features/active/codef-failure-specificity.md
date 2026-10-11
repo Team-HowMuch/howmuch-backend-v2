@@ -14,7 +14,7 @@ CODEF 계좌 연결에서 `BANK_CONNECTION_FAILED` 하나로 표현되던 미분
 - 공식 CODEF 오류 코드는 기존 매핑을 유지한다.
 - 공식 목록에 없는 `CF-xxxxx`는 `CODEF_UNMAPPED_ERROR`(502)로 반환한다.
 - HTTP 4xx 응답에 CODEF 오류 코드가 없거나, 성공 응답에 `successList`·`connectedId`가 없으면 `CODEF_RESPONSE_INVALID`(502)로 반환한다.
-- 계좌 연결과 거래내역 조회가 동일한 공통 매퍼를 사용한다. 거래내역의 `CF-04000` 기능 미지원 매핑은 유지한다.
+- 계좌 연결과 거래내역 조회가 동일한 공통 매퍼를 사용한다. `CF-04000`은 계정정보 등록 실패로 `BANK_CONNECTION_FAILED`에 매핑한다. 구체적인 기관 오류가 함께 있으면 해당 오류를 우선한다.
 - 로그·trace에는 `api`, `organization`, `outcome`, `codefCode`만 기록하고 자격증명·계좌 원문은 기록하지 않는다.
 
 ## 완료 조건

@@ -1,0 +1,38 @@
+{
+  "database": "certificate_final_upgrade",
+  "postgres": "16.14",
+  "flyway": "12.4.0",
+  "baseline": [
+    "VERIFIED db=certificate_final_upgrade migrated=44 target=44",
+    "REPEAT migrations=0"
+  ],
+  "upgrade": [
+    "VERIFIED db=certificate_final_upgrade migrated=1 target=45",
+    "REPEAT migrations=0"
+  ],
+  "existing_tables_unchanged": 41,
+  "new_tables": 4,
+  "baseline_checks": [
+    42,
+    35
+  ],
+  "regression_checks": [
+    42,
+    35
+  ],
+  "provider_checks": 74,
+  "scope": "synthetic schema and SQL transaction experiments; no Java/Electron/crypto/CODEF runtime implementation",
+  "empty_database": {
+    "database": "certificate_checks_v3",
+    "migrations": 45,
+    "target": 45,
+    "repeat_migrations": 0,
+    "provider_checks": 74
+  },
+  "compileJava": "BUILD SUCCESSFUL; ./gradlew compileJava --no-daemon",
+  "sql_file": "src/main/resources/db/migration/V45__create_api_certificate_provider_storage.sql",
+  "base_commit": "74070103",
+  "migration_issue": "https://github.com/Team-HowMuch/howmuch-backend-v2/issues/496",
+  "sql_commit": "06e713f7",
+  "test_container_removed": true
+}

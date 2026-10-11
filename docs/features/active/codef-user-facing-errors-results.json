@@ -1,0 +1,93 @@
+{
+  "selectedJavaTests": 112,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "suites": [
+    {
+      "name": "com.amateur.howmuchbackend.adapter.in.kafka.CertificateMessageContractTest",
+      "tests": "14",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.09"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.in.web.certificate.CertificateHttpIntegrationTest",
+      "tests": "6",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "15.383"
+    },
+    {
+      "name": "CODEF 계좌 연결 Adapter",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.309"
+    },
+    {
+      "name": "CODEF 계좌 거래 Adapter",
+      "tests": "18",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.033"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.out.codef.CodefCertificateRegistrationAdapterTest",
+      "tests": "14",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "7.52"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.out.codef.CodefCertificateSingleAttemptTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.006"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.out.codef.CodefFailureMapperTest",
+      "tests": "26",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.012"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.out.kafka.CertificateWireSchemaTest",
+      "tests": "8",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.095"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.application.certificate.CertificateFailureMigrationTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "10.637"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.application.certificate.CertificatePersistenceIntegrationTest",
+      "tests": "20",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "31.196"
+    }
+  ],
+  "electronUnitTests": 24,
+  "electronSmoke": "passed on macOS with synthetic API/files",
+  "localReadiness": "UP",
+  "localFlywayVersion": "46",
+  "published": false
+}

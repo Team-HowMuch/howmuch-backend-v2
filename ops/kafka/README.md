@@ -135,3 +135,7 @@ Stop local services without removing their durable volume:
 ```bash
 docker compose -f ops/kafka/compose-local.yml down
 ```
+
+## Certificate registration transport
+
+The catalog also provisions the four certificate command/result/DLT topics. They are owned by the API-resident certificate provider, separate from `finance.sync` and notification contracts. Follow the [certificate activation and recovery runbook](../certificate/README.md). Adding topics does not enable the certificate feature.

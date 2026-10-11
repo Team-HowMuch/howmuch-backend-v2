@@ -1,0 +1,147 @@
+{
+  "java_selected_unique": [
+    {
+      "name": "com.amateur.howmuchbackend.adapter.in.kafka.CertificateMessageContractTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.in.web.certificate.CertificateHttpIntegrationTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.out.codef.CodefCertificateRegistrationAdapterTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.out.codef.CodefCertificateSingleAttemptTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.out.kafka.CertificateWireSchemaTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.adapter.out.security.CertificateProtectionTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.application.certificate.CertificatePersistenceIntegrationTest",
+      "tests": "13",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.application.certificate.CertificatePolicyTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.infra.certificate.CertificateRequestSizeFilterTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.infra.messaging.kafka.KafkaMessagingConfigurationTest",
+      "tests": "7",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.infra.messaging.kafka.KafkaPublicationTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    }
+  ],
+  "java_total_unique": 42,
+  "java_runs": [
+    {
+      "command": "./gradlew test --tests '*Certificate*Test' --tests '*KafkaMessagingConfigurationTest' --tests '*KafkaPublicationTest' --no-daemon",
+      "tests": 40,
+      "result": "BUILD SUCCESSFUL"
+    },
+    {
+      "command": "./gradlew test --tests '*CertificatePersistenceIntegrationTest' --tests '*CertificateWireSchemaTest' --no-daemon",
+      "tests": 14,
+      "result": "BUILD SUCCESSFUL"
+    }
+  ],
+  "installer": {
+    "path": "apps/windows-certificate/dist/HowMuch-Certificate-0.1.0-x64-Setup.exe",
+    "size_bytes": 111651775,
+    "sha256": "7f60bbeee7a449c394589c0cc458603e66a34a01a19fc31fa7bf667eba078040",
+    "pe_security_directory_address": 0,
+    "pe_security_directory_size": 0,
+    "code_signed": false,
+    "api_origin": "https://certificate-api.example.test",
+    "purpose": "packaging fixture only; Windows execution unverified",
+    "fuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    }
+  },
+  "compileJava": {
+    "command": "./gradlew compileJava --no-daemon",
+    "result": "BUILD SUCCESSFUL"
+  },
+  "node": {
+    "command": "npm test",
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0
+  },
+  "electron_smoke": {
+    "command": "npm run test:smoke",
+    "result": "passed",
+    "host": "macOS",
+    "native_file_dialog": "replaced with synthetic paths",
+    "windows_execution_verified": false,
+    "screenshot": "apps/windows-certificate/dist/electron-qr-smoke.png"
+  },
+  "npm_runtime_audit": {
+    "command": "npm audit --omit=dev --audit-level=high",
+    "vulnerabilities": 0
+  },
+  "static_checks": {
+    "git_diff_check": "passed",
+    "changed_text_trailing_whitespace": "none",
+    "markdown_local_links": "passed",
+    "application_yaml": "parsed",
+    "windows_workflow_yaml": "parsed"
+  },
+  "activation": {
+    "enabled_by_default": false,
+    "deployed": false,
+    "approval_bind_implemented": false,
+    "ownership_verification_contract": "pending"
+  }
+}
