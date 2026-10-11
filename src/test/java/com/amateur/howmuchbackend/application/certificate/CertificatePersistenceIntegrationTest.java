@@ -455,6 +455,22 @@ class CertificatePersistenceIntegrationTest {
         when(provider.register(anyString(), any(), anyBoolean()))
                 .thenThrow(new RuntimeException("synthetic-timeout"));
         worker.executeOne();
+        // Result-topic outage: the PC must observe uncertainty before consuming the event.
+        assertThat(registration.get(s.id(), s.pcCapability()).status()).isEqualTo("UNKNOWN");
+        var lateClock = Clock.fixed(NOW.plusMinutes(11).toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
+        var lateTx =
+                transactional(
+                        new CertificateExecutionTransactions(
+                                jobs, relay, jobs, lateClock, storage, consents,
+                                new CertificateRegistrationPolicy()));
+        lateTx.recover();
+        assertThat(registration.get(s.id(), s.pcCapability()).status()).isEqualTo("UNKNOWN");
+        assertThat(registration.get(s.id(), s.pcCapability()).failureCode())
+                .isEqualTo("CERTIFICATE_REGISTRATION_UNCERTAIN");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM certificate_command_outbox WHERE session_id=?"
+                            + " AND command_type='CANCEL'", Integer.class, s.id()))
+                .isZero();
         worker.recover();
         worker.executeOne();
         verify(provider, times(1)).register(anyString(), any(), anyBoolean());
@@ -464,7 +480,7 @@ class CertificatePersistenceIntegrationTest {
                                 String.class))
                 .isEqualTo("UNKNOWN");
         var p = tx.claimPublication(true).orElseThrow();
-        tx.receiveResult(p.event(), caps.hash("unknown"));
+        assertThat(lateTx.receiveResult(p.event(), caps.hash("unknown"))).isTrue();
         assertThat(registration.get(s.id(), s.pcCapability()).status()).isEqualTo("UNKNOWN");
     }
 

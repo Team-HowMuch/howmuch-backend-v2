@@ -92,3 +92,17 @@ CI 로그에서 앱 저장소로 이전한 `apps/windows-certificate/src/user-er
 오류 계약 snapshot 출처는 `Team-HowMuch/howmuch-finance-connector`의 `1bfa1a3` 커밋, `apps/windows-certificate/src/user-errors.json`이다. 서버 `src/test/resources/contracts/certificate-user-errors.json`에 보존해 게시한 코드/문구의 호환성을 검증한다. 계약을 의도적으로 변경할 때 서버 snapshot과 connector 앱을 함께 검토한다. 다른 저장소의 최신 파일을 실시간으로 비교하는 테스트는 아니다.
 
 검증 결과: 앱 폴더와 V46/V47이 없는 Git 추출본에서 `./gradlew compileJava test --tests '*CodefFailureMapperTest' --no-daemon`이 성공했다(26개, 실패·오류·skip 0). 같은 추출본에 #503 `570b820b`와 #504 `7d91b6cd`의 SQL만 추가하고 일회용 PostgreSQL 18·Redis 8에서 `bash scripts/test.sh clean compileJava test`를 실행했다. Java 223 suites/1,667개 및 JavaScript 35개가 모두 통과했다. 로컬 앱 잔여 파일을 참조하지 않음을 확인했다. SQL 선행 PR이 아직 미병합이므로 이 결과는 #505 단독 원격 CI 통과를 의미하지 않는다.
+
+## PR #505 리뷰 반영 — 결과 지연과 계좌 인증 정보 보존
+
+리뷰 3건을 코드·기본 설정·조회 경로와 대조해 모두 재현 가능한 문제로 확인했다. 변경 범위는 certificate JDBC 완료 처리, 기본 금융사 입력 조건, 승인 완료 트랜잭션 및 관련 테스트다. DB 구조/제약 변경은 없어 Flyway migration은 필요하지 않다.
+
+1. REGISTER 실행의 `UNKNOWN` 기록과 세션의 `UNKNOWN`/안내 코드를 같은 트랜잭션에서 저장한다. 결과 topic 장애로 전달이 지연돼도 승인 동의가 있는 불확실 세션이 TTL 복구에서 EXPIRED로 바뀌지 않아야 한다. 이미 취소·만료·완료된 세션은 되돌리지 않는다. 결과 소비 전 TTL 경과와 이후 지연 결과 소비, 요청 시작 뒤 lease 만료를 PostgreSQL 통합 테스트로 검증한다.
+2. 기본 certificate 기관 설정에 `0031`의 `account-list-account-required: true`를 명시한다. 등록 자체의 입력 조건과 조회 입력 조건을 구분하면서 V40/계좌 조회 경로가 필요로 하는 계좌번호·계좌 비밀번호를 수집한다. 기본 설정을 사용하는 HTTP 테스트에서 catalog 플래그, 입력 누락 거부, 정상 수집/완료를 검증한다.
+3. 이미 연결된 기관 갱신에서 새 계좌 인증 정보가 없으면 기존 ciphertext를 유지한다. 새 쌍이 있으면 기존처럼 갱신하고 새 기관/새 연결 저장은 유지한다. Application 트랜잭션 테스트로 기존 정보 유지와 명시적 교체를 검증한다.
+
+커밋 경계는 각 항목별 `fix(certificate): 불확실한 인증 결과를 세션에 원자적으로 보존`, `fix(certificate): 대구은행 계좌 조회 인증 정보 수집`, `fix(certificate): 인증서 갱신 시 기존 계좌 인증 정보 보존`으로 나눈다. 각 변경의 실패 재현 후 관련 compile/test를 실행하고 최종 변경을 깨끗한 소스에서 검증한다. 실제 금융사 호출이나 사용자 인증 정보 변경은 검증에 포함하지 않는다.
+
+선행 SQL #503·#504는 현재 develop 및 #505에 반영됐다. 새 head `9372249a`에서 원격 Java 1,667개·JavaScript 35개와 Docker 빌드까지 통과한 뒤 이번 리뷰 수정을 진행한다.
+
+첫 번째 수정 검증: 결과 소비 전 세션이 REGISTERING으로 남는 실패를 기존 timeout 테스트에서 재현했다. 수정 후 `./gradlew compileJava test --tests '*CertificatePersistenceIntegrationTest' --no-daemon`의 29개가 모두 통과했다. 결과 미수신 상태로 TTL이 경과한 뒤에도 UNKNOWN 및 안내 코드가 유지되고 CANCEL이 생성되지 않으며, 지연 결과 수신 후에도 재등록하지 않음을 확인했다. 이미 취소된 세션의 후속 정리와 lease 복구 기존 검증도 통과했다.

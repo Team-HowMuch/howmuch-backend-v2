@@ -210,6 +210,19 @@ public class CertificateExecutionJdbcAdapter
                 now,
                 c.messageId());
         if (c.type().equals("REGISTER")) {
+            if (status.equals("UNKNOWN")) {
+                // Preserve uncertainty before result delivery; recovery must not offer a retry
+                // while the provider outcome is unknown, even during a result-topic outage.
+                jdbc.update(
+                        """
+                        UPDATE certificate_registration_sessions SET status='UNKNOWN',last_failure_code=?,updated_at=?
+                        WHERE id=? AND registration_version=? AND status IN ('SUBMITTED','REGISTERING','UNKNOWN')
+                        """,
+                        code,
+                        now,
+                        c.sessionId(),
+                        c.version());
+            }
             String type =
                     status.equals("SUCCEEDED")
                             ? "REGISTERED"
