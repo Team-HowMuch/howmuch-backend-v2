@@ -74,3 +74,11 @@ SQL은 #500 V46, #501 V47의 독립 SQL-only PR로 develop에 게시하며 서�
 최신 develop을 반영한 작업 트리에서 별도 PostgreSQL 18·Redis 8을 준비하고 `bash scripts/test.sh compileJava test`를 실행했다. Java 223 suites/1,667개와 JavaScript 35개가 모두 통과했으며 실패·오류·skip은 0이다. V46/V47은 별도 SQL PR로 게시하되 이 로컬 검증에는 같은 SQL을 함께 적용했다. 서버 PR 단독 checkout에서는 승인 스키마 테스트가 두 SQL PR의 병합 전까지 충족되지 않으므로 초안 PR로 게시하고 먼저 병합하지 않는다.
 
 서버 기능 커밋은 unstaged 파일을 제외한 index snapshot으로 compileJava를 확인했다. 앱은 finance-connector 작업 트리에서 단위 26개, 실제 Electron smoke, production 의존성 audit 0개 및 Java connector/contracts 전체 build를 통과했다. Windows native CI/실기기와 dev/prod 배포를 로컬 성공으로 대신하지 않는다.
+
+## PR #504 리뷰 반영 — 완료 정보의 NULL 우회 차단
+
+리뷰에서 PostgreSQL CHECK의 UNKNOWN 허용으로 external_connection_id만 기록되고 completed_at은 NULL인 동의 행이 허용되는 점을 지적했다. 완료 branch에 `completed_at IS NOT NULL`을 명시해 연결 ID와 완료 시각을 함께 기록하도록 한다. 완료 뒤 연결/시각 변경은 기존 immutable trigger가 계속 거부한다.
+
+기존 PostgreSQL 통합 검증에 부분 완료 두 형태와 승인 이전 완료 시각의 거부, 정상 원자 완료 및 완료 기록 변경 거부를 추가한다. 수정 전 실패를 재현하고 수정 후 migration/persistence 테스트를 실행한다. 새 테이블·컬럼이나 새 migration 버전은 필요하지 않으며 아직 미병합인 V47 한 파일을 수정한다. SQL은 #504의 `fix(certificate)` 커밋, 회귀 테스트/검증 기록은 #505의 `test(certificate)` 커밋으로 분리한다. 앱과 다른 SQL에는 수정할 리뷰가 없다.
+
+검증 결과: 수정 전 `yesBindsEncryptedUserConnectionAndReusesItOnNextCertificate`가 연결 ID만 저장하는 UPDATE를 거부하지 못해 실패했다. V47 수정 후 `./gradlew compileJava test --tests '*CertificatePersistenceIntegrationTest' --tests '*CertificateFailureMigrationTest' --no-daemon`이 성공했다. PostgreSQL 통합 29개와 V45→V46→V47 migration 검증 1개, 합계 30개 모두 실패·오류·skip 0이다. 서버 PR에는 회귀 테스트와 이 기록만 추가하고 SQL은 #504에만 게시한다.

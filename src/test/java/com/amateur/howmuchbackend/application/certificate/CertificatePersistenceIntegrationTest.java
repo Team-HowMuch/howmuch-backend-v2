@@ -793,11 +793,60 @@ class CertificatePersistenceIntegrationTest {
                 .thenReturn(CertificateProviderResult.connected("connected-fixture"));
         var second = submitted();
         deliverCommand();
+        assertThat(consents.find(second.id()).orElseThrow().connectionId()).isNull();
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE certificate_registration_consents SET"
+                                            + " external_connection_id=? WHERE session_id=?",
+                                        consent.connectionId(),
+                                        second.id()))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE certificate_registration_consents SET"
+                                            + " completed_at=approved_at WHERE session_id=?",
+                                        second.id()))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE certificate_registration_consents SET"
+                                            + " external_connection_id=?,"
+                                            + " completed_at=approved_at - INTERVAL '1 microsecond'"
+                                            + " WHERE session_id=?",
+                                        consent.connectionId(),
+                                        second.id()))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         worker.executeOne();
         assertThat(registration.get(second.id(), second.pcCapability()).status())
                 .isEqualTo("BOUND");
         assertThat(consents.find(second.id()).orElseThrow().connectionId())
                 .isEqualTo(consent.connectionId());
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT completed_at IS NOT NULL AND completed_at >= approved_at"
+                                    + " FROM certificate_registration_consents WHERE session_id=?",
+                                Boolean.class,
+                                second.id()))
+                .isTrue();
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE certificate_registration_consents SET"
+                                            + " external_connection_id=NULL, completed_at=NULL"
+                                            + " WHERE session_id=?",
+                                        second.id()))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE certificate_registration_consents SET"
+                                            + " completed_at=completed_at + INTERVAL '1 second'"
+                                            + " WHERE session_id=?",
+                                        second.id()))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         verify(provider, times(1)).register(anyString(), any(), anyBoolean());
         verify(provider, times(1)).update(eq("connected-fixture"), eq("0020"), any(), eq(true));
         assertThat(
