@@ -4,6 +4,8 @@ import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.ConnectBankUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.GetBankConnectionAccountsUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.command.GetBankConnectionAccountsQuery;
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.command.ConnectBankCommand;
 import com.amateur.howmuchbackend.application.port.in.account.command.LinkBankAccountsCommand;
@@ -39,7 +41,8 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
-public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsUseCase {
+public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsUseCase,
+        GetBankConnectionAccountsUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadUserPort loadUserPort;
     private final ExternalConnectionStorePort connectionStorePort;
@@ -64,6 +67,27 @@ public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsU
         return new BankConnectionResult(
                 connection.id(), command.organization(), ExternalConnectionStatus.CONNECTED, candidates
         );
+    }
+
+    @Override
+    public BankConnectionResult getConnectionAccounts(
+            GetBankConnectionAccountsQuery query
+    ) {
+        Long userId = currentActorPort.getCurrentActor().userId();
+        ExternalConnection connection = connectionStorePort.findActiveByUserId(userId)
+                .filter(owned -> owned.id().equals(query.connectionId()))
+                .orElseThrow(() -> ApplicationException.of(ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND));
+        if (!connectionStorePort.hasInstitution(connection.id(), query.organization())) {
+            throw ApplicationException.of(ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID);
+        }
+        BankAccountCredentials credentials = bankCatalog.requiresAccountCredentials(query.organization())
+                ? credentialProtection.reveal(userId, connection.id(), query.organization()) : null;
+        Set<String> linkedKeys = loadAccountPort.findCandidateKeys(connection.id());
+        var candidates = bankConnectionPort.findAccounts(
+                        connection.connectedId(), query.organization(), query.birthDate(), credentials).stream()
+                .map(candidate -> toResultCandidate(connection.connectedId(), query.organization(), candidate, linkedKeys))
+                .toList();
+        return new BankConnectionResult(connection.id(), query.organization(), ExternalConnectionStatus.CONNECTED, candidates);
     }
 
     @Override

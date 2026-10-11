@@ -178,6 +178,80 @@ class BankAccountServiceTest {
         assertThat(captor.getValue()).extracting(Account::productCode).containsOnly("11");
     }
 
+    @Test
+    void existingConnectionCandidatesRejectOtherUsersBeforeProviderCalls() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(1L));
+        when(connectionStorePort.findActiveByUserId(1L)).thenReturn(Optional.of(new ExternalConnection(7L, 1L, "CID-1")));
+        assertThatThrownBy(() -> service().getConnectionAccounts(query(8L, "0020")))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND));
+        verifyNoInteractions(bankConnectionPort, credentialProtection, loadAccountPort);
+    }
+
+    @Test
+    void inactiveOrUnboundConnectionCannotQueryAccounts() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(1L));
+        when(connectionStorePort.findActiveByUserId(1L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service().getConnectionAccounts(query(7L, "0020")))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND));
+        verifyNoInteractions(bankConnectionPort, credentialProtection);
+    }
+
+    @Test
+    void unregisteredInstitutionCannotUseOwnedConnection() {
+        ownedConnection();
+        assertThatThrownBy(() -> service().getConnectionAccounts(query(7L, "0088")))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID));
+        verifyNoInteractions(bankConnectionPort, credentialProtection);
+    }
+
+    @Test
+    void existingConnectionReturnsCompatibleCandidateKeysWithStoredCredentials() throws Exception {
+        ownedConnection();
+        when(connectionStorePort.hasInstitution(7L, "0020")).thenReturn(true);
+        when(bankCatalog.requiresAccountCredentials("0020")).thenReturn(true);
+        var credentials = new BankAccountCredentials("fixture-number", "fixture-password");
+        when(credentialProtection.reveal(1L, 7L, "0020")).thenReturn(credentials);
+        String key = candidateKey("CID-1", "0020", "12345678");
+        when(loadAccountPort.findCandidateKeys(7L)).thenReturn(Set.of(key));
+        when(bankConnectionPort.findAccounts("CID-1", "0020", "19990101", credentials))
+                .thenReturn(List.of(candidate("12345678", "fixture")));
+        var result = service().getConnectionAccounts(query(7L, "0020"));
+        assertThat(result.connectionId()).isEqualTo(7L);
+        assertThat(result.candidates()).singleElement().satisfies(candidate -> {
+            assertThat(candidate.candidateKey()).isEqualTo(key);
+            assertThat(candidate.alreadyLinked()).isTrue();
+        });
+        verifyNoInteractions(saveAccountPort, loadUserPort);
+    }
+
+    @Test
+    void missingStoredCredentialsStopBeforeCodefCall() {
+        ownedConnection();
+        when(connectionStorePort.hasInstitution(7L, "0020")).thenReturn(true);
+        when(bankCatalog.requiresAccountCredentials("0020")).thenReturn(true);
+        when(credentialProtection.reveal(1L, 7L, "0020")).thenThrow(
+                ApplicationException.of(ExternalConnectionStatusCode.BANK_ACCOUNT_RECONNECT_REQUIRED));
+        assertThatThrownBy(() -> service().getConnectionAccounts(query(7L, "0020")))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(ExternalConnectionStatusCode.BANK_ACCOUNT_RECONNECT_REQUIRED));
+        verifyNoInteractions(bankConnectionPort);
+    }
+
+    private void ownedConnection() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(1L));
+        when(connectionStorePort.findActiveByUserId(1L)).thenReturn(Optional.of(new ExternalConnection(7L, 1L, "CID-1")));
+    }
+
+    private com.amateur.howmuchbackend.application.port.in.account.command.GetBankConnectionAccountsQuery query(
+            Long connectionId, String organization
+    ) {
+        return new com.amateur.howmuchbackend.application.port.in.account.command.GetBankConnectionAccountsQuery(
+                connectionId, organization, "19990101");
+    }
+
     private BankAccountService service() {
         var registrationService = new BankConnectionRegistrationService(
                 currentActorPort, loadUserPort, connectionStorePort, saveAccountPort,
