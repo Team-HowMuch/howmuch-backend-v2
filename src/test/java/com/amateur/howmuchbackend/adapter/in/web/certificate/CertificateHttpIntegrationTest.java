@@ -157,6 +157,7 @@ class CertificateHttpIntegrationTest {
     }
 
     @MockitoBean CertificateProviderAccountPort provider;
+    @MockitoBean com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort banks;
     final HttpClient client = HttpClient.newHttpClient();
     final ObjectMapper json = new ObjectMapper();
 
@@ -325,19 +326,33 @@ class CertificateHttpIntegrationTest {
                 .isEqualTo(409);
     }
 
-    @Test
-    void authenticatedYesStoresConnectionAndBothClientsObserveBound() throws Exception {
+    @ParameterizedTest
+    @CsvSource({"0020,true", "0031,false"})
+    void authenticatedYesStoresConnectionAndBothClientsObserveBound(
+            String organization, boolean registrationAccountRequired) throws Exception {
         when(provider.register(anyString(), any(), anyBoolean()))
                 .thenReturn(CertificateProviderResult.connected("connected-http-approved"));
         String base = "/api/v2/certificate-registrations";
+        var catalog = json.readTree(request("GET", base + "/institutions", null, null, null).body())
+                .path("data");
+        var institution = java.util.stream.StreamSupport.stream(catalog.spliterator(), false)
+                .filter(i -> i.path("organization").asText().equals(organization))
+                .findFirst().orElseThrow();
+        assertThat(institution.path("registrationAccountRequired").asBoolean())
+                .isEqualTo(registrationAccountRequired);
+        assertThat(institution.path("accountListAccountRequired").asBoolean())
+                .isEqualTo(organization.equals("0031"));
         var created =
                 json.readTree(
-                                request("POST", base, "{\"organization\":\"0020\"}", null, null)
+                                request("POST", base, json.writeValueAsString(Map.of("organization", organization)), null, null)
                                         .body())
                         .path("data");
         String id = created.path("id").asText(),
                 pc = created.path("pcCapability").asText(),
                 upload = created.path("uploadCapability").asText();
+        assertThat(request("POST", base + "/" + id + "/upload",
+                        "{\"derFile\":\"AQ==\",\"keyFile\":\"Ag==\",\"password\":\"synthetic-password\"}",
+                        pc, upload).statusCode()).isEqualTo(400);
         assertThat(
                         request(
                                         "POST",
@@ -372,6 +387,15 @@ class CertificateHttpIntegrationTest {
         assertThat(list.statusCode()).isEqualTo(200);
         assertThat(list.body()).doesNotContain("connected-http-approved");
         assertThat(json.readTree(list.body()).path("data").size()).isEqualTo(1);
+        when(banks.findAccounts(eq("connected-http-approved"), eq(organization), isNull(), any()))
+                .thenReturn(List.of());
+        var accounts = request("GET", "/api/v2/accounts/connections/"
+                        + state.path("connectionId").asLong() + "/accounts?organization=" + organization,
+                        null, null, null);
+        assertThat(accounts.statusCode()).isEqualTo(200);
+        verify(banks).findAccounts(eq("connected-http-approved"), eq(organization), isNull(),
+                argThat(c -> c != null && c.number().equals("123456")
+                        && c.password().equals("1234")));
         assertThat(
                         request("POST", mobilePath + "/decision", "{\"approved\":true}", null, null)
                                 .statusCode())
@@ -399,6 +423,6 @@ class CertificateHttpIntegrationTest {
                         request("POST", mobilePath + "/decision", "{\"approved\":true}", null, null)
                                 .statusCode())
                 .isEqualTo(404);
-        verify(provider, times(1)).register(eq("0020"), any(), eq(true));
+        verify(provider, times(1)).register(eq(organization), any(), eq(registrationAccountRequired));
     }
 }

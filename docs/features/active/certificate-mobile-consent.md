@@ -106,3 +106,5 @@ CI 로그에서 앱 저장소로 이전한 `apps/windows-certificate/src/user-er
 선행 SQL #503·#504는 현재 develop 및 #505에 반영됐다. 새 head `9372249a`에서 원격 Java 1,667개·JavaScript 35개와 Docker 빌드까지 통과한 뒤 이번 리뷰 수정을 진행한다.
 
 첫 번째 수정 검증: 결과 소비 전 세션이 REGISTERING으로 남는 실패를 기존 timeout 테스트에서 재현했다. 수정 후 `./gradlew compileJava test --tests '*CertificatePersistenceIntegrationTest' --no-daemon`의 29개가 모두 통과했다. 결과 미수신 상태로 TTL이 경과한 뒤에도 UNKNOWN 및 안내 코드가 유지되고 CANCEL이 생성되지 않으며, 지연 결과 수신 후에도 재등록하지 않음을 확인했다. 이미 취소된 세션의 후속 정리와 lease 복구 기존 검증도 통과했다.
+
+두 번째 수정 검증: 기본 catalog의 `0031` 계좌 조회 필수 플래그가 false인 실패를 HTTP 테스트로 재현했다. 설정 수정 후 일회용 PostgreSQL·Redis 및 Testcontainers Kafka를 사용해 `compileJava`, HTTP 8개와 catalog 2개, JavaScript 35개가 모두 통과했다. `0020`·`0031` 모두 입력 누락 거부→승인→BOUND→계좌 조회 200을 확인했고, 저장한 계좌번호/비밀번호가 복호화되어 조회 Port에 전달됨을 검증했다. CODEF 등록에는 `0020`만 계좌 입력을 전달하고, `0031`은 조회를 위해 저장한다. 금융사 호출은 mock 경계로 대체했다.
