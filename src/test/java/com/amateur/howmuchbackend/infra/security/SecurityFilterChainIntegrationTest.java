@@ -82,6 +82,8 @@ class SecurityFilterChainIntegrationTest {
     @DisplayName("미인증 요청은 보호 API에서 401 JSON을 받는다")
     void protectedApi_unauthenticated_returns401Json() throws Exception {
         assertError(request("GET", PROFILE, null), 401, "UNAUTHORIZED");
+        assertError(request("GET", "/api/v2/accounts/connections", null), 401, "UNAUTHORIZED");
+        assertError(request("GET", "/api/v2/accounts/connections/7/accounts?organization=0020", null), 401, "UNAUTHORIZED");
     }
 
     @Test
