@@ -108,3 +108,7 @@ CI 로그에서 앱 저장소로 이전한 `apps/windows-certificate/src/user-er
 첫 번째 수정 검증: 결과 소비 전 세션이 REGISTERING으로 남는 실패를 기존 timeout 테스트에서 재현했다. 수정 후 `./gradlew compileJava test --tests '*CertificatePersistenceIntegrationTest' --no-daemon`의 29개가 모두 통과했다. 결과 미수신 상태로 TTL이 경과한 뒤에도 UNKNOWN 및 안내 코드가 유지되고 CANCEL이 생성되지 않으며, 지연 결과 수신 후에도 재등록하지 않음을 확인했다. 이미 취소된 세션의 후속 정리와 lease 복구 기존 검증도 통과했다.
 
 두 번째 수정 검증: 기본 catalog의 `0031` 계좌 조회 필수 플래그가 false인 실패를 HTTP 테스트로 재현했다. 설정 수정 후 일회용 PostgreSQL·Redis 및 Testcontainers Kafka를 사용해 `compileJava`, HTTP 8개와 catalog 2개, JavaScript 35개가 모두 통과했다. `0020`·`0031` 모두 입력 누락 거부→승인→BOUND→계좌 조회 200을 확인했고, 저장한 계좌번호/비밀번호가 복호화되어 조회 Port에 전달됨을 검증했다. CODEF 등록에는 `0020`만 계좌 입력을 전달하고, `0031`은 조회를 위해 저장한다. 금융사 호출은 mock 경계로 대체했다.
+
+세 번째 수정 검증: 인증 정보 없는 갱신에서 저장 Port가 NULL 교체로 호출되는 실패를 재현했다. 수정 후 새 정보가 없는 갱신은 저장 호출 없이 기존 값을 유지하고, 명시적으로 새 쌍을 입력한 갱신은 새 암호문으로 교체하는 두 사례가 통과했다.
+
+최종 검증: 앱 잔여 파일이 없는 Git 추출본에 세 수정만 반영하고, 일회용 PostgreSQL 18·Redis 8에서 `bash scripts/test.sh clean compileJava test`를 실행했다. Java 224 suites/1,670개와 JavaScript 35개 모두 통과했으며 실패·오류·skip은 0이다. certificate HTTP 8개, PostgreSQL 통합 29개, 갱신 트랜잭션 2개를 포함한다. 최초 실행은 Docker 종료로 사전 점검에서 중단됐고, Docker와 일회용 테스트 환경 복구 후 전체 실행이 성공했다. 새 스키마 변경은 없다.

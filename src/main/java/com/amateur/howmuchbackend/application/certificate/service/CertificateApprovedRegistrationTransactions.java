@@ -119,12 +119,12 @@ public class CertificateApprovedRegistrationTransactions {
                             institution);
         else if (!connections.hasInstitution(connection.id(), command.organization()))
             connections.saveInstitution(institution);
-        else
+        else if (encrypted != null)
             connections.updateInstitutionCredentials(
                     connection.id(),
                     command.organization(),
-                    encrypted == null ? null : encrypted.localCiphertext(),
-                    encrypted == null ? null : encrypted.kmsCiphertext());
+                    encrypted.localCiphertext(),
+                    encrypted.kmsCiphertext());
         UUID ref = UUID.randomUUID();
         var envelope =
                 protection.sealConnection(
