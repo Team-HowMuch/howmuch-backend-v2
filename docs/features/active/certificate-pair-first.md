@@ -1,6 +1,6 @@
 # Feature Plan: 초기 QR 사용자 연결과 PC 금융 인증
 
-- Status: 구현·로컬 전체 검증 완료 / PR 검토·앱 release 게시 중
+- Status: 구현·전체 검증·PR 및 앱 release 게시 완료
 - Issue: #517 / connector #31
 - 기준: 최신 origin/develop c066193a. 기존 netting 작업은 보존하고 격리 worktree 사용.
 
@@ -50,3 +50,9 @@ pairing 사용자/등록 세션/기존 연결 snapshot은 변경 불가다. 같�
 - Connector는 일회용 별도 DB에서 `./gradlew clean build --no-daemon` 성공, Java 25개 실패 0. 앱 Node 40개/실제 Electron smoke 및 macOS arm64 실제 패키지의 임시 서명·API origin·sandboxed preload·첫 화면 검증 통과.
 - QR claim Web DTO의 `toString()`도 토큰을 가려 기존 민감 DTO 규약을 적용했다. 이후 compileJava로 최종 소스를 확인한다.
 - SQL #518 원격 테스트·Docker 빌드 통과. 기능 #519/앱 #32를 게시했다. dev/prod 서버 배포와 실제 모바일 UI/실은행 E2E는 실행하지 않았다.
+
+## 릴리스 완료
+- dev: https://github.com/Team-HowMuch/howmuch-finance-connector/releases/tag/certificate-v0.1.8-rc.1
+- prod: https://github.com/Team-HowMuch/howmuch-finance-connector/releases/tag/certificate-v0.1.8
+- 양쪽 release CI 성공, 각 Windows x64 EXE·macOS arm64/x64 DMG·SHA-256 총 6개 Assets 첨부. checksum 파일과 GitHub 업로드 digest 대조 통과. 서버 최종 redaction 이후 compileJava도 성공했다.
+- 현재 #519는 최종 문서 커밋 기준 원격 CI 진행 중이다. 로컬 전체 테스트 성공과 원격 CI 완료를 구분한다. 서버 배포·모바일 UI 구현은 이번 게시에 포함되지 않는다.
