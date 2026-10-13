@@ -7,5 +7,17 @@ import java.util.UUID;
 public record RecapSourceFact(
         UUID settlementId, LocalDateTime completedAt, Long ownAmount, boolean validZeroSubmission,
         UUID participantId, Long linkedUserId, String participantName,
-        String accountName, String publicId, String avatarFileName, boolean accountActive
-) {}
+        String accountName, String publicId, String avatarFileName, boolean accountActive, RecapAllocationFacts allocation
+) {
+    public RecapSourceFact(UUID settlementId, LocalDateTime completedAt, Long ownAmount, boolean validZeroSubmission,
+            UUID participantId, Long linkedUserId, String participantName, String accountName,
+            String publicId, String avatarFileName, boolean accountActive) {
+        this(settlementId, completedAt, ownAmount, validZeroSubmission, participantId, linkedUserId,
+                participantName, accountName, publicId, avatarFileName, accountActive, null);
+    }
+
+    public RecapSourceFact withConfirmedZero(boolean confirmed) {
+        return new RecapSourceFact(settlementId, completedAt, ownAmount, confirmed, participantId,
+                linkedUserId, participantName, accountName, publicId, avatarFileName, accountActive, allocation);
+    }
+}

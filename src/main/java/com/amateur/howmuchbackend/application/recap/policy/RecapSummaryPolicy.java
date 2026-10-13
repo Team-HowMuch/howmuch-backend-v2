@@ -11,6 +11,15 @@ import java.util.UUID;
 
 @Component
 public class RecapSummaryPolicy {
+    public boolean isConfirmedZero(RecapSourceFact fact, boolean allocationValid,
+                                   List<com.amateur.howmuchbackend.domain.settlement.SettlementShare> calculatedShares) {
+        var allocation = fact.allocation();
+        return allocation != null && allocation.ownParticipantId() != null && allocation.ownSubmitted()
+                && !allocation.items().isEmpty() && allocation.submissionCount() == allocation.participants().size()
+                && allocationValid && calculatedShares.stream()
+                .noneMatch(share -> share.payerParticipantId().equals(allocation.ownParticipantId()));
+    }
+
     public RecapSummary summarize(List<RecapSourceFact> facts) {
         Map<UUID, Long> amounts = new HashMap<>();
         for (RecapSourceFact fact : facts) {
