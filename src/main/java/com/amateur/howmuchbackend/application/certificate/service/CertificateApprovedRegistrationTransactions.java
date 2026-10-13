@@ -69,7 +69,8 @@ public class CertificateApprovedRegistrationTransactions {
                                         com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode
                                                 .USER_NOT_FOUND));
         if (pairing != null && pairings.hasUnresolvedAuthentication(user, session.id())) {
-            jobs.finish(execution, "FAILED", "CONNECTION_CONFLICT", null, null, now);
+            // REGISTER failures use the existing contract-conflict event code.
+            jobs.finish(execution, "FAILED", "CONTRACT_CONFLICT", null, null, now);
             return;
         }
         connections.validateStorageConfiguration();
