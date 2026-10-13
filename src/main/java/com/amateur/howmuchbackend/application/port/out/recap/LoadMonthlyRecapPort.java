@@ -6,5 +6,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface LoadMonthlyRecapPort {
+    List<YearMonth> findMonths(Long ownerId);
     Optional<MonthlyRecap> find(Long ownerId, YearMonth month);
 }

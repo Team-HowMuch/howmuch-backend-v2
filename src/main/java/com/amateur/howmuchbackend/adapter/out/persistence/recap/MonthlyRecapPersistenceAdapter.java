@@ -22,6 +22,12 @@ public class MonthlyRecapPersistenceAdapter implements LoadMonthlyRecapPort, Sto
     private final NamedParameterJdbcTemplate jdbc;
 
     @Override
+    public java.util.List<YearMonth> findMonths(Long ownerId) {
+        return jdbc.query("SELECT month_start FROM monthly_recaps WHERE owner_user_id=:owner ORDER BY month_start DESC",
+                new MapSqlParameterSource("owner", ownerId), (row, i) -> YearMonth.from(row.getDate("month_start").toLocalDate()));
+    }
+
+    @Override
     public Optional<MonthlyRecap> find(Long ownerId, YearMonth month) {
         return jdbc.query("SELECT * FROM monthly_recaps WHERE owner_user_id = :owner AND month_start = :month",
                 new MapSqlParameterSource("owner", ownerId).addValue("month", Date.valueOf(month.atDay(1))),
