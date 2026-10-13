@@ -389,14 +389,13 @@ public class SettlementDetailService implements GetSettlementUseCase {
         if (creatorParticipant == null) {
             return settlement.totalAmount();
         }
-        long creatorAmount = itemAllocationPolicy.calculatePersonalAmount(
+        return itemAllocationPolicy.calculateRequestedReceivableAmount(
+                settlement.totalAmount(),
                 loadSettlementItemPort.findAllBySettlementId(settlement.id()),
                 itemAllocationStorePort.findAllSelections(settlement.id()),
                 creatorParticipant.id(),
                 receiptDiscount,
-                deliveryFee,
-                false
+                deliveryFee
         );
-        return Math.subtractExact(settlement.totalAmount(), creatorAmount);
     }
 }
