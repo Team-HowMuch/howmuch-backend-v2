@@ -256,6 +256,19 @@ public record SettlementExpense(
         );
     }
 
+    public SettlementExpense replaceReceipt(
+            String storeName, long newAmount, LocalDateTime newPaidAt,
+            long newDiscount, long newDeliveryFee, LocalDateTime now
+    ) {
+        if (source != SettlementExpenseSource.RECEIPT_OCR) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_RECEIPT_REQUIRED);
+        }
+        return new SettlementExpense(id, settlementId, source, sourceReference, sourceAccountId,
+                storeName, newAmount, newPaidAt, displayOrder, createdAt,
+                Objects.requireNonNull(now, "영수증 수정 시각은 필수입니다."),
+                newDiscount, newDeliveryFee);
+    }
+
     private static String normalizeSourceReference(
             SettlementExpenseSource source,
             String sourceReference
