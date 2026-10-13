@@ -24,7 +24,7 @@ pairing 사용자/등록 세션/기존 연결 snapshot은 변경 불가다. 같�
 - 기존 certificate-claims decision API를 최종 Yes/No에 재사용.
 
 ## 영향·SQL·게시
-새 certificate_pc_pairings 테이블만 V50으로 추가한다. origin/develop은 V48까지이며 로컬 미게시 V49 Batch 번호를 피한다. 사용자가 SQL-only와 서버 PR을 함께 게시하도록 명시했으므로 root gate의 즉시 종료 대신 별도 SQL/서버 PR을 모두 만든다. 기존 migration 파일은 변경하지 않는다. 서버 기능 커밋에는 SQL을 섞지 않는다. 원격 CI에서도 검증하도록 SQL PR의 동일 선행 커밋 위에 서버 브랜치를 쌓는다. 두 PR 모두 develop을 대상으로 하며 SQL PR 병합 후 서버 PR의 SQL diff는 자동으로 사라진다. 기존 API는 유지하며 새 앱은 서버/SQL 선행 배포가 필요하다. 서버 PR만 게시하고 dev/prod 자동 배포를 실행하지 않는다.
+V50에서 certificate_pc_pairings 테이블과 등록 세션 capability를 검증하는 복합 UNIQUE/FK 및 사용자 귀속 제약을 추가한다. origin/develop은 V48까지이며 로컬 미게시 V49 Batch 번호를 피한다. 사용자가 SQL-only와 서버 PR을 함께 게시하도록 명시했으므로 root gate의 즉시 종료 대신 별도 SQL/서버 PR을 모두 만든다. 기존 migration 파일은 변경하지 않는다. 서버 기능 커밋에는 SQL을 섞지 않는다. 원격 CI에서도 검증하도록 SQL PR의 동일 선행 커밋 위에 서버 브랜치를 쌓는다. 두 PR 모두 develop을 대상으로 하며 SQL PR 병합 후 서버 PR의 SQL diff는 자동으로 사라진다. 기존 API는 유지하며 새 앱은 서버/SQL 선행 배포가 필요하다. 서버 PR만 게시하고 dev/prod 자동 배포를 실행하지 않는다.
 
 ## 커밋·검증
 1. SQL-only: feat(certificate): 초기 QR 사용자 연결 저장 구조 추가.
@@ -56,3 +56,19 @@ pairing 사용자/등록 세션/기존 연결 snapshot은 변경 불가다. 같�
 - prod: https://github.com/Team-HowMuch/howmuch-finance-connector/releases/tag/certificate-v0.1.8
 - 양쪽 release CI 성공, 각 Windows x64 EXE·macOS arm64/x64 DMG·SHA-256 총 6개 Assets 첨부. checksum 파일과 GitHub 업로드 digest 대조 통과. 서버 최종 redaction 이후 compileJava도 성공했다.
 - 현재 #519는 최종 문서 커밋 기준 원격 CI 진행 중이다. 로컬 전체 테스트 성공과 원격 CI 완료를 구분한다. 서버 배포·모바일 UI 구현은 이번 게시에 포함되지 않는다.
+
+## PR #518/#519 리뷰·CI 보완 계획
+- 원격 실패 11건은 새로 develop에 합쳐진 정산 영수증 테스트의 Java nanosecond와 PostgreSQL microsecond 시각 비교 때문이다. CI artifact에서 실제 값 차이를 확인했고 수정 #520(2654deb5)이 이미 develop에 있어 merge로 반영했다. 정산 업무 코드는 별도 수정하지 않는다.
+- #519 P1: 세션 CANCELLED 뒤에도 외부 요청이 시작된 REGISTER 작업이 PROCESSING/UNKNOWN이거나 미귀속 READY 결과가 있으면 새 인증을 차단한다. 세션 문자열만으로 결과 불명을 판단하지 않는다. 취소→UNKNOWN 순서, 요청 중 및 READY 승인 대기 경계를 실제 PostgreSQL에서 검증한다.
+- #519 P2: pairing capacity count+insert를 기존 registration과 같은 transaction-scoped advisory lock 방식으로 직렬화한다. 199개 상태에서 동시 요청으로 한 건만 추가되는 검증을 남긴다.
+- #518 P1: 초기 pairing과 등록 세션의 PC capability는 의도적으로 서로 다르다. 같은 해시를 강제하는 대신, 생성 응답의 등록 PC capability hash를 pairing 링크 증거로 저장하고 `(session_id,registration_pc_capability_hash)` FK로 연결한다. 연결된 세션의 current claim/consent/approved user가 pairing 사용자와 같도록 deferred constraint trigger로 최종 트랜잭션 상태를 검증한다. 잘못된 세션 증거·타인 claim/이미 승인된 타인 세션 연결 거절과 정상 흐름을 검증한다.
+- V50은 미병합 #518에서만 수정하고 서버 #519는 그 SQL 커밋을 merge로 반영한다. 별도 migration 버전을 추가하지 않는다. 사용자 요청의 SQL/서버 PR 병행 규칙을 유지한다. 커밋은 SQL 제약, 재인증 차단, capacity 직렬화, 테스트·검증 문서로 분리한다.
+
+- 취소 경합 회귀는 CANCEL command와 UNKNOWN result를 먼저 명시적으로 전달한 다음 새 REGISTER를 처리한다. 같은 고정 시각에 생성된 outbox UUID 정렬에 테스트 성공 여부가 의존하지 않게 했다.
+
+## 리뷰 수정 최종 로컬 검증
+- 최신 develop의 #520 정산 시각 정밀도 보정을 merge로 반영했다. 정산 제품 코드 변경은 없다.
+- PostgreSQL/Kafka 기반 인증서 및 기존 실패 정산 focused Java 138개 + JavaScript 35개 통과.
+- 수정 후 전체 `bash scripts/test.sh compileJava test bootJar` 성공: Java 1,792개 / 233 suites, 실패·오류·skip 0, JavaScript 35개 통과. V50 신규 적용과 정상 초기 QR→인증→최종 Yes/No, 기존 QR 흐름을 포함한다.
+- 신규 회귀 7개: 요청 중/UNKNOWN 취소 경합 2개, 미귀속 READY 재인증 차단, 199개 상태에서 12개 동시 생성 시 한 건만 허용, 등록 capability 증거 불일치, 타인 claim, 승인된 타인 세션 연결 거절.
+- `git diff --check` 통과. #518은 SQL 한 파일만 유지하며 서버 코드·검증은 #519에 반영한다. 원격 CI 결과는 로컬 성공과 별도로 확인한다.

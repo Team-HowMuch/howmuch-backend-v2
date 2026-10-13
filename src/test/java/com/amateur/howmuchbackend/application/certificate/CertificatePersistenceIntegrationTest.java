@@ -73,6 +73,7 @@ class CertificatePersistenceIntegrationTest {
     CertificateProviderAccountPort provider;
     CertificateWorkerService worker;
     long user;
+    final List<Long> extraUsers = new ArrayList<>();
     CertificateConsentJdbcAdapter consents;
     CertificatePairingJdbcAdapter pairings;
     CertificatePairingService pairingService;
@@ -343,6 +344,7 @@ class CertificatePersistenceIntegrationTest {
                 user);
         jdbc.update("DELETE FROM external_connections WHERE user_id=?", user);
         jdbc.update("DELETE FROM users WHERE id=?", user);
+        extraUsers.forEach(id -> jdbc.update("DELETE FROM users WHERE id=?", id));
     }
 
     String lastPc;
@@ -1549,6 +1551,168 @@ class CertificatePersistenceIntegrationTest {
         runPairedAuthentication();
         assertThat(pairingService.getMobilePairing(next.id()).status()).isEqualTo("FAILED");
         verify(provider, times(1)).register(anyString(), any(), anyBoolean());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void cancelledSessionWithStartedOrUnknownProviderJobStillBlocksAnotherAuthentication(
+            boolean unknown) {
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        var command = tx.claimPublication(false).orElseThrow();
+        tx.published(command, true);
+        tx.receiveCommand(command.command(), caps.hash("cancel-race-command"));
+        var execution = tx.claim().orElseThrow();
+        assertThat(tx.start(execution)).isTrue();
+        pairingService.cancelPairing(p.id(), p.pcCapability());
+        var cancellation = tx.claimPublication(false).orElseThrow();
+        assertThat(cancellation.command().type()).isEqualTo("CANCEL");
+        tx.published(cancellation, true);
+        tx.receiveCommand(cancellation.command(), caps.hash("cancel-race-cancel"));
+        if (unknown) {
+            tx.finish(execution, "UNKNOWN", "REGISTRATION_UNCERTAIN", null, null);
+            var result = tx.claimPublication(true).orElseThrow();
+            tx.receiveResult(result.event(), caps.hash("cancel-race-result"));
+            tx.published(result, true);
+        }
+        assertThat(registration.get(s.id(), s.pcCapability()).status()).isEqualTo("CANCELLED");
+
+        var next = pairedDevice();
+        pairedUpload(next);
+        runPairedAuthentication();
+        assertThat(pairingService.getMobilePairing(next.id()).status()).isEqualTo("FAILED");
+        verifyNoInteractions(provider);
+    }
+
+    @Test
+    void unboundProviderResultBlocksAnotherAuthenticationUntilDiscarded() {
+        var p = pairedDevice();
+        pairedUpload(p);
+        runPairedAuthentication();
+        assertThat(pairingService.getMobilePairing(p.id()).status()).isEqualTo("READY_FOR_CLAIM");
+        var next = pairedDevice();
+        pairedUpload(next);
+        runPairedAuthentication();
+        assertThat(pairingService.getMobilePairing(next.id()).status()).isEqualTo("FAILED");
+        verify(provider, times(1)).register(anyString(), any(), anyBoolean());
+    }
+
+    @Test
+    void concurrentPairingCreationCannotExceedGlobalCapacity() throws Exception {
+        for (int i = 0; i < 199; i++) pairingService.createPairing("127.0.0.1");
+        var pool = Executors.newFixedThreadPool(12);
+        var ready = new CountDownLatch(12);
+        var start = new CountDownLatch(1);
+        try {
+            List<Future<Boolean>> attempts = new ArrayList<>();
+            for (int i = 0; i < 12; i++) {
+                attempts.add(
+                        pool.submit(
+                                () -> {
+                                    ready.countDown();
+                                    if (!start.await(10, TimeUnit.SECONDS))
+                                        throw new IllegalStateException("Start timeout");
+                                    try {
+                                        pairingService.createPairing("127.0.0.1");
+                                        return true;
+                                    } catch (ApplicationException capacity) {
+                                        assertThat(capacity.getStatusCode())
+                                                .isEqualTo(
+                                                        com.amateur.howmuchbackend.domain
+                                                                .certificate.CertificateStatusCode
+                                                                .CERTIFICATE_RATE_LIMITED);
+                                        return false;
+                                    }
+                                }));
+            }
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            int accepted = 0;
+            for (var attempt : attempts) if (attempt.get(20, TimeUnit.SECONDS)) accepted++;
+            assertThat(accepted).isEqualTo(1);
+            assertThat(
+                            jdbc.queryForObject(
+                                    "SELECT count(*) FROM certificate_pc_pairings", Long.class))
+                    .isEqualTo(200L);
+        } finally {
+            start.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    long anotherUser() {
+        String unique = UUID.randomUUID().toString();
+        long id =
+                jdbc.queryForObject(
+                        "INSERT INTO"
+                            + " users(identity_key,name,public_id,phone_number,pin_hash,phone_verified,role,active,created_at,updated_at)"
+                            + " VALUES(?,'다른 테스트 사용자',?,?,'unused',true,'USER',true,?,?) RETURNING"
+                            + " id",
+                        Long.class,
+                        unique,
+                        "c_" + unique.replace("-", "").substring(0, 10),
+                        unique.substring(0, 20),
+                        NOW,
+                        NOW);
+        extraUsers.add(id);
+        return id;
+    }
+
+    @Test
+    void pairingCannotLinkRegistrationWithoutItsPcCapabilityProof() {
+        var p = pairedDevice();
+        var s = registration.create(new CreateCertificateRegistrationCommand("0020", "127.0.0.1"));
+        assertThatThrownBy(() -> pairings.link(p.id(), s.id(), caps.hash("wrong-proof")))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThat(pairings.find(p.id(), false).orElseThrow().sessionId()).isNull();
+    }
+
+    @Test
+    void pairingCannotReserveApprovalForAnotherUserEvenThroughPersistenceAdapter() {
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        runPairedAuthentication();
+        var session = storage.find(s.id(), false).orElseThrow();
+        var foreignClaim =
+                new CertificateClaim(
+                        UUID.randomUUID(),
+                        s.id(),
+                        anotherUser(),
+                        session.claimGeneration(),
+                        UUID.randomUUID(),
+                        "RESERVED",
+                        NOW.plusMinutes(1));
+        assertThatThrownBy(
+                        () ->
+                                new TransactionTemplate(manager)
+                                        .executeWithoutResult(
+                                                status ->
+                                                        claims.reserve(
+                                                                foreignClaim,
+                                                                caps.hash("foreign-confirmation"),
+                                                                NOW)))
+                .hasStackTraceContaining("Certificate pairing owner must match");
+        assertThat(claims.current(s.id())).isEmpty();
+    }
+
+    @Test
+    void pairingCannotLinkAlreadyApprovedRegistrationOfAnotherUser() {
+        var s = submitted();
+        deliverCommand();
+        successfulRegistration();
+        var p = pairingService.createPairing("127.0.0.1");
+        pairings.pair(p.id(), anotherUser(), NOW);
+        assertThatThrownBy(
+                        () ->
+                                new TransactionTemplate(manager)
+                                        .executeWithoutResult(
+                                                status ->
+                                                        pairings.link(
+                                                                p.id(),
+                                                                s.id(),
+                                                                caps.hash(s.pcCapability()))))
+                .hasStackTraceContaining("Certificate pairing owner must match");
+        assertThat(pairings.find(p.id(), false).orElseThrow().sessionId()).isNull();
     }
 
     @Test
