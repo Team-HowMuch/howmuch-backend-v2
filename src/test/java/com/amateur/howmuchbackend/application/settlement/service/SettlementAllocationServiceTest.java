@@ -72,6 +72,8 @@ class SettlementAllocationServiceTest {
     @Mock
     private SettlementDutchPayAllocationStorePort allocationStorePort;
 
+    @Mock private SettlementRevisionGuard revisionGuard;
+    @Mock private com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort deleteSharePort;
     private SettlementAllocationService service;
 
     @BeforeEach
@@ -85,7 +87,8 @@ class SettlementAllocationServiceTest {
                 loadSettlementItemPort,
                 allocationStorePort,
                 new DutchPayAllocationPolicy(),
-                new SettlementRequestPolicy()
+                new SettlementRequestPolicy(),
+                revisionGuard, deleteSharePort
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
     }

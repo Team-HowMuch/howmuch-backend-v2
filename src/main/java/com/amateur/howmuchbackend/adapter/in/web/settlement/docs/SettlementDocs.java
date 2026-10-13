@@ -200,7 +200,7 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 재개",
-            description = "현재 로그인한 생성자가 SUSPENDED 상태의 정산을 REQUESTED 상태로 재개합니다. "
+            description = "현재 로그인한 생성자가 SUSPENDED 정산을 재개합니다. 품목 정산은 REQUESTED가 됩니다. 더치페이는 입금 기록이 없고 지출·전원 배분 합계가 정산 총액과 같을 때 Share를 다시 확정해 AWAITING_DEPOSIT으로 전환합니다. "
                     + "재개 시 참여자 제출 완료 표시는 초기화하고 기존 품목 선택은 유지합니다. "
                     + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
                     + "허용되지 않은 상태면 INVALID_SETTLEMENT_STATUS_TRANSITION을 반환합니다.",
@@ -226,7 +226,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION - 허용되지 않은 상태 변경"
+                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION, SETTLEMENT_REVISION_PAYMENT_EXISTS, SETTLEMENT_EXPENSE_TOTAL_MISMATCH, SETTLEMENT_SHARE_TOTAL_MISMATCH, SETTLEMENT_SHARE_AMOUNT_REQUIRED, SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE"
             )
     })
     ApiResponse<SettlementWebResponse> resumeSettlement(UUID settlementId);

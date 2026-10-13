@@ -14,7 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.UUID;
 
-@Tag(name = "Settlement Allocation", description = "정산 배분 유형과 더치페이 초안 API")
+@Tag(name = "Settlement Allocation", description = "정산 배분 유형과 더치페이 수정 API")
 public interface SettlementAllocationDocs {
     @Operation(
             summary = "정산 배분 유형 선택",
@@ -64,7 +64,7 @@ public interface SettlementAllocationDocs {
 
     @Operation(
             summary = "더치페이 배분 조회",
-            description = "DRAFT 더치페이 정산의 참여자별 부담 금액과 현재 합계·차액을 조회합니다. "
+            description = "DRAFT·SUSPENDED 더치페이 정산의 참여자별 부담 금액과 현재 합계·차액을 조회합니다. "
                     + "배분 유형 미선택은 SETTLEMENT_ALLOCATION_NOT_SELECTED, 품목별 정산은 "
                     + "SETTLEMENT_DUTCH_PAY_REQUIRED를 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
@@ -100,7 +100,7 @@ public interface SettlementAllocationDocs {
 
     @Operation(
             summary = "더치페이 배분 일괄 저장",
-            description = "DRAFT 더치페이 정산의 참여자 전원 금액을 한 트랜잭션에서 저장합니다. "
+            description = "DRAFT·SUSPENDED 더치페이 정산의 참여자 전원 금액을 한 트랜잭션에서 저장합니다. SUSPENDED에서는 입금 기록이 없을 때 허용하며 기존 Share를 초기화합니다. 수정 후 SUSPENDED를 유지하고 재개 시 금액을 확정합니다. "
                     + "요청은 참여자 전원을 정확히 한 번씩 포함해야 하고 합계가 정산 총액과 같아야 하며, "
                     + "하나라도 어긋나면 아무것도 저장되지 않습니다. "
                     + "참여자 누락·중복·정산에 없는 참여자는 INVALID_DUTCH_PAY_ALLOCATION_REQUEST, "
@@ -133,7 +133,7 @@ public interface SettlementAllocationDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_ALLOCATION_NOT_SELECTED, "
+                    description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_REVISION_PAYMENT_EXISTS, SETTLEMENT_ALLOCATION_NOT_SELECTED, "
                             + "SETTLEMENT_DUTCH_PAY_REQUIRED, SETTLEMENT_PARTICIPANTS_INSUFFICIENT, "
                             + "SETTLEMENT_DUTCH_PAY_TOTAL_MISMATCH 또는 "
                             + "SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE"
@@ -146,7 +146,7 @@ public interface SettlementAllocationDocs {
 
     @Operation(
             summary = "더치페이 참여자 금액 수정",
-            description = "DRAFT 더치페이 정산에서 한 참여자의 금액을 0원 이상으로 수정합니다. "
+            description = "DRAFT·SUSPENDED 더치페이 정산에서 한 참여자의 금액을 0원 이상으로 수정합니다. SUSPENDED에서는 입금 기록이 없을 때 허용하며 기존 Share를 초기화합니다. 수정 후 SUSPENDED를 유지합니다. "
                     + "수정 중 합계 불일치는 허용하고 differenceAmount와 balanced로 현재 상태를 반환합니다. "
                     + "참여자 또는 배분 행이 없으면 각각 SETTLEMENT_PARTICIPANT_NOT_FOUND, "
                     + "SETTLEMENT_DUTCH_PAY_ALLOCATION_NOT_FOUND를 반환합니다.",
@@ -177,7 +177,7 @@ public interface SettlementAllocationDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_ALLOCATION_NOT_SELECTED, "
+                    description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_REVISION_PAYMENT_EXISTS, SETTLEMENT_ALLOCATION_NOT_SELECTED, "
                             + "SETTLEMENT_DUTCH_PAY_REQUIRED 또는 "
                             + "SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE"
             )

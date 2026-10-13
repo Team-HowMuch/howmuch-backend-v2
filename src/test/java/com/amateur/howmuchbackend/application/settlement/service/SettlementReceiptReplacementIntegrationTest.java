@@ -4,13 +4,33 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementReceiptExpenseCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.ReplaceSettlementReceiptExpenseCommand;
-import com.amateur.howmuchbackend.adapter.out.persistence.settlement.*;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementExpensePersistenceAdapter;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementItemPersistenceAdapter;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementItemAllocationPersistenceAdapter;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementSharePersistenceAdapter;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementPersistenceAdapter;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.SettlementReceiptExpenseController;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.SettlementAllocationController;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.SettlementController;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.ReplaceSettlementDutchPayAllocationsCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDutchPayAllocationCommand;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDutchPayAllocationStorePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
-import com.amateur.howmuchbackend.domain.settlement.*;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
+import com.amateur.howmuchbackend.domain.settlement.SettlementDutchPayAllocation;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemAllocationFraction;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,19 +44,32 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@DisplayName("중단 정산 영수증 교체 HTTP·PostgreSQL 통합")
+@DisplayName("중단 정산 영수증·더치페이 수정 HTTP·PostgreSQL 통합")
 class SettlementReceiptReplacementIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 1, 10, 0);
     @MockitoBean private CurrentActorPort currentActorPort;
     @Autowired private SettlementReceiptReplacementService service;
     @Autowired private SettlementReceiptExpenseController controller;
+    @Autowired private SettlementAllocationController allocationController;
+    @Autowired private SettlementController settlementController;
+    @Autowired private SettlementAllocationService allocationService;
+    @Autowired private SettlementService lifecycle;
+    @Autowired private SettlementItemAllocationWriter itemWriter;
+    @Autowired private SettlementDutchPayAllocationStorePort dutchPayStore;
     @Autowired private SettlementExpensePersistenceAdapter expenses;
     @MockitoSpyBean private SettlementItemPersistenceAdapter items;
     @Autowired private SettlementItemAllocationPersistenceAdapter allocations;
@@ -72,7 +105,7 @@ class SettlementReceiptReplacementIntegrationTest {
                 List.of(new SettlementItem.OptionInput("기존 옵션", 1_000))))).getFirst();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        http = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new GlobalExceptionHandler())
+        http = MockMvcBuilders.standaloneSetup(controller, allocationController, settlementController).setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator).build();
     }
 
@@ -202,7 +235,10 @@ class SettlementReceiptReplacementIntegrationTest {
 
     @Test
     void replaceReceipt_itemWriteFailure_rollsBackExpense() {
-        doThrow(new IllegalStateException("synthetic item write failure")).when(items)
+        doAnswer(invocation -> {
+            invocation.callRealMethod();
+            throw new IllegalStateException("synthetic failure after item replacement");
+        }).when(items)
                 .replaceByExpenseId(eq(settlementId), eq(receipt.id()), anyList());
         assertThatThrownBy(() -> service.replace(settlementId, receipt.id(), command(NOW)))
                 .isInstanceOf(IllegalStateException.class);
@@ -226,6 +262,135 @@ class SettlementReceiptReplacementIntegrationTest {
                 {"receiptReference":"new","storeName":"신규","items":[{"name":"품목","quantity":1,"amount":1000}]}
                 """)).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("SETTLEMENT_NOT_EDITABLE"));
         assertUnchanged();
+    }
+
+    @Test
+    void replaceReceipt_concurrentRequests_serializedWithoutDuplicates() throws Exception {
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var start = new java.util.concurrent.CountDownLatch(1);
+            var tasks = java.util.stream.IntStream.range(0, 2).mapToObj(index -> executor.submit(() -> {
+                start.await();
+                return service.replace(settlementId, receipt.id(), command(NOW));
+            })).toList();
+            start.countDown();
+            for (var task : tasks) task.get(20, java.util.concurrent.TimeUnit.SECONDS);
+        }
+        assertThat(expenses.findAllBySettlementId(settlementId)).hasSize(1);
+        assertThat(items.findAllBySettlementId(settlementId)).hasSize(1);
+        assertThat(settlements.findById(settlementId).orElseThrow().totalAmount()).isEqualTo(12_000);
+    }
+
+    @Test
+    void dutchPay_suspendedPatchAndPut_preserveStatusAndRebuildOnResume() throws Exception {
+        initializeDutchPay();
+        shares.saveAll(List.of(SettlementShare.create(settlementId, payerParticipantId, 6000, NOW)));
+        http.perform(get("/api/v2/settlements/{id}/dutch-pay-allocations", settlementId))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.balanced").value(true));
+        assertThat(count("settlement_shares")).isEqualTo(1);
+        http.perform(patch("/api/v2/settlements/{id}/dutch-pay-allocations/{participant}",
+                settlementId, creatorParticipantId).contentType("application/json").content("{\"amount\":3000}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.balanced").value(false));
+        assertThat(count("settlement_shares")).isZero();
+        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.SUSPENDED);
+        assertError(() -> lifecycle.resume(settlementId), SettlementStatusCode.SETTLEMENT_SHARE_TOTAL_MISMATCH);
+        assertThat(count("settlement_shares")).isZero();
+        http.perform(put("/api/v2/settlements/{id}/dutch-pay-allocations", settlementId)
+                .contentType("application/json").content("""
+                {"allocations":[{"participantId":"%s","amount":3000},{"participantId":"%s","amount":7000}]}
+                """.formatted(creatorParticipantId, payerParticipantId)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.balanced").value(true));
+        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.SUSPENDED);
+        http.perform(post("/api/v2/settlements/{id}/resume", settlementId)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("AWAITING_DEPOSIT"));
+        assertThat(jdbcTemplate.queryForList("SELECT amount FROM settlement_shares WHERE settlement_id = ? ORDER BY amount", Long.class, settlementId))
+                .containsExactly(3000L, 7000L);
+    }
+
+    @Test
+    void dutchPay_receiptTotalChanged_requiresNewAllocationBeforeResume() {
+        initializeDutchPay();
+        service.replace(settlementId, receipt.id(), command(NOW));
+        assertError(() -> lifecycle.resume(settlementId), SettlementStatusCode.SETTLEMENT_SHARE_TOTAL_MISMATCH);
+        allocationService.replace(settlementId, dutchCommand(5000, 7000));
+        assertThat(lifecycle.resume(settlementId).status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        assertThat(jdbcTemplate.queryForList("SELECT amount FROM settlement_shares WHERE settlement_id = ? ORDER BY amount", Long.class, settlementId))
+                .containsExactly(5000L, 7000L);
+    }
+
+    @Test
+    void dutchPay_invalidReplacement_keepsAmountsAndShares() {
+        initializeDutchPay();
+        shares.saveAll(List.of(SettlementShare.create(settlementId, payerParticipantId, 6000, NOW)));
+        assertError(() -> allocationService.replace(settlementId, dutchCommand(5000, 7000)), SettlementStatusCode.SETTLEMENT_DUTCH_PAY_TOTAL_MISMATCH);
+        assertThat(allocationService.get(settlementId).balanced()).isTrue();
+        assertThat(count("settlement_shares")).isEqualTo(1);
+    }
+
+    @Test
+    void dutchPay_zeroAmount_resumeRejected() {
+        initializeDutchPay();
+        allocationService.replace(settlementId, dutchCommand(0, 10_000));
+        assertError(() -> lifecycle.resume(settlementId), SettlementStatusCode.SETTLEMENT_SHARE_AMOUNT_REQUIRED);
+        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.SUSPENDED);
+        assertThat(count("settlement_shares")).isZero();
+    }
+
+    @Test
+    void dutchPay_confirmedDeposit_mutationsAndResumeRejected() {
+        initializeDutchPay();
+        // initializeDutchPay가 이미 snapshot을 저장했으므로 입금 fixture는 동일 snapshot을 재사용한다.
+        jdbcTemplate.update("DELETE FROM settlement_receiving_account_snapshots WHERE settlement_id = ?", settlementId);
+        insertDeposit();
+        assertError(() -> allocationService.update(settlementId, creatorParticipantId,
+                new UpdateSettlementDutchPayAllocationCommand(3000)), SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS);
+        assertError(() -> allocationService.replace(settlementId, dutchCommand(3000, 7000)), SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS);
+        assertError(() -> lifecycle.resume(settlementId), SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS);
+        assertThat(allocationService.get(settlementId).balanced()).isTrue();
+        assertThat(count("settlement_deposits")).isEqualTo(1);
+        assertThat(count("settlement_shares")).isEqualTo(1);
+    }
+
+    @Test
+    void dutchPay_foreignActor_rejected() {
+        initializeDutchPay();
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId + 1000));
+        assertError(() -> allocationService.get(settlementId), SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
+        assertError(() -> allocationService.update(settlementId, creatorParticipantId,
+                new UpdateSettlementDutchPayAllocationCommand(3000)), SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
+        assertError(() -> allocationService.replace(settlementId, dutchCommand(3000, 7000)), SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
+    }
+
+    @Test
+    void itemAllocation_replacedReceipt_resumeAllowsSelectingAndSubmitting() {
+        service.replace(settlementId, receipt.id(), command(NOW));
+        insertSnapshot();
+        assertThat(lifecycle.resume(settlementId).status()).isEqualTo(SettlementStatus.REQUESTED);
+        assertThat(allocations.findAllSubmissions(settlementId)).isEmpty();
+        UUID itemId = items.findAllBySettlementId(settlementId).getFirst().id();
+        LocalDateTime selectedAt = LocalDateTime.now(java.time.ZoneOffset.UTC);
+        var selection = new com.amateur.howmuchbackend.application.port.in.settlement.command.SaveSettlementItemSelectionCommand(
+                SettlementItemAllocationFraction.ONE, 1);
+        itemWriter.save(settlementId, creatorParticipantId, itemId, selection, selectedAt, SettlementItemAllocationEntry.CREATOR);
+        itemWriter.save(settlementId, payerParticipantId, itemId, selection, selectedAt, SettlementItemAllocationEntry.LINK);
+        itemWriter.submit(settlementId, creatorParticipantId, selectedAt, SettlementItemAllocationEntry.CREATOR);
+        itemWriter.submit(settlementId, payerParticipantId, selectedAt, SettlementItemAllocationEntry.LINK);
+        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        assertThat(jdbcTemplate.queryForList("SELECT amount FROM settlement_shares WHERE settlement_id = ?", Long.class, settlementId))
+                .containsExactlyInAnyOrder(6000L, 6000L);
+    }
+
+    private void initializeDutchPay() {
+        jdbcTemplate.update("UPDATE settlements SET allocation_type = 'DUTCH_PAY' WHERE id = ?", settlementId);
+        insertSnapshot();
+        dutchPayStore.replaceAll(settlementId, List.of(
+                SettlementDutchPayAllocation.create(settlementId, creatorParticipantId, 4000, NOW),
+                SettlementDutchPayAllocation.create(settlementId, payerParticipantId, 6000, NOW)));
+    }
+
+    private ReplaceSettlementDutchPayAllocationsCommand dutchCommand(long creatorAmount, long payerAmount) {
+        return new ReplaceSettlementDutchPayAllocationsCommand(List.of(
+                new ReplaceSettlementDutchPayAllocationsCommand.Allocation(creatorParticipantId, creatorAmount),
+                new ReplaceSettlementDutchPayAllocationsCommand.Allocation(payerParticipantId, payerAmount)));
     }
 
     private ReplaceSettlementReceiptExpenseCommand command(LocalDateTime paidAt) {

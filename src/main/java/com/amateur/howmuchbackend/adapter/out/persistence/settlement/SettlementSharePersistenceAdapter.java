@@ -3,8 +3,6 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.SettlementRequestMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementShareJpaRepository;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementSharePort;
-import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
-import java.util.UUID;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -13,14 +11,8 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-public class SettlementSharePersistenceAdapter implements SaveSettlementSharePort, DeleteSettlementSharePort {
+public class SettlementSharePersistenceAdapter implements SaveSettlementSharePort {
     private final SettlementShareJpaRepository shareRepository;
-
-    @Override
-    public void deleteAllBySettlementId(UUID settlementId) {
-        shareRepository.deleteAllBySettlementId(settlementId);
-        shareRepository.flush();
-    }
 
     @Override
     public void saveAll(List<SettlementShare> shares) {

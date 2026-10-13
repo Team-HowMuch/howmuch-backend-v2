@@ -53,7 +53,7 @@ public enum SettlementStatusCode implements StatusCode {
     SETTLEMENT_DEPOSIT_DATA_NOT_FOUND("정산 입금 확인 데이터를 찾을 수 없습니다.", 404),
     SETTLEMENT_ACCESS_DENIED("해당 정산에 접근할 권한이 없습니다.", 403),
     SETTLEMENT_GROUP_ACCESS_DENIED("해당 그룹 구성원을 조회할 권한이 없습니다.", 403),
-    SETTLEMENT_NOT_EDITABLE("초안 상태의 정산만 수정할 수 있습니다.", 409),
+    SETTLEMENT_NOT_EDITABLE("현재 상태에서는 정산을 수정할 수 없습니다.", 409),
     SETTLEMENT_NOT_DELETABLE("송금 또는 입금이 진행된 정산은 삭제할 수 없습니다.", 409),
     SETTLEMENT_NOT_SUSPENDABLE("이미 품목 선택을 제출한 참여자가 있어 정산을 중단할 수 없습니다.", 409),
     SETTLEMENT_DEPOSIT_RECONCILIATION_NOT_AVAILABLE("입금 대기 또는 완료 상태의 정산만 입금 현황을 확인할 수 있습니다.", 409),
