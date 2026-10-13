@@ -37,6 +37,8 @@ public class CertificatePairingJdbcAdapter implements CertificatePairingStorePor
     }
 
     public long countActive(LocalDateTime now) {
+        // Serialize capacity admission through the surrounding create transaction.
+        jdbc.execute("SELECT pg_advisory_xact_lock(74104680222179)");
         return jdbc.queryForObject(
                 "SELECT count(*) FROM certificate_pc_pairings WHERE expires_at>? AND cancelled_at"
                         + " IS NULL",
