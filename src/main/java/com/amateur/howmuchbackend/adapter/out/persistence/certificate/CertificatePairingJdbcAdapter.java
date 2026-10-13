@@ -102,12 +102,14 @@ public class CertificatePairingJdbcAdapter implements CertificatePairingStorePor
                 != 1) throw ApplicationException.of(CERTIFICATE_CONFLICT);
     }
 
-    public void link(UUID id, UUID session) {
+    public void link(UUID id, UUID session, String registrationPcHash) {
         if (jdbc.update(
-                        "UPDATE certificate_pc_pairings SET registration_session_id=? WHERE id=?"
-                            + " AND registration_session_id IS NULL AND paired_user_id IS NOT NULL"
-                            + " AND cancelled_at IS NULL",
+                        "UPDATE certificate_pc_pairings SET"
+                            + " registration_session_id=?,registration_pc_capability_hash=? WHERE"
+                            + " id=? AND registration_session_id IS NULL AND paired_user_id IS NOT"
+                            + " NULL AND cancelled_at IS NULL",
                         session,
+                        registrationPcHash,
                         id)
                 != 1) throw ApplicationException.of(CERTIFICATE_CONFLICT);
     }

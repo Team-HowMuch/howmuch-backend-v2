@@ -18,7 +18,7 @@ public interface CertificatePairingStorePort {
 
     void pair(UUID id, long user, LocalDateTime now);
 
-    void link(UUID id, UUID session);
+    void link(UUID id, UUID session, String registrationPcHash);
 
     void prepare(UUID session, Long existingConnectionId);
 

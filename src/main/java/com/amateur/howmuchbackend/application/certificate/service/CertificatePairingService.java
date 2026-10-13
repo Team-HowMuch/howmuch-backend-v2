@@ -116,7 +116,7 @@ public class CertificatePairingService
                 registrations.create(
                         new CreateCertificateRegistrationCommand(
                                 command.organization(), command.remoteAddress()));
-        pairings.link(id, s.id());
+        pairings.link(id, s.id(), capabilities.hash(s.pcCapability()));
         return s;
     }
 
