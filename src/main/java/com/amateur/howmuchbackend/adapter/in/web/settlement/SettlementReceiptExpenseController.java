@@ -9,6 +9,9 @@ import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.Settlem
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementReceiptExpenseUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementItemsUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ImportSettlementReceiptExpenseUseCase;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.ReplaceSettlementReceiptExpenseWebRequest;
+import com.amateur.howmuchbackend.application.port.in.settlement.ReplaceSettlementReceiptExpenseUseCase;
+import org.springframework.web.bind.annotation.PutMapping;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +30,7 @@ public class SettlementReceiptExpenseController implements SettlementReceiptExpe
     private final CreateSettlementReceiptExpenseUseCase createSettlementReceiptExpenseUseCase;
     private final ImportSettlementReceiptExpenseUseCase importSettlementReceiptExpenseUseCase;
     private final GetSettlementItemsUseCase getSettlementItemsUseCase;
+    private final ReplaceSettlementReceiptExpenseUseCase replaceSettlementReceiptExpenseUseCase;
 
     @Override
     @PostMapping("/expenses/receipt")
@@ -37,6 +41,16 @@ public class SettlementReceiptExpenseController implements SettlementReceiptExpe
         return ApiResponse.success(SettlementReceiptExpenseMutationWebResponse.from(
                 createSettlementReceiptExpenseUseCase.create(settlementId, request.toCommand())
         ));
+    }
+
+    @Override
+    @PutMapping("/expenses/receipt/{expenseId}")
+    public ApiResponse<SettlementReceiptExpenseMutationWebResponse> replaceReceiptExpense(
+            @PathVariable UUID settlementId, @PathVariable UUID expenseId,
+            @Valid @RequestBody ReplaceSettlementReceiptExpenseWebRequest request
+    ) {
+        return ApiResponse.success(SettlementReceiptExpenseMutationWebResponse.from(
+                replaceSettlementReceiptExpenseUseCase.replace(settlementId, expenseId, request.toCommand())));
     }
 
     @Override

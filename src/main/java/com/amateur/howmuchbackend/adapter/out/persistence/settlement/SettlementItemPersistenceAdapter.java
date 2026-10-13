@@ -48,6 +48,12 @@ public class SettlementItemPersistenceAdapter implements
     }
 
     @Override
+    public List<SettlementItem> replaceByExpenseId(UUID settlementId, UUID expenseId, List<SettlementItem> items) {
+        settlementItemJpaRepository.deleteByExpenseId(settlementId, expenseId);
+        return saveAll(items);
+    }
+
+    @Override
     public List<SettlementItem> saveAll(List<SettlementItem> items) {
         var saved = settlementItemJpaRepository.saveAllAndFlush(items.stream()
                         .map(SettlementItemMapper::toEntity)
