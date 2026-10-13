@@ -62,3 +62,9 @@ compileJava, 관련 security/account/CODEF/certificate 테스트, bootJar, dev �
 - `git diff --check`와 완료 문서의 상대 링크 검증 통과. SQL/설정 기본값 변경 없음. netting 및 Mock/connector 변경은 PR에 포함하지 않는다.
 - 로컬 전체 검증 로그 `/tmp/howmuch-certificate-pr-tests.log`, 세부 결과는 같은 폴더의 `certificate-local-encryption-results.json`. 이전 수동 dev 검증은 해당 JSON의 `historicalVerification20261012`로 구분한다.
 - 현재 요청에서는 원격 게시와 PR만 진행한다. dev/prod 배포는 실행하지 않는다. dev 인증서 기능은 배포 후 기존 로컬 wrapping key를 유지하고 `CERTIFICATE_ENABLED=true`로 활성화해야 한다. prod는 기존 KMS 설정을 유지한다.
+
+## PR #513 리뷰 반영 (2026-10-13)
+
+- 리뷰 1건: 배포 문서와 달리 canonical 운영 가이드가 dev/prod에서 LOCAL을 거부하고 현재 설정 KMS key ID로 복호화한다고 설명한 불일치를 지적했다.
+- `ops/certificate/README.md`의 키 설정 표와 교체/복구 안내를 실제 Adapter에 맞췄다. 프로필과 무관한 명시적 LOCAL 키, 두 키 동시 설정 시 KMS 우선 쓰기 및 기존 LOCAL 읽기, KMS 실패 시 fallback 없음, 저장 key ID의 Decrypt 권한 보존, replica별 동일 LOCAL 키와 별도 계좌/HMAC 키 사용을 명시했다.
+- 코드·환경·DB 변경 없는 문서 수정이다. 직전 전체 회귀 Java 1,749개·JavaScript 35개 통과 기록은 위와 같다. 이번 수정에서는 문서 상대 링크/anchor, stale KMS 안내 제거 및 `git diff --check`를 검증한다.
