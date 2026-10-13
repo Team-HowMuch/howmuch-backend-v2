@@ -36,6 +36,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.auditing.DateTimeProvider;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,6 +44,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -62,6 +64,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SettlementReceiptReplacementIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 1, 10, 0);
     @MockitoBean private CurrentActorPort currentActorPort;
+    @MockitoBean(name = "utcDateTimeProvider") private DateTimeProvider dateTimeProvider;
     @Autowired private SettlementReceiptReplacementService service;
     @Autowired private SettlementReceiptExpenseController controller;
     @Autowired private SettlementAllocationController allocationController;
@@ -88,6 +91,8 @@ class SettlementReceiptReplacementIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // OS 시계 정밀도와 무관하게 PostgreSQL 저장 정밀도를 넘는 감사 시각을 사용한다.
+        when(dateTimeProvider.getNow()).thenReturn(Optional.of(NOW.withNano(123_456_789)));
         String key = UUID.randomUUID().toString();
         creatorId = insertUser(key);
         connectionId = insertConnection(creatorId, key);
@@ -103,6 +108,8 @@ class SettlementReceiptReplacementIntegrationTest {
         originalItem = items.saveAll(List.of(SettlementItem.fromReceipt(settlementId, receipt.id(),
                 "기존 품목", 1, 10_000, 0, NOW, 0,
                 List.of(new SettlementItem.OptionInput("기존 옵션", 1_000))))).getFirst();
+        // 저장 직후 객체에는 나노초가 남을 수 있으므로 DB에서 읽은 전체 필드를 보존 검증의 기준으로 삼는다.
+        originalItem = items.findAllBySettlementId(settlementId).getFirst();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         http = MockMvcBuilders.standaloneSetup(controller, allocationController, settlementController).setControllerAdvice(new GlobalExceptionHandler())
@@ -155,6 +162,10 @@ class SettlementReceiptReplacementIntegrationTest {
                 NOW, 1, NOW));
         var otherItem = items.saveAll(List.of(SettlementItem.fromReceipt(settlementId, other.id(),
                 "다른 품목", 1, 5000, 0, NOW))).getFirst();
+        other = expenses.findBySettlementIdAndId(settlementId, other.id()).orElseThrow();
+        UUID otherItemId = otherItem.id();
+        otherItem = items.findAllBySettlementId(settlementId).stream()
+                .filter(item -> item.id().equals(otherItemId)).findFirst().orElseThrow();
         allocations.saveSelection(SettlementItemSelection.create(settlementId, originalItem.id(),
                 creatorParticipantId, SettlementItemAllocationFraction.ONE, 1, NOW));
         allocations.saveSelection(SettlementItemSelection.create(settlementId, otherItem.id(),
@@ -167,7 +178,7 @@ class SettlementReceiptReplacementIntegrationTest {
         assertThat(expenses.findAllBySettlementId(settlementId)).hasSize(2).contains(other);
         assertThat(items.findAllBySettlementId(settlementId)).hasSize(2).contains(otherItem);
         assertThat(allocations.findAllSelections(settlementId)).hasSize(1)
-                .allSatisfy(selection -> assertThat(selection.itemId()).isEqualTo(otherItem.id()));
+                .allSatisfy(selection -> assertThat(selection.itemId()).isEqualTo(otherItemId));
         assertThat(allocations.findAllSubmissions(settlementId)).isEmpty();
         assertThat(count("settlement_shares")).isZero();
         assertThat(expenses.findBySettlementIdAndId(settlementId, receipt.id()).orElseThrow().paidAt()).isNull();
