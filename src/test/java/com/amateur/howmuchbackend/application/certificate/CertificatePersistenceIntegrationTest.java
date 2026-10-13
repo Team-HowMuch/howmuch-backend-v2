@@ -74,6 +74,10 @@ class CertificatePersistenceIntegrationTest {
     CertificateWorkerService worker;
     long user;
     CertificateConsentJdbcAdapter consents;
+    CertificatePairingJdbcAdapter pairings;
+    CertificatePairingService pairingService;
+    CertificateRegistrationTransactions registrationTx;
+    CertificateApprovedRegistrationTransactions approved;
     CertificateConnectionDecisionService decisions;
     com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort
             connections;
@@ -135,18 +139,19 @@ class CertificatePersistenceIntegrationTest {
         caps = new CertificateCapabilities(props);
         protection =
                 new CertificateSecretProtectionAdapter(
-                        props,
-                        new StaticListableBeanFactory().getBeanProvider(KmsClient.class));
+                        props, new StaticListableBeanFactory().getBeanProvider(KmsClient.class));
         storage = new CertificateRegistrationJdbcAdapter(jdbc);
         consents = new CertificateConsentJdbcAdapter(jdbc);
+        pairings = new CertificatePairingJdbcAdapter(jdbc);
         jobs = new CertificateExecutionJdbcAdapter(jdbc);
         relay = new CertificateRelayJdbcAdapter(jdbc);
         claims = new CertificateClaimJdbcAdapter(jdbc);
         var policy = new CertificateRegistrationPolicy();
-        var registrationTx =
+        registrationTx =
                 transactional(
                         new CertificateRegistrationTransactions(
-                                storage, storage, storage, caps, policy, clock, consents));
+                                storage, storage, storage, caps, policy, clock, consents,
+                                pairings));
         registration =
                 new CertificateRegistrationService(
                         registrationTx,
@@ -169,7 +174,7 @@ class CertificatePersistenceIntegrationTest {
         tx =
                 transactional(
                         new CertificateExecutionTransactions(
-                                jobs, relay, jobs, clock, storage, consents, policy));
+                                jobs, relay, jobs, clock, storage, consents, pairings, policy));
         actor = mock(CurrentActorPort.class);
         when(actor.getCurrentActor()).thenReturn(new CurrentActor(user));
         var users = mock(com.amateur.howmuchbackend.application.port.out.user.LoadUserPort.class);
@@ -179,14 +184,23 @@ class CertificatePersistenceIntegrationTest {
         claimService =
                 transactional(
                         new CertificateClaimService(
-                                storage, claims, caps, key -> true, actor, clock, users));
+                                storage, pairings, claims, caps, key -> true, actor, clock, users));
         provider = mock(CertificateProviderAccountPort.class);
         when(provider.register(anyString(), any(), anyBoolean()))
                 .thenReturn(CertificateProviderResult.connected("connected-fixture"));
         decisions =
                 transactional(
                         new CertificateConnectionDecisionService(
-                                storage, claims, consents, storage, storage, actor, users, clock));
+                                storage,
+                                claims,
+                                consents,
+                                storage,
+                                storage,
+                                actor,
+                                users,
+                                clock,
+                                pairings,
+                                mock(CertificateApprovedRegistrationTransactions.class)));
         connections =
                 mock(
                         com.amateur.howmuchbackend.application.port.out.external
@@ -263,7 +277,7 @@ class CertificatePersistenceIntegrationTest {
                 .thenReturn(
                         new com.amateur.howmuchbackend.application.account.model
                                 .EncryptedBankAccountCredentials("test-encrypted-local", null));
-        var approved =
+        approved =
                 transactional(
                         new CertificateApprovedRegistrationTransactions(
                                 storage,
@@ -275,7 +289,8 @@ class CertificatePersistenceIntegrationTest {
                                 credentialProtection,
                                 protection,
                                 jobs,
-                                clock));
+                                clock,
+                                pairings));
         worker =
                 new CertificateWorkerService(
                         tx,
@@ -294,18 +309,37 @@ class CertificatePersistenceIntegrationTest {
                                                 true,
                                                 true,
                                                 "synthetic-test")),
-                        approved);
+                        approved,
+                        pairings);
+        decisions =
+                transactional(
+                        new CertificateConnectionDecisionService(
+                                storage, claims, consents, storage, storage, actor, users, clock,
+                                pairings, approved));
+        pairingService =
+                transactional(
+                        new CertificatePairingService(
+                                pairings,
+                                caps,
+                                key -> true,
+                                actor,
+                                users,
+                                storage,
+                                claims,
+                                registration,
+                                registrationTx,
+                                clock));
     }
 
     @AfterEach
     void cleanup() {
         jdbc.execute(
                 "TRUNCATE"
-                    + " certificate_provider_result_outbox,certificate_provider_connections,certificate_provider_command_inbox,certificate_upload_secrets,certificate_result_inbox,certificate_command_outbox,certificate_registration_claims,certificate_registration_sessions"
+                    + " certificate_pc_pairings,certificate_provider_result_outbox,certificate_provider_connections,certificate_provider_command_inbox,certificate_upload_secrets,certificate_result_inbox,certificate_command_outbox,certificate_registration_claims,certificate_registration_sessions"
                     + " CASCADE");
         jdbc.update(
                 "DELETE FROM connected_institutions WHERE external_connection_id IN (SELECT id FROM"
-                    + " external_connections WHERE user_id=?)",
+                        + " external_connections WHERE user_id=?)",
                 user);
         jdbc.update("DELETE FROM external_connections WHERE user_id=?", user);
         jdbc.update("DELETE FROM users WHERE id=?", user);
@@ -334,7 +368,7 @@ class CertificatePersistenceIntegrationTest {
         var pending =
                 jdbc.query(
                         "SELECT id FROM certificate_registration_sessions WHERE"
-                            + " status='READY_FOR_CLAIM'",
+                                + " status='READY_FOR_CLAIM'",
                         (row, n) -> row.getObject(1, UUID.class));
         for (UUID id : pending) {
             var qr = claimService.issue(id, lastPc);
@@ -457,15 +491,24 @@ class CertificatePersistenceIntegrationTest {
         var lateTx =
                 transactional(
                         new CertificateExecutionTransactions(
-                                jobs, relay, jobs, lateClock, storage, consents,
+                                jobs,
+                                relay,
+                                jobs,
+                                lateClock,
+                                storage,
+                                consents,
+                                pairings,
                                 new CertificateRegistrationPolicy()));
         lateTx.recover();
         assertThat(registration.get(s.id(), s.pcCapability()).status()).isEqualTo("UNKNOWN");
         assertThat(registration.get(s.id(), s.pcCapability()).failureCode())
                 .isEqualTo("CERTIFICATE_REGISTRATION_UNCERTAIN");
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM certificate_command_outbox WHERE session_id=?"
-                            + " AND command_type='CANCEL'", Integer.class, s.id()))
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM certificate_command_outbox WHERE session_id=?"
+                                        + " AND command_type='CANCEL'",
+                                Integer.class,
+                                s.id()))
                 .isZero();
         worker.recover();
         worker.executeOne();
@@ -689,13 +732,13 @@ class CertificatePersistenceIntegrationTest {
                     assertThat(
                                     jdbc.queryForObject(
                                             "SELECT last_failure_code FROM"
-                                                + " certificate_provider_command_inbox",
+                                                    + " certificate_provider_command_inbox",
                                             String.class))
                             .isEqualTo(providerCode);
                     assertThat(
                                     jdbc.queryForObject(
                                             "SELECT event_failure_code FROM"
-                                                + " certificate_provider_result_outbox",
+                                                    + " certificate_provider_result_outbox",
                                             String.class))
                             .isEqualTo(providerCode);
                     assertThat(
@@ -712,7 +755,7 @@ class CertificatePersistenceIntegrationTest {
                                     () ->
                                             jdbc.update(
                                                     "UPDATE certificate_provider_result_outbox SET"
-                                                        + " event_failure_code='CF-13031'"))
+                                                            + " event_failure_code='CF-13031'"))
                             .isInstanceOf(
                                     org.springframework.dao.DataIntegrityViolationException.class);
                 }
@@ -782,7 +825,7 @@ class CertificatePersistenceIntegrationTest {
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT status FROM certificate_provider_connections WHERE"
-                                    + " session_id=?",
+                                        + " session_id=?",
                                 String.class,
                                 first.id()))
                 .isEqualTo("BOUND");
@@ -810,7 +853,7 @@ class CertificatePersistenceIntegrationTest {
                         () ->
                                 jdbc.update(
                                         "UPDATE certificate_registration_consents SET"
-                                            + " external_connection_id=? WHERE session_id=?",
+                                                + " external_connection_id=? WHERE session_id=?",
                                         consent.connectionId(),
                                         second.id()))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
@@ -818,16 +861,15 @@ class CertificatePersistenceIntegrationTest {
                         () ->
                                 jdbc.update(
                                         "UPDATE certificate_registration_consents SET"
-                                            + " completed_at=approved_at WHERE session_id=?",
+                                                + " completed_at=approved_at WHERE session_id=?",
                                         second.id()))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThatThrownBy(
                         () ->
                                 jdbc.update(
                                         "UPDATE certificate_registration_consents SET"
-                                            + " external_connection_id=?,"
-                                            + " completed_at=approved_at - INTERVAL '1 microsecond'"
-                                            + " WHERE session_id=?",
+                                            + " external_connection_id=?, completed_at=approved_at"
+                                            + " - INTERVAL '1 microsecond' WHERE session_id=?",
                                         consent.connectionId(),
                                         second.id()))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
@@ -847,16 +889,16 @@ class CertificatePersistenceIntegrationTest {
                         () ->
                                 jdbc.update(
                                         "UPDATE certificate_registration_consents SET"
-                                            + " external_connection_id=NULL, completed_at=NULL"
-                                            + " WHERE session_id=?",
+                                                + " external_connection_id=NULL, completed_at=NULL"
+                                                + " WHERE session_id=?",
                                         second.id()))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThatThrownBy(
                         () ->
                                 jdbc.update(
                                         "UPDATE certificate_registration_consents SET"
-                                            + " completed_at=completed_at + INTERVAL '1 second'"
-                                            + " WHERE session_id=?",
+                                                + " completed_at=completed_at + INTERVAL '1 second'"
+                                                + " WHERE session_id=?",
                                         second.id()))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         verify(provider, times(1)).register(anyString(), any(), anyBoolean());
@@ -871,7 +913,7 @@ class CertificatePersistenceIntegrationTest {
                         () ->
                                 jdbc.update(
                                         "UPDATE certificate_registration_consents SET"
-                                            + " user_id=user_id+1 WHERE session_id=?",
+                                                + " user_id=user_id+1 WHERE session_id=?",
                                         first.id()))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
@@ -890,7 +932,7 @@ class CertificatePersistenceIntegrationTest {
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT encrypted_payload IS NULL FROM certificate_upload_secrets"
-                                    + " WHERE session_id=?",
+                                        + " WHERE session_id=?",
                                 Boolean.class,
                                 s.id()))
                 .isTrue();
@@ -948,7 +990,9 @@ class CertificatePersistenceIntegrationTest {
                                 mock(
                                         com.amateur.howmuchbackend.application.port.out.user
                                                 .LoadUserPort.class),
-                                lateClock));
+                                lateClock,
+                                pairings,
+                                approved));
         assertThatThrownBy(
                         () ->
                                 late.decide(
@@ -1067,7 +1111,7 @@ class CertificatePersistenceIntegrationTest {
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT provider_request_started_at IS NULL FROM"
-                                    + " certificate_provider_command_inbox WHERE session_id=?",
+                                        + " certificate_provider_command_inbox WHERE session_id=?",
                                 Boolean.class,
                                 s.id()))
                 .isTrue();
@@ -1215,5 +1259,321 @@ class CertificatePersistenceIntegrationTest {
                                 "SELECT status FROM certificate_provider_connections",
                                 String.class))
                 .isEqualTo("DISCARDED");
+    }
+
+    CertificatePairingResult pairedDevice() {
+        var p = pairingService.createPairing("127.0.0.1");
+        assertThat(pairingService.pair(p.id(), p.qrToken()).status()).isEqualTo("PAIRED");
+        return p;
+    }
+
+    CertificateRegistrationResult pairedUpload(CertificatePairingResult p) {
+        var s =
+                pairingService.createRegistration(
+                        new StartPairedCertificateRegistrationCommand(
+                                p.id(), p.pcCapability(), "0020", "127.0.0.1"));
+        registration.submit(
+                new SubmitCertificateUploadCommand(
+                        s.id(),
+                        s.pcCapability(),
+                        s.uploadCapability(),
+                        new byte[] {1},
+                        new byte[] {2},
+                        "password-fixture",
+                        "123456",
+                        "1234",
+                        "19900101"));
+        return s;
+    }
+
+    void runPairedAuthentication() {
+        var c = tx.claimPublication(false).orElseThrow();
+        tx.published(c, true);
+        tx.receiveCommand(c.command(), caps.hash("pair-command"));
+        worker.executeOne();
+        var result = tx.claimPublication(true).orElseThrow();
+        tx.receiveResult(result.event(), caps.hash("pair-result"));
+        tx.published(result, true);
+    }
+
+    @Test
+    void initialPairingDoesNotCreateRegistrationOrProviderCall() {
+        var p = pairedDevice();
+        assertThat(pairingService.getPcPairing(p.id(), p.pcCapability()).pcCapability()).isNull();
+        assertThat(pairingService.getMobilePairing(p.id()).qrToken()).isNull();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM certificate_registration_sessions",
+                                Integer.class))
+                .isZero();
+        verifyNoInteractions(provider);
+    }
+
+    @Test
+    void pairingIsIdempotentForOwnerAndCannotBeClaimedByAnotherUser() {
+        var p = pairedDevice();
+        assertThat(pairingService.pair(p.id(), p.qrToken()).status()).isEqualTo("PAIRED");
+        when(actor.getCurrentActor()).thenReturn(new CurrentActor(user + 100000));
+        assertThatThrownBy(() -> pairingService.pair(p.id(), p.qrToken()))
+                .isInstanceOf(ApplicationException.class);
+        assertThatThrownBy(() -> pairingService.getMobilePairing(p.id()))
+                .isInstanceOf(ApplicationException.class);
+        assertThat(pairings.find(p.id(), false).orElseThrow().userId()).isEqualTo(user);
+    }
+
+    @Test
+    void wrongPcOrQrCapabilityNeverPairsOrStartsRegistration() {
+        var p = pairingService.createPairing("127.0.0.1");
+        assertThatThrownBy(() -> pairingService.pair(p.id(), "x".repeat(43)))
+                .isInstanceOf(ApplicationException.class);
+        assertThatThrownBy(() -> pairingService.getPcPairing(p.id(), "x".repeat(43)))
+                .isInstanceOf(ApplicationException.class);
+        assertThatThrownBy(
+                        () ->
+                                pairingService.createRegistration(
+                                        new StartPairedCertificateRegistrationCommand(
+                                                p.id(), p.pcCapability(), "0020", "127.0.0.1")))
+                .isInstanceOf(ApplicationException.class);
+    }
+
+    @Test
+    void pairedAuthenticationStagesResultUntilFinalYesWithoutRepeatingProvider() {
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        assertThat(registration.get(s.id(), s.pcCapability()).status()).isEqualTo("SUBMITTED");
+        assertThatThrownBy(() -> pairingService.requestApproval(p.id()))
+                .isInstanceOf(ApplicationException.class);
+        runPairedAuthentication();
+        assertThat(pairingService.getMobilePairing(p.id()).status()).isEqualTo("READY_FOR_CLAIM");
+        assertThat(connections.findActiveByUserId(user)).isEmpty();
+        assertThat(consents.find(s.id())).isEmpty();
+        var claim = pairingService.requestApproval(p.id());
+        assertThat(pairingService.requestApproval(p.id()).claimId()).isEqualTo(claim.claimId());
+        var result =
+                decisions.decide(
+                        new DecideCertificateConnectionCommand(s.id(), claim.claimId(), true));
+        assertThat(result.status()).isEqualTo("BOUND");
+        assertThat(result.connectionId()).isNotNull();
+        assertThat(
+                        decisions
+                                .decide(
+                                        new DecideCertificateConnectionCommand(
+                                                s.id(), claim.claimId(), true))
+                                .connectionId())
+                .isEqualTo(result.connectionId());
+        verify(provider, times(1)).register(eq("0020"), any(), eq(true));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM certificate_command_outbox WHERE"
+                                        + " command_type='REGISTER'",
+                                Integer.class))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void pairedFinalNoDiscardsSecretAndNeverDeletesProviderConnection() {
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        runPairedAuthentication();
+        var c = pairingService.requestApproval(p.id());
+        assertThat(
+                        decisions
+                                .decide(
+                                        new DecideCertificateConnectionCommand(
+                                                s.id(), c.claimId(), false))
+                                .status())
+                .isEqualTo("CANCELLED");
+        var cancel = tx.claimPublication(false).orElseThrow();
+        tx.published(cancel, true);
+        tx.receiveCommand(cancel.command(), caps.hash("pair-cancel"));
+        worker.executeOne();
+        assertThat(connections.findActiveByUserId(user)).isEmpty();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT status FROM certificate_provider_connections WHERE"
+                                        + " session_id=?",
+                                String.class,
+                                s.id()))
+                .isEqualTo("DISCARDED");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT encrypted_payload IS NULL FROM"
+                                        + " certificate_provider_connections WHERE session_id=?",
+                                Boolean.class,
+                                s.id()))
+                .isTrue();
+        verify(provider, never()).delete(anyString(), anyString());
+    }
+
+    @Test
+    void pairedProviderFailureIsVisibleBeforeFinalApproval() {
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        when(provider.register(anyString(), any(), anyBoolean()))
+                .thenReturn(CertificateProviderResult.rejected("CF-12302"));
+        runPairedAuthentication();
+        var result = pairingService.getMobilePairing(p.id());
+        assertThat(result.status()).isEqualTo("FAILED");
+        assertThat(result.failureCode()).isEqualTo("BANK_CERTIFICATE_PASSWORD_INVALID");
+        assertThatThrownBy(() -> pairingService.requestApproval(p.id()))
+                .isInstanceOf(ApplicationException.class);
+        assertThat(connections.findActiveByUserId(user)).isEmpty();
+    }
+
+    @Test
+    void pairedSessionCannotBeHijackedByLegacyQrOrReservedByAnotherUser() {
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        runPairedAuthentication();
+        assertThatThrownBy(() -> claimService.issue(s.id(), s.pcCapability()))
+                .isInstanceOf(ApplicationException.class);
+        assertThatThrownBy(
+                        () ->
+                                claimService.reserve(
+                                        new ReserveCertificateClaimCommand(
+                                                s.id(), "x".repeat(43), UUID.randomUUID())))
+                .isInstanceOf(ApplicationException.class);
+        assertThatThrownBy(
+                        () ->
+                                pairingService.createRegistration(
+                                        new StartPairedCertificateRegistrationCommand(
+                                                p.id(), p.pcCapability(), "0020", "127.0.0.1")))
+                .isInstanceOf(ApplicationException.class);
+    }
+
+    @Test
+    void pairingDatabaseProtectsOwnerAndRegistrationIdentity() {
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE certificate_pc_pairings SET"
+                                                + " paired_user_id=NULL,paired_at=NULL WHERE id=?",
+                                        p.id()))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE certificate_pc_pairings SET"
+                                                + " registration_session_id=NULL WHERE id=?",
+                                        p.id()))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThat(pairings.find(p.id(), false).orElseThrow().sessionId()).isEqualTo(s.id());
+    }
+
+    @Test
+    void pcCancellationClearsPairedUploadWithoutProviderCall() {
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        pairingService.cancelPairing(p.id(), p.pcCapability());
+        assertThat(pairingService.getPcPairing(p.id(), p.pcCapability()).status())
+                .isEqualTo("CANCELLED");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT encrypted_payload IS NULL FROM certificate_upload_secrets"
+                                        + " WHERE session_id=?",
+                                Boolean.class,
+                                s.id()))
+                .isTrue();
+        verifyNoInteractions(provider);
+    }
+
+    @Test
+    void pairedFlowReusesExistingConnectionAndKeepsItOnNo() {
+        submitted();
+        deliverCommand();
+        successfulRegistration();
+        var old = connections.findActiveByUserId(user).orElseThrow();
+        when(provider.update(eq(old.connectedId()), eq("0020"), any(), eq(true)))
+                .thenReturn(CertificateProviderResult.connected(old.connectedId()));
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        runPairedAuthentication();
+        assertThat(pairings.find(p.id(), false).orElseThrow().existingConnectionId())
+                .isEqualTo(old.id());
+        assertThat(connections.findActiveByUserId(user).orElseThrow().id()).isEqualTo(old.id());
+        var c = pairingService.requestApproval(p.id());
+        decisions.decide(new DecideCertificateConnectionCommand(s.id(), c.claimId(), false));
+        var cancel = tx.claimPublication(false).orElseThrow();
+        tx.published(cancel, true);
+        tx.receiveCommand(cancel.command(), caps.hash("existing-pair-cancel"));
+        worker.executeOne();
+        assertThat(connections.findActiveByUserId(user).orElseThrow().id()).isEqualTo(old.id());
+        verify(provider, times(1)).update(eq(old.connectedId()), eq("0020"), any(), eq(true));
+        verify(provider, never()).delete(anyString(), anyString());
+    }
+
+    @Test
+    void finalYesRejectsAConnectionCreatedConcurrentlyAfterAuthentication() {
+        var p = pairedDevice();
+        var s = pairedUpload(p);
+        runPairedAuthentication();
+        connections.saveNew(
+                new com.amateur.howmuchbackend.domain.external.ExternalConnection(
+                        null, user, "other-connected"),
+                new com.amateur.howmuchbackend.domain.external.ConnectedInstitution(
+                        null,
+                        null,
+                        "0004",
+                        com.amateur.howmuchbackend.domain.external.ExternalConnectionStatus
+                                .CONNECTED,
+                        "CF-00000",
+                        null,
+                        null));
+        var c = pairingService.requestApproval(p.id());
+        assertThatThrownBy(
+                        () ->
+                                decisions.decide(
+                                        new DecideCertificateConnectionCommand(
+                                                s.id(), c.claimId(), true)))
+                .isInstanceOf(ApplicationException.class);
+        assertThat(consents.find(s.id())).isEmpty();
+        assertThat(registration.get(s.id(), s.pcCapability()).status()).isEqualTo("CLAIM_RESERVED");
+        assertThat(connections.findActiveByUserId(user).orElseThrow().connectedId())
+                .isEqualTo("other-connected");
+    }
+
+    @Test
+    void uncertainAuthenticationIsQuarantinedAndCannotBeRepeatedWithAnotherPairing() {
+        var p = pairedDevice();
+        pairedUpload(p);
+        when(provider.register(anyString(), any(), anyBoolean()))
+                .thenThrow(new RuntimeException("synthetic-timeout"));
+        runPairedAuthentication();
+        assertThat(pairingService.getMobilePairing(p.id()).status()).isEqualTo("UNKNOWN");
+        assertThatThrownBy(() -> pairingService.cancelPairing(p.id(), p.pcCapability()))
+                .isInstanceOf(ApplicationException.class);
+        var next = pairedDevice();
+        pairedUpload(next);
+        runPairedAuthentication();
+        assertThat(pairingService.getMobilePairing(next.id()).status()).isEqualTo("FAILED");
+        verify(provider, times(1)).register(anyString(), any(), anyBoolean());
+    }
+
+    @Test
+    void expiredInitialQrDoesNotPairEvenBeforeOverallDeadline() {
+        var p = pairingService.createPairing("127.0.0.1");
+        var late =
+                transactional(
+                        new CertificatePairingService(
+                                pairings,
+                                caps,
+                                key -> true,
+                                actor,
+                                mock(
+                                        com.amateur.howmuchbackend.application.port.out.user
+                                                .LoadUserPort.class),
+                                storage,
+                                claims,
+                                registration,
+                                registrationTx,
+                                Clock.fixed(
+                                        NOW.plusSeconds(121).toInstant(ZoneOffset.UTC),
+                                        ZoneOffset.UTC)));
+        assertThat(late.getPcPairing(p.id(), p.pcCapability()).status()).isEqualTo("EXPIRED");
+        assertThatThrownBy(() -> late.pair(p.id(), p.qrToken()))
+                .isInstanceOf(ApplicationException.class);
+        assertThat(pairings.find(p.id(), false).orElseThrow().userId()).isNull();
     }
 }

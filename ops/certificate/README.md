@@ -118,3 +118,11 @@ terminal failure. The Windows installer must be rebuilt to include these client 
 
 The mapping and local verification record are in the
 [feature plan](../../docs/features/active/codef-user-facing-errors.md).
+
+## Initial pairing QR · desktop 0.1.7+
+
+Deploy V50 (`certificate_pc_pairings`) before the initial-pairing API implementation. The desktop release does not deploy Backend. Previous registration/claim APIs remain available for old clients. Mobile clients must recognize QR v2 `HOWMUCH_CERTIFICATE_PAIRING` separately from the legacy v1 claim QR. See [initial pairing Feature Plan](../../docs/features/active/certificate-pair-first.md) and the connector app README for the waiting/approval API contract.
+
+The initial scan fixes the mobile actor, not final financial consent. After PC authentication, the provider result remains encrypted and unbound until mobile Yes. Existing connectedId add/update can already change provider-side credentials during PC authentication; No does not restore those credentials. Pairing cancellation discards only temporary local encrypted results and never deletes a potentially shared/reused provider ID. Unbound provider records require operational reconciliation. UNKNOWN is quarantined and cannot be automatically repeated through another pairing for the same user.
+
+Apply order: SQL PR #518 → Backend implementation → dev/prod rollout → mobile QR v2 integration → desktop 0.1.7 usage. Retain existing wrapping/confirmation/account credential keys and Kafka/CODEF configuration; this feature does not rotate keys or change event schema.

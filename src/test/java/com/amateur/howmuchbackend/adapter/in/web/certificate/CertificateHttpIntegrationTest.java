@@ -333,26 +333,41 @@ class CertificateHttpIntegrationTest {
         when(provider.register(anyString(), any(), anyBoolean()))
                 .thenReturn(CertificateProviderResult.connected("connected-http-approved"));
         String base = "/api/v2/certificate-registrations";
-        var catalog = json.readTree(request("GET", base + "/institutions", null, null, null).body())
-                .path("data");
-        var institution = java.util.stream.StreamSupport.stream(catalog.spliterator(), false)
-                .filter(i -> i.path("organization").asText().equals(organization))
-                .findFirst().orElseThrow();
+        var catalog =
+                json.readTree(request("GET", base + "/institutions", null, null, null).body())
+                        .path("data");
+        var institution =
+                java.util.stream.StreamSupport.stream(catalog.spliterator(), false)
+                        .filter(i -> i.path("organization").asText().equals(organization))
+                        .findFirst()
+                        .orElseThrow();
         assertThat(institution.path("registrationAccountRequired").asBoolean())
                 .isEqualTo(registrationAccountRequired);
         assertThat(institution.path("accountListAccountRequired").asBoolean())
                 .isEqualTo(organization.equals("0031"));
         var created =
                 json.readTree(
-                                request("POST", base, json.writeValueAsString(Map.of("organization", organization)), null, null)
+                                request(
+                                                "POST",
+                                                base,
+                                                json.writeValueAsString(
+                                                        Map.of("organization", organization)),
+                                                null,
+                                                null)
                                         .body())
                         .path("data");
         String id = created.path("id").asText(),
                 pc = created.path("pcCapability").asText(),
                 upload = created.path("uploadCapability").asText();
-        assertThat(request("POST", base + "/" + id + "/upload",
-                        "{\"derFile\":\"AQ==\",\"keyFile\":\"Ag==\",\"password\":\"synthetic-password\"}",
-                        pc, upload).statusCode()).isEqualTo(400);
+        assertThat(
+                        request(
+                                        "POST",
+                                        base + "/" + id + "/upload",
+                                        "{\"derFile\":\"AQ==\",\"keyFile\":\"Ag==\",\"password\":\"synthetic-password\"}",
+                                        pc,
+                                        upload)
+                                .statusCode())
+                .isEqualTo(400);
         assertThat(
                         request(
                                         "POST",
@@ -389,13 +404,27 @@ class CertificateHttpIntegrationTest {
         assertThat(json.readTree(list.body()).path("data").size()).isEqualTo(1);
         when(banks.findAccounts(eq("connected-http-approved"), eq(organization), isNull(), any()))
                 .thenReturn(List.of());
-        var accounts = request("GET", "/api/v2/accounts/connections/"
-                        + state.path("connectionId").asLong() + "/accounts?organization=" + organization,
-                        null, null, null);
+        var accounts =
+                request(
+                        "GET",
+                        "/api/v2/accounts/connections/"
+                                + state.path("connectionId").asLong()
+                                + "/accounts?organization="
+                                + organization,
+                        null,
+                        null,
+                        null);
         assertThat(accounts.statusCode()).isEqualTo(200);
-        verify(banks).findAccounts(eq("connected-http-approved"), eq(organization), isNull(),
-                argThat(c -> c != null && c.number().equals("123456")
-                        && c.password().equals("1234")));
+        verify(banks)
+                .findAccounts(
+                        eq("connected-http-approved"),
+                        eq(organization),
+                        isNull(),
+                        argThat(
+                                c ->
+                                        c != null
+                                                && c.number().equals("123456")
+                                                && c.password().equals("1234")));
         assertThat(
                         request("POST", mobilePath + "/decision", "{\"approved\":true}", null, null)
                                 .statusCode())
@@ -423,6 +452,110 @@ class CertificateHttpIntegrationTest {
                         request("POST", mobilePath + "/decision", "{\"approved\":true}", null, null)
                                 .statusCode())
                 .isEqualTo(404);
-        verify(provider, times(1)).register(eq(organization), any(), eq(registrationAccountRequired));
+        verify(provider, times(1))
+                .register(eq(organization), any(), eq(registrationAccountRequired));
+    }
+
+    @Test
+    void earlyPairingAuthenticatesBeforeFinalMobileApproval() throws Exception {
+        var initial = request("POST", "/api/v2/certificate-pairings", "{}", null, null);
+        assertThat(initial.statusCode()).isEqualTo(201);
+        var p = json.readTree(initial.body()).path("data");
+        String pair = p.path("id").asText(), pc = p.path("pcCapability").asText();
+        String root = "/api/v2/certificate-pairings/" + pair;
+        assertThat(
+                        request(
+                                        "POST",
+                                        root + "/claim",
+                                        json.writeValueAsString(
+                                                Map.of("qrToken", p.path("qrToken").asText())),
+                                        null,
+                                        null)
+                                .statusCode())
+                .isEqualTo(401);
+        assertThat(request("GET", root + "/pc", null, "x".repeat(43), null).statusCode())
+                .isEqualTo(404);
+        loginFixture();
+        var paired =
+                request(
+                        "POST",
+                        root + "/claim",
+                        json.writeValueAsString(Map.of("qrToken", p.path("qrToken").asText())),
+                        null,
+                        null);
+        assertThat(paired.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(paired.body()).at("/data/status").asText()).isEqualTo("PAIRED");
+        var started =
+                request("POST", root + "/registrations", "{\"organization\":\"0020\"}", pc, null);
+        assertThat(started.statusCode()).isEqualTo(201);
+        var registration = json.readTree(started.body()).path("data");
+        String id = registration.path("id").asText(),
+                sessionPc = registration.path("pcCapability").asText();
+        when(provider.register(eq("0020"), any(), eq(true)))
+                .thenReturn(CertificateProviderResult.connected("pair-http-" + UUID.randomUUID()));
+        var upload =
+                request(
+                        "POST",
+                        "/api/v2/certificate-registrations/" + id + "/upload",
+                        json.writeValueAsString(
+                                Map.of(
+                                        "derFile",
+                                        "AQ==",
+                                        "keyFile",
+                                        "Ag==",
+                                        "password",
+                                        "synthetic-password",
+                                        "accountNumber",
+                                        "123456",
+                                        "accountPassword",
+                                        "1234",
+                                        "birthDate",
+                                        "19900101")),
+                        sessionPc,
+                        registration.path("uploadCapability").asText());
+        assertThat(upload.statusCode()).isEqualTo(200);
+        String state = "";
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+        while (System.nanoTime() < deadline) {
+            state =
+                    json.readTree(request("GET", root, null, null, null).body())
+                            .at("/data/status")
+                            .asText();
+            if (state.equals("READY_FOR_CLAIM")) break;
+            Thread.sleep(100);
+        }
+        assertThat(state).isEqualTo("READY_FOR_CLAIM");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM certificate_registration_consents WHERE"
+                                        + " session_id=?",
+                                Integer.class,
+                                UUID.fromString(id)))
+                .isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM certificate_provider_connections WHERE"
+                                        + " session_id=? AND external_connection_id IS NOT NULL",
+                                Integer.class,
+                                UUID.fromString(id)))
+                .isZero();
+        var claim = request("POST", root + "/approval", "{}", null, null);
+        assertThat(claim.statusCode()).isEqualTo(200);
+        String claimId = json.readTree(claim.body()).at("/data/claimId").asText();
+        var bound =
+                request(
+                        "POST",
+                        "/api/v2/certificate-claims/" + id + "/" + claimId + "/decision",
+                        "{\"approved\":true}",
+                        null,
+                        null);
+        assertThat(bound.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(bound.body()).at("/data/status").asText()).isEqualTo("BOUND");
+        assertThat(json.readTree(bound.body()).at("/data/connectionId").asLong()).isPositive();
+        assertThat(
+                        json.readTree(request("GET", root, null, null, null).body())
+                                .at("/data/status")
+                                .asText())
+                .isEqualTo("BOUND");
     }
 }
