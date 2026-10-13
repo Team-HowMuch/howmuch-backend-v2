@@ -1,6 +1,6 @@
 # Feature Plan: AI 총무 품목별 정산의 받을 금액 보정
 
-- Status: Implemented (검증 결과 기록 대기)
+- Status: Verified (Gradle 테스트 통과, PR 대기)
 - Last updated: 2026-10-13
 - Related issue: (미생성)
 - Related ADR: N/A
@@ -208,31 +208,38 @@ docs(treasurer): 품목별 정산 받을 금액 검증 결과 기록
 docker compose -f compose.test.yml up -d
 DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test \
 DB_PASSWORD=howmuch_test REDIS_HOST=127.0.0.1 REDIS_PORT=16379 \
-  bash scripts/test.sh test --tests '*Treasurer*' --tests '*SettlementDetail*' --tests '*SettlementItemAllocationPolicy*'
+  bash scripts/test.sh test --tests '*Treasurer*' --tests '*SettlementDetail*' --tests '*SettlementItemAllocation*'
 docker compose -f compose.test.yml down -v
 ```
 
 ### Completion criteria
 
-- [ ] Purpose의 사용자 결과를 검증했다.
-- [ ] 정상·실패·경계 흐름을 검증했다.
-- [ ] 문서와 실제 코드가 일치한다. 같은 주장을 하는 다른 줄이 남아 있지 않은지 확인했다.
-- [ ] 수행하지 못한 검증과 사유를 기록했다.
+- [x] Purpose의 사용자 결과를 검증했다.
+- [x] 정상·실패·경계 흐름을 검증했다.
+- [x] 문서와 실제 코드가 일치한다. 같은 주장을 하는 다른 줄이 남아 있지 않은지 확인했다.
+- [x] 수행하지 못한 검증과 사유를 기록했다.
 
 ### Results
 
-작성 시점에 Gradle 테스트를 실행하지 못했다. 이 환경은 Java 21과 Maven 저장소에 접근할 수 없다. 실행한 뒤 아래 표를 채운다.
+develop(`a662f1e2`) 위로 rebase한 뒤 로컬 Mac에서 `compose.test.yml`(Postgres 18, Redis 8)을 띄워 위 명령을 실행했고 `BUILD SUCCESSFUL`이었다. 실패·오류·건너뜀은 없었다.
 
 | Item | Result | Evidence |
 |---|---|---|
-| treasurer·settlement 상세·품목 배분 정책 테스트 | (실행 대기) | `scripts/test.sh` |
-| 정책 메서드의 계산 값 | 총액 12,000 − 생성자 몫 2,000 = 10,000, 영수증 할인 1,200 반영 시 9,000, 기존 상세 식과 같은 값. 정책·도메인 클래스만 `javac 21`로 컴파일해 직접 실행해 확인 | 임시 실행 코드(저장소에 남기지 않음) |
+| treasurer·settlement 상세·품목 배분 테스트 | 모든 suite 통과 (failures 0, errors 0, skipped 0) | `build/test-results/test/*.xml` |
+| 신규 Resolver 테스트 | 8건 통과 (생성자 몫 제외, 미선택, 영수증 할인, 배달비, 정산 없음, 생성자 비참여, 선택 불일치 폴백, 적용 대상 판별) | `AI 총무 선택 대기 품목 정산 받을 금액` |
+| 정책 테스트 | 29건 통과 (신규: 생성자 몫 제외·미선택·할인·배달비) | `품목별 배분 정책` |
+| treasurer 질의 테스트 | 4건 통과 (보정 적용, 폴백, 요약 receiveAmount 10,000) | `TreasurerSettlementQueryTest` |
+| 정산 상세 회귀 | 28건 통과 | `정산 상세 납부 현황 조회` |
+| 총무 정산 영속 조회(SQL) | 3건 통과 | `총무 정산 영속 조회` |
+| 첫 실행 | Docker(colima)가 꺼져 통합 테스트 16건이 DB 연결 오류로 실패했다. 코드 문제가 아니라 환경 문제였고, DB를 띄운 뒤 재실행해 통과했다 | 실행 로그 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-10-13 | 원인 확인(share 합계), 설계 수립, 구현, 독립 리뷰 반영 | Gradle 테스트 실행과 결과 기록, 이슈 생성 | 선택 대기 구간의 share는 0원이 아니라 일부만 있을 수도 있다. 할인이 있으면 전원 제출 전까지 없다 |
+
+| 2026-10-13 | develop에 들어온 배달비를 반영해 rebase하고 Gradle 테스트 통과 | 이슈 생성, PR | 정산 상세가 배달비 중 생성자 몫도 뺀다. 같은 계산을 쓰도록 정책 메서드에 배달비를 받았다 |
 
 ## 10. Decision log
 
@@ -241,12 +248,13 @@ docker compose -f compose.test.yml down -v
 | 2026-10-13 | 받을 금액을 영수증 총액 − 생성자 몫으로 한다 | 정산 상세 화면과 같은 숫자여야 한다. 총액만 쓰면 생성자 몫이 포함돼 부풀려진다 | 총액 그대로 쓰는 안은 쿼리 한 줄이지만 화면 간 값이 갈라져 쓰지 않았다 |
 | 2026-10-13 | 계산을 Policy 메서드로 올려 정산 상세가 같이 호출한다 | 두 곳의 계산이 갈라지지 않게 한다 | 정산 상세 코드를 건드리지만 호출 위임만 바뀐다 |
 | 2026-10-13 | 계산 실패 시 조회한 금액으로 되돌린다 | 한 건 때문에 AI 총무 전체가 실패하지 않게 한다 | 그 정산은 0원으로 보일 수 있다. 경고 로그로 남긴다 |
+| 2026-10-13 | 선택 대기 중 배달비는 정산 상세와 같이 생성자 몫만큼 뺀다 | develop에서 정산 상세의 예상 금액이 배달비를 반영하게 바뀌었다 | 같은 정책 메서드를 쓰므로 화면과 값이 갈라지지 않는다 |
 | 2026-10-13 | 보낼 정산의 내 몫은 이번 범위에서 뺀다 | 품목을 고르기 전 금액 표시는 화면 계약을 정해야 한다 | 후속 이슈로 다룬다 |
 
 ## 11. Completion record
 
-- Completed on: (검증 후 기록)
-- Final behavior: (검증 후 기록)
-- Unverified items: Gradle 테스트, 실제 DB·앱에서의 응답 확인
+- Completed on: 2026-10-13
+- Final behavior: 선택 대기 중인 품목별 받을 정산의 금액을 영수증 총액 − 생성자 몫(할인·배달비 반영)으로 내려준다. 계산할 수 없는 정산은 기존 값으로 되돌리고 경고 로그를 남긴다
+- Unverified items: 실제 DB·앱에서 `/api/v2/treasurer/questions`와 `/summary` 응답 확인, SUSPENDED 상태 보정
 - Remaining risks: 대상 정산마다 조회가 늘고 개수 상한이 없다. 기간·제목 필터 전에 계산한다
-- Follow-up work: 품목별 보낼 정산의 금액 표시, 요약과 질문의 기간 기준 차이
+- Follow-up work: 품목별 보낼 정산의 금액 표시, SUSPENDED 상태, 요약과 질문의 기간 기준 차이
