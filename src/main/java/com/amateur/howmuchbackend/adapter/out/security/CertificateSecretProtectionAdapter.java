@@ -9,7 +9,6 @@ import com.amateur.howmuchbackend.infra.certificate.config.CertificateProperties
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import software.amazon.awssdk.core.SdkBytes;
@@ -17,13 +16,10 @@ import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.kms.model.*;
 
 import java.io.*;
-import java.nio.*;
-import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.*;
 
 import javax.crypto.*;
-import javax.crypto.spec.*;
 
 @Component
 @ConditionalOnProperty(prefix = "howmuch.certificate", name = "enabled", havingValue = "true")
@@ -34,18 +30,15 @@ public final class CertificateSecretProtectionAdapter implements CertificateSecr
     private final SecureRandom random = new SecureRandom();
 
     public CertificateSecretProtectionAdapter(
-            CertificateProperties p, ObjectProvider<KmsClient> kms, Environment env) {
+            CertificateProperties p, ObjectProvider<KmsClient> kms) {
         this.properties = p;
         this.kms = kms;
-        if (p.kmsKeyId().isBlank()) {
-            if (!env.acceptsProfiles(org.springframework.core.env.Profiles.of("local", "test")))
-                throw new IllegalArgumentException(
-                        "Certificate storage requires KMS outside local/test");
-            localKey = Base64.getDecoder().decode(p.localWrappingKey());
-            if (localKey.length != 32)
-                throw new IllegalArgumentException(
-                        "Certificate local wrapping key must be 256 bits");
-        } else localKey = null;
+        localKey = p.localWrappingKey().isBlank()
+                ? null : Base64.getDecoder().decode(p.localWrappingKey());
+        if (localKey != null && localKey.length != 32)
+            throw new IllegalArgumentException("Certificate local wrapping key must be 256 bits");
+        if (p.kmsKeyId().isBlank() && localKey == null)
+            throw new IllegalArgumentException("Certificate storage requires a local wrapping key or KMS key ID");
     }
 
     public CertificateEnvelope sealUpload(UUID s, UUID u, CertificateMaterial m) {
@@ -120,7 +113,7 @@ public final class CertificateSecretProtectionAdapter implements CertificateSecr
         try {
             byte[] wrapped;
             String keyId;
-            if (localKey != null) {
+            if (properties.kmsKeyId().isBlank()) {
                 wrapped = crypt(Cipher.ENCRYPT_MODE, localKey, context, dek);
                 keyId = "local:v1";
             } else {
@@ -152,12 +145,12 @@ public final class CertificateSecretProtectionAdapter implements CertificateSecr
                 if (localKey == null) throw unavailable();
                 dek = crypt(Cipher.DECRYPT_MODE, localKey, context, e.wrappedKey());
             } else {
-                if (localKey != null) throw unavailable();
+                if (properties.kmsKeyId().isBlank()) throw unavailable();
                 dek =
                         kms.getObject()
                                 .decrypt(
                                         DecryptRequest.builder()
-                                                .keyId(properties.kmsKeyId())
+                                                .keyId(e.keyId())
                                                 .encryptionContext(Map.of("purpose", context))
                                                 .ciphertextBlob(
                                                         SdkBytes.fromByteArray(e.wrappedKey()))
@@ -176,23 +169,10 @@ public final class CertificateSecretProtectionAdapter implements CertificateSecr
 
     private byte[] crypt(int mode, byte[] key, String context, byte[] source) {
         try {
-            byte[] nonce = new byte[12], input;
-            if (mode == Cipher.ENCRYPT_MODE) {
-                random.nextBytes(nonce);
-                input = source;
-            } else {
-                if (source.length < 29) throw unavailable();
-                System.arraycopy(source, 0, nonce, 0, 12);
-                input = Arrays.copyOfRange(source, 12, source.length);
-            }
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(mode, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, nonce));
-            cipher.updateAAD(context.getBytes(StandardCharsets.UTF_8));
-            byte[] result = cipher.doFinal(input);
             return mode == Cipher.ENCRYPT_MODE
-                    ? ByteBuffer.allocate(12 + result.length).put(nonce).put(result).array()
-                    : result;
-        } catch (GeneralSecurityException ex) {
+                    ? AesGcmCipher.encrypt(key, context, source)
+                    : AesGcmCipher.decrypt(key, context, source);
+        } catch (GeneralSecurityException | IllegalArgumentException ex) {
             throw unavailable();
         }
     }

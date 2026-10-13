@@ -26,7 +26,6 @@ import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.*;
-import org.springframework.mock.env.MockEnvironment;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.interceptor.TransactionInterceptor;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -133,14 +132,11 @@ class CertificatePersistenceIntegrationTest {
                         null,
                         null,
                         null);
-        var env = new MockEnvironment();
-        env.setActiveProfiles("test");
         caps = new CertificateCapabilities(props);
         protection =
                 new CertificateSecretProtectionAdapter(
                         props,
-                        new StaticListableBeanFactory().getBeanProvider(KmsClient.class),
-                        env);
+                        new StaticListableBeanFactory().getBeanProvider(KmsClient.class));
         storage = new CertificateRegistrationJdbcAdapter(jdbc);
         consents = new CertificateConsentJdbcAdapter(jdbc);
         jobs = new CertificateExecutionJdbcAdapter(jdbc);

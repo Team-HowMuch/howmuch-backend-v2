@@ -16,6 +16,14 @@ class LocalBankAccountCredentialCipherTest {
     );
 
     @Test
+    void readsExistingNoncePrefixedAccountCiphertext() {
+        // Synthetic fixed vector from the pre-refactor format, generated independently with Node crypto.
+        String legacy = "local:v1:AgICAgICAgICAgICRPgM6glB8QiwyexOmMvgHtANMnyBOlHOXw4n4D7uUQ==";
+        assertThat(cipher.decrypt(1L, "0020", legacy))
+                .isEqualTo(new BankAccountCredentials("123-456", "1234"));
+    }
+
+    @Test
     void roundTripAndContextBinding() {
         var credentials = new BankAccountCredentials("123-456", "1234");
         String ciphertext = cipher.encrypt(1L, "0020", credentials);

@@ -8,7 +8,8 @@ import com.amateur.howmuchbackend.infra.certificate.config.CertificateProperties
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.mock.env.MockEnvironment;
+import static org.mockito.Mockito.*;
+import software.amazon.awssdk.services.kms.model.*;
 
 import software.amazon.awssdk.services.kms.KmsClient;
 
@@ -31,12 +32,22 @@ class CertificateProtectionTest {
     }
 
     static CertificateSecretProtectionAdapter cipher() {
-        var env = new MockEnvironment();
-        env.setActiveProfiles("test");
         return new CertificateSecretProtectionAdapter(
                 properties(),
-                new StaticListableBeanFactory().getBeanProvider(KmsClient.class),
-                env);
+                new StaticListableBeanFactory().getBeanProvider(KmsClient.class));
+    }
+
+    @Test
+    void readsExistingLocalEnvelopeWithoutReencrypting() {
+        // Synthetic fixed vector from the original envelope format, generated with Node crypto.
+        UUID session = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID reference = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        var envelope = new CertificateEnvelope(
+                Base64.getDecoder().decode("AgICAgICAgICAgICB9GvIDIjtI+2zLzI0M0h2+0d4mvNZJf4IA8nHw=="),
+                Base64.getDecoder().decode("AwMDAwMDAwMDAwMDmTI1JcsHPZEmNhQXrCbHGL6rnw8/BNB+rKO9/t713wOucqSQTUcp3Iyqzlt3/M9s"),
+                "local:v1");
+        assertThat(cipher().openConnection(session, reference, envelope))
+                .isEqualTo(new CertificateConnectionSecret("fixture", null, null, null));
     }
 
     @Test
@@ -90,18 +101,74 @@ class CertificateProtectionTest {
                 .isInstanceOf(ApplicationException.class);
     }
 
+    private CertificateProperties keys(String kmsId, String local) {
+        return new CertificateProperties(true, kmsId, local, properties().confirmationKey(),
+                List.of(), null, null, null, null, null, null);
+    }
+
     @Test
-    void productionRejectsLocalWrapping() {
-        var env = new MockEnvironment();
-        env.setActiveProfiles("prod");
-        assertThatThrownBy(
-                        () ->
-                                new CertificateSecretProtectionAdapter(
-                                        properties(),
-                                        new StaticListableBeanFactory()
-                                                .getBeanProvider(KmsClient.class),
-                                        env))
-                .isInstanceOf(IllegalArgumentException.class);
+    void requiresAnExplicitValidKeyWithoutProfileRestrictions() {
+        var provider = new StaticListableBeanFactory().getBeanProvider(KmsClient.class);
+        for (String invalid : List.of("", "not-base64", Base64.getEncoder().encodeToString(new byte[16]))) {
+            assertThatThrownBy(() -> new CertificateSecretProtectionAdapter(keys("", invalid), provider))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThatCode(() -> new CertificateSecretProtectionAdapter(properties(), provider))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> new CertificateSecretProtectionAdapter(keys("alias/certificate", ""), provider))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void kmsModeReadsExistingLocalEnvelopesAndUsesStoredKmsKeyId() {
+        UUID session = UUID.randomUUID(), reference = UUID.randomUUID();
+        var secret = new CertificateConnectionSecret("connected-fixture", null, null, null);
+        var localEnvelope = cipher().sealConnection(session, reference, secret);
+        var client = mock(KmsClient.class);
+        var factory = new StaticListableBeanFactory(Map.of("kms", client));
+        var kmsCipher = new CertificateSecretProtectionAdapter(
+                keys("alias/new", properties().localWrappingKey()), factory.getBeanProvider(KmsClient.class));
+        assertThat(kmsCipher.openConnection(session, reference, localEnvelope)).isEqualTo(secret);
+        verifyNoInteractions(client);
+        when(client.encrypt(any(EncryptRequest.class))).thenAnswer(call -> {
+            EncryptRequest request = call.getArgument(0);
+            return EncryptResponse.builder().keyId("arn:fixture:old-key")
+                    .ciphertextBlob(request.plaintext()).build();
+        });
+        when(client.decrypt(any(DecryptRequest.class))).thenAnswer(call -> {
+            DecryptRequest request = call.getArgument(0);
+            assertThat(request.keyId()).isEqualTo("arn:fixture:old-key");
+            assertThat(request.encryptionContext()).containsEntry("purpose",
+                    "certificate-connection:v1:" + session + ":" + reference);
+            return DecryptResponse.builder().plaintext(request.ciphertextBlob()).build();
+        });
+        var envelope = kmsCipher.sealConnection(session, reference, secret);
+        assertThat(envelope.keyId()).isEqualTo("arn:fixture:old-key");
+        assertThat(kmsCipher.openConnection(session, reference, envelope)).isEqualTo(secret);
+        assertThatThrownBy(() -> cipher().openConnection(session, reference, envelope))
+                .isInstanceOf(ApplicationException.class);
+        when(client.encrypt(any(EncryptRequest.class))).thenThrow(KmsException.builder().message("denied").build());
+        assertThatThrownBy(() -> kmsCipher.sealConnection(session, reference, secret))
+                .isInstanceOf(ApplicationException.class);
+    }
+
+    @Test
+    void wrongLocalKeyAndTamperedWrappedKeyAreRejected() {
+        UUID session = UUID.randomUUID(), reference = UUID.randomUUID();
+        var envelope = cipher().sealConnection(session, reference,
+                new CertificateConnectionSecret("fixture", null, null, null));
+        byte[] otherKey = new byte[32];
+        otherKey[0] = 1;
+        var other = new CertificateSecretProtectionAdapter(
+                keys("", Base64.getEncoder().encodeToString(otherKey)),
+                new StaticListableBeanFactory().getBeanProvider(KmsClient.class));
+        assertThatThrownBy(() -> other.openConnection(session, reference, envelope))
+                .isInstanceOf(ApplicationException.class);
+        byte[] wrapped = envelope.wrappedKey();
+        wrapped[wrapped.length - 1] ^= 1;
+        assertThatThrownBy(() -> cipher().openConnection(session, reference,
+                new CertificateEnvelope(envelope.payload(), wrapped, envelope.keyId())))
+                .isInstanceOf(ApplicationException.class);
     }
 
     @Test
