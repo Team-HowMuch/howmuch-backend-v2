@@ -25,6 +25,7 @@ public class CertificateExecutionTransactions implements ReceiveCertificateMessa
     private final Clock clock;
     private final CertificateSessionStorePort sessions;
     private final CertificateConsentStorePort consents;
+    private final CertificatePairingStorePort pairings;
     private final com.amateur.howmuchbackend.application.certificate.policy
                     .CertificateRegistrationPolicy
             policy;
@@ -55,7 +56,14 @@ public class CertificateExecutionTransactions implements ReceiveCertificateMessa
         var time = now();
         var s = sessions.find(e.command().sessionId(), true).orElse(null);
         if (!policy.mayStart(s, e.command(), time)
-                || consents.find(e.command().sessionId()).isEmpty()) {
+                || (consents.find(e.command().sessionId()).isEmpty()
+                        && pairings.findBySession(e.command().sessionId())
+                                .filter(
+                                        p ->
+                                                p.userId() != null
+                                                        && p.cancelledAt() == null
+                                                        && p.expiresAt().isAfter(time))
+                                .isEmpty())) {
             jobs.finish(e, "FAILED", "UPLOAD_EXPIRED", null, null, time);
             return false;
         }
@@ -103,6 +111,14 @@ public class CertificateExecutionTransactions implements ReceiveCertificateMessa
     @Transactional
     public void finishCleanup(CertificateExecution e, boolean deleted) {
         jobs.finishCleanup(e, deleted, now());
+    }
+
+    @Transactional
+    public void discardPaired(CertificateExecution e) {
+        var s = sessions.find(e.command().sessionId(), true).orElse(null);
+        if (consents.find(e.command().sessionId()).isEmpty() && policy.mayCleanup(s))
+            jobs.discardConnection(s.id(), now());
+        jobs.finish(e, "SUCCEEDED", null, null, null, now());
     }
 
     @Transactional

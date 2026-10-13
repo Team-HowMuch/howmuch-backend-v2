@@ -28,6 +28,7 @@ public class CertificateClaimService
                 ReserveCertificateClaimUseCase,
                 InspectCertificateClaimUseCase {
     private final CertificateSessionStorePort sessions;
+    private final CertificatePairingStorePort pairings;
     private final CertificateClaimStorePort claims;
     private final CertificateCapabilityPort capabilities;
     private final CertificateRequestLimitPort limits;
@@ -59,6 +60,8 @@ public class CertificateClaimService
     @Transactional
     public CertificateQrResult issue(UUID id, String pc) {
         var s = pc(id, pc);
+        if (pairings.findBySession(id).isPresent())
+            throw ApplicationException.of(CERTIFICATE_CONFLICT);
         var now = LocalDateTime.now(clock);
         active(s, now);
         if (s.status().equals("CLAIM_RESERVED")) {
@@ -89,6 +92,8 @@ public class CertificateClaimService
         var s =
                 sessions.find(c.sessionId(), true)
                         .orElseThrow(() -> ApplicationException.of(CERTIFICATE_NOT_FOUND));
+        if (pairings.findBySession(c.sessionId()).isPresent())
+            throw ApplicationException.of(CERTIFICATE_NOT_FOUND);
         users.findByIdForUpdate(user)
                 .filter(com.amateur.howmuchbackend.domain.user.User::active)
                 .orElseThrow(
@@ -141,6 +146,8 @@ public class CertificateClaimService
     @Transactional
     public void reject(UUID id, String pc, UUID claimId) {
         var s = pc(id, pc);
+        if (pairings.findBySession(id).isPresent())
+            throw ApplicationException.of(CERTIFICATE_CONFLICT);
         var now = LocalDateTime.now(clock);
         active(s, now);
         var c =

@@ -31,13 +31,18 @@ public class CertificateRequestSizeFilter extends OncePerRequestFilter {
 
     protected boolean shouldNotFilter(HttpServletRequest r) {
         return !(r.getRequestURI().startsWith("/api/v2/certificate-registrations")
-                        || r.getRequestURI().startsWith("/api/v2/certificate-claims"))
+                        || r.getRequestURI().startsWith("/api/v2/certificate-claims")
+                        || r.getRequestURI().startsWith("/api/v2/certificate-pairings"))
                 || !"POST".equals(r.getMethod());
     }
 
     protected void doFilterInternal(HttpServletRequest r, HttpServletResponse s, FilterChain chain)
             throws ServletException, IOException {
-        int limit = r.getRequestURI().startsWith("/api/v2/certificate-claims") ? 4096 : LIMIT;
+        int limit =
+                (r.getRequestURI().startsWith("/api/v2/certificate-claims")
+                                || r.getRequestURI().startsWith("/api/v2/certificate-pairings"))
+                        ? 4096
+                        : LIMIT;
         if (r.getContentLengthLong() > limit) {
             tooLarge(s);
             return;

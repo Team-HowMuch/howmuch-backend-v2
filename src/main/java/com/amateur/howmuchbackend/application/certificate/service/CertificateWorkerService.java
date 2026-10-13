@@ -26,6 +26,7 @@ public class CertificateWorkerService implements RunCertificateWorkUseCase {
     private final Clock clock;
     private final CertificateInstitutionCatalogPort catalog;
     private final CertificateApprovedRegistrationTransactions approvedRegistration;
+    private final CertificatePairingStorePort pairings;
 
     public void executeOne() {
         transactions.claim().ifPresent(this::execute);
@@ -81,7 +82,7 @@ public class CertificateWorkerService implements RunCertificateWorkUseCase {
             } catch (RuntimeException uncertain) {
                 log.warn(
                         "Certificate registration requires reconciliation. sessionId={}"
-                            + " failureType={}",
+                                + " failureType={}",
                         c.sessionId(),
                         uncertain.getClass().getSimpleName());
                 transactions.finish(e, "UNKNOWN", "REGISTRATION_UNCERTAIN", null, null);
@@ -90,6 +91,10 @@ public class CertificateWorkerService implements RunCertificateWorkUseCase {
     }
 
     private void cleanup(CertificateExecution e) {
+        if (pairings.findBySession(e.command().sessionId()).isPresent()) {
+            transactions.discardPaired(e);
+            return;
+        }
         var target = transactions.cleanupTarget(e);
         if (target.state().equals("WAIT")) {
             transactions.retry(e);

@@ -403,8 +403,12 @@ public class CertificateExecutionJdbcAdapter
                 jdbc.query(
                         "SELECT id FROM certificate_registration_sessions WHERE expires_at<=? AND"
                             + " approval_id IS NULL AND status NOT IN"
-                            + " ('EXPIRED','CANCELLED','FAILED') AND NOT (status='UNKNOWN' AND EXISTS(SELECT 1 FROM certificate_registration_consents c WHERE c.session_id=certificate_registration_sessions.id)) ORDER BY id FOR UPDATE SKIP LOCKED"
-                            + " LIMIT 20",
+                            + " ('EXPIRED','CANCELLED','FAILED') AND NOT (status='UNKNOWN' AND"
+                            + " (EXISTS(SELECT 1 FROM certificate_registration_consents c WHERE"
+                            + " c.session_id=certificate_registration_sessions.id) OR EXISTS(SELECT"
+                            + " 1 FROM certificate_pc_pairings p WHERE"
+                            + " p.registration_session_id=certificate_registration_sessions.id)))"
+                            + " ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 20",
                         (r, n) -> r.getObject(1, UUID.class),
                         now);
         for (UUID id : sessions) {
@@ -506,5 +510,30 @@ public class CertificateExecutionJdbcAdapter
                 now,
                 now);
         return true;
+    }
+
+    public Optional<CertificateEnvelope> readyConnection(UUID session, UUID ref) {
+        return jdbc
+                .query(
+                        "SELECT encrypted_payload,wrapped_data_key,encryption_key_id FROM"
+                                + " certificate_provider_connections WHERE session_id=? AND"
+                                + " connection_ref=? AND status='READY'",
+                        (r, n) ->
+                                new CertificateEnvelope(
+                                        r.getBytes(1), r.getBytes(2), r.getString(3)),
+                        session,
+                        ref)
+                .stream()
+                .findFirst();
+    }
+
+    public void discardConnection(UUID session, LocalDateTime now) {
+        jdbc.update(
+                "UPDATE certificate_provider_connections SET"
+                    + " status='DISCARDED',encrypted_payload=NULL,wrapped_data_key=NULL,encryption_key_id=NULL,cleared_at=?,updated_at=?"
+                    + " WHERE session_id=? AND status='READY'",
+                now,
+                now,
+                session);
     }
 }
