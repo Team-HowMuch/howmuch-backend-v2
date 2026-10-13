@@ -21,7 +21,6 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -104,8 +103,6 @@ class CodefCertificateRegistrationAdapterTest {
                                 "1234",
                                 "19900101")
                         .toCommand(UUID.randomUUID(), "pc-fixture", "upload-fixture");
-        var env = new MockEnvironment();
-        env.setActiveProfiles("test");
         var protection =
                 new CertificateSecretProtectionAdapter(
                         new CertificateProperties(
@@ -120,8 +117,7 @@ class CodefCertificateRegistrationAdapterTest {
                                 null,
                                 null,
                                 null),
-                        new StaticListableBeanFactory().getBeanProvider(KmsClient.class),
-                        env);
+                        new StaticListableBeanFactory().getBeanProvider(KmsClient.class));
         UUID uploadId = UUID.randomUUID();
         CertificateEnvelope sealed;
         try (var original =

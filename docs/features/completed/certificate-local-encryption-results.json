@@ -1,0 +1,135 @@
+{
+  "baseRevision": "a662f1e244342b025fecb02391a7b75949594db3",
+  "branch": "fix/certificate-local-encryption",
+  "compileJava": "passed",
+  "bootJar": "passed",
+  "java": {
+    "tests": 1749,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": 232
+  },
+  "javascript": {
+    "tests": 35,
+    "failures": 0,
+    "skipped": 0
+  },
+  "verificationCommand": "bash scripts/test.sh compileJava test bootJar",
+  "realAwsKmsTested": false,
+  "realBankTested": false,
+  "devProdDeploymentPerformed": false,
+  "historicalVerification20261012": {
+    "baseRevision": "93377784a3f406101173b3cc5b4669a6f2a35dbf",
+    "compileJava": "passed",
+    "bootJar": "passed",
+    "java": {
+      "tests": 103,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "javascript": {
+      "tests": 35,
+      "failures": 0
+    },
+    "runtime": {
+      "profile": "dev",
+      "image": "howmuch-certificate-local:dev-1126c6cc91d0",
+      "started": true,
+      "certificateEnabled": true,
+      "kmsConfigured": false,
+      "localKeyPersisted": true,
+      "apiDocsHttpStatus": 200,
+      "certificateClaimsPresent": true,
+      "syntheticUploadStatus": "READY_FOR_CLAIM",
+      "syntheticSessionCancelled": true,
+      "providerPartitions": 3,
+      "resultPartitions": 3,
+      "prodModified": false,
+      "realCodefRegistrationTested": false
+    },
+    "suites": [
+      {
+        "name": "com.amateur.howmuchbackend.application.certificate.CertificatePolicyTest",
+        "tests": 2,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.in.kafka.CertificateMessageContractTest",
+        "tests": 14,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.in.web.certificate.CertificateHttpIntegrationTest",
+        "tests": 8,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.application.account.service.AccountCredentialProtectionServiceTest",
+        "tests": 3,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.out.codef.CodefFailureMapperTest",
+        "tests": 1,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.out.codef.CodefCertificateSingleAttemptTest",
+        "tests": 1,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.out.configuration.CertificateInstitutionCatalogAdapterTest",
+        "tests": 2,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.out.codef.CodefCertificateRegistrationAdapterTest",
+        "tests": 18,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.application.certificate.CertificatePersistenceIntegrationTest",
+        "tests": 29,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.application.certificate.CertificateApprovedRegistrationTransactionsTest",
+        "tests": 2,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.infra.certificate.CertificateRequestSizeFilterTest",
+        "tests": 2,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.out.security.CertificateProtectionTest",
+        "tests": 7,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.out.security.KmsBankAccountCredentialCipherTest",
+        "tests": 3,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.out.kafka.CertificateWireSchemaTest",
+        "tests": 8,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.application.certificate.CertificateFailureMigrationTest",
+        "tests": 1,
+        "failures": 0
+      },
+      {
+        "name": "com.amateur.howmuchbackend.adapter.out.security.LocalBankAccountCredentialCipherTest",
+        "tests": 2,
+        "failures": 0
+      }
+    ]
+  }
+}
