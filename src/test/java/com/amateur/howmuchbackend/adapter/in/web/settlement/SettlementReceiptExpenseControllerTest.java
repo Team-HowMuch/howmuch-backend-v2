@@ -52,6 +52,8 @@ class SettlementReceiptExpenseControllerTest {
     @Mock private ImportSettlementReceiptExpenseUseCase importExpenseUseCase;
     @Mock private GetSettlementItemsUseCase getSettlementItemsUseCase;
 
+    @Mock private com.amateur.howmuchbackend.application.port.in.settlement.ReplaceSettlementReceiptExpenseUseCase replaceExpenseUseCase;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -62,7 +64,8 @@ class SettlementReceiptExpenseControllerTest {
                 new SettlementReceiptExpenseController(
                         createExpenseUseCase,
                         importExpenseUseCase,
-                        getSettlementItemsUseCase
+                        getSettlementItemsUseCase,
+                        replaceExpenseUseCase
                 );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())

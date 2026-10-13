@@ -90,7 +90,7 @@ public record CreateSettlementReceiptExpenseWebRequest(
             this(name, quantity, amount, null, List.of());
         }
 
-        private CreateSettlementReceiptExpenseCommand.Item toCommand() {
+        CreateSettlementReceiptExpenseCommand.Item toCommand() {
             return new CreateSettlementReceiptExpenseCommand.Item(
                     name, quantity, amount, discount == null ? 0 : discount,
                     options == null ? List.of() : options.stream().map(Option::toCommand).toList()

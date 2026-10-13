@@ -127,7 +127,7 @@ public class SettlementReceiptExpenseService implements
         return normalized;
     }
 
-    private SubmittedReceipt validateSubmittedReceipt(
+    static SubmittedReceipt validateSubmittedReceipt(
             CreateSettlementReceiptExpenseCommand command
     ) {
         if (command == null
@@ -212,7 +212,7 @@ public class SettlementReceiptExpenseService implements
         );
     }
 
-    private ApplicationException invalidImportRequest() {
+    private static ApplicationException invalidImportRequest() {
         return ApplicationException.of(
                 SettlementStatusCode.INVALID_SETTLEMENT_RECEIPT_IMPORT_REQUEST
         );
@@ -230,7 +230,7 @@ public class SettlementReceiptExpenseService implements
         }
     }
 
-    private record SubmittedReceipt(
+    record SubmittedReceipt(
             String receiptReference,
             LocalDateTime paidAt,
             ExtractReceiptItemsPort.ReceiptExtraction extraction

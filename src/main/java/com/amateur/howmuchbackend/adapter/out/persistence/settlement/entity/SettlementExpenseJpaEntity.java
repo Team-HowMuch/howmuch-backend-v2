@@ -54,7 +54,7 @@ public class SettlementExpenseJpaEntity extends BaseTimeJpaEntity {
     @Column(name = "delivery_fee", nullable = false)
     private long deliveryFee;
 
-    @Column(name = "paid_at", updatable = false)
+    @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
     @Column(name = "display_order", nullable = false, updatable = false)
@@ -72,6 +72,7 @@ public class SettlementExpenseJpaEntity extends BaseTimeJpaEntity {
     }
 
     public void updateFrom(SettlementExpense expense) {
+        this.paidAt = expense.paidAt();
         this.description = expense.description();
         this.amount = expense.amount();
         this.discount = expense.discount();

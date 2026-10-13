@@ -99,6 +99,24 @@ public record Settlement(
         requireDraft();
     }
 
+    public void ensureReceiptReplaceable() {
+        if (status != SettlementStatus.DRAFT && status != SettlementStatus.SUSPENDED) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_EDITABLE);
+        }
+    }
+
+    public Settlement replaceReceiptTotal(long amount, LocalDateTime now) {
+        ensureReceiptReplaceable();
+        return new Settlement(id, creatorId, title, amount, allocationType, receivingAccountId,
+                status, createdAt, Objects.requireNonNull(now, "정산 수정 시각은 필수입니다."));
+    }
+
+    public void ensureDutchPayAllocationEditable() {
+        if (status != SettlementStatus.DRAFT && status != SettlementStatus.SUSPENDED) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_EDITABLE);
+        }
+    }
+
     public void ensureAllocationEditable() {
         requireDraft();
     }

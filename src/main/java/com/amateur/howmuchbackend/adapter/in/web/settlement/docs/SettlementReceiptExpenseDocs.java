@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.ReplaceSettlementReceiptExpenseWebRequest;
 import jakarta.validation.Valid;
 
 import java.util.UUID;
@@ -53,6 +54,28 @@ public interface SettlementReceiptExpenseDocs {
     ApiResponse<SettlementReceiptExpenseMutationWebResponse> createReceiptExpense(
             @Parameter(description = "정산 ID") UUID settlementId,
             @Valid CreateSettlementReceiptExpenseWebRequest request
+    );
+
+    @Operation(summary = "기존 정산 영수증 교체",
+            description = "DRAFT·SUSPENDED 정산의 생성자가 기존 영수증을 교체합니다. 지출 ID·참조·순서는 유지하고 "
+                    + "품목·옵션을 교체합니다. 품목 amount는 옵션 포함 할인 전 행 금액입니다. "
+                    + "지출 금액은 Σ(amount - 품목 discount) - 전체 discount + deliveryFee이며 정산 총액도 갱신합니다. "
+                    + "전체 discount는 품목 순액 합보다 작아야 합니다. 생략/null 할인·배달비는 0, paidAt은 null로 지웁니다. "
+                    + "교체 품목의 선택과 전체 제출·미입금 Share를 초기화합니다. 입금 기록이 있으면 거부합니다. "
+                    + "수정 후 SUSPENDED를 유지하며 재개 API를 별도로 호출합니다.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "영수증 교체 성공", useReturnTypeSchema = true),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "INVALID_ARGUMENT, INVALID_SETTLEMENT_RECEIPT_IMPORT_REQUEST, INVALID_SETTLEMENT_EXPENSE_TOTAL"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "SETTLEMENT_ACCESS_DENIED"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "SETTLEMENT_NOT_FOUND, SETTLEMENT_EXPENSE_NOT_FOUND"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_RECEIPT_REQUIRED, SETTLEMENT_REVISION_PAYMENT_EXISTS")
+    })
+    ApiResponse<SettlementReceiptExpenseMutationWebResponse> replaceReceiptExpense(
+            @Parameter(description = "정산 ID") UUID settlementId,
+            @Parameter(description = "교체할 기존 영수증 지출 ID") UUID expenseId,
+            @Valid ReplaceSettlementReceiptExpenseWebRequest request
     );
 
     @Operation(

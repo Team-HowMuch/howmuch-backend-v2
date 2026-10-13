@@ -213,6 +213,50 @@ class SecurityFilterChainIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("영수증 교체는 실제 JWT·Redis 인증과 생성자 권한을 검사한다")
+    void receiptReplacement_realAuthenticationAndOwnership_enforced() throws Exception {
+        UUID settlementId = UUID.randomUUID();
+        UUID expenseId = UUID.randomUUID();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        String path = "/api/v2/settlements/" + settlementId + "/expenses/receipt/" + expenseId;
+        jdbc.update("""
+                INSERT INTO settlements(id,creator_id,title,total_amount,status,created_at,updated_at)
+                VALUES (?,?,'인증 검증',1000,'SUSPENDED',?,?)
+                """, settlementId, userId, now, now);
+        jdbc.update("""
+                INSERT INTO settlement_expenses(id,settlement_id,source,source_reference,description,
+                amount,display_order,created_at,updated_at) VALUES (?,?,'RECEIPT_OCR','auth-receipt','기존',1000,0,?,?)
+                """, expenseId, settlementId, now, now);
+        try {
+            assertError(request("PUT", path, null), 401, "UNAUTHORIZED");
+            var replacement = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+                    .timeout(Duration.ofSeconds(10)).header("Authorization", "Bearer " + accessToken)
+                    .header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString("""
+                    {"storeName":"수정 상호","paidAt":"2026-10-12T12:30:00","items":[{"name":"품목","quantity":1,"amount":2000}]}
+                    """));
+            var response = http.send(replacement.build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(json.readTree(response.body()).path("data").path("totalExpenseAmount").longValue()).isEqualTo(2000);
+            // 실제 인증 주체와 다른 생성자의 정산에 접근하면 거부한다.
+            Long otherId = jdbc.queryForObject("""
+                    INSERT INTO users(identity_key,name,public_id,phone_number,pin_hash,phone_verified,role,active,created_at,updated_at)
+                    VALUES (?,'타인',?,?,'unused',true,'USER',true,?,?) RETURNING id
+                    """, Long.class, UUID.randomUUID().toString(), "other_" + UUID.randomUUID().toString().substring(0,8),
+                    "test-" + UUID.randomUUID().toString().substring(0,8), now, now);
+            try {
+                jdbc.update("UPDATE settlements SET creator_id = ? WHERE id = ?", otherId, settlementId);
+                assertError(http.send(replacement.build(), HttpResponse.BodyHandlers.ofString()), 403, "SETTLEMENT_ACCESS_DENIED");
+                jdbc.update("UPDATE settlements SET creator_id = ? WHERE id = ?", userId, settlementId);
+            } finally {
+                jdbc.update("DELETE FROM settlements WHERE id = ?", settlementId);
+                jdbc.update("DELETE FROM users WHERE id = ?", otherId);
+            }
+        } finally {
+            jdbc.update("DELETE FROM settlements WHERE id = ?", settlementId);
+        }
+    }
+
     private String paymentCandidatesPath() {
         return "/api/v2/settlements/" + UUID.randomUUID() + "/expense-candidates/payment-history";
     }
