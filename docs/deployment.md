@@ -60,3 +60,9 @@ Exited or restarting containers fail immediately; persistent unready responses t
 Run `python3 -m pip install PyYAML==6.0.2`, then `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v`. The tests execute workflow shell scripts with a mock Docker command; they verify image selection across tag changes, retries, invalid input, pull failure, and image mismatch.
 
 After merging, compare the build summary and successful SSH verification log for the same run. To verify actual overlapping runs, publish B before A pulls, and confirm A still deploys A's digest. Repeat deploy and then the entire workflow to check each output's identity. These live checks require GHCR and EC2 access and are not performed by the local regression tests.
+
+### Certificate secret encryption
+
+When `CERTIFICATE_ENABLED=true`, set either `CERTIFICATE_LOCAL_WRAPPING_KEY` (32 random bytes encoded as Base64) or `CERTIFICATE_KMS_KEY_ID`. LOCAL mode is supported in every profile, consistent with the account credential setup. Keep the certificate wrapping key separate from `ACCOUNT_CREDENTIAL_LOCAL_KEY` and `CERTIFICATE_CONFIRMATION_KEY`. Persist keys outside the image, restrict file access and back them up; never regenerate a key during restart or deployment.
+
+If a KMS key ID is configured, new certificate envelopes use KMS. Keep the local wrapping key while existing `local:v1` envelopes remain. KMS envelopes use their stored key ID for decryption, so retain decrypt permission on previous keys during key rotation. KMS failures return a storage error and do not silently switch protection modes. Unlike bank account credential dual storage, certificate envelopes contain one wrapped data key. Their format, context binding and short retention remain unchanged; no SQL migration is required.
