@@ -32,14 +32,29 @@ public class RecapGenerationJobPersistenceAdapter implements RecapGenerationJobS
                 INSERT INTO recap_generation_state(id, first_month, created_at, updated_at)
                 VALUES (1, :month, :now, :now) ON CONFLICT (id) DO NOTHING
                 """, params);
-        var first = jdbc.queryForObject("SELECT first_month FROM recap_generation_state WHERE id = 1 FOR UPDATE", params, Date.class);
-        params.addValue("first", first);
+        var state = jdbc.queryForMap("""
+                SELECT first_month,
+                    COALESCE((registered_through_month + INTERVAL '1 month')::DATE, first_month) AS next_month
+                FROM recap_generation_state WHERE id = 1 FOR UPDATE
+                """, params);
+        params.addValue("first", state.get("first_month")).addValue("next", state.get("next_month"));
         jdbc.update("""
+                WITH user_windows AS (
+                    SELECT u.id,
+                        CASE WHEN existing.registered IS NULL THEN CAST(:first AS DATE)
+                             ELSE CAST(:next AS DATE) END AS start_month
+                    FROM users u
+                    LEFT JOIN LATERAL (
+                        SELECT 1 AS registered FROM recap_generation_jobs job
+                        WHERE job.owner_user_id = u.id LIMIT 1
+                    ) existing ON TRUE
+                    WHERE u.active = TRUE
+                )
                 INSERT INTO recap_generation_jobs(id, owner_user_id, month_start, status, next_attempt_at, created_at, updated_at)
                 SELECT gen_random_uuid(), u.id, month::DATE, 'PENDING',
                     CASE WHEN month::DATE = CAST(:month AS DATE) THEN GREATEST(CAST(:now AS TIMESTAMP), CAST(:available AS TIMESTAMP)) ELSE CAST(:now AS TIMESTAMP) END, :now, :now
-                FROM users u CROSS JOIN generate_series(CAST(:first AS DATE), CAST(:month AS DATE), INTERVAL '1 month') month
-                WHERE u.active = TRUE
+                FROM user_windows u
+                CROSS JOIN LATERAL generate_series(u.start_month, CAST(:month AS DATE), INTERVAL '1 month') month
                 ON CONFLICT (owner_user_id, month_start) DO NOTHING
                 """, params);
         jdbc.update("""

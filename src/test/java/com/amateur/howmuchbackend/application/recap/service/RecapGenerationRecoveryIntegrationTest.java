@@ -55,10 +55,54 @@ class RecapGenerationRecoveryIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT first_month::text FROM recap_generation_state", String.class)).isEqualTo("2026-09-01");
         assertThat(months(owner)).containsExactly("2026-09-01");
         jobs.registerMissingMonths(MONTH.plusMonths(2), now(), now());
-        jdbc.update("DELETE FROM recap_generation_jobs WHERE owner_user_id = ? AND month_start = '2026-10-01'", owner);
         jobs.registerMissingMonths(MONTH.plusMonths(2), now(), now());
         assertThat(months(owner)).containsExactly("2026-09-01", "2026-10-01", "2026-11-01");
         assertThat(jdbc.queryForObject("SELECT first_month::text FROM recap_generation_state", String.class)).isEqualTo("2026-09-01");
+    }
+
+    @Test
+    void registeredMonthsAreNotReinsertedAndNewOwnersReceiveTheStoredRange() {
+        Long owner = f.user();
+        jobs.registerMissingMonths(MONTH, now(), now());
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            tx.setRollbackOnly();
+            jdbc.execute("""
+                    CREATE FUNCTION pg_temp.reject_registered_job() RETURNS trigger LANGUAGE plpgsql AS $$
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM recap_generation_jobs
+                            WHERE owner_user_id = NEW.owner_user_id AND month_start = NEW.month_start) THEN
+                            RAISE EXCEPTION 'Already registered month was attempted again';
+                        END IF;
+                        RETURN NEW;
+                    END $$
+                    """);
+            jdbc.execute("""
+                    CREATE TRIGGER verify_registration_cursor BEFORE INSERT ON recap_generation_jobs
+                    FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_registered_job()
+                    """);
+            jobs.registerMissingMonths(MONTH, now(), now());
+            jobs.registerMissingMonths(MONTH.plusMonths(2), now(), now());
+            assertThat(months(owner)).containsExactly("2026-09-01", "2026-10-01", "2026-11-01");
+            Long newcomer = f.user();
+            jobs.registerMissingMonths(MONTH.plusMonths(2), now(), now());
+            assertThat(months(newcomer)).containsExactly("2026-09-01", "2026-10-01", "2026-11-01");
+            jobs.registerMissingMonths(MONTH.plusMonths(2), now(), now());
+        });
+    }
+
+    @Test
+    void registrationRollbackKeepsCursorAndDowntimeMonthsRemainRecoverable() {
+        Long owner = f.user();
+        jobs.registerMissingMonths(MONTH, now(), now());
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            jobs.registerMissingMonths(MONTH.plusMonths(2), now(), now());
+            tx.setRollbackOnly();
+        });
+        assertThat(months(owner)).containsExactly("2026-09-01");
+        assertThat(jdbc.queryForObject("SELECT registered_through_month::text FROM recap_generation_state", String.class))
+                .isEqualTo("2026-09-01");
+        jobs.registerMissingMonths(MONTH.plusMonths(2), now(), now());
+        assertThat(months(owner)).containsExactly("2026-09-01", "2026-10-01", "2026-11-01");
     }
 
     @Test
