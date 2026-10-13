@@ -25,15 +25,21 @@ public class RecapGenerationCompletionService {
         boolean active = users.findByIdForUpdate(claim.ownerId()).filter(User::active).isPresent();
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         if (!jobs.lockOwned(claim, now)) return false;
+        now = LocalDateTime.now(ZoneOffset.UTC);
+        if (!jobs.renew(claim, now)) return false;
         if (!active || recap == null) {
-            jobs.skip(claim, now, active);
+            if (!jobs.skip(claim, LocalDateTime.now(ZoneOffset.UTC), active)) {
+                throw new IllegalStateException("Recap lease expired before completion");
+            }
             return true;
         }
         if (!claim.ownerId().equals(recap.ownerId()) || !claim.month().equals(recap.yearMonth())) {
             throw new IllegalArgumentException("Snapshot does not belong to the claimed owner/month");
         }
         boolean stored = snapshots.store(recap);
-        jobs.complete(claim, now, stored);
+        if (!jobs.complete(claim, LocalDateTime.now(ZoneOffset.UTC), stored)) {
+            throw new IllegalStateException("Recap lease expired before publication");
+        }
         return true;
     }
 }

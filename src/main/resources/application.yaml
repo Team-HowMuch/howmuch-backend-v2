@@ -124,6 +124,12 @@ howmuch:
       path: ${RECEIPT_OCR_PATH:/ocr/receipt}
       connect-timeout: ${RECEIPT_OCR_CONNECT_TIMEOUT:3s}
       read-timeout: ${RECEIPT_OCR_READ_TIMEOUT:20s}
+  recap:
+    generation:
+      enabled: ${RECAP_GENERATION_ENABLED:false}
+      poll-interval: 30s
+    image:
+      storage-dir: ${RECAP_IMAGE_STORAGE_DIR:./uploads/recap-images}
   profile:
     image:
       storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}

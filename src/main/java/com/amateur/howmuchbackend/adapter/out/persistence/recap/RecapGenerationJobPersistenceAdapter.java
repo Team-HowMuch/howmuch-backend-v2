@@ -25,9 +25,9 @@ public class RecapGenerationJobPersistenceAdapter implements RecapGenerationJobS
 
     @Override
     @Transactional
-    public void registerMissingMonths(YearMonth lastMonth, LocalDateTime now) {
+    public void registerMissingMonths(YearMonth lastMonth, LocalDateTime now, LocalDateTime latestAvailableAt) {
         var params = new MapSqlParameterSource("month", Date.valueOf(lastMonth.atDay(1)))
-                .addValue("now", Timestamp.valueOf(now));
+                .addValue("now", Timestamp.valueOf(now)).addValue("available", Timestamp.valueOf(latestAvailableAt));
         jdbc.update("""
                 INSERT INTO recap_generation_state(id, first_month, created_at, updated_at)
                 VALUES (1, :month, :now, :now) ON CONFLICT (id) DO NOTHING
@@ -36,7 +36,8 @@ public class RecapGenerationJobPersistenceAdapter implements RecapGenerationJobS
         params.addValue("first", first);
         jdbc.update("""
                 INSERT INTO recap_generation_jobs(id, owner_user_id, month_start, status, next_attempt_at, created_at, updated_at)
-                SELECT gen_random_uuid(), u.id, month::DATE, 'PENDING', :now, :now, :now
+                SELECT gen_random_uuid(), u.id, month::DATE, 'PENDING',
+                    CASE WHEN month::DATE = CAST(:month AS DATE) THEN GREATEST(CAST(:now AS TIMESTAMP), CAST(:available AS TIMESTAMP)) ELSE CAST(:now AS TIMESTAMP) END, :now, :now
                 FROM users u CROSS JOIN generate_series(CAST(:first AS DATE), CAST(:month AS DATE), INTERVAL '1 month') month
                 WHERE u.active = TRUE
                 ON CONFLICT (owner_user_id, month_start) DO NOTHING
@@ -114,20 +115,20 @@ public class RecapGenerationJobPersistenceAdapter implements RecapGenerationJobS
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public void complete(RecapGenerationClaim claim, LocalDateTime now, boolean imageStored) {
+    public boolean complete(RecapGenerationClaim claim, LocalDateTime now, boolean imageStored) {
         var params = params(claim, now);
         if (!imageStored) enqueueReserved(params, OWNED);
-        jdbc.update("UPDATE recap_generation_jobs SET status = 'COMPLETED', next_attempt_at = NULL, " + RELEASE
-                + ", completed_at = :now, last_failure_code = NULL, skip_reason = NULL, updated_at = :now WHERE " + OWNED, params);
+        return jdbc.update("UPDATE recap_generation_jobs SET status = 'COMPLETED', next_attempt_at = NULL, " + RELEASE
+                + ", completed_at = :now, last_failure_code = NULL, skip_reason = NULL, updated_at = :now WHERE " + OWNED, params) == 1;
     }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public void skip(RecapGenerationClaim claim, LocalDateTime now, boolean ownerActive) {
+    public boolean skip(RecapGenerationClaim claim, LocalDateTime now, boolean ownerActive) {
         var params = params(claim, now).addValue("reason", ownerActive ? "NO_COMPLETED_SETTLEMENTS" : "OWNER_INACTIVE");
         enqueueReserved(params, OWNED);
-        jdbc.update("UPDATE recap_generation_jobs SET status = 'SKIPPED', next_attempt_at = NULL, " + RELEASE
-                + ", completed_at = :now, last_failure_code = NULL, skip_reason = :reason, updated_at = :now WHERE " + OWNED, params);
+        return jdbc.update("UPDATE recap_generation_jobs SET status = 'SKIPPED', next_attempt_at = NULL, " + RELEASE
+                + ", completed_at = :now, last_failure_code = NULL, skip_reason = :reason, updated_at = :now WHERE " + OWNED, params) == 1;
     }
 
     @Override

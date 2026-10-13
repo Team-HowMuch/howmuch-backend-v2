@@ -18,15 +18,20 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class RecapGenerationWorker {
+public class RecapGenerationWorker implements com.amateur.howmuchbackend.application.port.in.recap.ProcessMonthlyRecapsUseCase {
     private final RecapGenerationJobStorePort jobs;
     private final LoadMonthlyRecapPort snapshots;
     private final BuildMonthlyRecapUseCase builder;
     private final RecapGenerationCompletionService completion;
+    private final com.amateur.howmuchbackend.application.recap.policy.RecapGenerationSchedulePolicy schedule;
+    private final com.amateur.howmuchbackend.application.port.out.recap.RecapImageStoragePort images;
 
     public void recoverAndRegister() {
+        images.verifyReady();
         jobs.recoverExpired(now());
-        jobs.registerMissingMonths(YearMonth.now(ZoneId.of("Asia/Seoul")).minusMonths(1), now());
+        var now = now();
+        var window = schedule.window(now);
+        jobs.registerMissingMonths(window.month(), now, window.availableAt());
     }
 
     public int processBatch(int limit) {
@@ -52,6 +57,14 @@ public class RecapGenerationWorker {
             try {
                 var existing = snapshots.find(claim.ownerId(), claim.month());
                 var recap = existing.isPresent() ? existing.get() : builder.build(claim.ownerId(), claim.month(), now()).orElse(null);
+                if (existing.isEmpty() && recap != null && recap.companion() != null
+                        && recap.companion().avatarFileName() != null) {
+                    String source = recap.companion().avatarFileName();
+                    String target = java.util.UUID.randomUUID() + source.substring(source.lastIndexOf('.'));
+                    if (!jobs.reserveImage(claim, target, now())) return;
+                    images.copyProfile(source, target);
+                    recap = recap.withCompanionAvatar(target);
+                }
                 completion.finish(claim, recap);
             } catch (RuntimeException exception) {
                 jobs.retry(claim, now(), "GENERATION_FAILED");
