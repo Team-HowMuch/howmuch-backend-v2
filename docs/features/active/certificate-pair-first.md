@@ -1,6 +1,6 @@
 # Feature Plan: 초기 QR 사용자 연결과 PC 금융 인증
 
-- Status: 구현 중
+- Status: 구현·로컬 전체 검증 완료 / PR 검토·앱 release 게시 중
 - Issue: #517 / connector #31
 - 기준: 최신 origin/develop c066193a. 기존 netting 작업은 보존하고 격리 worktree 사용.
 
@@ -24,7 +24,7 @@ pairing 사용자/등록 세션/기존 연결 snapshot은 변경 불가다. 같�
 - 기존 certificate-claims decision API를 최종 Yes/No에 재사용.
 
 ## 영향·SQL·게시
-새 certificate_pc_pairings 테이블만 V50으로 추가한다. origin/develop은 V48까지이며 로컬 미게시 V49 Batch 번호를 피한다. 사용자가 SQL-only와 서버 PR을 함께 게시하도록 명시했으므로 root gate의 즉시 종료 대신 별도 SQL/서버 PR을 모두 만든다. 기존 migration 파일은 변경하지 않는다. 서버 PR 검증 checkout에 SQL을 포함하되 서버 커밋에는 포함하지 않는다. 기존 API는 유지하며 새 앱은 서버/SQL 선행 배포가 필요하다. 서버 PR만 게시하고 dev/prod 자동 배포를 실행하지 않는다.
+새 certificate_pc_pairings 테이블만 V50으로 추가한다. origin/develop은 V48까지이며 로컬 미게시 V49 Batch 번호를 피한다. 사용자가 SQL-only와 서버 PR을 함께 게시하도록 명시했으므로 root gate의 즉시 종료 대신 별도 SQL/서버 PR을 모두 만든다. 기존 migration 파일은 변경하지 않는다. 서버 기능 커밋에는 SQL을 섞지 않는다. 원격 CI에서도 검증하도록 SQL PR의 동일 선행 커밋 위에 서버 브랜치를 쌓는다. 두 PR 모두 develop을 대상으로 하며 SQL PR 병합 후 서버 PR의 SQL diff는 자동으로 사라진다. 기존 API는 유지하며 새 앱은 서버/SQL 선행 배포가 필요하다. 서버 PR만 게시하고 dev/prod 자동 배포를 실행하지 않는다.
 
 ## 커밋·검증
 1. SQL-only: feat(certificate): 초기 QR 사용자 연결 저장 구조 추가.
@@ -40,3 +40,13 @@ pairing 사용자/등록 세션/기존 연결 snapshot은 변경 불가다. 같�
 - SQL-only PR: https://github.com/Team-HowMuch/howmuch-backend-v2/pull/518 (55e2e92f). 사용자 요청에 따라 서버 PR도 같은 작업에서 게시한다.
 - Connector 앱 PR: https://github.com/Team-HowMuch/howmuch-finance-connector/pull/32. Node 40개 및 실제 Electron 초기 QR/만료 재발급/입력 잠금/PC 인증/최종 승인·6자리 코드·완료/비밀번호 오류 smoke 통과.
 - 마지막 전체 회귀 실행 도중 Docker daemon이 종료돼 프로세스가 중단됐다. 기존 XML의 focused 성공을 전체 회귀 성공으로 보고하지 않고 테스트용 DB/Docker 복구 후 다시 검증한다.
+
+- 전체 232 suites/Java 1,763개 실행에서 `uncertainAuthenticationIsQuarantinedAndCannotBeRepeatedWithAnotherPairing` 한 건이 실패했다. 외부 호출 전 차단 결과에 BIND 전용 `CONNECTION_CONFLICT`를 사용해 REGISTER result 제약에 거절되는 문제였다. 기존 허용 코드 `CONTRACT_CONFLICT`로 수정했으며 전체 재검증 중이다.
+- 앱 첫 CI는 변경된 h1/초기 탐색 대기 정책을 패키징 smoke에 반영하지 않아 실패했고 Intel 가상 러너는 GPU 초기화가 실패했다. 새 첫 화면·preload·입력 잠금을 검증하도록 수정하고 테스트 실행에만 소프트웨어 렌더링을 지정했다. 실제 macOS arm64 ad-hoc 패키지의 API origin·서명·startup 검증 통과. 0.1.7 릴리스는 빌드 중단 표시, 수정본은 0.1.8-rc.1 / 0.1.8로 게시한다.
+- 서버 PR: https://github.com/Team-HowMuch/howmuch-backend-v2/pull/519. 원격 CI 진행 중. 서버 merge/deploy는 실행하지 않았다.
+
+## 최종 로컬 검증
+- `bash scripts/test.sh compileJava test bootJar`: **232 suites / Java 1,763개, JavaScript 35개 통과**, 실패/오류/skip 0. 실제 PostgreSQL V50/불변 제약, JWT HTTP→초기 pairing→Kafka 인증→임시 READY→최종 Yes→BOUND, 기존 ID 재사용·No 보존·동시 연결 변경 거절·UNKNOWN 재인증 차단·QR 만료를 포함한다. `build/pair-final-verification.log` 및 `build/test-results/test`에 결과를 보관한다.
+- Connector는 일회용 별도 DB에서 `./gradlew clean build --no-daemon` 성공, Java 25개 실패 0. 앱 Node 40개/실제 Electron smoke 및 macOS arm64 실제 패키지의 임시 서명·API origin·sandboxed preload·첫 화면 검증 통과.
+- QR claim Web DTO의 `toString()`도 토큰을 가려 기존 민감 DTO 규약을 적용했다. 이후 compileJava로 최종 소스를 확인한다.
+- SQL #518 원격 테스트·Docker 빌드 통과. 기능 #519/앱 #32를 게시했다. dev/prod 서버 배포와 실제 모바일 UI/실은행 E2E는 실행하지 않았다.
