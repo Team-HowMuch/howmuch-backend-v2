@@ -50,7 +50,12 @@ public class CertificatePairingJdbcAdapter implements CertificatePairingStorePor
                         "SELECT EXISTS(SELECT 1 FROM certificate_pc_pairings p JOIN"
                             + " certificate_registration_sessions s ON"
                             + " s.id=p.registration_session_id WHERE p.paired_user_id=? AND s.id<>?"
-                            + " AND s.status='UNKNOWN')",
+                            + " AND (EXISTS(SELECT 1 FROM certificate_provider_command_inbox j"
+                            + " WHERE j.session_id=s.id AND j.command_type='REGISTER' AND"
+                            + " j.provider_request_started_at IS NOT NULL AND j.status IN"
+                            + " ('PROCESSING','UNKNOWN')) OR EXISTS(SELECT 1 FROM"
+                            + " certificate_provider_connections c WHERE c.session_id=s.id AND"
+                            + " c.status='READY')))",
                         Boolean.class,
                         user,
                         session));
