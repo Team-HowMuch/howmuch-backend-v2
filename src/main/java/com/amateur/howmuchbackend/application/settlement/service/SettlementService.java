@@ -23,6 +23,7 @@ import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -56,6 +57,7 @@ public class SettlementService implements
     private final SettlementSuspensionPolicy settlementSuspensionPolicy;
     private final LoadUserPort loadUserPort;
     private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
+    private final SettlementDutchPayResumer dutchPayResumer;
 
     @Override
     @Transactional
@@ -141,6 +143,9 @@ public class SettlementService implements
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         Settlement resumed = settlement.resume(now);
+        if (settlement.allocationType() == SettlementAllocationType.DUTCH_PAY) {
+            resumed = dutchPayResumer.resume(resumed, now);
+        }
         settlementItemAllocationStorePort.deleteAllSubmissions(settlementId);
         return SettlementResult.from(saveSettlementPort.update(resumed));
     }

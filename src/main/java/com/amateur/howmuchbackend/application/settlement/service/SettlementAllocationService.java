@@ -27,6 +27,8 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementDutchPayAllocation
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +56,8 @@ public class SettlementAllocationService implements
     private final SettlementDutchPayAllocationStorePort allocationStorePort;
     private final DutchPayAllocationPolicy dutchPayAllocationPolicy;
     private final SettlementRequestPolicy settlementRequestPolicy;
+    private final SettlementRevisionGuard revisionGuard;
+    private final DeleteSettlementSharePort deleteSharePort;
 
     @Override
     @Transactional
@@ -109,7 +113,7 @@ public class SettlementAllocationService implements
     @Transactional(readOnly = true)
     public SettlementDutchPayResult get(UUID settlementId) {
         Settlement settlement = loadOwnedSettlement(settlementId);
-        settlement.ensureAllocationEditable();
+        settlement.ensureDutchPayAllocationEditable();
         ensureDutchPay(settlement);
         return assembleResult(settlement);
     }
@@ -122,7 +126,7 @@ public class SettlementAllocationService implements
             UpdateSettlementDutchPayAllocationCommand command
     ) {
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId);
-        settlement.ensureAllocationEditable();
+        settlement.ensureDutchPayAllocationEditable();
         ensureDutchPay(settlement);
         loadSettlementParticipantPort.findBySettlementIdAndId(settlement.id(), participantId)
                 .orElseThrow(() -> ApplicationException.of(
@@ -133,8 +137,10 @@ public class SettlementAllocationService implements
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_DUTCH_PAY_ALLOCATION_NOT_FOUND
                 ));
+        ensureSuspendedRevisionUnpaid(settlement);
         long amount = command == null ? -1L : command.amount();
         allocationStorePort.update(allocation.updateAmount(amount, now()));
+        invalidateSuspendedShares(settlement);
         return assembleResult(settlement);
     }
 
@@ -145,7 +151,7 @@ public class SettlementAllocationService implements
             ReplaceSettlementDutchPayAllocationsCommand command
     ) {
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId);
-        settlement.ensureAllocationEditable();
+        settlement.ensureDutchPayAllocationEditable();
         ensureDutchPay(settlement);
         List<SettlementParticipant> participants = loadSettlementParticipantPort
                 .findAllBySettlementId(settlement.id());
@@ -162,6 +168,7 @@ public class SettlementAllocationService implements
                     SettlementStatusCode.SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE
             );
         }
+        ensureSuspendedRevisionUnpaid(settlement);
         // 같은 트랜잭션 안에서 갱신하므로 한 건이라도 실패하면 전체가 롤백된다.
         LocalDateTime now = now();
         for (SettlementDutchPayAllocation allocation : allocations) {
@@ -173,7 +180,20 @@ public class SettlementAllocationService implements
             }
             allocationStorePort.update(allocation.updateAmount(amount, now));
         }
+        invalidateSuspendedShares(settlement);
         return assembleResult(settlement);
+    }
+
+    private void ensureSuspendedRevisionUnpaid(Settlement settlement) {
+        if (settlement.status() == SettlementStatus.SUSPENDED) {
+            revisionGuard.ensureUnpaid(settlement.id());
+        }
+    }
+
+    private void invalidateSuspendedShares(Settlement settlement) {
+        if (settlement.status() == SettlementStatus.SUSPENDED) {
+            deleteSharePort.deleteAllBySettlementId(settlement.id());
+        }
     }
 
     private void ensureExistingSelectionIsUsable(

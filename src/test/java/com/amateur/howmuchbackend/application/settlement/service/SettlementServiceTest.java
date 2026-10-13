@@ -90,6 +90,8 @@ class SettlementServiceTest {
     @Mock
     private SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
+    @Mock private SettlementDutchPayResumer dutchPayResumer;
+
     private SettlementService settlementService;
 
     @BeforeEach
@@ -106,7 +108,8 @@ class SettlementServiceTest {
                 new SettlementDeletionPolicy(),
                 new SettlementSuspensionPolicy(),
                 loadUserPort,
-                allocationDraftInvalidator
+                allocationDraftInvalidator,
+                dutchPayResumer
         );
         lenient().when(allocationDraftInvalidator.invalidate(any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
