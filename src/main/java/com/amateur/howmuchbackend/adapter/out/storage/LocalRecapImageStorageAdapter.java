@@ -4,17 +4,23 @@ import com.amateur.howmuchbackend.application.port.out.recap.RecapImageStoragePo
 import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
 import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.infra.recap.RecapImageProperties;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,11 +28,13 @@ import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
-public class LocalRecapImageStorageAdapter implements RecapImageStoragePort {
+public class LocalRecapImageStorageAdapter implements RecapImageStoragePort, AutoCloseable {
     private static final Pattern NAME = Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|jpeg|png|webp)$");
     private static final Map<String, String> TYPES = Map.of("jpg", "image/jpeg", "jpeg", "image/jpeg", "png", "image/png", "webp", "image/webp");
     private final RecapImageProperties properties;
     private final ProfileImageStoragePort profiles;
+    private DirectoryStream<Path> scan;
+    private Iterator<Path> scanPosition;
 
     @Override
     public void verifyReady() {
@@ -84,20 +92,49 @@ public class LocalRecapImageStorageAdapter implements RecapImageStoragePort {
     }
 
     @Override
-    public List<String> findOlderThan(LocalDateTime cutoff) {
-        if (!Files.isDirectory(directory())) return List.of();
-        try (var entries = Files.list(directory())) {
-            return entries.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
-                    .filter(path -> old(path, cutoff)).map(path -> path.getFileName().toString())
-                    .map(name -> name.endsWith(".tmp") ? name.substring(0, name.length() - 4) : name)
-                    .filter(name -> NAME.matcher(name).matches()).distinct().limit(1000).toList();
-        } catch (IOException exception) {
+    public synchronized List<String> findOlderThan(LocalDateTime cutoff) {
+        if (!Files.isDirectory(directory())) {
+            close();
+            return List.of();
+        }
+        try {
+            if (scan == null) {
+                scan = Files.newDirectoryStream(directory());
+                scanPosition = scan.iterator();
+            }
+            var names = new LinkedHashSet<String>();
+            // Retain the directory position so referenced files cannot occupy every poll.
+            for (int visited = 0; visited < 1000 && scanPosition.hasNext(); visited++) {
+                var path = scanPosition.next();
+                String name = path.getFileName().toString();
+                if (name.endsWith(".tmp")) name = name.substring(0, name.length() - 4);
+                if (NAME.matcher(name).matches() && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                        && old(path, cutoff)) names.add(name);
+            }
+            if (!scanPosition.hasNext()) close();
+            return List.copyOf(names);
+        } catch (IOException | DirectoryIteratorException exception) {
+            close();
             throw new IllegalStateException("Unable to list recap images", exception);
+        }
+    }
+
+    @Override
+    @PreDestroy
+    public synchronized void close() {
+        try {
+            if (scan != null) scan.close();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to close recap image scan", exception);
+        } finally {
+            scan = null;
+            scanPosition = null;
         }
     }
 
     private boolean old(Path path, LocalDateTime cutoff) {
         try { return Files.getLastModifiedTime(path).toInstant().isBefore(cutoff.toInstant(ZoneOffset.UTC)); }
+        catch (NoSuchFileException exception) { return false; }
         catch (IOException exception) { throw new IllegalStateException("Unable to inspect recap image", exception); }
     }
     private Path directory() { return Path.of(properties.storageDir()).toAbsolutePath().normalize(); }

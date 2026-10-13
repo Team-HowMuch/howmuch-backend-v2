@@ -10,5 +10,6 @@ public interface RecapImageStoragePort {
     void copyProfile(String sourceFileName, String reservedFileName);
     Optional<ProfileImage> load(String fileName);
     void delete(String fileName);
+    /** Reads the next bounded directory batch; successive calls cycle through every entry. */
     List<String> findOlderThan(LocalDateTime cutoff);
 }

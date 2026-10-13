@@ -43,7 +43,9 @@ All app instances must use the same persistent storage. Keep recap images separa
 
 Set `RECAP_GENERATION_ENABLED=true` after these checks. The first activation stores only the preceding KST month as the permanent first target. Startup and every hour at minute 10 register missing work from that target through the preceding month. Generation for a newly completed month becomes available at 00:10 KST on day 1, including after an earlier restart. Older months before the first target are not backfilled. Work polling defaults to 30 seconds.
 
-Generation failures retry after 5–60 minutes and hold later months for that owner. Expired processing leases can be recovered after 10 minutes. Image deletion failures retry after one hour; unreferenced final and temporary files left by a crash are eligible for cleanup after 24 hours. Referenced snapshot files and live reservations are protected. If generation is disabled again, queued image cleanup also waits until it is re-enabled.
+Registration resumes after the stored month cursor. New users without jobs receive the range from the first target; existing users do not repeatedly attempt inserts for completed registration months. Cursor advancement and job insertion share a transaction, so interrupted registration remains recoverable.
+
+Generation failures retry after 5–60 minutes and hold later months for that owner. Expired processing leases can be recovered after 10 minutes. Image deletion failures retry after one hour; unreferenced final and temporary files left by a crash are eligible for cleanup after 24 hours. Directory scans continue across polls in batches of up to 1,000 entries and restart after reaching the end, so referenced files cannot block later orphans. Referenced snapshot files and live reservations are protected. If generation is disabled again, queued image cleanup also waits until it is re-enabled.
 
 The [completed Feature Plan](features/completed/monthly-recap.md) records API contracts, verification, and the remaining production storage checks. Local regression and activation checks do not verify EC2 volume permissions, shared storage across hosts, or backup restoration.
 
