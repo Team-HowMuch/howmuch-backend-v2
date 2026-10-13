@@ -33,6 +33,22 @@ APNS_ENVIRONMENT=<dev or prod>
 
 Set `APNS_ENVIRONMENT=prod` on the production server. The server-owned Compose `app` service needs a read-only file mount, for example `/opt/howmuch-infra/secrets/apns.p8:/app/secrets/apns.p8:ro`. Do not print the file, key, device token, or provider JWT in logs. A rejected request logs only the APNs HTTP status, `reason`, and `apns-id`. A successful APNs HTTP 200 means APNs accepted the request; confirm device display separately.
 
+## Monthly recap storage and activation
+
+Keep `RECAP_GENERATION_ENABLED=false` (the default) until Flyway V48 is applied and persistent image storage is mounted and writable. Enabling it starts both generation and image cleanup. Application startup verifies directory writes and atomic moves; an unavailable storage path prevents activation.
+
+The repository [Compose file](../compose.yml) mounts `${RECAP_IMAGE_HOST_DIR:-./uploads/recap-images}` at `/app/uploads/recap-images` and sets `RECAP_IMAGE_STORAGE_DIR` to that container path. For a server-owned Compose file, add the same persistent mount and container environment setting explicitly: the deployment workflow only replaces the image and does not install these storage changes. Grant container UID `10001` write access before enabling generation. Without Compose, `RECAP_IMAGE_STORAGE_DIR` defaults to `./uploads/recap-images`.
+
+All app instances must use the same persistent storage. Keep recap images separate from original profile images, and back up the recap directory together with PostgreSQL. Copied images must survive container replacement and deletion of the original profile. Existing recap copies owned by other users remain after a companion withdraws.
+
+Set `RECAP_GENERATION_ENABLED=true` after these checks. The first activation stores only the preceding KST month as the permanent first target. Startup and every hour at minute 10 register missing work from that target through the preceding month. Generation for a newly completed month becomes available at 00:10 KST on day 1, including after an earlier restart. Older months before the first target are not backfilled. Work polling defaults to 30 seconds.
+
+Registration resumes after the stored month cursor. New users without jobs receive the range from the first target; existing users do not repeatedly attempt inserts for completed registration months. Cursor advancement and job insertion share a transaction, so interrupted registration remains recoverable.
+
+Generation failures retry after 5–60 minutes and hold later months for that owner. Expired processing leases can be recovered after 10 minutes. Image deletion failures retry after one hour; unreferenced final and temporary files left by a crash are eligible for cleanup after 24 hours. Directory scans continue across polls in batches of up to 1,000 entries and restart after reaching the end, so referenced files cannot block later orphans. Referenced snapshot files and live reservations are protected. If generation is disabled again, queued image cleanup also waits until it is re-enabled.
+
+The [completed Feature Plan](features/completed/monthly-recap.md) records API contracts, verification, and the remaining production storage checks. Local regression and activation checks do not verify EC2 volume permissions, shared storage across hosts, or backup restoration.
+
 ## Readiness gate
 
 After image identity verification, the [deployment script](../scripts/deploy-readiness.sh) waits up to 180 seconds for HTTP 200 from `/actuator/health/readiness` inside the same container. The loopback management port defaults to 9091 (`MANAGEMENT_SERVER_PORT`); readiness includes application availability, PostgreSQL, and Redis. EC2 requires Bash and GNU `timeout`, and the application image includes curl. The management port remains private.
