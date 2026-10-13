@@ -22,5 +22,7 @@ public interface CertificateSessionStorePort {
 
     void submit(UUID id, LocalDateTime now);
 
+    void submitForAuthentication(UUID id, LocalDateTime now);
+
     void cancel(UUID id, LocalDateTime now);
 }

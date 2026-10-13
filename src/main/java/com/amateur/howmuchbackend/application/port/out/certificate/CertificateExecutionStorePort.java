@@ -29,5 +29,9 @@ public interface CertificateExecutionStorePort {
 
     void finishCleanup(CertificateExecution execution, boolean deleted, LocalDateTime now);
 
+    Optional<CertificateEnvelope> readyConnection(UUID session, UUID ref);
+
+    void discardConnection(UUID session, LocalDateTime now);
+
     void recover(LocalDateTime now);
 }

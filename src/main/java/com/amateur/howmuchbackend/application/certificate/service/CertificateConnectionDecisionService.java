@@ -36,6 +36,8 @@ public class CertificateConnectionDecisionService
     private final CurrentActorPort actor;
     private final LoadUserPort users;
     private final Clock clock;
+    private final CertificatePairingStorePort pairings;
+    private final CertificateApprovedRegistrationTransactions registration;
 
     @Transactional
     public CertificateConnectionDecisionResult decide(DecideCertificateConnectionCommand command) {
@@ -63,7 +65,9 @@ public class CertificateConnectionDecisionService
                 .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
         if (command.approved()) {
-            if (s.connectionRef() != null) throw ApplicationException.of(CERTIFICATE_CONFLICT);
+            boolean verified = pairings.findBySession(s.id()).isPresent();
+            if ((s.connectionRef() != null) != verified)
+                throw ApplicationException.of(CERTIFICATE_CONFLICT);
             consents.approve(
                     new CertificateConsent(
                             UUID.randomUUID(),
@@ -74,7 +78,8 @@ public class CertificateConnectionDecisionService
                             now,
                             null),
                     now);
-            outbox.enqueue(s, "REGISTER", now);
+            if (verified) registration.bindVerified(consents.find(s.id()).orElseThrow(), s);
+            else outbox.enqueue(s, "REGISTER", now);
         } else {
             claims.close(c, "REJECTED", now);
             sessions.cancel(s.id(), now);

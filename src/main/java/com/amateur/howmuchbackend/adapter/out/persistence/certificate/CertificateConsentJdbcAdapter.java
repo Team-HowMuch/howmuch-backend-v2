@@ -43,7 +43,7 @@ public class CertificateConsentJdbcAdapter implements CertificateConsentStorePor
     public void approve(CertificateConsent c, LocalDateTime now) {
         if (jdbc.update(
                         "UPDATE certificate_registration_claims SET status='APPROVED',finished_at=?"
-                            + " WHERE id=? AND status='RESERVED' AND expires_at>?",
+                                + " WHERE id=? AND status='RESERVED' AND expires_at>?",
                         now,
                         c.claimId(),
                         now)
@@ -59,10 +59,11 @@ public class CertificateConsentJdbcAdapter implements CertificateConsentStorePor
                 c.generation(),
                 c.approvedAt());
         if (jdbc.update(
-                        "UPDATE certificate_registration_sessions SET"
-                            + " status='SUBMITTED',current_claim_id=NULL,updated_at=? WHERE id=?"
-                            + " AND status='CLAIM_RESERVED' AND current_claim_id=? AND"
-                            + " claim_generation=? AND expires_at>?",
+                        "UPDATE certificate_registration_sessions SET status=CASE WHEN"
+                                + " connection_ref IS NULL THEN 'SUBMITTED' ELSE 'REGISTERING'"
+                                + " END,current_claim_id=NULL,updated_at=? WHERE id=? AND"
+                                + " status='CLAIM_RESERVED' AND current_claim_id=? AND"
+                                + " claim_generation=? AND expires_at>?",
                         now,
                         c.sessionId(),
                         c.claimId(),

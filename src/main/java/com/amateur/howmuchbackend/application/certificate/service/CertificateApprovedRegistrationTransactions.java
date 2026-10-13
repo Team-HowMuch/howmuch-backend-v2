@@ -34,6 +34,7 @@ public class CertificateApprovedRegistrationTransactions {
     private final CertificateSecretProtectionPort protection;
     private final CertificateExecutionStorePort jobs;
     private final Clock clock;
+    private final CertificatePairingStorePort pairings;
 
     /** Request-start was committed before this transaction; no provider mutation may be retried. */
     @Transactional
@@ -48,34 +49,33 @@ public class CertificateApprovedRegistrationTransactions {
                                 () ->
                                         ApplicationException.of(
                                                 CertificateStatusCode.CERTIFICATE_NOT_FOUND));
-        var consent =
-                consents.find(session.id())
-                        .orElseThrow(
-                                () ->
-                                        ApplicationException.of(
-                                                CertificateStatusCode.CERTIFICATE_CONFLICT));
+        var pairing = pairings.findBySession(session.id()).orElse(null);
+        var consent = consents.find(session.id()).orElse(null);
         var now = LocalDateTime.now(clock);
         if (!session.status().equals("REGISTERING")
                 || !session.expiresAt().isAfter(now)
-                || consent.connectionId() != null)
+                || (pairing == null && (consent == null || consent.connectionId() != null))
+                || (pairing != null
+                        && (pairing.userId() == null
+                                || pairing.cancelledAt() != null
+                                || !pairing.expiresAt().isAfter(now))))
             throw ApplicationException.of(CertificateStatusCode.CERTIFICATE_CONFLICT);
-        users.findByIdForUpdate(consent.userId())
+        long user = pairing == null ? consent.userId() : pairing.userId();
+        users.findByIdForUpdate(user)
                 .filter(User::active)
                 .orElseThrow(
                         () ->
                                 ApplicationException.of(
                                         com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode
                                                 .USER_NOT_FOUND));
+        if (pairing != null && pairings.hasUnresolvedAuthentication(user, session.id())) {
+            jobs.finish(execution, "FAILED", "CONNECTION_CONFLICT", null, null, now);
+            return;
+        }
         connections.validateStorageConfiguration();
-        var connection = connections.findActiveByUserId(consent.userId()).orElse(null);
-        EncryptedBankAccountCredentials encrypted =
-                material.accountNumber() == null
-                        ? null
-                        : credentials.protect(
-                                consent.userId(),
-                                command.organization(),
-                                new BankAccountCredentials(
-                                        material.accountNumber(), material.accountPassword()));
+        var connection = connections.findActiveByUserId(user).orElse(null);
+        if (pairing != null)
+            pairings.prepare(session.id(), connection == null ? null : connection.id());
         CertificateProviderResult result;
         if (connection == null)
             result = provider.register(command.organization(), material, includeAccountCredentials);
@@ -103,28 +103,6 @@ public class CertificateApprovedRegistrationTransactions {
         }
         if (connection != null && !connection.connectedId().equals(result.connectedId()))
             throw ApplicationException.of(CertificateStatusCode.CERTIFICATE_REGISTRATION_UNCERTAIN);
-        var institution =
-                new ConnectedInstitution(
-                        null,
-                        connection == null ? null : connection.id(),
-                        command.organization(),
-                        ExternalConnectionStatus.CONNECTED,
-                        "CF-00000",
-                        encrypted == null ? null : encrypted.localCiphertext(),
-                        encrypted == null ? null : encrypted.kmsCiphertext());
-        if (connection == null)
-            connection =
-                    connections.saveNew(
-                            new ExternalConnection(null, consent.userId(), result.connectedId()),
-                            institution);
-        else if (!connections.hasInstitution(connection.id(), command.organization()))
-            connections.saveInstitution(institution);
-        else if (encrypted != null)
-            connections.updateInstitutionCredentials(
-                    connection.id(),
-                    command.organization(),
-                    encrypted.localCiphertext(),
-                    encrypted.kmsCiphertext());
         UUID ref = UUID.randomUUID();
         var envelope =
                 protection.sealConnection(
@@ -137,6 +115,93 @@ public class CertificateApprovedRegistrationTransactions {
                                 material.birthDate()));
         // The ownership FK, job result, user connection, consent and outbox commit together.
         jobs.finish(execution, "SUCCEEDED", null, ref, envelope, now);
-        consents.bind(consent, ref, connection.id(), now);
+        if (pairing == null) {
+            connection =
+                    persist(
+                            user,
+                            command.organization(),
+                            result.connectedId(),
+                            material.accountNumber(),
+                            material.accountPassword(),
+                            connection);
+            consents.bind(consent, ref, connection.id(), now);
+        }
+    }
+
+    /** Financial authentication is already complete. This transaction performs no provider call. */
+    @Transactional
+    public void bindVerified(
+            CertificateConsent consent,
+            com.amateur.howmuchbackend.domain.certificate.CertificateSession session) {
+        var p =
+                pairings.findBySession(session.id())
+                        .orElseThrow(
+                                () ->
+                                        ApplicationException.of(
+                                                CertificateStatusCode.CERTIFICATE_CONFLICT));
+        var now = LocalDateTime.now(clock);
+        if (!p.authenticationPrepared()
+                || p.userId() != consent.userId()
+                || p.cancelledAt() != null
+                || !p.expiresAt().isAfter(now)
+                || session.connectionRef() == null)
+            throw ApplicationException.of(CertificateStatusCode.CERTIFICATE_CONFLICT);
+        var envelope =
+                jobs.readyConnection(session.id(), session.connectionRef())
+                        .orElseThrow(
+                                () ->
+                                        ApplicationException.of(
+                                                CertificateStatusCode.CERTIFICATE_CONFLICT));
+        var secret = protection.openConnection(session.id(), session.connectionRef(), envelope);
+        var connection = connections.findActiveByUserId(consent.userId()).orElse(null);
+        if (!Objects.equals(p.existingConnectionId(), connection == null ? null : connection.id())
+                || (connection != null && !connection.connectedId().equals(secret.connectedId())))
+            throw ApplicationException.of(CertificateStatusCode.CERTIFICATE_CONFLICT);
+        connection =
+                persist(
+                        consent.userId(),
+                        session.organization(),
+                        secret.connectedId(),
+                        secret.accountNumber(),
+                        secret.accountPassword(),
+                        connection);
+        consents.bind(consent, session.connectionRef(), connection.id(), now);
+    }
+
+    private ExternalConnection persist(
+            long user,
+            String organization,
+            String connectedId,
+            String accountNumber,
+            String accountPassword,
+            ExternalConnection connection) {
+        EncryptedBankAccountCredentials encrypted =
+                accountNumber == null
+                        ? null
+                        : credentials.protect(
+                                user,
+                                organization,
+                                new BankAccountCredentials(accountNumber, accountPassword));
+        var institution =
+                new ConnectedInstitution(
+                        null,
+                        connection == null ? null : connection.id(),
+                        organization,
+                        ExternalConnectionStatus.CONNECTED,
+                        "CF-00000",
+                        encrypted == null ? null : encrypted.localCiphertext(),
+                        encrypted == null ? null : encrypted.kmsCiphertext());
+        if (connection == null)
+            return connections.saveNew(
+                    new ExternalConnection(null, user, connectedId), institution);
+        if (!connections.hasInstitution(connection.id(), organization))
+            connections.saveInstitution(institution);
+        else if (encrypted != null)
+            connections.updateInstitutionCredentials(
+                    connection.id(),
+                    organization,
+                    encrypted.localCiphertext(),
+                    encrypted.kmsCiphertext());
+        return connection;
     }
 }

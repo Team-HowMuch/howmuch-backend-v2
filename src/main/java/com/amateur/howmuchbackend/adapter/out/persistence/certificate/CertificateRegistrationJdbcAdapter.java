@@ -110,6 +110,15 @@ public class CertificateRegistrationJdbcAdapter
                 != 1) throw ApplicationException.of(CERTIFICATE_CONFLICT);
     }
 
+    public void submitForAuthentication(UUID id, LocalDateTime now) {
+        if (jdbc.update(
+                        "UPDATE certificate_registration_sessions SET"
+                            + " status='SUBMITTED',updated_at=? WHERE id=? AND status='CREATED'",
+                        now,
+                        id)
+                != 1) throw ApplicationException.of(CERTIFICATE_CONFLICT);
+    }
+
     public void cancel(UUID id, LocalDateTime now) {
         jdbc.update(
                 "UPDATE certificate_registration_claims SET status='CANCELLED',finished_at=? WHERE"
