@@ -15,6 +15,7 @@ import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.auth.session.AuthSession;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.settlement.*;
+import com.amateur.howmuchbackend.domain.notification.NotificationType;
 import com.amateur.howmuchbackend.support.SettlementUnpaidFixtures;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -215,6 +216,10 @@ class SettlementTransferIntentIntegrationTest {
         assertThat(notification.get("notification_type")).isEqualTo("SETTLEMENT_DEPOSIT_CONFIRMED");
         assertThat(notification.get("message").toString()).contains("예약","입금자","600원");
         assertThat(notification.get("target_id")).isEqualTo(settlementId.toString());
+        var inbox=request("GET","/api/v2/notifications",creatorToken,null);
+        assertThat(inbox.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(inbox.body()).path("data").path("items").get(0).path("type").stringValue())
+                .isEqualTo("SETTLEMENT_DEPOSIT_CONFIRMED");
         var widget=request("GET","/api/v2/settlements/widget-summary",creatorToken,null);
         assertThat(widget.statusCode()).isEqualTo(200);
         assertThat(json.readTree(widget.body()).path("data").path("receivable").path("totalAmount").longValue()).isEqualTo(600);
@@ -383,7 +388,12 @@ class SettlementTransferIntentIntegrationTest {
         assertThat(paths.path("/api/v2/settlements/{settlementId}/my-transfer-intent").path("post").path("responses").has("202")).isTrue();
         assertThat(paths.path("/api/v2/settlement-links/{token}/transfer-intent").path("post").path("parameters").toString())
                 .contains("Link-Participant-Context");
-        assertThat(response.body()).contains("SETTLEMENT_DEPOSIT_CONFIRMED");
+        var notificationTypes=json.readTree(response.body()).path("components").path("schemas")
+                .path("NotificationItem").path("properties").path("type").path("enum");
+        var documentedTypes=new ArrayList<String>();
+        for(var type:notificationTypes) documentedTypes.add(type.stringValue());
+        assertThat(documentedTypes).containsExactlyInAnyOrderElementsOf(
+                Arrays.stream(NotificationType.values()).map(Enum::name).toList());
         assertThat(paths.path("/api/v2/settlements/{settlementId}/deposits/reconcile").path("post").path("responses").has("429")).isTrue();
     }
 

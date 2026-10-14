@@ -102,3 +102,11 @@ KST 날짜별 공유 예산과 사용자 예산을 한 Lua 실행으로 검사·
 5. `docs(settlement): 자동 입금 대조 검증 결과 기록`
 
 2026-10-14: #532 병합을 확인한 최신 develop에서 후속 구현을 시작했다. 선행 계획의 사용자별 한도 가정을 공유+사용자 한도로 보완하고, DB claim 경쟁·외부 I/O 트랜잭션 분리·전체 완료 알림 중복·scheduler 점유를 검증했다. Feature Plan을 완료 문서로 이동하고 PR에 핵심 동작과 결과만 기록한다.
+
+## 리뷰 수정 (2026-10-14)
+
+[#538의 스키마 누락 지적](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/538#discussion_r4269006597)을 확인했다. 알림 API가 반환하는 `SETTLEMENT_DEPOSIT_CONFIRMED`가 `NotificationItem.type`의 `allowableValues`에 없어 해당 값을 추가했다. OpenAPI 전체 문자열에서 이름만 찾던 검증을 해당 속성의 enum과 모든 `NotificationType` 값의 일치 검증으로 바꿨고, 실제 알림함 HTTP 응답도 확인한다. 추가 migration은 필요하지 않다.
+
+수정 전 강화한 OpenAPI 테스트 1건이 새 타입 누락으로 실패하는 것을 재현했다. 수정 후 `compileJava`, `bootJar`, 입금 신호·알림함 통합 Java 43개 / 2 suites와 JavaScript 35개가 실패·오류·skip 없이 통과했다. 변경 범위가 스키마 선언과 기존 회귀 강화이므로 기존 전체 1,968개 검증은 다시 실행하지 않았다. 원격 CI의 기존 실행은 GitHub 결제·사용 한도 문제로 시작되지 못했다.
+
+추가 커밋: `fix(notification): 입금 확인 알림의 OpenAPI 유형 누락 보완`.
