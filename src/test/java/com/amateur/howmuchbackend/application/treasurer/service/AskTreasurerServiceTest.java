@@ -4,12 +4,16 @@ import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreas
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
+import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerGuidePort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAnswerPort;
 import com.amateur.howmuchbackend.domain.treasurer.SavedTreasurerAnswer;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerGeneratedBy;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
+import com.amateur.howmuchbackend.application.treasurer.policy.InquiryHowToPolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
+import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerGuideCheck;
+import com.amateur.howmuchbackend.application.treasurer.model.TreasurerKnowledge;
 import com.amateur.howmuchbackend.application.treasurer.policy.TitleHintVerification;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerAnswerFactCheck;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerCardCopy;
@@ -50,12 +54,25 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class AskTreasurerServiceTest {
     private static final Instant NOW = Instant.parse("2026-08-26T03:00:00Z");
+    private static final TreasurerKnowledge KNOWLEDGE = TreasurerKnowledge.parse("""
+            ## [PAY] 송금하기
+            - [토스로 N원 보내기]를 누르면 토스가 열린다.
+            ## [CREATE-AMOUNT] 금액 정하기
+            - [영수증 인식]으로 영수증을 읽어 온다.
+            ## [REMIND] 독촉 알림
+            - 한 번 보내면 30분 동안 다시 보낼 수 없다.
+            ## [NOT-YET] 아직 제공하지 않는 기능
+            - 정기 정산
+            """);
 
     @Mock
     private TreasurerSettlementQuery treasurerSettlementQuery;
 
     @Mock
     private GenerateTreasurerAnswerPort generateTreasurerAnswerPort;
+
+    @Mock
+    private GenerateTreasurerGuidePort generateTreasurerGuidePort;
 
     @Mock
     private CurrentActorPort currentActorPort;
@@ -865,7 +882,7 @@ class AskTreasurerServiceTest {
         var result = service.ask(new AskTreasurerCommand("OCR 정산은 어떻게 해?"));
 
         assertThat(result.intent()).isEqualTo(InquiryIntent.GUIDE);
-        assertThat(result.answer()).contains("아직 준비 중");
+        assertThat(result.answer()).contains("[영수증 인식]");
         verifyNoInteractions(generateTreasurerAnswerPort);
         verifyNoInteractions(treasurerSettlementQuery);
     }
@@ -976,7 +993,11 @@ class AskTreasurerServiceTest {
                 new TreasurerCardCopy(),
                 currentActorPort,
                 saveTreasurerAnswerPort,
-                Clock.fixed(NOW, ZoneOffset.UTC)
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                new InquiryHowToPolicy(),
+                () -> KNOWLEDGE,
+                generateTreasurerGuidePort,
+                new TreasurerGuideCheck()
         );
     }
 }

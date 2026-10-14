@@ -5,14 +5,19 @@ import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreas
 import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerAnswerResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
+import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerGuidePort;
+import com.amateur.howmuchbackend.application.port.out.treasurer.LoadTreasurerKnowledgePort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAnswerPort;
 import com.amateur.howmuchbackend.application.treasurer.model.InquiryScope;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
+import com.amateur.howmuchbackend.application.treasurer.model.TreasurerGuideReply;
+import com.amateur.howmuchbackend.application.treasurer.policy.InquiryHowToPolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.TitleHintVerification;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerAnswerFactCheck;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerCardCopy;
+import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerGuideCheck;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
 import com.amateur.howmuchbackend.domain.treasurer.PersonalSettlement;
@@ -33,6 +38,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.WeekFields;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -52,6 +58,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     private final CurrentActorPort currentActorPort;
     private final SaveTreasurerAnswerPort saveTreasurerAnswerPort;
     private final Clock clock;
+    private final InquiryHowToPolicy inquiryHowToPolicy;
+    private final LoadTreasurerKnowledgePort loadTreasurerKnowledgePort;
+    private final GenerateTreasurerGuidePort generateTreasurerGuidePort;
+    private final TreasurerGuideCheck treasurerGuideCheck;
 
     /**
      * 트랜잭션을 열지 않는다.
@@ -101,10 +111,26 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     private Answered answerFor(AskTreasurerCommand command) {
         InquiryParser.ParsedInquiry parsed = inquiryParser.parse(command.question());
         if (parsed.intent() == InquiryIntent.UNKNOWN) {
-            return unmatchedAnswer(command.question());
+            if (inquiryScopePolicy.classify(command.question()) == InquiryScope.UNRELATED) {
+                return unmatchedAnswer(command.question());
+            }
+            Guided guided = guidedAnswer(command.question());
+            if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
+                return textAnswer(InquiryIntent.UNKNOWN, TreasurerCardCopy.UNKNOWN_ANSWER, suggestionPrompts());
+            }
+            return guided.answer().orElseGet(() -> unmatchedAnswer(command.question()));
         }
         if (parsed.intent() == InquiryIntent.GUIDE) {
-            return textAnswer(InquiryIntent.GUIDE, TreasurerCardCopy.OCR_ANSWER, List.of());
+            return guidedAnswer(command.question()).answer()
+                    .orElseGet(() -> textAnswer(InquiryIntent.GUIDE, TreasurerCardCopy.OCR_ANSWER, List.of()));
+        }
+        if (inquiryHowToPolicy.asksHowTo(command.question())) {
+            // "송금은 어떻게 해?"처럼 키워드가 데이터 의도로 걸려도 사용법 질문일 수 있다.
+            // 안내가 데이터 질문이라고 돌려보내거나 실패하면 지금처럼 정산을 조회한다.
+            Optional<Answered> guided = guidedAnswer(command.question()).answer();
+            if (guided.isPresent()) {
+                return guided.get();
+            }
         }
 
         String question = command.question();
@@ -183,11 +209,57 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         String answer = inquiryScopePolicy.classify(question) == InquiryScope.RELATED
                 ? TreasurerCardCopy.CLARIFY_ANSWER
                 : TreasurerCardCopy.UNKNOWN_ANSWER;
-        return textAnswer(
-                InquiryIntent.UNKNOWN,
-                answer,
-                treasurerCardCopy.suggestions().stream().map(this::toPrompt).toList()
-        );
+        return textAnswer(InquiryIntent.UNKNOWN, answer, suggestionPrompts());
+    }
+
+    private List<TreasurerAnswerResult.Prompt> suggestionPrompts() {
+        return treasurerCardCopy.suggestions().stream().map(this::toPrompt).toList();
+    }
+
+    /**
+     * 서비스 안내 문서를 근거로 사용법을 답한다.
+     *
+     * <p>LLM이 사용법 질문이라고 답하고, 근거 ID와 금액 검사를 통과했을 때만 답변이 있다.
+     * 그 밖에는 경로만 돌려주고 호출자가 지금의 고정 안내나 정산 조회로 되돌린다.
+     */
+    private Guided guidedAnswer(String question) {
+        var knowledge = loadTreasurerKnowledgePort.load();
+        Optional<TreasurerGuideReply> reply = generateTreasurerGuidePort.generate(question, knowledge);
+        if (reply.isEmpty()) {
+            return new Guided(null, Optional.empty());
+        }
+        TreasurerGuideReply.Route route = reply.get().route();
+        TreasurerGuideCheck.Outcome outcome = treasurerGuideCheck.check(reply.get(), knowledge);
+        Optional<Answered> answer = outcome.accepted()
+                .map(accepted -> new Answered(
+                        new TreasurerAnswerResult(
+                                null,
+                                InquiryIntent.GUIDE,
+                                null,
+                                null,
+                                TreasurerAnswerView.TEXT,
+                                accepted.answer(),
+                                null,
+                                List.of(),
+                                null,
+                                List.of(),
+                                accepted.followUps().stream().map(this::followUpPrompt).toList()
+                        ),
+                        TreasurerAnswerGeneratedBy.LLM
+                ));
+        if (route == TreasurerGuideReply.Route.GUIDE && answer.isEmpty()) {
+            log.warn("Treasurer guide answer rejected. reason={}", outcome.rejectedBecause());
+        }
+        return new Guided(route, answer);
+    }
+
+    /** 후속 질문은 사용법 질문이다. 눌리면 질문 문장 그대로 다시 들어온다. */
+    private TreasurerAnswerResult.Prompt followUpPrompt(String question) {
+        return new TreasurerAnswerResult.Prompt(InquiryIntent.GUIDE, question, question);
+    }
+
+    /** 안내 경로의 결과. {@code route}는 LLM 응답이 없으면 비어 있다. */
+    private record Guided(TreasurerGuideReply.Route route, Optional<Answered> answer) {
     }
 
     private Answered textAnswer(
