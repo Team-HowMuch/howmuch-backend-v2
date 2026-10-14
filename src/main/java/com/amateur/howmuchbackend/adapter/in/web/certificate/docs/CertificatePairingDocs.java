@@ -22,7 +22,7 @@ public interface CertificatePairingDocs {
                             + " pairingId/qrToken을 사용합니다.")
     ApiResponse<CertificatePairingWebResponse> create(HttpServletRequest request);
 
-    @Operation(summary = "PC 연결·금융 인증 상태 조회")
+    @Operation(summary = "PC 연결·금융 인증 상태 조회", description = "모바일 연결 후 organization을 반환합니다. PC는 해당 은행을 선택·비활성화하고 입력 조건을 표시합니다.")
     ApiResponse<CertificatePairingWebResponse> pc(UUID id, String capability);
 
     @Operation(summary = "PC 연결 취소")
@@ -31,7 +31,7 @@ public interface CertificatePairingDocs {
     @Operation(summary = "모바일 연결 취소", description = "JWT 소유자만 호출합니다. 화면 종료 시 호출하며 반복 취소는 멱등입니다. 승인 완료/결과 불명 상태는 기존 취소 보호 규칙을 따릅니다.")
     ApiResponse<Void> cancelMobile(UUID id);
 
-    @Operation(summary = "모바일 QR 연결", description = "JWT 필수. 최초 로그인 사용자에 고정되며 최종 금융 연결 승인은 아닙니다.")
+    @Operation(summary = "모바일 QR 연결", description = "JWT 필수. qrToken과 모바일에서 선택한 organization(4자리)을 필수로 전송합니다. 최초 사용자와 은행에 고정됩니다. 같은 은행 재요청은 멱등이며 은행 변경은 409입니다. 최종 금융 연결 승인은 아닙니다.")
     ApiResponse<CertificatePairingWebResponse> claim(
             UUID id, ClaimCertificatePairingWebRequest request);
 
@@ -45,7 +45,7 @@ public interface CertificatePairingDocs {
 
     @Operation(
             summary = "연결된 PC에서 금융사 등록 시작",
-            description = "응답의 등록 id와 PC/upload capability로 업로드합니다. 미승인 FAILED 세션은 동일 휴대폰 연결에서 재시도할 수 있습니다. UNKNOWN/진행 중/승인된 세션은 재시도하지 않습니다.")
+            description = "모바일에서 선택한 organization과 일치해야 합니다. 미지정·불일치는 409입니다. 응답의 등록 id와 PC/upload capability로 업로드합니다. 미승인 FAILED 세션은 동일 휴대폰 연결에서 재시도할 수 있습니다. UNKNOWN/진행 중/승인된 세션은 재시도하지 않습니다.")
     ApiResponse<CertificateRegistrationWebResponse> registration(
             UUID id,
             String capability,

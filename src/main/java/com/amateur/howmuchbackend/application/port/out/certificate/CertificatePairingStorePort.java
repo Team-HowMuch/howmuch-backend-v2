@@ -16,7 +16,7 @@ public interface CertificatePairingStorePort {
 
     Optional<CertificatePairing> findBySession(UUID session);
 
-    void pair(UUID id, long user, LocalDateTime now);
+    void pair(UUID id, long user, String organization, LocalDateTime now);
 
     void link(UUID id, UUID session, String registrationPcHash);
 
