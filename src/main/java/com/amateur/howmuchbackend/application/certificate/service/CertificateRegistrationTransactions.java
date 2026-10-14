@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.certificate.service;
 import static com.amateur.howmuchbackend.domain.certificate.CertificateStatusCode.*;
 
 import com.amateur.howmuchbackend.application.certificate.model.CertificateEnvelope;
+import com.amateur.howmuchbackend.application.certificate.model.CertificatePairing;
 import com.amateur.howmuchbackend.application.certificate.policy.CertificateRegistrationPolicy;
 import com.amateur.howmuchbackend.application.port.out.certificate.*;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -76,9 +77,21 @@ public class CertificateRegistrationTransactions {
     @Transactional
     public void cancelPaired(UUID id, String pc) {
         var p =
-                pairings.find(id, false)
+                pairings.find(id, true)
                         .filter(v -> capabilities.matches(pc, v.pcHash()))
                         .orElseThrow(() -> ApplicationException.of(CERTIFICATE_NOT_FOUND));
+        cancelLinkedSession(p);
+    }
+
+    @Transactional
+    public void cancelPairedForUser(UUID id, long userId) {
+        var p = pairings.find(id, true)
+                .filter(v -> v.userId() != null && v.userId() == userId)
+                .orElseThrow(() -> ApplicationException.of(CERTIFICATE_NOT_FOUND));
+        cancelLinkedSession(p);
+    }
+
+    private void cancelLinkedSession(CertificatePairing p) {
         if (p.sessionId() != null) {
             var s =
                     sessions.find(p.sessionId(), true)

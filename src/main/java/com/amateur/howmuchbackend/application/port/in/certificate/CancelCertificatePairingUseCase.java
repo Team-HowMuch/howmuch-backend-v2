@@ -6,4 +6,6 @@ import java.util.UUID;
 
 public interface CancelCertificatePairingUseCase {
     void cancelPairing(UUID id, String pc);
+
+    void cancelMobilePairing(UUID id);
 }

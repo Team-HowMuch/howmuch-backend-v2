@@ -49,6 +49,12 @@ public class CertificatePairingController implements CertificatePairingDocs {
         return ApiResponse.success();
     }
 
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> cancelMobile(@PathVariable UUID id) {
+        cancelPairing.cancelMobilePairing(id);
+        return ApiResponse.success();
+    }
+
     @PostMapping("/{id}/claim")
     public ApiResponse<CertificatePairingWebResponse> claim(
             @PathVariable UUID id, @Valid @RequestBody ClaimCertificatePairingWebRequest r) {
