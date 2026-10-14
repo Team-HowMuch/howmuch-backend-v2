@@ -1,6 +1,6 @@
 # Feature Plan: 정산 목록 받을 금액(receivableAmount) 추가
 
-- Status: In progress
+- Status: Completed
 - Last updated: 2026-10-14
 - Related issue: (생성 후 기입)
 - Related ADR: [Capability-oriented Output Ports](../../adr/0003-capability-oriented-output-ports.md)
@@ -229,22 +229,32 @@ git status --short --untracked-files=all
 ```
 
 - 서비스 단위 테스트: 보정 대상/비대상, 생성자 비참여, 생성자 미선택, 할인·배달비, 계산 실패 대체, PAY 탭 null
-- 영속 통합 테스트: share 합계 컬럼, 일괄 조회 쿼리 결과, 쿼리 수가 건수와 무관함
-- 대조 테스트: 같은 정산에서 목록 `receivableAmount`, 상세 `expectedAmount`, AI 비서 금액이 같다
+- 영속 통합 테스트: share 합계 컬럼, 일괄 조회 쿼리 결과, 삭제 정산 제외, 깨진 행 격리
 - OpenAPI 계약 테스트: `receivableAmount` nullable 노출
+- 계획했지만 하지 않은 것: 목록·상세·AI 비서 금액을 한 fixture로 직접 대조하는 통합 테스트와 쿼리 수 측정 테스트. 상세 조회가 수령 계좌 snapshot 복호화와 은행 목록 조회에 의존해 fixture 비용이 크다. 대신 세 곳이 같은 Policy 메서드와 같은 적용 조건(`usesRequestedReceivable`)을 쓰는지를 코드와 단위 테스트로 확인했다. 쿼리 수는 Adapter 코드상 여섯 번으로 고정이다
 
 ### Completion criteria
 
-- [ ] Verified the user outcome defined under Purpose.
-- [ ] Verified normal, failure, and boundary flows.
-- [ ] Confirmed documentation and Swagger match the actual contract.
-- [ ] Recorded verification that could not be performed and why.
+- [x] Verified the user outcome defined under Purpose.
+- [x] Verified normal, failure, and boundary flows.
+- [x] Confirmed documentation and Swagger match the actual contract.
+- [x] Recorded verification that could not be performed and why.
 
 ### Results
 
+로컬 Mac에서 `compose.test.yml`(Postgres, Redis)을 띄워 전체 테스트를 실행했다. 기준 커밋은 `df4bee8b`(develop `23c18cf9` 위)다.
+
 | Item | Result | Evidence |
 |---|---|---|
-|  | Pending |  |
+| 전체 테스트 | 245개 suite, 1,906건 중 1,901건 통과. 실패 5건은 Testcontainers가 colima Docker 소켓을 찾지 못한 초기화 실패(`DockerClientProviderStrategy`)였다 | `build/test-results/test/*.xml` |
+| Testcontainers 재실행 | `DOCKER_HOST`를 colima 소켓으로 지정해 `*Certificate*`, `*Kafka*`를 다시 실행했고 실패한 5개 suite(65건)를 포함해 모두 통과했다. 이 브랜치는 인증서·Kafka 코드를 바꾸지 않는다 | 같은 위치 |
+| 일괄 계산 | `RequestedItemReceivableCalculatorTest` 13건 통과(적용 조건 8, 생성자 몫, 할인·배달비, 생성자 비참여, 계산 실패 격리, 빈 입력) | 같은 위치 |
+| 목록 서비스 | `SettlementListServiceTest` 22건 통과(재계산, Share 합계, 재료 없음 대체, PAY null 포함) | 같은 위치 |
+| 목록 영속 | `SettlementListPersistenceIntegrationTest` 29건 통과(Share 합계 컬럼, 선택 대기 품목 정산 10,000원, 계산 재료 일괄 조회, 삭제 정산 제외, 깨진 행 격리 포함) | 같은 위치 |
+| AI 비서 | `TreasurerSettlementQueryTest` 7건(SUSPENDED 보정 포함), `AskTreasurerServiceTest` 61건, `TreasurerAnswerReportIntegrationTest` 13건 통과. #535 후속 커밋을 포함한 treasurer 테스트 결과다 | 같은 위치 |
+| 정산 상세 회귀 | `SettlementDetailServiceTest` 28건, `SettlementItemAllocationPolicyTest` 29건 통과 | 같은 위치 |
+| Web 계약 | `SettlementControllerTest` 38건, `SettlementOpenApiIntegrationTest` 2건 통과(`receivableAmount` required·nullable) | 같은 위치 |
+| 독립 리뷰 | P1 없음. P2 2건 중 깨진 행 격리는 수정하고 테스트를 추가했다. 직접 대조·쿼리 수 테스트는 위 사유로 넣지 않았다 | 리뷰 기록 |
 
 ## 9. Progress log
 
@@ -252,6 +262,7 @@ git status --short --untracked-files=all
 |---|---|---|---|
 | 2026-10-14 | 초안 작성. develop `1d0c9826` 기준 코드 대조 | D1~D3 결정, 이슈 생성 | AI 비서와 상세의 `SUSPENDED` 금액 불일치 |
 | 2026-10-14 | D1~D3 결정, develop `23c18cf9` 기준 구현 | Gradle 테스트, 이슈 생성 | 없음 |
+| 2026-10-14 | 전체 테스트 통과, 독립 리뷰 반영, 완료 계획서로 이동 | 이슈·PR, FE에 `receivableAmount` 전환 요청 | `AWAITING_DEPOSIT`에서 직접 중단된 품목 정산은 Share가 다 있어도 보정 공식을 써서 Share 합계보다 몇 원 클 수 있다(상세와 같은 값) |
 
 ## 10. Decision log
 
@@ -264,8 +275,8 @@ git status --short --untracked-files=all
 
 ## 11. Completion record
 
-- Completed on:
-- Final behavior:
-- Unverified items:
-- Remaining risks:
-- Follow-up work:
+- Completed on: 2026-10-14
+- Final behavior: RECEIVE 목록 항목에 `receivableAmount`가 내려온다. 품목 정산 `REQUESTED`/`SUSPENDED`는 영수증 총액 − 생성자 몫(할인·배달비 반영), 그 밖에는 생성자를 뺀 Share 합계이며 정산 상세 `expectedAmount`와 같은 기준이다. PAY는 null이다. AI 비서도 `SUSPENDED`를 보정하고 목록과 같은 일괄 계산을 쓴다. 계산 재료는 정산 수와 무관하게 여섯 번 조회한다
+- Unverified items: 목록·상세·AI 비서 금액의 단일 fixture 직접 대조, 쿼리 수 측정, 실제 앱 화면 표시
+- Remaining risks: 직접 중단된(입금 대기 → 중단) 품목 정산은 보정 공식이 Share 합계보다 몇 원 클 수 있다. 목록 조회와 계산 재료 조회가 서로 다른 트랜잭션이라 그 사이 상태가 바뀌면 한 응답 안에서 값이 어긋날 수 있다. `application.treasurer`가 `application.settlement` 컴포넌트를 쓰는 첫 사례다(D2에서 의도)
+- Follow-up work: FE의 받을 금액 표시를 `receivableAmount`로 전환, PAY 탭 내 몫 표시 규칙
