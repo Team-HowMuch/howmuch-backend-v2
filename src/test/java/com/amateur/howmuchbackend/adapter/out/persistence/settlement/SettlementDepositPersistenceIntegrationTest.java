@@ -2,13 +2,13 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@Transactional
 @TestPropertySource(properties = {
         "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused",
         "howmuch.codef.connected-id-encryption-key=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -65,33 +66,6 @@ class SettlementDepositPersistenceIntegrationTest {
                     linked_at, deleted_at
                 ) VALUES (?, ?, '0020', 'DEPOSIT_TRUST', '수금 계좌', '****6789', 'KRW', ?, NULL)
                 """, accountId, creatorId, NOW);
-    }
-
-    @AfterEach
-    void tearDown() {
-        if (settlementIds != null) {
-            settlementIds.forEach(settlementId ->
-                    jdbcTemplate.update("DELETE FROM settlement_deposits WHERE settlement_id = ?", settlementId));
-            jdbcTemplate.update(
-                    "DELETE FROM account_transactions WHERE account_id IN (?, ?)",
-                    sourceAccountId,
-                    reconnectedAccountId
-            );
-            settlementIds.forEach(settlementId ->
-                    jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", settlementId));
-        }
-        if (sourceAccountId != null) {
-            jdbcTemplate.update("DELETE FROM account_records WHERE id = ?", sourceAccountId);
-        }
-        if (reconnectedAccountId != null) {
-            jdbcTemplate.update("DELETE FROM account_records WHERE id = ?", reconnectedAccountId);
-        }
-        if (payerId != null) {
-            jdbcTemplate.update("DELETE FROM users WHERE id = ?", payerId);
-        }
-        if (creatorId != null) {
-            jdbcTemplate.update("DELETE FROM users WHERE id = ?", creatorId);
-        }
     }
 
     @Test

@@ -144,13 +144,44 @@ public final class SettlementUnpaidFixtures implements AutoCloseable {
 
     @Override
     public void close() {
-        settlementIds.forEach(id -> jdbc.update("DELETE FROM settlement_deposits WHERE settlement_id = ?", id));
-        transactionIds.forEach(id -> jdbc.update("DELETE FROM account_transactions WHERE id = ?", id));
-        settlementIds.forEach(id -> jdbc.update("DELETE FROM settlements WHERE id = ?", id));
-        accountIds.values().forEach(id -> jdbc.update("DELETE FROM account_records WHERE id = ?", id));
+        boolean immutableDeposits = SettlementDepositTestCleanup.immutableDepositsEnabled(jdbc);
+        if (!immutableDeposits) {
+            settlementIds.forEach(id -> SettlementDepositTestCleanup.deleteDepositsWhenMutable(jdbc, id));
+        }
+        transactionIds.forEach(id -> jdbc.update("""
+                DELETE FROM account_transactions tx
+                WHERE tx.id = ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM settlement_deposits deposit
+                      WHERE deposit.account_transaction_id = tx.id
+                  )
+                """, id));
+        settlementIds.forEach(id -> {
+            if (!immutableDeposits || !SettlementDepositTestCleanup.hasDepositForSettlement(jdbc, id)) {
+                jdbc.update("DELETE FROM settlements WHERE id = ?", id);
+            }
+        });
+        accountIds.values().forEach(id -> jdbc.update("""
+                DELETE FROM account_records account_record
+                WHERE account_record.id = ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM settlement_deposits deposit
+                      WHERE deposit.source_account_id = account_record.id
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM settlement_receiving_account_snapshots snapshot
+                      WHERE snapshot.source_account_id = account_record.id
+                  )
+                """, id));
         userIds.forEach(id -> {
             jdbc.update("DELETE FROM auth_audit_logs WHERE user_id = ?", id);
-            jdbc.update("DELETE FROM users WHERE id = ?", id);
+            jdbc.update("""
+                    DELETE FROM users user_record
+                    WHERE user_record.id = ?
+                      AND NOT EXISTS (SELECT 1 FROM account_records WHERE user_id = user_record.id)
+                      AND NOT EXISTS (SELECT 1 FROM settlements WHERE creator_id = user_record.id)
+                      AND NOT EXISTS (SELECT 1 FROM settlement_participants WHERE linked_user_id = user_record.id)
+                    """, id);
         });
     }
 }

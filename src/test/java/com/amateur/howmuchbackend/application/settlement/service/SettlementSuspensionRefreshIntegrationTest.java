@@ -18,6 +18,7 @@ import com.amateur.howmuchbackend.application.port.out.external.ExternalConnecti
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.support.SettlementDepositTestCleanup;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -109,9 +110,11 @@ class SettlementSuspensionRefreshIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        if (SettlementDepositTestCleanup.preserveSettlement(jdbcTemplate, settlementId)) {
+            return;
+        }
         if (settlementId != null) {
-            jdbcTemplate.update(
-                    "DELETE FROM settlement_deposits WHERE settlement_id = ?", settlementId);
+            SettlementDepositTestCleanup.deleteDepositsWhenMutable(jdbcTemplate, settlementId);
             jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", settlementId);
         }
         if (accountId != null) {
