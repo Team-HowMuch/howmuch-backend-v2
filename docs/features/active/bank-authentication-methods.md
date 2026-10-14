@@ -1,8 +1,8 @@
 # Feature Plan: 은행별 인증 방식 설정
 
-- Status: In progress — 데이터 migration과 API/Application 변경을 같은 브랜치에서 준비 중이다.
+- Status: 구현·로컬 검증 완료 — PR 검토 및 배포 대기
 - Last updated: 2026-10-14
-- Related issue: 미등록
+- Related issue: [#542](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/542)
 - Related ADR: N/A
 
 ## 1. Purpose
@@ -17,11 +17,11 @@
 
 ### Success criteria
 
-- [ ] `BANK.attr3`에 `1` 공동인증서만, `2` 공동인증서와 ID/PW, `3` 공동인증서와 ID/PW 및 계좌 자격정보를 저장한다.
-- [ ] 공개 은행 카탈로그는 활성 은행의 수준 1·2·3을 반환하고, 인증서 등록 앱은 수준 3에서 계좌 입력란을 표시한다.
-- [ ] 기존 ID/PW 연결 가능 은행과 계좌 자격정보 요구 동작이 데이터 전환 뒤에도 유지된다.
-- [ ] 은행 목록 API가 인증 방식 수준을 제공하며 기존 클라이언트 호환성을 보존한다.
-- [ ] 계좌 등록 검증이 하드코딩된 은행 목록 대신 `BANK.attr3`를 따른다.
+- [x] `BANK.attr3`에 `1` 공동인증서만, `2` 공동인증서와 ID/PW, `3` 공동인증서와 ID/PW 및 계좌 자격정보를 저장한다.
+- [x] 공개 은행 카탈로그는 활성 은행의 수준 1·2·3을 반환하고, 인증서 등록 앱은 수준 3에서 계좌 입력란을 표시한다.
+- [x] 기존 ID/PW 연결 가능 은행과 계좌 자격정보 요구 동작이 데이터 전환 뒤에도 유지된다.
+- [x] 은행 목록 API가 인증 방식 수준을 제공하며 기존 클라이언트 호환성을 보존한다.
+- [x] 계좌 등록 검증이 하드코딩된 은행 목록 대신 `BANK.attr3`를 따른다.
 
 ### Out of scope
 
@@ -149,7 +149,7 @@ Authentication: 기존 계약 유지
 
 | Area | Impact | Verified file or contract |
 |---|---|---|
-| API | 공통 공개 은행 카탈로그에 인증 수준 제공, 인증서 전용 기관 목록 제거 | `BankCatalogController`, `BankCatalogWebResponse` |
+| API | 공통 공개 은행 카탈로그에 인증 수준 제공, 인증서 전용 기관 목록 제거 | `BankCatalogController`, `BankCatalogV3WebResponse`, 레거시 `BankCatalogWebResponse` |
 | Application | Boolean 사용을 인증 수준으로 대체하고 인증서 등록 필수값 검증에도 적용 | `BankCatalog`, `CertificateRegistrationService`, `CertificateWorkerService` |
 | Domain | 영향 없음 | Existing account domain |
 | Persistence | BANK attr3 의미·값 전환 | V53 migration |
@@ -167,15 +167,15 @@ Existing behavior that must remain unchanged:
 ## 7. Implementation plan
 
 - [x] Migration-only pull request to `develop` (`Required`)
-- [ ] UseCase and Application Command/Result — 기존 UseCase 재사용, Result만 확장
-- [ ] Required Output Ports — N/A
-- [ ] Domain models and rules — N/A
-- [ ] Application Policies — N/A
-- [ ] Application Service — `BankCatalog` 수정
-- [ ] Output Adapters — 기존 Common Code Adapter 재사용
-- [ ] Web Request/Response DTOs, Controllers, and Swagger — 두 기관 목록 응답 확장
-- [ ] Infra configuration and Bean wiring — N/A
-- [ ] Documentation and verification results
+- [x] UseCase and Application Command/Result — 기존 UseCase 재사용, Result만 확장
+- [x] Required Output Ports — N/A
+- [x] Domain models and rules — N/A
+- [x] Application Policies — N/A
+- [x] Application Service — `BankCatalog` 수정
+- [x] Output Adapters — 기존 Common Code Adapter 재사용
+- [x] Web Request/Response DTOs, Controllers, and Swagger — 두 기관 목록 응답 확장
+- [x] Infra configuration and Bean wiring — N/A
+- [x] Documentation and verification results
 
 ### Expected commit boundaries
 
@@ -183,3 +183,11 @@ Existing behavior that must remain unchanged:
 chore(account): 은행 인증 방식 설정 데이터 추가   # migration-only PR
 feat(account): 은행 인증 수준 기반 연결 지원       # 후속 구현 PR
 ```
+
+## 8. 로컬 검증 및 게시 범위
+
+- 최신 `origin/develop` 위로 rebase 후 `./gradlew compileJava test --tests '*CertificateHttpIntegrationTest' --tests '*BankCatalogTest' --tests '*CertificateInstitutionCatalogAdapterTest' --no-daemon` 통과.
+- 공개 v3 수준 1·2·3, v2 Boolean 응답 유지, 우리은행·대구은행 추가 입력과 승인까지 HTTP 통합 테스트로 검증했다.
+- `git diff --check` 통과. 실제 CODEF/운영 환경 인증과 배포는 수행하지 않았다.
+- SQL-only #537은 사용자 요청으로 닫혔으며 해당 V53 커밋을 이번 기능 PR에 포함한다. Java 및 migration을 함께 배포한다.
+- 문서 검증 결과는 `docs(account): 은행 인증 수준 구현 검증 결과 기록` 커밋으로 분리한다.
