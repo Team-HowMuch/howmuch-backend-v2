@@ -20,8 +20,8 @@ public class TreasurerCardCopy {
     public static final String GREETING = "안녕하세요. 어떤 정산이 궁금하세요?";
     public static final String LIST_FOOTER = "누르면 해당되는 정산 상세로 이동해요!";
     public static final String OCR_ANSWER = """
-            OCR로 영수증을 읽어 정산을 만드는 기능은 아직 준비 중이에요.
-            지금은 정산 만들기에서 금액을 직접 입력해 주세요.""";
+            영수증으로 정산을 만들 수 있어요.
+            정산 만들기의 금액 입력 화면에서 [영수증 인식]을 누르고 영수증을 찍거나 앨범에서 골라 주세요.""";
     public static final String UNKNOWN_ANSWER = """
             이렇게 물어볼 수 있어요.
             - 이번 달 내가 보낼 정산은 얼마야?
