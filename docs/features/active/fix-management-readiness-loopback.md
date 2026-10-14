@@ -168,6 +168,7 @@ Existing behavior that must remain unchanged:
 
 ```text
 fix(security): readiness loopback 헬스체크 허용
+docs(security): readiness 수정 검증 및 CI 상태 기록
 ```
 
 ## 8. Verification
@@ -195,14 +196,14 @@ The observability integration test requires the disposable PostgreSQL and Redis 
 |---|---|---|
 | Compile | Passed | `./gradlew compileJava --no-daemon` |
 | Integration test | Passed | `scripts/test.sh test --tests 'com.amateur.howmuchbackend.infra.observability.ObservabilityHttpIntegrationTest'` with disposable PostgreSQL/Redis; Node tests 35/35 passed |
-| CI | Pending | GitHub Actions PR checks |
-| PR | Pending | GitHub pull request |
+| CI | 로컬 전체 검증 통과; GitHub-hosted check는 실행 전에 차단됨 | `scripts/test.sh` 통과, Python 배포 테스트 8/8 통과. GitHub check annotation은 최근 계정 결제 실패 또는 spending limit 초과를 안내함 |
+| PR | Open | [PR #524](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/524) |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
-| 2026-10-14 | 최신 `origin/develop`에서 격리 브랜치를 만들고 보안 규칙, 회귀 테스트, 배포/관측성 문서를 수정함. 컴파일과 관련 통합 테스트 통과 | 변경 커밋, PR CI 확인 | 실제 EC2 환경 변수는 이 작업에서 변경하지 않음 |
+| 2026-10-14 | 최신 `origin/develop`에서 격리 브랜치를 만들고 보안 규칙, 회귀 테스트, 배포/관측성 문서를 수정함. 전체 로컬 테스트와 배포 스크립트 테스트를 통과하고 PR #524를 생성함 | GitHub 계정 billing/spending limit이 해결되면 hosted CI 재실행 | 실제 EC2 환경 변수는 이 작업에서 변경하지 않음; GitHub-hosted CI는 계정 상태로 job 시작 전에 차단됨 |
 
 ## 10. Decision log
 
@@ -212,8 +213,8 @@ The observability integration test requires the disposable PostgreSQL and Redis 
 
 ## 11. Completion record
 
-- Completed on: Pending
-- Final behavior: Pending
-- Unverified items: Pending
-- Remaining risks: Pending
+- Completed on: PR review pending
+- Final behavior: loopback access is allowed only on the management listener; non-loopback requests remain constrained by `MANAGEMENT_ALLOWED_CIDR`.
+- Unverified items: GitHub-hosted CI and deployment to EC2.
+- Remaining risks: GitHub Actions will not start jobs until the repository account billing/spending limit is resolved.
 - Follow-up work: Pending
