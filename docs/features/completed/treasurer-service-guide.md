@@ -1,6 +1,6 @@
 # Feature Plan: AI 비서 서비스 안내
 
-- Status: Implemented (검증 결과 기록 대기)
+- Status: Completed
 - Last updated: 2026-10-14
 - Related issue: (생성 예정)
 - Related ADR: 없음
@@ -181,26 +181,30 @@ docker compose -f compose.test.yml down -v
 
 ### Completion criteria
 
-- [ ] Purpose의 사용자 결과를 검증했다.
-- [ ] 정상·실패·경계 흐름을 검증했다.
-- [ ] 문서와 실제 코드가 일치한다. 같은 주장을 하는 다른 줄이 남아 있지 않은지 확인했다.
-- [ ] 수행하지 못한 검증과 사유를 기록했다.
+- [x] Purpose의 사용자 결과를 검증했다.
+- [x] 정상·실패·경계 흐름을 검증했다.
+- [x] 문서와 실제 코드가 일치한다. 같은 주장을 하는 다른 줄이 남아 있지 않은지 확인했다.
+- [x] 수행하지 못한 검증과 사유를 기록했다.
 
 ### Results
 
-작성 시점에 Gradle 테스트를 실행하지 못했다(작업 환경에서 Maven 저장소 접근 불가). 실행 후 아래 표를 채운다.
+로컬 Mac에서 `compose.test.yml`(Postgres, Redis)을 띄워 위 명령을 실행했고 `BUILD SUCCESSFUL`이었다. 22개 suite, 230건이 실패·오류·건너뜀 없이 통과했다. 기준 커밋은 `c06a048d`(develop `a662f1e2` 위)다.
 
 | Item | Result | Evidence |
 |---|---|---|
-| treasurer·inquiry 테스트 | (실행 대기) | `scripts/test.sh` |
-| 순수 Policy·문서 로직 | `TreasurerKnowledge`, `TreasurerGuideCheck`, `InquiryHowToPolicy`, `InquiryScopePolicy`, `InquiryParser`와 실제 문서를 `javac 21`로 컴파일해 100개 단언 통과(테스트 클래스와 같은 입력) | 임시 실행 코드(저장소에 남기지 않음) |
-| 실제 LLM 정답 세트 | (실행 대기) | 키가 있는 환경에서 수동 평가 |
+| 질문 흐름 | `AskTreasurerServiceTest` 58건 통과. 신규 10건: 관련 미분류 → 안내, 안내 답변 LLM 저장, 무관 질문 LLM 미호출, 사용법 말투 → 안내, 안내가 DATA → 정산 조회, 흔한 데이터 말투 LLM 미호출, 안내 미사용 시 정산 조회, 미기재 근거 → 되묻기, UNRELATED → 예시, 영수증 질문 안내 | `build/test-results/test/*.xml` |
+| 답변 검사 | `TreasurerGuideCheckTest` 14건 통과(근거 ID, 미기재 숫자·부분 숫자·다른 표기 금액, 길이, 마크다운·코드 울타리, 후속 질문, 거절 이유) | 같은 위치 |
+| 말투·관련성 | `InquiryHowToPolicyTest` 21건, `InquiryScopePolicyTest` 34건, 기존 `InquiryParserTest` 29건 통과 | 같은 위치 |
+| 문서·어댑터 | `TreasurerKnowledgeTest` 3건, 배포 문서 2건, `TreasurerGuideLlmAdapterTest` 7건 통과 | 같은 위치 |
+| 스프링 구성 | `AI 비서 답변 신고 영속 통합` 13건, `AI 비서 Web API 계약` 14건 통과. 새 빈과 배포 문서로 컨텍스트가 뜬다 | 같은 위치 |
+| 실제 LLM 응답 | 실행하지 않음. 이 환경에 LLM 키가 없다 | 배포 후 확인 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-10-14 | 명세서 v4 열람·코드 대조, 문서 작성, 구현, 독립 리뷰 반영 | Gradle 테스트, 실제 LLM 평가, 이슈 생성 | 앱이 GUIDE 답변의 칩을 그리지 않을 수 있음 |
+| 2026-10-14 | Gradle 테스트 230건 통과, 완료 계획서로 이동 | 이슈·PR, 배포 후 실제 LLM 확인 | 없음 |
 
 ## 10. Decision log
 
@@ -214,8 +218,8 @@ docker compose -f compose.test.yml down -v
 
 ## 11. Completion record
 
-- Completed on: (검증 후 기록)
-- Final behavior: (검증 후 기록)
-- Unverified items: Gradle 테스트, 실제 LLM 응답 품질, 앱의 칩 표시
+- Completed on: 2026-10-14
+- Final behavior: 관련 미분류 질문, 영수증 안내, 사용법 말투 질문은 서비스 안내 문서 전체를 근거로 LLM이 답하고, 근거 ID와 숫자를 통과한 답만 `intent=GUIDE`로 후속 질문 칩과 함께 나간다. 실패하면 기존 고정 안내나 정산 조회로 돌아간다. 무관 질문과 흔한 데이터 질문은 안내 LLM을 부르지 않는다
+- Unverified items: 실제 LLM 응답 품질과 지연, 앱의 GUIDE 답변 칩 표시
 - Remaining risks: LLM이 근거 ID를 맞게 달고도 문서와 다른 내용을 말하는 경우는 숫자 외에는 막지 못한다. 안내 경로 질문마다 LLM 비용이 든다
-- Follow-up work: 실제 LLM 정답 세트 평가 자동화, 답변 바로가기 액션(앱 계약 합의 후)
+- Follow-up work: 실제 LLM 정답 세트 평가, 답변 바로가기 액션(앱 계약 합의 후), 기능 출시 때 안내 문서 갱신
