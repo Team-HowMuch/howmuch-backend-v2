@@ -101,8 +101,11 @@ class JwtTokenProviderTest {
     }
 
     private String issue(JwtTokenType type) {
-        return type == JwtTokenType.ACCESS
-                ? provider.createAccessToken(user, "session") : provider.createRefreshToken(user, "session");
+        return switch (type) {
+            case ACCESS -> provider.createAccessToken(user, "session");
+            case REFRESH -> provider.createRefreshToken(user, "session");
+            case WIDGET -> provider.createWidgetToken(user.id(), "session", LocalDateTime.now(ZoneOffset.UTC).plusDays(1));
+        };
     }
 
     private Claims claims(String value) {
