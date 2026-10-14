@@ -10,6 +10,7 @@ import org.apache.kafka.clients.admin.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -210,19 +211,46 @@ class CertificateHttpIntegrationTest {
     }
 
     @Test
+    void legacyBankCatalogKeepsBooleanResponseContract() throws Exception {
+        loginFixture();
+        var response = request("GET", "/api/v2/accounts/banks", null, null, null);
+        assertThat(response.statusCode()).isEqualTo(200);
+        var banks = json.readTree(response.body()).path("data");
+        assertThat(banks.size()).isPositive();
+        for (var bank : banks) {
+            assertThat(bank.path("requiresAccountCredentials").isBoolean()).isTrue();
+            assertThat(bank.has("authenticationLevel")).isFalse();
+        }
+    }
+
+    @Test
     void pcHttpFlowWaitsForMobileApprovalBeforeProviderCall() throws Exception {
         when(provider.register(anyString(), any(), anyBoolean()))
                 .thenReturn(CertificateProviderResult.connected("connected-http-fixture"));
         String base = "/api/v2/certificate-registrations";
-        var catalog = request("GET", base + "/institutions", null, null, null);
+        var catalog = request("GET", "/api/v3/banks", null, null, null);
         assertThat(catalog.statusCode()).isEqualTo(200);
         var institutions = json.readTree(catalog.body()).path("data");
         assertThat(institutions.size()).isPositive();
+        var levels = new HashSet<Integer>();
         for (var institution : institutions) {
-            assertThat(institution.path("supported").asBoolean()).isTrue();
-            assertThat(institution.path("registrationAccountRequired").asBoolean())
-                    .isEqualTo(institution.path("organization").asText().equals("0020"));
+            levels.add(institution.path("authenticationLevel").asInt());
+            assertThat(institution.has("requiresAccountCredentials")).isFalse();
+            if (institution.path("organization").asText().equals("0020")
+                    || institution.path("organization").asText().equals("0031")) {
+                assertThat(institution.path("authenticationLevel").asInt()).isEqualTo(3);
+            }
         }
+        assertThat(levels).containsExactlyInAnyOrder(1, 2, 3);
+        assertThat(
+                        request(
+                                        "GET",
+                                        "/api/v2/certificate-registrations/institutions",
+                                        null,
+                                        null,
+                                        null)
+                                .statusCode())
+                .isEqualTo(400);
         assertThat(request("POST", base, "{\"organization\":\"9999\"}", null, null).statusCode())
                 .isEqualTo(400);
         var created = request("POST", base, "{\"organization\":\"0020\"}", null, null);
@@ -333,24 +361,22 @@ class CertificateHttpIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"0020,true", "0031,false"})
-    void authenticatedYesStoresConnectionAndBothClientsObserveBound(
-            String organization, boolean registrationAccountRequired) throws Exception {
+    @ValueSource(strings = {"0020", "0031"})
+    void authenticatedYesStoresConnectionAndBothClientsObserveBound(String organization)
+            throws Exception {
         when(provider.register(anyString(), any(), anyBoolean()))
                 .thenReturn(CertificateProviderResult.connected("connected-http-approved"));
         String base = "/api/v2/certificate-registrations";
         var catalog =
-                json.readTree(request("GET", base + "/institutions", null, null, null).body())
+                json.readTree(request("GET", "/api/v3/banks", null, null, null).body())
                         .path("data");
         var institution =
                 java.util.stream.StreamSupport.stream(catalog.spliterator(), false)
                         .filter(i -> i.path("organization").asText().equals(organization))
                         .findFirst()
                         .orElseThrow();
-        assertThat(institution.path("registrationAccountRequired").asBoolean())
-                .isEqualTo(registrationAccountRequired);
-        assertThat(institution.path("accountListAccountRequired").asBoolean())
-                .isEqualTo(organization.equals("0031"));
+        assertThat(institution.path("authenticationLevel").asInt()).isEqualTo(3);
+        assertThat(institution.has("requiresAccountCredentials")).isFalse();
         var created =
                 json.readTree(
                                 request(
@@ -458,8 +484,7 @@ class CertificateHttpIntegrationTest {
                         request("POST", mobilePath + "/decision", "{\"approved\":true}", null, null)
                                 .statusCode())
                 .isEqualTo(404);
-        verify(provider, times(1))
-                .register(eq(organization), any(), eq(registrationAccountRequired));
+        verify(provider, times(1)).register(eq(organization), any(), eq(true));
     }
 
     @Test

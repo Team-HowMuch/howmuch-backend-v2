@@ -25,17 +25,8 @@ public class CertificateRegistrationController implements CertificateRegistratio
     private final SubmitCertificateUploadUseCase submit;
     private final GetCertificateRegistrationUseCase get;
     private final CancelCertificateRegistrationUseCase cancel;
-    private final GetCertificateInstitutionsUseCase catalog;
     private final IssueCertificateQrUseCase qr;
     private final InspectCertificateClaimUseCase claims;
-
-    @GetMapping("/institutions")
-    public ApiResponse<List<CertificateInstitutionWebResponse>> institutions() {
-        return ApiResponse.success(
-                catalog.institutions().stream()
-                        .map(CertificateInstitutionWebResponse::from)
-                        .toList());
-    }
 
     @PostMapping
     public ApiResponse<CertificateRegistrationWebResponse> create(

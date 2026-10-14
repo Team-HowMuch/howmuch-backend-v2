@@ -13,9 +13,6 @@ import java.util.*;
 
 @Tag(name = "공동인증서 PC 등록")
 public interface CertificateRegistrationDocs {
-    @Operation(summary = "공동인증서 등록 금융사 조회")
-    ApiResponse<List<CertificateInstitutionWebResponse>> institutions();
-
     @Operation(
             summary = "PC 등록 세션 생성",
             description = "PC 로그인 없이 생성합니다. 반환된 capability는 한 번만 제공하며 안전하게 보관해야 합니다.")

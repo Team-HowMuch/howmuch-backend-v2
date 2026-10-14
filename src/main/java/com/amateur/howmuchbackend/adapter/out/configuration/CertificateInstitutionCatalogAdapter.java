@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.adapter.out.configuration;
 
+import com.amateur.howmuchbackend.application.account.catalog.BankAuthenticationLevel;
 import com.amateur.howmuchbackend.application.port.in.certificate.result.CertificateInstitutionResult;
 import com.amateur.howmuchbackend.application.port.out.certificate.CertificateInstitutionCatalogPort;
 import com.amateur.howmuchbackend.application.port.out.commoncode.LoadCommonCodePort;
@@ -37,7 +38,8 @@ public class CertificateInstitutionCatalogAdapter implements CertificateInstitut
                                     rule != null && rule.registrationAccountRequired(),
                                     rule != null && rule.accountListAccountRequired(),
                                     rule != null && rule.birthDateRequired(),
-                                    rule == null ? null : rule.reference());
+                                    rule == null ? null : rule.reference(),
+                                    BankAuthenticationLevel.fromAttribute(bank.attr3()).value());
                         })
                 .toList();
     }

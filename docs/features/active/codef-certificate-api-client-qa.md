@@ -11,7 +11,7 @@ Windows 앱의 main process가 사용자가 직접 선택한 DER/KEY 파일을 �
 
 API 내부 provider는 Kafka 명령을 Inbox/job에 기록하고 별도 worker에서 CODEF를 호출한다. 외부 호출 동안 DB transaction을 유지하지 않는다. 확인된 결과와 암호화된 연결 자료, result Outbox, 원문 upload 제거를 함께 반영한다. result consumer가 세션을 `READY_FOR_CLAIM`으로 전환하면 PC가 60초 QR을 발급한다. 로그인한 활성 회원은 QR을 배타적·멱등하게 예약하고 PC와 같은 확인 코드를 받는다. PC 상태 조회·예약 거절·취소 및 미승인 세션 만료 정리를 제공한다.
 
-기관 catalog는 활성 `BANK` 전체를 기본 지원하며 별도 reviewed allowlist를 요구하지 않는다. 등록 시 필요한 계좌 정보와 나중에 계좌 조회에 필요한 정보는 기관별 설정으로 구분한다. 조회에만 필요한 정보는 암호화해 유지하며 CODEF 등록 요청에는 보내지 않는다. `BANK.attr3`를 인증서 로그인 요구사항으로 복사하지 않는다. 실제 은행별 추가 입력 조건과 금융 인증 성공은 합성 테스트로 확인한 범위가 아니다.
+기관 catalog는 활성 `BANK` 전체를 공동인증서 방식에서 기본 지원하며 별도 reviewed allowlist를 요구하지 않는다. 응답의 `BANK.attr3` 인증 수준은 ID/PW 제공 여부를 포함해 표시하되, 등록 시 필요한 계좌 정보와 나중에 계좌 조회에 필요한 정보는 기관별 설정으로 계속 구분한다. 조회에만 필요한 정보는 암호화해 유지하며 CODEF 등록 요청에는 보내지 않는다. 실제 은행별 추가 입력 조건과 금융 인증 성공은 합성 테스트로 확인한 범위가 아니다.
 
 2026-10-11 기본 지원 정책 변경 검증: `CertificateInstitutionCatalogAdapterTest` 2개와 `CertificateHttpIntegrationTest` 1개 및 `compileJava` 통과. 로컬 API 재시작 후 catalog 20개 전부 지원, 실제 Electron 개발 앱의 금융사 선택 20개와 오류 메시지 없음 확인. 이전 catalog 지원 0개 관찰 결과는 [Feature Plan §18](codef-certificate-registration.md#18-인증서-금융사-기본-지원--2026-10-11)에서 변경했다. 실제 고객 인증자료는 사용하지 않았다.
 

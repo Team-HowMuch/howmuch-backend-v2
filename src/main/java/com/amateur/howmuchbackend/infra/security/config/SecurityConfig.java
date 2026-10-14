@@ -71,6 +71,8 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers("/api/v2/settlement-links/**")
                                         .permitAll()
+                                        .requestMatchers(HttpMethod.GET, "/api/v3/banks")
+                                        .permitAll()
                                         .requestMatchers(
                                                 org.springframework.http.HttpMethod.POST,
                                                 "/api/v2/certificate-pairings",

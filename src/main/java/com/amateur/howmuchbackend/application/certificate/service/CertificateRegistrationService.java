@@ -26,8 +26,7 @@ public class CertificateRegistrationService
         implements CreateCertificateRegistrationUseCase,
                 SubmitCertificateUploadUseCase,
                 GetCertificateRegistrationUseCase,
-                CancelCertificateRegistrationUseCase,
-                GetCertificateInstitutionsUseCase {
+                CancelCertificateRegistrationUseCase {
     private final CertificateRegistrationTransactions transactions;
     private final CertificateSecretProtectionPort protection;
     private final CertificateCapabilityPort capabilities;
@@ -36,10 +35,6 @@ public class CertificateRegistrationService
     private final CertificateUploadStorePort uploads;
     private final CertificateRegistrationPolicy policy;
     private final Clock clock;
-
-    public List<CertificateInstitutionResult> institutions() {
-        return catalog.institutions();
-    }
 
     public CertificateRegistrationResult create(CreateCertificateRegistrationCommand c) {
         if (!limits.acquire(capabilities.hash(c.remoteAddress())))
@@ -68,8 +63,11 @@ public class CertificateRegistrationService
         var now = LocalDateTime.now(clock);
         policy.active(s, now);
         var rule = institution(s.organization());
-        if ((rule.registrationAccountRequired() || rule.accountListAccountRequired())
-                        && (c.accountNumber() == null || c.accountNumber().isBlank())
+        if (rule.requiresAccountCredentials()
+                        && (c.accountNumber() == null
+                                || c.accountNumber().isBlank()
+                                || c.accountPassword() == null
+                                || c.accountPassword().isBlank())
                 || rule.birthDateRequired() && (c.birthDate() == null || c.birthDate().isBlank()))
             throw ApplicationException.of(CERTIFICATE_INPUT_INVALID);
         if (c.uploadCapability() == null
