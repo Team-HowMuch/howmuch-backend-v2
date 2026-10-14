@@ -22,15 +22,16 @@ class BusinessNotificationServiceTest {
     private final LoadUserPort users = mock(LoadUserPort.class);
     private final BusinessNotificationService service = new BusinessNotificationService(recorder, participants, members, groups, users);
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 7, 0, 0);
-    @Test void paymentCompleted_notifiesCreatorWithStableShareKey() {
+    @Test void depositConfirmed_notifiesCreatorWithRemainingAmount() {
         active(1L);
         var settlement = settlement(); var share = UUID.randomUUID();
-        service.settlementPaymentCompleted(settlement, share, "납부자", NOW);
+        service.settlementDepositConfirmed(settlement, share, "납부자", 500, NOW);
         var captor = ArgumentCaptor.forClass(UserNotification.class); verify(recorder).record(captor.capture());
         var n = captor.getValue();
         assertThat(n.recipientUserId()).isEqualTo(1L);
-        assertThat(n.type()).isEqualTo(NotificationType.SETTLEMENT_PAYMENT_COMPLETED);
-        assertThat(n.deduplicationKey()).isEqualTo("SHARE_PAID:" + share);
+        assertThat(n.message()).contains("납부자", "500원");
+        assertThat(n.type()).isEqualTo(NotificationType.SETTLEMENT_DEPOSIT_CONFIRMED);
+        assertThat(n.deduplicationKey()).isEqualTo("DEPOSIT_CONFIRMED:" + share);
         assertThat(n.target()).isEqualTo(new NotificationTarget(NotificationTargetType.SETTLEMENT_DETAIL, settlement.id().toString()));
     }
     @Test void completed_notifiesDistinctLinkedActiveParticipantsOnly() {
@@ -38,10 +39,12 @@ class BusinessNotificationServiceTest {
         var one = mock(SettlementParticipant.class); var two = mock(SettlementParticipant.class); var nonmember = mock(SettlementParticipant.class);
         when(one.linkedUserId()).thenReturn(1L); when(two.linkedUserId()).thenReturn(2L);
         when(participants.findAllBySettlementId(settlement.id())).thenReturn(List.of(one, two, one, nonmember));
-        service.settlementCompleted(settlement, NOW);
+        service.settlementCompleted(settlement, List.of("납부자"), NOW);
         var captor = ArgumentCaptor.forClass(UserNotification.class); verify(recorder, times(2)).record(captor.capture());
         assertThat(captor.getAllValues()).extracting(UserNotification::recipientUserId).containsExactly(1L, 2L);
         assertThat(captor.getAllValues()).allMatch(n -> n.type() == NotificationType.SETTLEMENT_COMPLETED);
+        assertThat(captor.getAllValues().getFirst().title()).isEqualTo("모두 받았어요");
+        assertThat(captor.getAllValues().getFirst().message()).contains("납부자", "0원");
     }
     @Test void departedMember_excludedFromRecipients() {
         active(1L); active(2L); var departed = active(3L); when(departed.name()).thenReturn("탈퇴자");

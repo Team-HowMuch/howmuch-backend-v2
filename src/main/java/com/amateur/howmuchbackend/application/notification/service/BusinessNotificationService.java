@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.Objects;
+import java.util.List;
+import java.util.stream.Stream;
 import java.util.UUID;
 
 @Service
@@ -27,21 +29,30 @@ public class BusinessNotificationService {
     private final LoadGroupPort groups;
     private final LoadUserPort users;
 
-    public void settlementPaymentCompleted(Settlement settlement, UUID shareId, String payerName,
-                                           LocalDateTime now) {
-        record(settlement.creatorId(), settlement.id(), NotificationType.SETTLEMENT_PAYMENT_COMPLETED,
-                settlement.allocationType(), payerName, "송금이 확인되었어요",
-                payerName + "님의 " + settlement.title() + " 송금이 확인되었어요.",
-                "SHARE_PAID:" + shareId, NotificationTargetType.SETTLEMENT_DETAIL,
+    public void settlementDepositConfirmed(Settlement settlement, UUID depositId, String payerName,
+                                            long remainingAmount, LocalDateTime now) {
+        record(settlement.creatorId(), settlement.id(), NotificationType.SETTLEMENT_DEPOSIT_CONFIRMED,
+                settlement.allocationType(), payerName, "입금이 확인되었어요",
+                settlement.title() + "에 " + payerName + "님이 입금했어요. 남은 금액은 " + remainingAmount + "원이에요.",
+                "DEPOSIT_CONFIRMED:" + depositId, NotificationTargetType.SETTLEMENT_DETAIL,
                 settlement.id().toString(), now);
     }
 
-    public void settlementCompleted(Settlement settlement, LocalDateTime now) {
-        participants.findAllBySettlementId(settlement.id()).stream()
-                .map(SettlementParticipant::linkedUserId).filter(Objects::nonNull).distinct()
+    public void settlementCompleted(Settlement settlement, List<String> payerNames, LocalDateTime now) {
+        String payers = String.join(", ", payerNames.stream().distinct().limit(3).toList());
+        long additional = payerNames.stream().distinct().count() - 3;
+        if (additional > 0) payers += " 외 " + additional + "명";
+        String creatorMessage = settlement.title() + "의 돈을 모두 받았어요. "
+                + (payers.isBlank() ? "" : payers + "님의 입금을 확인했어요. ") + "남은 금액은 0원이에요.";
+        Stream.concat(Stream.of(settlement.creatorId()),
+                participants.findAllBySettlementId(settlement.id()).stream()
+                        .map(SettlementParticipant::linkedUserId))
+                .filter(Objects::nonNull).distinct()
                 .forEach(recipient -> record(recipient, settlement.id(), NotificationType.SETTLEMENT_COMPLETED,
-                        settlement.allocationType(), "HowMuch", "정산이 완료되었어요",
-                        settlement.title() + "의 모든 송금이 확인되었어요.",
+                        settlement.allocationType(), "HowMuch",
+                        recipient.equals(settlement.creatorId()) ? "모두 받았어요" : "정산이 완료되었어요",
+                        recipient.equals(settlement.creatorId()) ? creatorMessage
+                                : settlement.title() + "의 모든 송금이 확인되었어요.",
                         "SETTLEMENT_COMPLETED:" + settlement.id(), NotificationTargetType.SETTLEMENT_DETAIL,
                         settlement.id().toString(), now));
     }

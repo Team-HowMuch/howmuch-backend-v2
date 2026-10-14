@@ -52,6 +52,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -152,8 +154,8 @@ class SettlementDepositServiceTest {
         assertThat(result.confirmedAmount()).isEqualTo(6_000);
         assertThat(result.participantCount()).isOne();
         assertThat(result.completedParticipantCount()).isOne();
-        verify(notifications).settlementPaymentCompleted(any(Settlement.class), eq(PAYER_SHARE_ID), any(String.class), any(LocalDateTime.class));
-        verify(notifications).settlementCompleted(any(Settlement.class), any(LocalDateTime.class));
+        verify(notifications, never()).settlementDepositConfirmed(any(), any(), anyString(), anyLong(), any());
+        verify(notifications).settlementCompleted(any(Settlement.class), anyList(), any(LocalDateTime.class));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<SettlementDeposit>> captor = ArgumentCaptor.forClass(List.class);

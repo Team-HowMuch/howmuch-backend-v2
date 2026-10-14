@@ -24,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -144,7 +143,6 @@ class SettlementDepositWriter {
         List<SettlementDeposit> existingDeposits =
                 depositStorePort.findAllBySettlementId(settlement.id());
         Map<UUID, Long> confirmedAmounts = confirmedAmounts(existingDeposits, transactionById);
-        Map<UUID, Long> previousAmounts = new HashMap<>(confirmedAmounts);
         Map<UUID, SettlementDepositReader.PayableShare> currentPayableByShareId =
                 data.payableShares().stream()
                         .collect(Collectors.toMap(
@@ -208,20 +206,22 @@ class SettlementDepositWriter {
                     });
         }
         depositStorePort.saveAll(newDeposits);
-        for (var payable : data.payableShares()) {
-            long expected = payable.share().amount();
-            UUID shareId = payable.share().id();
-            if (previousAmounts.getOrDefault(shareId, 0L) < expected
-                    && confirmedAmounts.getOrDefault(shareId, 0L) >= expected) {
-                notifications.settlementPaymentCompleted(settlement, shareId, payable.payerName(), now);
-            }
-        }
-
         Settlement result = settlement.status() == SettlementStatus.AWAITING_DEPOSIT
                 && allCompleted(data.payableShares(), confirmedAmounts)
                 ? saveSettlementPort.update(settlement.complete(now))
                 : settlement;
-        if (result.status() == SettlementStatus.COMPLETED) notifications.settlementCompleted(result, now);
+        Map<UUID, SettlementDeposit> newestDepositByShare = new java.util.LinkedHashMap<>();
+        newDeposits.forEach(deposit -> newestDepositByShare.put(deposit.shareId(), deposit));
+        if (result.status() == SettlementStatus.COMPLETED) {
+            var payerNames = newestDepositByShare.keySet().stream()
+                    .map(id -> currentPayableByShareId.get(id).payerName()).toList();
+            notifications.settlementCompleted(result, payerNames, now);
+        } else {
+            long remaining = Math.max(0L, reader.summarize(result, data.payableShares(), confirmedAmounts)
+                    .expectedAmount() - confirmedAmounts.values().stream().mapToLong(Long::longValue).sum());
+            newestDepositByShare.forEach((shareId, deposit) -> notifications.settlementDepositConfirmed(
+                    result, deposit.id(), currentPayableByShareId.get(shareId).payerName(), remaining, now));
+        }
         return reader.summarize(result, data.payableShares(), confirmedAmounts);
     }
 
