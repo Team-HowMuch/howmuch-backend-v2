@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.security.jwt;
 
 import com.amateur.howmuchbackend.application.port.out.auth.AuthTokenPort;
+import com.amateur.howmuchbackend.application.port.out.auth.WidgetTokenPort;
 import com.amateur.howmuchbackend.application.port.out.auth.jwt.JwtPayload;
 import com.amateur.howmuchbackend.application.port.out.auth.jwt.enums.JwtTokenType;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -20,7 +21,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Component
-public class JwtTokenProvider implements AuthTokenPort {
+public class JwtTokenProvider implements AuthTokenPort, WidgetTokenPort {
 
     private static final String TOKEN_TYPE_CLAIM = "tokenType";
     private static final String SESSION_ID_CLAIM = "sessionId";
@@ -41,6 +42,19 @@ public class JwtTokenProvider implements AuthTokenPort {
     @Override
     public String createRefreshToken(User user, String sessionId) {
         return createToken(user, sessionId, JwtTokenType.REFRESH, jwtProperties.refreshExpiration());
+    }
+
+    @Override
+    public String createWidgetToken(Long userId, String sessionId, LocalDateTime expiresAt) {
+        return Jwts.builder()
+                .id(UUID.randomUUID().toString())
+                .subject(String.valueOf(userId))
+                .claim(TOKEN_TYPE_CLAIM, JwtTokenType.WIDGET.name())
+                .claim(SESSION_ID_CLAIM, sessionId)
+                .issuedAt(toDate(LocalDateTime.now(ZoneOffset.UTC)))
+                .expiration(toDate(expiresAt))
+                .signWith(secretKey)
+                .compact();
     }
 
     @Override

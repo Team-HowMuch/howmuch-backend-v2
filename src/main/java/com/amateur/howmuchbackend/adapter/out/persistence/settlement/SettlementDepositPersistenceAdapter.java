@@ -95,10 +95,26 @@ public class SettlementDepositPersistenceAdapter implements
             String organization,
             String accountNumber
     ) {
+        return payableCandidates(targetSettlementId, creatorId, sourceAccountId, organization, accountNumber, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PayableDepositCandidate> findWidgetPayableCandidatesByReceivingAccount(
+            Long creatorId, Long sourceAccountId, String organization, String accountNumber
+    ) {
+        return payableCandidates(null, creatorId, sourceAccountId, organization, accountNumber, true);
+    }
+
+    private List<PayableDepositCandidate> payableCandidates(
+            UUID targetSettlementId, Long creatorId, Long sourceAccountId, String organization,
+            String accountNumber, boolean includeAllRequested
+    ) {
         return repository.findUnfinishedPayableCandidatesByCreatorIdAndOrganizationAndTargetSettlementId(
                         creatorId,
                         organization,
-                        targetSettlementId
+                        targetSettlementId,
+                        includeAllRequested
                 )
                 .stream()
                 .filter(candidate -> sameReceivingAccount(

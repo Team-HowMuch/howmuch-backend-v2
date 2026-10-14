@@ -36,6 +36,13 @@ public class SettlementBankTransactionFetchService {
             LocalDateTime from,
             LocalDateTime until
     ) {
+        return fetch(connection, accountId, organization, accountNumber, from, until, () -> {});
+    }
+
+    public List<Transaction> fetch(
+            ExternalConnection connection, long accountId, String organization, String accountNumber,
+            LocalDateTime from, LocalDateTime until, Runnable beforeEachPeriod
+    ) {
         LocalDate startDate = seoulDate(from);
         LocalDate endDate = seoulDate(until);
         if (startDate.isAfter(endDate)) {
@@ -57,6 +64,7 @@ public class SettlementBankTransactionFetchService {
             LocalDate periodEnd = month.equals(lastMonth)
                     ? endDate
                     : month.atEndOfMonth();
+            beforeEachPeriod.run();
             bankTransactionPort.fetch(
                     connection.connectedId(),
                     organization,

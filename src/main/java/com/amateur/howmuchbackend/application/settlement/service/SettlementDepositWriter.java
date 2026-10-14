@@ -60,6 +60,7 @@ class SettlementDepositWriter {
                 null,
                 fetchedTransactions,
                 now,
+                false,
                 false
         );
     }
@@ -80,8 +81,17 @@ class SettlementDepositWriter {
                 expectedStatus,
                 fetchedTransactions,
                 now,
-                true
+                true,
+                false
         );
+    }
+
+    @Transactional
+    public SettlementDepositSummaryResult reconcileForWidget(
+            UUID settlementId, Long userId, SettlementReceivingAccountSnapshot expectedSnapshot,
+            SettlementStatus expectedStatus, List<Transaction> fetchedTransactions, LocalDateTime now
+    ) {
+        return reconcile(settlementId, userId, expectedSnapshot, expectedStatus, fetchedTransactions, now, true, true);
     }
 
     private SettlementDepositSummaryResult reconcile(
@@ -91,7 +101,8 @@ class SettlementDepositWriter {
             SettlementStatus expectedStatus,
             List<Transaction> fetchedTransactions,
             LocalDateTime now,
-            boolean allowRequested
+            boolean allowRequested,
+            boolean widgetRefresh
     ) {
         var lockedAccount = loadAccountPort.findActiveByIdAndUserIdForUpdate(
                 expectedSnapshot.sourceAccountId(),
@@ -141,7 +152,10 @@ class SettlementDepositWriter {
                                 Function.identity()
                         ));
         List<SettlementDepositStorePort.PayableDepositCandidate> accountCandidates =
-                depositStorePort.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                widgetRefresh ? depositStorePort.findWidgetPayableCandidatesByReceivingAccount(
+                        userId, data.snapshot().sourceAccountId(), data.snapshot().organization(),
+                        data.snapshot().accountNumber()
+                ) : depositStorePort.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
                         settlement.id(),
                         userId,
                         data.snapshot().sourceAccountId(),
