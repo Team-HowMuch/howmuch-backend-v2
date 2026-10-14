@@ -62,7 +62,38 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+def verifyMigrationVersions = tasks.register('verifyMigrationVersions') {
+    def migrations = fileTree('src/main/resources/db/migration') { include 'V*.sql' }
+    inputs.files(migrations)
+    doLast {
+        def versions = migrations.files.groupBy { migration ->
+            def match = migration.name =~ /^V([0-9]+(?:[._][0-9]+)*)__.+\.sql$/
+            if (!match.matches()) {
+                throw new GradleException("Invalid migration filename: ${migration.name}")
+            }
+            def parts = match[0][1].replace('_', '.').tokenize('.')
+                    .collect { new BigInteger(it).toString() }
+            while (parts.size() > 1 && parts.last() == '0') {
+                parts.remove(parts.size() - 1)
+            }
+            parts.join('.')
+        }
+        def duplicates = versions.findAll { version, files -> files.size() > 1 }
+        if (!duplicates.isEmpty()) {
+            throw new GradleException('Duplicate Flyway migration versions: ' +
+                    duplicates.collect { version, files ->
+                        "${version}: ${files*.name.sort().join(', ')}"
+                    }.join('; '))
+        }
+    }
+}
+
+tasks.named('processResources') {
+    dependsOn verifyMigrationVersions
+}
+
 tasks.named('test') {
+    dependsOn verifyMigrationVersions
     useJUnitPlatform()
     systemProperty 'management.server.port', '0'
     // Each cached integration context owns a connection pool; release old contexts
