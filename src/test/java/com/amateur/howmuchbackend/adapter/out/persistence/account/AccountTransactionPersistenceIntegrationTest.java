@@ -276,7 +276,7 @@ class AccountTransactionPersistenceIntegrationTest {
     @Test
     @DisplayName("입금·납부 거래로 연결된 정산을 함께 조회하고 작성 중 정산은 제외한다")
     void settlements_depositOrPaymentLinked_loadedWithoutDrafts() {
-        String incomeKey = UUID.randomUUID().toString().replace("-", "").repeat(2);
+        String incomeKey = "a" + UUID.randomUUID().toString().replace("-", "").repeat(2).substring(0, 63);
         String expenseKey = "e".repeat(64);
         String draftKey = "f".repeat(64);
         UUID receivedSettlementId = UUID.randomUUID();

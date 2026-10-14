@@ -16,6 +16,7 @@ import com.amateur.howmuchbackend.domain.auth.session.AuthSession;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.settlement.*;
 import com.amateur.howmuchbackend.domain.notification.NotificationType;
+import com.amateur.howmuchbackend.support.SettlementDepositTestCleanup;
 import com.amateur.howmuchbackend.support.SettlementUnpaidFixtures;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -136,11 +137,13 @@ class SettlementTransferIntentIntegrationTest {
         }
         redis.delete("settlement:link-participant-context:"+contextId);
         redis.delete("settlement:link-participant-context-index:"+hash+":"+participantId);
-        jdbc.update("DELETE FROM settlement_deposits WHERE settlement_id=?",settlementId);
-        jdbc.update("DELETE FROM account_transactions WHERE account_id=?",accountId);
-        jdbc.update("DELETE FROM settlements WHERE id=?",settlementId);
-        jdbc.update("DELETE FROM accounts WHERE id=?",accountId);
-        jdbc.update("DELETE FROM external_connections WHERE id=?",connectionId);
+        if (!SettlementDepositTestCleanup.preserveSettlement(jdbc, settlementId)) {
+            SettlementDepositTestCleanup.deleteDepositsWhenMutable(jdbc, settlementId);
+            jdbc.update("DELETE FROM account_transactions WHERE account_id=?",accountId);
+            jdbc.update("DELETE FROM settlements WHERE id=?",settlementId);
+            jdbc.update("DELETE FROM accounts WHERE id=?",accountId);
+            jdbc.update("DELETE FROM external_connections WHERE id=?",connectionId);
+        }
         fixtures.close();
     }
 
