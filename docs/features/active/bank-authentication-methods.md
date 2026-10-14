@@ -122,7 +122,7 @@ Authentication: 기존 계약 유지
 
 - Database Entity, constraint, or query changes: 스키마 변경 없음. 기존 공통 코드 `attr3` 설정 의미와 값만 전환한다.
 - Flyway migration required (`Yes` / `No`): Yes — 기존 설정을 새 숫자 체계로 전환한다.
-- Planned migration: `V53__set_bank_authentication_levels.sql`; 기존 ID/PW 목록 중 우리은행·대구은행은 `3`, 나머지 ID/PW 은행은 `2`, 그 외 BANK는 `1`로 설정한다. 비활성 은행도 동일하게 전환한다.
+- Planned migration: `V54__set_bank_authentication_levels.sql`; 기존 ID/PW 목록 중 우리은행·대구은행은 `3`, 나머지 ID/PW 은행은 `2`, 그 외 BANK는 `1`로 설정한다. 비활성 은행도 동일하게 전환한다.
 - Migration pull request (`Pending` / URL): [#537](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/537) 초안으로 생성 후 사용자 요청에 따라 닫음. migration 커밋은 현재 기능 브랜치에 보존한다.
 - Redis key, TTL, or serialization changes: 없음
 - External API or message changes: 없음
@@ -152,7 +152,7 @@ Authentication: 기존 계약 유지
 | API | 공통 공개 은행 카탈로그에 인증 수준 제공, 인증서 전용 기관 목록 제거 | `BankCatalogController`, `BankCatalogV3WebResponse`, 레거시 `BankCatalogWebResponse` |
 | Application | Boolean 사용을 인증 수준으로 대체하고 인증서 등록 필수값 검증에도 적용 | `BankCatalog`, `CertificateRegistrationService`, `CertificateWorkerService` |
 | Domain | 영향 없음 | Existing account domain |
-| Persistence | BANK attr3 의미·값 전환 | V53 migration |
+| Persistence | BANK attr3 의미·값 전환 | V54 migration |
 | Redis | 영향 없음 | N/A |
 | Security | 은행 카탈로그를 공개 조회로 허용 | `SecurityConfig` |
 | Configuration | 영향 없음 | N/A |
@@ -189,14 +189,26 @@ feat(account): 은행 인증 수준 기반 연결 지원       # 후속 구현 P
 - 최신 `origin/develop` 위로 rebase 후 `./gradlew compileJava test --tests '*CertificateHttpIntegrationTest' --tests '*BankCatalogTest' --tests '*CertificateInstitutionCatalogAdapterTest' --no-daemon` 통과.
 - 공개 v3 수준 1·2·3, v2 Boolean 응답 유지, 우리은행·대구은행 추가 입력과 승인까지 HTTP 통합 테스트로 검증했다.
 - `git diff --check` 통과. 실제 CODEF/운영 환경 인증과 배포는 수행하지 않았다.
-- SQL-only #537은 사용자 요청으로 닫혔으며 해당 V53 커밋을 이번 기능 PR에 포함한다. Java 및 migration을 함께 배포한다.
+- SQL-only #537은 사용자 요청으로 닫혔으며 해당 V54 커밋을 이번 기능 PR에 포함한다. Java 및 migration을 함께 배포한다.
 - 문서 검증 결과는 `docs(account): 은행 인증 수준 구현 검증 결과 기록` 커밋으로 분리한다.
 
 ## 9. PR 리뷰 반영 및 단계적 배포
 
 - 인증서 Result/Properties/YAML에서 계좌 요구 Boolean을 제거했다. 수준 1·2는 계좌 자격정보를 요구하지 않고 3만 요구한다.
-- V53은 `use_yn`과 관계없이 모든 BANK 행을 전환한다. 비활성→재활성화 SQL 회귀 검증을 HTTP 통합 테스트에 추가했다.
+- V54은 `use_yn`과 관계없이 모든 BANK 행을 전환한다. 비활성→재활성화 SQL 회귀 검증을 HTTP 통합 테스트에 추가했다.
 - v3 Swagger 메타데이터는 `BankCatalogDocs`로 이동했다.
-- 선행 호환 reader [#545](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/545)를 먼저 병합·배포하고 그 이미지 SHA를 롤백 기준으로 기록한다. 그다음 #543의 V53과 새 reader를 배포한다.
-- V53 이후에는 호환 reader 이미지까지만 롤백한다. 더 오래된 `1` 전용 reader로 돌아가지 않는다. 호환 기간에 초기 수준/지원 은행 매핑은 변경하지 않는다.
+- 선행 호환 reader [#545](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/545)를 먼저 병합·배포하고 그 이미지 SHA를 롤백 기준으로 기록한다. 그다음 #543의 V54과 새 reader를 배포한다.
+- V54 이후에는 호환 reader 이미지까지만 롤백한다. 더 오래된 `1` 전용 reader로 돌아가지 않는다. 호환 기간에 초기 수준/지원 은행 매핑은 변경하지 않는다.
 - 검증: 호환 reader의 `1`·`3` 회귀 테스트 및 본 PR의 인증 수준 카탈로그 단위 테스트 통과. HTTP·영속성 통합 테스트는 Docker daemon ping 응답 대기에서 진행되지 않아 실행 프로세스만 종료했다(exit 143). 신규 비활성 은행 SQL 회귀 테스트는 컴파일됐으나 DB 실행은 검증하지 못했다. Docker 복구 후 재실행이 필요하다.
+
+## 10. CI 마이그레이션 번호 충돌 수정 (#546)
+
+- CI run 38560959473의 첫 실패는 Flyway version 53 중복이다. 정산 V53과 은행 인증 V53이 develop에서 합쳐지며 발생했다.
+- 정산 파일은 V53으로 유지하고 은행 인증 파일만 V54로 이동한다. SQL 본문과 schema 계약은 변경하지 않는다. 본 문서의 은행 전환 버전 참조도 V54로 갱신했다.
+- 새 migration을 설계하는 작업이 아니라 병합된 미배포 파일의 번호 충돌을 수정하는 작업이다. 자동 Flyway repair나 DB 삭제는 하지 않는다.
+- 영향: 은행 migration 파일명, SQL 회귀 테스트의 ClassPathResource, Gradle resource/test 사전 검사, 관련 문서.
+- Gradle `verifyMigrationVersions`는 DB 없이 숫자 버전 중복을 검사한다. 선행 0과 trailing zero/dot/underscore 표현을 정규화해 동일 버전을 구분하지 않는다.
+- 검증: 정상 migration 목록 통과 및 임시 V054 중복 fixture 실패 확인, 컴파일·카탈로그 단위 테스트, 원격 PR CI.
+- 커밋 경계: `fix(account)` 번호와 참조 경로 수정; `build(db)` 중복 번호 사전 검사.
+- 로컬 결과: 임시 V054 fixture가 V54와 중복임을 감지해 실패했고 fixture는 제거했다. `./gradlew clean verifyMigrationVersions compileJava test --tests '*BankCatalogTest' --tests '*CertificateInstitutionCatalogAdapterTest' --no-daemon` 통과.
+- 최신 origin/develop 및 열린 PR의 migration 파일을 재확인해 V54가 비어 있음을 확인했다.

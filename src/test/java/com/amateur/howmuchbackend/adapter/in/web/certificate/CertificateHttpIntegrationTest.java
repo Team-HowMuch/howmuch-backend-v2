@@ -224,7 +224,7 @@ class CertificateHttpIntegrationTest {
                 org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(
                         connection,
                         new org.springframework.core.io.ClassPathResource(
-                                "db/migration/V53__set_bank_authentication_levels.sql"));
+                                "db/migration/V54__set_bank_authentication_levels.sql"));
                 try (var statement = connection.createStatement()) {
                     statement.executeUpdate(
                             "UPDATE common_code_detail SET use_yn=true "
