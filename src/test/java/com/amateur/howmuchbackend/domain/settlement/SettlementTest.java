@@ -168,6 +168,19 @@ class SettlementTest {
         }
 
         @Test
+        @DisplayName("입금 대기 중인 정산도 수동 중단할 수 있다")
+        void settlement_awaitingDeposit_manualSuspend_allowed() {
+            Settlement awaiting = draft()
+                    .request(CREATED_AT.plusMinutes(1))
+                    .awaitDeposit(CREATED_AT.plusMinutes(2));
+
+            Settlement suspended = awaiting.suspendManually(CREATED_AT.plusMinutes(3));
+
+            assertThat(suspended.status()).isEqualTo(SettlementStatus.SUSPENDED);
+            assertThat(suspended.updatedAt()).isEqualTo(CREATED_AT.plusMinutes(3));
+        }
+
+        @Test
         @DisplayName("요청되지 않은 정산이나 완료된 정산은 수동 중단·재개하지 않는다")
         void settlement_manualTransitionOutsideAllowedStates_rejected() {
             assertThatThrownBy(() -> draft().suspendManually(CREATED_AT.plusMinutes(1)))
@@ -179,6 +192,10 @@ class SettlementTest {
                     .request(CREATED_AT.plusMinutes(1))
                     .awaitDeposit(CREATED_AT.plusMinutes(2))
                     .complete(CREATED_AT.plusMinutes(3));
+            assertThatThrownBy(() -> completed.suspendManually(CREATED_AT.plusMinutes(4)))
+                    .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                            assertThat(exception.getStatusCode())
+                                    .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_STATUS_TRANSITION));
             assertThatThrownBy(() -> completed.resume(CREATED_AT.plusMinutes(4)))
                     .isInstanceOfSatisfying(ApplicationException.class, exception ->
                             assertThat(exception.getStatusCode())

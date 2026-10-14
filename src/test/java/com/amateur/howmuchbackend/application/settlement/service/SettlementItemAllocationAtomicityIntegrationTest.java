@@ -165,9 +165,24 @@ class SettlementItemAllocationAtomicityIntegrationTest {
     }
 
     @Test
-    @DisplayName("다른 참여자의 제출도 Share 존재 여부와 무관하게 수동 중단을 막는다")
-    void itemAllocation_otherParticipantSubmission_blocksManualSuspend() {
-        assertManualSuspendBlockedWithoutMutation();
+    @DisplayName("제출된 Share의 수금 계좌 정보가 없으면 수동 중단 재조회에 실패한다")
+    void itemAllocation_submittedShareWithoutReceivingAccount_failsClosed() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+
+        assertThatThrownBy(() -> settlementService.suspend(settlementId))
+                .isInstanceOfSatisfying(ApplicationException.class, exception ->
+                        assertThat(exception.getStatusCode())
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM settlements WHERE id = ?", String.class, settlementId
+        )).isEqualTo("REQUESTED");
+        assertThat(count("SELECT COUNT(*) FROM settlement_item_submissions WHERE settlement_id = ?",
+                settlementId)).isOne();
+        assertThat(count("SELECT COUNT(*) FROM settlement_item_selections WHERE settlement_id = ?",
+                settlementId)).isEqualTo(2);
+        assertThat(count("SELECT COUNT(*) FROM settlement_shares WHERE settlement_id = ?",
+                settlementId)).isZero();
     }
 
     @Test
@@ -183,25 +198,6 @@ class SettlementItemAllocationAtomicityIntegrationTest {
         )).isEqualTo("SUSPENDED");
         assertThat(count("SELECT COUNT(*) FROM settlement_item_selections WHERE settlement_id = ?",
                 settlementId)).isEqualTo(2);
-    }
-
-    private void assertManualSuspendBlockedWithoutMutation() {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
-
-        assertThatThrownBy(() -> settlementService.suspend(settlementId))
-                .isInstanceOfSatisfying(ApplicationException.class, exception ->
-                        assertThat(exception.getStatusCode())
-                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_SUSPENDABLE));
-
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM settlements WHERE id = ?", String.class, settlementId
-        )).isEqualTo("REQUESTED");
-        assertThat(count("SELECT COUNT(*) FROM settlement_item_submissions WHERE settlement_id = ?",
-                settlementId)).isOne();
-        assertThat(count("SELECT COUNT(*) FROM settlement_item_selections WHERE settlement_id = ?",
-                settlementId)).isEqualTo(2);
-        assertThat(count("SELECT COUNT(*) FROM settlement_shares WHERE settlement_id = ?",
-                settlementId)).isZero();
     }
 
     private Long insertUser(String prefix) {

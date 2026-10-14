@@ -53,16 +53,62 @@ class SettlementDepositWriter {
             List<Transaction> fetchedTransactions,
             LocalDateTime now
     ) {
-        loadAccountPort.findActiveByIdAndUserIdForUpdate(
+        return reconcile(
+                settlementId,
+                userId,
+                expectedSnapshot,
+                null,
+                fetchedTransactions,
+                now,
+                false
+        );
+    }
+
+    @Transactional
+    public SettlementDepositSummaryResult reconcileForSuspension(
+            UUID settlementId,
+            Long userId,
+            SettlementReceivingAccountSnapshot expectedSnapshot,
+            SettlementStatus expectedStatus,
+            List<Transaction> fetchedTransactions,
+            LocalDateTime now
+    ) {
+        return reconcile(
+                settlementId,
+                userId,
+                expectedSnapshot,
+                expectedStatus,
+                fetchedTransactions,
+                now,
+                true
+        );
+    }
+
+    private SettlementDepositSummaryResult reconcile(
+            UUID settlementId,
+            Long userId,
+            SettlementReceivingAccountSnapshot expectedSnapshot,
+            SettlementStatus expectedStatus,
+            List<Transaction> fetchedTransactions,
+            LocalDateTime now,
+            boolean allowRequested
+    ) {
+        var lockedAccount = loadAccountPort.findActiveByIdAndUserIdForUpdate(
                 expectedSnapshot.sourceAccountId(),
                 userId
         );
+        if (allowRequested && lockedAccount.isEmpty()) {
+            throw ApplicationException.of(CommonStatusCode.CONCURRENT_UPDATE);
+        }
         Settlement settlement = loadSettlementPort.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_NOT_FOUND
                 ));
         verifyOwnership(settlement, userId);
-        ensureAvailable(settlement.status());
+        if (expectedStatus != null && settlement.status() != expectedStatus) {
+            throw ApplicationException.of(CommonStatusCode.CONCURRENT_UPDATE);
+        }
+        ensureAvailable(settlement.status(), allowRequested);
 
         var data = reader.load(settlement, now);
         if (!data.snapshot().equals(expectedSnapshot)) {
@@ -156,7 +202,8 @@ class SettlementDepositWriter {
             }
         }
 
-        Settlement result = allCompleted(data.payableShares(), confirmedAmounts)
+        Settlement result = settlement.status() == SettlementStatus.AWAITING_DEPOSIT
+                && allCompleted(data.payableShares(), confirmedAmounts)
                 ? saveSettlementPort.update(settlement.complete(now))
                 : settlement;
         if (result.status() == SettlementStatus.COMPLETED) notifications.settlementCompleted(result, now);
@@ -227,9 +274,10 @@ class SettlementDepositWriter {
         }
     }
 
-    private void ensureAvailable(SettlementStatus status) {
+    private void ensureAvailable(SettlementStatus status, boolean allowRequested) {
         if (status != SettlementStatus.AWAITING_DEPOSIT
-                && status != SettlementStatus.COMPLETED) {
+                && status != SettlementStatus.COMPLETED
+                && !(allowRequested && status == SettlementStatus.REQUESTED)) {
             throw ApplicationException.of(
                     SettlementStatusCode.SETTLEMENT_DEPOSIT_RECONCILIATION_NOT_AVAILABLE
             );

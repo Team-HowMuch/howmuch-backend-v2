@@ -76,7 +76,7 @@ public interface SettlementDepositJpaRepository
                 ON account_transaction.id = deposit.account_transaction_id
              WHERE settlement.creator_id = :creatorId
                AND snapshot.organization = :organization
-               AND settlement.status = 'AWAITING_DEPOSIT'
+               AND settlement.status IN ('REQUESTED', 'AWAITING_DEPOSIT')
                AND (participant.linked_user_id IS NULL
                     OR participant.linked_user_id <> settlement.creator_id)
              GROUP BY share.settlement_id, share.id, participant.display_name, share.amount,

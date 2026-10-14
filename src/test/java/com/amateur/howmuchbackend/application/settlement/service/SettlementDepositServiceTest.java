@@ -117,14 +117,18 @@ class SettlementDepositServiceTest {
                 reader,
                 notifications
         );
+        SettlementBankTransactionFetchService transactionFetchService =
+                new SettlementBankTransactionFetchService(
+                        bankTransactionPort,
+                        bankCatalog,
+                        credentialProtection
+                );
         service = new SettlementDepositService(
                 currentActorPort,
                 loadSettlementPort,
                 loadSnapshotPort,
                 connectionStorePort,
-                bankTransactionPort,
-                bankCatalog,
-                credentialProtection,
+                transactionFetchService,
                 writer,
                 reader
         );
@@ -432,7 +436,8 @@ class SettlementDepositServiceTest {
                 .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
         var writer = mock(SettlementDepositWriter.class);
         var queryService = new SettlementDepositService(currentActorPort, loadSettlementPort, loadSnapshotPort,
-                connectionStorePort, bankTransactionPort, bankCatalog, credentialProtection,
+                connectionStorePort,
+                new SettlementBankTransactionFetchService(bankTransactionPort, bankCatalog, credentialProtection),
                 writer, mock(SettlementDepositReader.class));
         try (var clock = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
             clock.when(() -> LocalDateTime.now(ZoneOffset.UTC)).thenReturn(now);

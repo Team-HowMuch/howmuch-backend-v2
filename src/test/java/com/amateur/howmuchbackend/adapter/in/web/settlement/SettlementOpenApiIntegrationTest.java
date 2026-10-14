@@ -28,8 +28,8 @@ class SettlementOpenApiIntegrationTest {
     @Autowired private ObjectMapper objectMapper;
 
     @Test
-    @DisplayName("수동 중단의 생성자 외 참여자 제출 검사와 409 오류를 공개한다")
-    void settlementApi_suspendSubmissionConflict_documented() throws Exception {
+    @DisplayName("수동 중단의 입금 재조회와 409 오류를 공개한다")
+    void settlementApi_suspendDepositRefresh_documented() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsByteArray();
@@ -38,9 +38,11 @@ class SettlementOpenApiIntegrationTest {
                 .path("/api/v2/settlements/{settlementId}/suspend").path("post");
 
         assertThat(operation.path("description").stringValue())
-                .contains("생성자 외 참여자", "생성자 본인만 제출했거나", "제출 전 품목 선택만 저장한 경우");
+                .contains("REQUESTED 또는 AWAITING_DEPOSIT", "CODEF 거래내역을 다시 조회",
+                        "미귀속 양수 입금", "은행 앱에서 시작한 송금은 취소되지 않을 수 있습니다");
         assertThat(operation.path("responses").path("409").path("description").stringValue())
-                .contains("SETTLEMENT_NOT_SUSPENDABLE", "INVALID_SETTLEMENT_STATUS_TRANSITION");
+                .contains("SETTLEMENT_NOT_SUSPENDABLE", "INVALID_SETTLEMENT_STATUS_TRANSITION",
+                        "CONCURRENT_UPDATE");
     }
 
     @Test

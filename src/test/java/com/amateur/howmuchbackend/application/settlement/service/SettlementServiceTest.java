@@ -6,14 +6,14 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateS
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementDeletionPolicy;
-import com.amateur.howmuchbackend.application.settlement.policy.SettlementSuspensionPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -47,6 +47,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.inOrder;
@@ -76,9 +77,6 @@ class SettlementServiceTest {
     private LoadSettlementSharePort loadSettlementSharePort;
 
     @Mock
-    private LoadSettlementParticipantPort loadSettlementParticipantPort;
-
-    @Mock
     private SaveSettlementParticipantPort saveSettlementParticipantPort;
 
     @Mock
@@ -91,6 +89,9 @@ class SettlementServiceTest {
     private SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
     @Mock private SettlementDutchPayResumer dutchPayResumer;
+    @Mock private SettlementSuspensionService suspensionService;
+    @Mock private SettlementRevisionGuard revisionGuard;
+    @Mock private DeleteSettlementSharePort deleteSettlementSharePort;
 
     private SettlementService settlementService;
 
@@ -102,14 +103,15 @@ class SettlementServiceTest {
                 saveSettlementPort,
                 deleteSettlementPort,
                 loadSettlementSharePort,
-                loadSettlementParticipantPort,
                 saveSettlementParticipantPort,
                 settlementItemAllocationStorePort,
                 new SettlementDeletionPolicy(),
-                new SettlementSuspensionPolicy(),
                 loadUserPort,
                 allocationDraftInvalidator,
-                dutchPayResumer
+                dutchPayResumer,
+                suspensionService,
+                revisionGuard,
+                deleteSettlementSharePort
         );
         lenient().when(allocationDraftInvalidator.invalidate(any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -194,138 +196,16 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("제출 기록이 없으면 생성자가 요청 중인 정산을 수동 중단하고 저장한다")
-    void settlement_creator_suspendRequested_suspendedAndSaved() {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
-                .thenReturn(Optional.of(requested()));
-        when(settlementItemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
-                .thenReturn(List.of());
-        when(saveSettlementPort.update(any(Settlement.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+    @DisplayName("수동 중단 use case를 별도 트랜잭션 coordinator에 위임한다")
+    void settlement_manualSuspend_delegatesToCoordinator() {
+        var expected = SettlementResult.from(requested().suspendManually(CREATED_AT.plusMinutes(1)));
+        when(suspensionService.suspend(SETTLEMENT_ID)).thenReturn(expected);
 
         var result = settlementService.suspend(SETTLEMENT_ID);
 
-        assertThat(result.status()).isEqualTo(SettlementStatus.SUSPENDED);
-        var order = inOrder(loadSettlementPort, settlementItemAllocationStorePort, saveSettlementPort);
-        order.verify(loadSettlementPort).findByIdForUpdate(SETTLEMENT_ID);
-        order.verify(settlementItemAllocationStorePort).findAllSubmissions(SETTLEMENT_ID);
-        order.verify(saveSettlementPort).update(argThat(settlement ->
-                settlement.status() == SettlementStatus.SUSPENDED));
-    }
-
-    @Test
-    @DisplayName("생성자만 제출한 경우 다른 참여자가 미제출이면 수동 중단한다")
-    void settlement_creatorOnlySubmitted_manualSuspendAllowed() {
-        UUID creatorParticipantId = UUID.fromString("19551c82-2a7c-49a6-a56e-64c684db174c");
-        UUID otherParticipantId = UUID.fromString("c7cce13e-0cff-4db2-9683-22a9a1c5461a");
-        Settlement settlement = draft().selectAllocationType(
-                SettlementAllocationType.ITEM_ALLOCATION, CREATED_AT
-        ).request(CREATED_AT.plusMinutes(1));
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
-        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
-                participant(creatorParticipantId, CREATOR_ID, "생성자", 0),
-                participant(otherParticipantId, OTHER_USER_ID, "참여자", 1)
-        ));
-        when(settlementItemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
-                .thenReturn(List.of(SettlementItemSubmission.submit(
-                        SETTLEMENT_ID, creatorParticipantId, CREATED_AT.plusMinutes(2)
-                )));
-        when(saveSettlementPort.update(any(Settlement.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        var result = settlementService.suspend(SETTLEMENT_ID);
-
-        assertThat(result.status()).isEqualTo(SettlementStatus.SUSPENDED);
-        verify(saveSettlementPort).update(argThat(value -> value.status() == SettlementStatus.SUSPENDED));
-    }
-
-    @Test
-    @DisplayName("다른 참여자가 제출하면 Share가 없어도 수동 중단을 저장하지 않는다")
-    void settlement_otherParticipantSubmitted_manualSuspendRejected() {
-        UUID creatorParticipantId = UUID.fromString("19551c82-2a7c-49a6-a56e-64c684db174c");
-        UUID otherParticipantId = UUID.fromString("c7cce13e-0cff-4db2-9683-22a9a1c5461a");
-        Settlement settlement = draft().selectAllocationType(
-                SettlementAllocationType.ITEM_ALLOCATION, CREATED_AT
-        ).request(CREATED_AT.plusMinutes(1));
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
-        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
-                participant(creatorParticipantId, CREATOR_ID, "생성자", 0),
-                participant(otherParticipantId, OTHER_USER_ID, "참여자", 1)
-        ));
-        when(settlementItemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
-                .thenReturn(List.of(SettlementItemSubmission.submit(
-                        SETTLEMENT_ID, otherParticipantId, CREATED_AT.plusMinutes(2)
-                )));
-
-        assertThatThrownBy(() -> settlementService.suspend(SETTLEMENT_ID))
-                .isInstanceOfSatisfying(ApplicationException.class, exception ->
-                        assertThat(exception.getStatusCode())
-                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_SUSPENDABLE));
-
-        assertThat(settlement.status()).isEqualTo(SettlementStatus.REQUESTED);
-        verifyNoInteractions(saveSettlementPort, loadSettlementSharePort, deleteSettlementPort);
-        verify(settlementItemAllocationStorePort, never()).deleteAllSubmissions(SETTLEMENT_ID);
-    }
-
-    @Test
-    @DisplayName("생성자 참여자 기록이 없으면 제출된 정산의 수동 중단을 거부한다")
-    void settlement_creatorParticipantMissing_manualSuspendRejected() {
-        UUID creatorParticipantId = UUID.fromString("19551c82-2a7c-49a6-a56e-64c684db174c");
-        Settlement settlement = draft().selectAllocationType(
-                SettlementAllocationType.ITEM_ALLOCATION, CREATED_AT
-        ).request(CREATED_AT.plusMinutes(1));
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(settlement));
-        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
-                participant(UUID.fromString("c7cce13e-0cff-4db2-9683-22a9a1c5461a"),
-                        OTHER_USER_ID, "참여자", 0)
-        ));
-        when(settlementItemAllocationStorePort.findAllSubmissions(SETTLEMENT_ID))
-                .thenReturn(List.of(SettlementItemSubmission.submit(
-                        SETTLEMENT_ID, creatorParticipantId, CREATED_AT.plusMinutes(2)
-                )));
-
-        assertThatThrownBy(() -> settlementService.suspend(SETTLEMENT_ID))
-                .isInstanceOfSatisfying(ApplicationException.class, exception ->
-                        assertThat(exception.getStatusCode())
-                                .isEqualTo(SettlementStatusCode.SETTLEMENT_NOT_SUSPENDABLE));
-
+        assertThat(result).isEqualTo(expected);
+        verify(suspensionService).suspend(SETTLEMENT_ID);
         verifyNoInteractions(saveSettlementPort);
-    }
-
-    private SettlementParticipant participant(UUID id, Long userId, String name, int order) {
-        return new SettlementParticipant(
-                id,
-                SETTLEMENT_ID,
-                SettlementParticipantSource.REGISTERED_USER,
-                userId,
-                null,
-                null,
-                name,
-                order,
-                CREATED_AT,
-                CREATED_AT
-        );
-    }
-
-    @ParameterizedTest
-    @EnumSource(value = SettlementStatus.class, names = "REQUESTED", mode = EnumSource.Mode.EXCLUDE)
-    @DisplayName("중단 불가능한 상태는 제출 조회 전에 기존 상태 전이 오류를 반환한다")
-    void settlement_invalidSuspendStatus_rejectedBeforeSubmissionLookup(SettlementStatus status) {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
-        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(
-                new Settlement(SETTLEMENT_ID, CREATOR_ID, "회식 정산", 10_000,
-                        status, CREATED_AT, CREATED_AT)
-        ));
-
-        assertThatThrownBy(() -> settlementService.suspend(SETTLEMENT_ID))
-                .isInstanceOfSatisfying(ApplicationException.class, exception ->
-                        assertThat(exception.getStatusCode())
-                                .isEqualTo(SettlementStatusCode.INVALID_SETTLEMENT_STATUS_TRANSITION));
-        verifyNoInteractions(settlementItemAllocationStorePort, saveSettlementPort);
     }
 
     @Test
@@ -346,18 +226,42 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("생성자가 아닌 사용자는 정산을 수동 중단하지 않는다")
-    void settlement_otherUserManualSuspend_rejected() {
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(OTHER_USER_ID));
+    @DisplayName("품목 정산 재개는 입금이 없음을 확인한 뒤 기존 Share만 지우고 제출을 초기화한다")
+    void settlement_itemAllocationResume_clearsUnpaidSharesAfterGuard() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
         when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
-                .thenReturn(Optional.of(requested()));
+                .thenReturn(Optional.of(suspendedItemAllocation()));
+        when(saveSettlementPort.update(any(Settlement.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> settlementService.suspend(SETTLEMENT_ID))
+        var result = settlementService.resume(SETTLEMENT_ID);
+
+        var order = inOrder(revisionGuard, deleteSettlementSharePort,
+                settlementItemAllocationStorePort, saveSettlementPort);
+        order.verify(revisionGuard).ensureUnpaid(SETTLEMENT_ID);
+        order.verify(deleteSettlementSharePort).deleteAllBySettlementId(SETTLEMENT_ID);
+        order.verify(settlementItemAllocationStorePort).deleteAllSubmissions(SETTLEMENT_ID);
+        order.verify(saveSettlementPort).update(argThat(value ->
+                value.status() == SettlementStatus.REQUESTED));
+        assertThat(result.status()).isEqualTo(SettlementStatus.REQUESTED);
+    }
+
+    @Test
+    @DisplayName("확인 입금이 있으면 품목 Share와 제출 기록을 초기화하지 않는다")
+    void settlement_itemAllocationResume_withConfirmedPayment_keepsSharesAndSubmissions() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID))
+                .thenReturn(Optional.of(suspendedItemAllocation()));
+        doThrow(ApplicationException.of(SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS))
+                .when(revisionGuard).ensureUnpaid(SETTLEMENT_ID);
+
+        assertThatThrownBy(() -> settlementService.resume(SETTLEMENT_ID))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
-                                .isEqualTo(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED));
+                                .isEqualTo(SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS));
+        verify(deleteSettlementSharePort, never()).deleteAllBySettlementId(SETTLEMENT_ID);
+        verify(settlementItemAllocationStorePort, never()).deleteAllSubmissions(SETTLEMENT_ID);
         verify(saveSettlementPort, never()).update(any(Settlement.class));
-        verifyNoInteractions(settlementItemAllocationStorePort);
     }
 
     @Test
@@ -478,6 +382,20 @@ class SettlementServiceTest {
 
     private Settlement suspended() {
         return requested().suspend(CREATED_AT.plusMinutes(2));
+    }
+
+    private Settlement suspendedItemAllocation() {
+        return new Settlement(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                "품목 정산",
+                10_000,
+                SettlementAllocationType.ITEM_ALLOCATION,
+                null,
+                SettlementStatus.SUSPENDED,
+                CREATED_AT,
+                CREATED_AT.plusMinutes(2)
+        );
     }
 
     private User creator() {

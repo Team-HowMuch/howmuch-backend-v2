@@ -164,12 +164,15 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 수동 중단",
-            description = "현재 로그인한 생성자가 REQUESTED 상태의 정산을 SUSPENDED 상태로 중단합니다. "
-                    + "생성자 외 참여자가 품목 선택을 제출한 경우 중단할 수 없습니다. "
-                    + "생성자 본인만 제출했거나 제출 전 품목 선택만 저장한 경우에는 중단할 수 있습니다. "
+            description = "현재 로그인한 생성자가 REQUESTED 또는 AWAITING_DEPOSIT 상태의 정산을 SUSPENDED 상태로 중단합니다. "
+                    + "다른 참여자의 Share 또는 제출 기록이 있으면 CODEF 거래내역을 다시 조회해 입금 여부를 확인합니다. "
+                    + "부분·완납 입금이 확인되거나 미귀속 양수 입금이 있으면 중단할 수 없습니다. "
+                    + "중단 전에 은행 앱에서 시작한 송금은 취소되지 않을 수 있습니다. "
                     + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
                     + "허용되지 않은 상태면 INVALID_SETTLEMENT_STATUS_TRANSITION, "
-                    + "생성자 외 참여자의 제출이 있으면 SETTLEMENT_NOT_SUSPENDABLE을 반환합니다.",
+                    + "입금이 확인되었거나 귀속이 불명확하면 SETTLEMENT_NOT_SUSPENDABLE을 반환합니다. "
+                    + "재조회 중 상태·계좌·참여 Share 또는 제출 기록이 변경되면 CONCURRENT_UPDATE를 반환합니다. "
+                    + "CODEF 조회 실패와 추가 인증은 해당 조회 오류를 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -193,7 +196,8 @@ public interface SettlementDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
                     description = "INVALID_SETTLEMENT_STATUS_TRANSITION - 허용되지 않은 상태 변경, "
-                            + "SETTLEMENT_NOT_SUSPENDABLE - 생성자 외 참여자의 품목 선택 제출 기록 존재"
+                            + "SETTLEMENT_NOT_SUSPENDABLE - 입금 확인 또는 입금 귀속 불명확, "
+                            + "CONCURRENT_UPDATE - 재조회 중 상태·계좌·참여 Share 또는 제출 기록 변경"
             )
     })
     ApiResponse<SettlementWebResponse> suspendSettlement(UUID settlementId);
