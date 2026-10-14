@@ -503,6 +503,66 @@ class SettlementItemAllocationPolicyTest {
                 .isZero();
     }
 
+    @Test
+    @DisplayName("선택 대기 중 생성자가 받을 금액은 총액에서 생성자가 고른 몫을 뺀다")
+    void requestedReceivable_creatorShare_excludedFromTotal() {
+        SettlementItem pizza = itemWithDiscount(10_000, 0);
+        SettlementItem cola = itemWithDiscount(2_000, 0);
+        List<SettlementItemSelection> selections = List.of(
+                selectionFor(cola, FIRST_PARTICIPANT_ID),
+                selectionFor(pizza, SECOND_PARTICIPANT_ID)
+        );
+
+        long receivable = policy.calculateRequestedReceivableAmount(
+                12_000, List.of(pizza, cola), selections, FIRST_PARTICIPANT_ID, 0, 0
+        );
+
+        assertThat(receivable).isEqualTo(10_000);
+    }
+
+    @Test
+    @DisplayName("선택 대기 중 생성자가 아무것도 고르지 않았으면 총액이 받을 금액이다")
+    void requestedReceivable_creatorPickedNothing_isTotal() {
+        SettlementItem pizza = itemWithDiscount(10_000, 0);
+
+        long receivable = policy.calculateRequestedReceivableAmount(
+                10_000, List.of(pizza),
+                List.of(selectionFor(pizza, SECOND_PARTICIPANT_ID)), FIRST_PARTICIPANT_ID, 0, 0
+        );
+
+        assertThat(receivable).isEqualTo(10_000);
+    }
+
+    @Test
+    @DisplayName("영수증 할인이 있으면 생성자 몫에서 할인 몫까지 빼고 계산한다")
+    void requestedReceivable_receiptDiscount_deductsCreatorDiscountShare() {
+        SettlementItem pizza = itemWithDiscount(10_000, 0);
+        SettlementItem cola = itemWithDiscount(2_000, 0);
+        List<SettlementItemSelection> selections = List.of(selectionFor(cola, FIRST_PARTICIPANT_ID));
+
+        // 생성자 몫 2,000원 - 할인 몫 1,200 × 2,000 / 12,000 = 200원 = 1,800원
+        long receivable = policy.calculateRequestedReceivableAmount(
+                10_800, List.of(pizza, cola), selections, FIRST_PARTICIPANT_ID, 1_200, 0
+        );
+
+        assertThat(receivable).isEqualTo(9_000);
+    }
+
+    @Test
+    @DisplayName("선택 대기 중 생성자가 받을 금액은 배달비 중 생성자 몫도 뺀다")
+    void requestedReceivable_deliveryFee_creatorShareExcluded() {
+        SettlementItem pizza = itemWithDiscount(10_000, 0);
+        SettlementItem cola = itemWithDiscount(2_000, 0);
+        List<SettlementItemSelection> selections = List.of(selectionFor(cola, FIRST_PARTICIPANT_ID));
+
+        // 총액 13,200 - (생성자 몫 2,000 + 배달비 1,200 × 2,000 / 12,000 = 200) = 11,000
+        long receivable = policy.calculateRequestedReceivableAmount(
+                13_200, List.of(pizza, cola), selections, FIRST_PARTICIPANT_ID, 0, 1_200
+        );
+
+        assertThat(receivable).isEqualTo(11_000);
+    }
+
     private SettlementItem itemWithDiscount(long amount, long discount) {
         return new SettlementItem(
                 UUID.randomUUID(), SETTLEMENT_ID, EXPENSE_ID, "품목", 1,

@@ -125,6 +125,28 @@ public class SettlementItemAllocationPolicy {
         }
     }
 
+    /**
+     * 품목 선택이 끝나기 전({@code REQUESTED}) 생성자가 받을 금액.
+     *
+     * <p>이 단계의 share는 이미 제출한 참여자 것만 있거나(할인이 있으면 전원이 제출할 때까지 없다)
+     * 아직 하나도 없어 share 합계로는 구할 수 없다. 영수증 총액에서 생성자 본인이 고른 몫을 뺀다.
+     * 정산 상세의 예상 금액과 AI 총무가 같은 값을 쓰도록 이 한 곳에서 계산한다.
+     * 생성자가 참여자에 없는 정산은 뺄 몫이 없으므로 호출자가 총액을 그대로 쓴다.
+     */
+    public long calculateRequestedReceivableAmount(
+            long totalAmount,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            UUID creatorParticipantId,
+            long receiptDiscount,
+            long deliveryFee
+    ) {
+        return Math.subtractExact(
+                totalAmount,
+                calculatePersonalAmount(items, selections, creatorParticipantId, receiptDiscount, deliveryFee, false)
+        );
+    }
+
     private long calculateBaseAmount(
             List<SettlementItem> items,
             List<SettlementItemSelection> selections,
