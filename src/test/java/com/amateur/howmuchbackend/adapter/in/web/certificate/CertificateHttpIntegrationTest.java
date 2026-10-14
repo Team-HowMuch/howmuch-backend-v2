@@ -211,6 +211,43 @@ class CertificateHttpIntegrationTest {
     }
 
     @Test
+    void migrationConvertsInactiveBanksBeforeTheyAreReenabled() throws Exception {
+        try (var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                try (var statement = connection.createStatement()) {
+                    assertThat(statement.executeUpdate(
+                                    "UPDATE common_code_detail SET use_yn=false, attr3='1' "
+                                            + "WHERE group_code='BANK' AND code IN ('0020','0031','0003','0023')"))
+                            .isEqualTo(4);
+                }
+                org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(
+                        connection,
+                        new org.springframework.core.io.ClassPathResource(
+                                "db/migration/V53__set_bank_authentication_levels.sql"));
+                try (var statement = connection.createStatement()) {
+                    statement.executeUpdate(
+                            "UPDATE common_code_detail SET use_yn=true "
+                                    + "WHERE group_code='BANK' AND code IN ('0020','0031','0003','0023')");
+                    try (var rows = statement.executeQuery(
+                            "SELECT code, attr3 FROM common_code_detail WHERE group_code='BANK' "
+                                    + "AND code IN ('0020','0031','0003','0023')")) {
+                        var expected = Map.of("0020", "3", "0031", "3", "0003", "2", "0023", "1");
+                        int count = 0;
+                        while (rows.next()) {
+                            assertThat(rows.getString("attr3")).isEqualTo(expected.get(rows.getString("code")));
+                            count++;
+                        }
+                        assertThat(count).isEqualTo(4);
+                    }
+                }
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
+    @Test
     void legacyBankCatalogKeepsBooleanResponseContract() throws Exception {
         loginFixture();
         var response = request("GET", "/api/v2/accounts/banks", null, null, null);

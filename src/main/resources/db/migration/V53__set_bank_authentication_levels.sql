@@ -11,5 +11,4 @@ SET attr3 = CASE
         ELSE '1'
     END,
     updated_at = CURRENT_TIMESTAMP
-WHERE group_code = 'BANK'
-  AND use_yn = TRUE;
+WHERE group_code = 'BANK';
