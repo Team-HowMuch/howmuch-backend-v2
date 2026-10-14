@@ -115,9 +115,15 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/v1/account/create":
                 self._require_bearer()
                 self._create_account(self._codef_body())
-            elif path == "/v1/account/add":
+            elif path in ("/v1/account/add", "/v1/account/update"):
                 self._require_bearer()
                 self._add_account(self._codef_body())
+            elif path == "/v1/account/list":
+                self._require_bearer()
+                self._registered_accounts(self._codef_body())
+            elif path == "/v1/account/delete":
+                self._require_bearer()
+                self._delete_institutions(self._codef_body())
             elif path == "/v1/kr/bank/p/account/account-list":
                 self._require_bearer()
                 self._account_list(self._codef_body())
@@ -159,7 +165,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _create_account(self, body: dict) -> None:
         items = self._account_items(body)
-        login_id = self._required(items[0], "id", 100)
+        login_id = self._login_id(items[0])
         with connect() as db:
             db.execute(
                 "INSERT OR IGNORE INTO profiles(login_id, display_name) VALUES (?, ?)",
@@ -238,9 +244,36 @@ class Handler(BaseHTTPRequestHandler):
             success.append({
                 "code": "CF-00000", "message": "정상", "extraMessage": "",
                 "countryCode": "KR", "businessType": "BK", "clientType": "P",
-                "loginType": "1", "organization": organization,
+                "loginType": str(item.get("loginType", "1")), "organization": organization,
             })
         return success
+
+    def _registered_accounts(self, body: dict) -> None:
+        connected_id = self._required(body, "connectedId", 200)
+        with connect() as db:
+            rows = db.execute("SELECT organization FROM institutions WHERE connected_id = ? ORDER BY organization",
+                              (connected_id,)).fetchall()
+        self._send_codef(200, {"result": codef_result(), "data": {
+            "accountList": [{"organization": row[0], "organizationCode": row[0]} for row in rows]
+        }})
+
+    def _login_id(self, item: dict) -> str:
+        if str(item.get("loginType")) == "0":
+            # Certificate material is intentionally never decoded, persisted or logged.
+            self._required(item, "derFile", 174764)
+            self._required(item, "keyFile", 174764)
+            self._required(item, "password", 2048)
+            return "demo-user"
+        return self._required(item, "id", 100)
+
+    def _delete_institutions(self, body: dict) -> None:
+        connected_id = self._required(body, "connectedId", 200)
+        items = self._account_items(body)
+        with connect() as db:
+            for item in items:
+                db.execute("DELETE FROM institutions WHERE connected_id = ? AND organization = ?",
+                           (connected_id, self._organization(item.get("organization"))))
+        self._send_codef(200, {"result": codef_result(), "data": {"successList": [], "errorList": []}})
 
     def _save_profile(self, body: dict) -> None:
         login_id = self._required(body, "loginId", 100)

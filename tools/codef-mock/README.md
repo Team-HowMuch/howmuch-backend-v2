@@ -65,3 +65,13 @@ HowMuch API 요청 예시의 금융기관 비밀번호는 Mock이 검증하거�
 | `CODEF_MOCK_CLIENT_SECRET` | `mock-secret` | 로컬 OAuth client secret |
 
 기본 설정은 외부 접속을 받지 않는다. 격리된 개발 네트워크에서만 `CODEF_MOCK_ALLOW_REMOTE=true`와 별도 가상 credential을 설정해 remote bind를 허용한다.
+
+## 인증서 앱 로컬 테스트
+
+`loginType: "0"` 등록은 `derFile`, `keyFile`, `password`의 존재만 확인하고 가상 `demo-user`로 연결한다. 인증서 본문은 decode/저장/로그하지 않으며 실제 공동인증서 암호 검증을 대신하지 않는다. 기존 ID/PW `loginType: "1"` 경로는 유지한다.
+
+인증서 신규 등록, 기존 연결 조회(`/v1/account/list`), 추가/갱신(`/v1/account/add`, `/v1/account/update`), 취소(`/v1/account/delete`)를 지원한다. 등록된 기관의 계좌 후보는 기존 mock 관리 웹에서 수정한다.
+
+```bash
+python3 -m unittest discover -s tools/codef-mock -p 'test_server.py'
+```
