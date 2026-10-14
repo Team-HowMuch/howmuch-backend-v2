@@ -86,3 +86,31 @@ COMMENT ON COLUMN settlement_deposit_reconciliation_jobs.lease_token IS
     'Random claim fence. Claim due rows with SKIP LOCKED; verify generation, token and unexpired lease before committing results. Bank I/O runs outside database transactions.';
 COMMENT ON COLUMN settlement_deposit_reconciliation_jobs.expires_at IS
     'UTC cycle deadline, at most ten minutes after first_signaled_at. Application terminates expired cycles without another bank request.';
+
+-- Partial deposits need their own event type. Existing completion/reminder types
+-- and recipient-scoped deduplication remain unchanged. Deploy readers that know
+-- the new enum before enabling producers of this type.
+ALTER TABLE user_notifications
+    DROP CONSTRAINT ck_user_notifications_type,
+    DROP CONSTRAINT ck_user_notifications_type_target;
+
+ALTER TABLE user_notifications
+    ADD CONSTRAINT ck_user_notifications_type CHECK (
+        notification_type IN (
+            'SETTLEMENT_REQUEST', 'SETTLEMENT_REMINDER',
+            'SETTLEMENT_PAYMENT_COMPLETED', 'SETTLEMENT_COMPLETED',
+            'SETTLEMENT_DEPOSIT_CONFIRMED',
+            'GROUP_INVITATION', 'GROUP_MEMBER_LEFT', 'MONTHLY_RECAP'
+        )
+    ),
+    ADD CONSTRAINT ck_user_notifications_type_target CHECK (
+        (notification_type IN (
+            'SETTLEMENT_REQUEST', 'SETTLEMENT_REMINDER',
+            'SETTLEMENT_PAYMENT_COMPLETED', 'SETTLEMENT_COMPLETED'
+        ) AND target_type IN ('SETTLEMENT_PARTICIPATION', 'SETTLEMENT_DETAIL'))
+        OR (notification_type = 'SETTLEMENT_DEPOSIT_CONFIRMED'
+            AND target_type = 'SETTLEMENT_DETAIL')
+        OR (notification_type = 'GROUP_INVITATION' AND target_type = 'GROUP_INVITATION')
+        OR (notification_type = 'GROUP_MEMBER_LEFT' AND target_type = 'GROUP_DETAIL')
+        OR (notification_type = 'MONTHLY_RECAP' AND target_type = 'MONTHLY_RECAP')
+    );
