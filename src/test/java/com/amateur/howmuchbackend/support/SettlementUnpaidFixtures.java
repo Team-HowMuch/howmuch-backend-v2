@@ -144,6 +144,10 @@ public final class SettlementUnpaidFixtures implements AutoCloseable {
 
     @Override
     public void close() {
+        // Immutable deposits keep their settlement, but its synthetic job must not
+        // leak into another test's global claimDue polling.
+        settlementIds.forEach(id -> jdbc.update(
+                "DELETE FROM settlement_deposit_reconciliation_jobs WHERE settlement_id = ?", id));
         boolean immutableDeposits = SettlementDepositTestCleanup.immutableDepositsEnabled(jdbc);
         if (!immutableDeposits) {
             settlementIds.forEach(id -> SettlementDepositTestCleanup.deleteDepositsWhenMutable(jdbc, id));
