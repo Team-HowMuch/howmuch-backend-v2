@@ -1040,6 +1040,47 @@ class AskTreasurerServiceTest {
     }
 
     @Test
+    @DisplayName("다른 낱말의 첫머리로 쓰인 돈은 관련 단어로 보지 않아 안내 LLM을 부르지 않는다")
+    void wordPrefixedMoneyTerm_skipsGuide() {
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("돈까스 만드는 방법 알려줘"));
+
+        assertThat(result.answer()).isEqualTo(TreasurerCardCopy.UNKNOWN_ANSWER);
+        verifyNoInteractions(generateTreasurerGuidePort);
+    }
+
+    @Test
+    @DisplayName("사용법 말투의 데이터 질문을 안내가 무관하다고 하면 정산을 보여주지 않고 범위를 안내한다")
+    void howToWithDataKeyword_guideSaysUnrelated_returnsExamples() {
+        when(generateTreasurerGuidePort.generate(eq("비트코인 송금은 어떻게 해?"), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.UNRELATED, null, List.of(), List.of())));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("비트코인 송금은 어떻게 해?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(result.answer()).isEqualTo(TreasurerCardCopy.UNKNOWN_ANSWER);
+        assertThat(result.prompts()).isNotEmpty();
+        verifyNoInteractions(treasurerSettlementQuery);
+    }
+
+    @Test
+    @DisplayName("영수증 안내 질문을 안내가 무관하다고 하면 고정 영수증 안내 대신 범위를 안내한다")
+    void guideIntent_guideSaysUnrelated_returnsExamples() {
+        when(generateTreasurerGuidePort.generate(any(), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.UNRELATED, null, List.of(), List.of())));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("종이 영수증 오래 보관하는 방법 알려줘"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(result.answer()).isEqualTo(TreasurerCardCopy.UNKNOWN_ANSWER);
+    }
+
+    @Test
     @DisplayName("데이터 키워드가 걸려도 사용법을 묻는 말투면 안내로 답하고 정산을 조회하지 않는다")
     void howToWithDataKeyword_guideAccepted_skipsSettlementLookup() {
         when(generateTreasurerGuidePort.generate(eq("송금은 어떻게 해?"), any()))

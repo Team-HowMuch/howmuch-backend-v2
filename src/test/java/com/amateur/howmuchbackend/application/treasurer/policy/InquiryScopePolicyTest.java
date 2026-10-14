@@ -30,7 +30,10 @@ class InquiryScopePolicyTest {
             "그룹 초대는 어떻게 해?",
             "AI 비서는 뭘 할 수 있어?",
             "정산 링크는 어디서 보내?",
-            "얼마 비밀번호 바꾸고 싶어"
+            "얼마 비밀번호 바꾸고 싶어",
+            "돈이 안 들어와",
+            "\"돈\" 받는 거 어떻게 해?",
+            "얼마야?"
     })
     void inScopeSettlementOrServiceQuestion_related(String question) {
         assertThat(policy.classify(question)).isEqualTo(InquiryScope.RELATED);
@@ -51,7 +54,11 @@ class InquiryScopePolicyTest {
             "인스타 프로필 사진 추천해줘",
             "결혼식 초대장 문구 써줘",
             "대통령 비서실장 누구야",
-            "토스 주식 사도 돼?"
+            "토스 주식 사도 돼?",
+            "돈까스 만드는 방법 알려줘",
+            "얼마 전에 산 신발 어때?",
+            "얼마나 맛있어?",
+            "얼마 전 헬스장 가입했어"
     })
     void questionWithoutServiceVocabulary_unrelated(String question) {
         assertThat(policy.classify(question)).isEqualTo(InquiryScope.UNRELATED);

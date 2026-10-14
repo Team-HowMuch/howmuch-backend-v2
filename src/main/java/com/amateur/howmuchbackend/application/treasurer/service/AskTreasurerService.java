@@ -116,20 +116,28 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             }
             Guided guided = guidedAnswer(command.question());
             if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
-                return textAnswer(InquiryIntent.UNKNOWN, TreasurerCardCopy.UNKNOWN_ANSWER, suggestionPrompts());
+                return outOfScopeAnswer();
             }
             return guided.answer().orElseGet(() -> unmatchedAnswer(command.question()));
         }
         if (parsed.intent() == InquiryIntent.GUIDE) {
-            return guidedAnswer(command.question()).answer()
+            Guided guided = guidedAnswer(command.question());
+            if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
+                return outOfScopeAnswer();
+            }
+            return guided.answer()
                     .orElseGet(() -> textAnswer(InquiryIntent.GUIDE, TreasurerCardCopy.OCR_ANSWER, List.of()));
         }
         if (inquiryHowToPolicy.asksHowTo(command.question())) {
             // "송금은 어떻게 해?"처럼 키워드가 데이터 의도로 걸려도 사용법 질문일 수 있다.
             // 안내가 데이터 질문이라고 돌려보내거나 실패하면 지금처럼 정산을 조회한다.
-            Optional<Answered> guided = guidedAnswer(command.question()).answer();
-            if (guided.isPresent()) {
-                return guided.get();
+            // "비트코인 송금은 어떻게 해?"처럼 무관하다고 하면 정산을 보여주지 않고 범위를 안내한다.
+            Guided guided = guidedAnswer(command.question());
+            if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
+                return outOfScopeAnswer();
+            }
+            if (guided.answer().isPresent()) {
+                return guided.answer().get();
             }
         }
 
@@ -210,6 +218,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 ? TreasurerCardCopy.CLARIFY_ANSWER
                 : TreasurerCardCopy.UNKNOWN_ANSWER;
         return textAnswer(InquiryIntent.UNKNOWN, answer, suggestionPrompts());
+    }
+
+    private Answered outOfScopeAnswer() {
+        return textAnswer(InquiryIntent.UNKNOWN, TreasurerCardCopy.UNKNOWN_ANSWER, suggestionPrompts());
     }
 
     private List<TreasurerAnswerResult.Prompt> suggestionPrompts() {
