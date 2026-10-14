@@ -36,15 +36,21 @@ public class BankCatalog implements GetBankCatalogUseCase {
     public List<BankCatalogResult> getAllBanks() {
         return loadCommonCodePort.findActiveByGroupCode(GROUP_CODE).stream()
                 .map(bank -> new BankCatalogResult(
-                        bank.code(), bank.name(), bank.attr1(), "1".equals(bank.attr3())
+                        bank.code(), bank.name(), bank.attr1(), requiresAccountCredentials(bank)
                 ))
                 .toList();
     }
 
     public boolean requiresAccountCredentials(String organization) {
         return loadCommonCodePort.findActiveByGroupCodeAndCode(GROUP_CODE, organization)
-                .map(bank -> "1".equals(bank.attr3()))
+                .map(BankCatalog::requiresAccountCredentials)
                 .orElse(false);
+    }
+
+    private static boolean requiresAccountCredentials(CommonCode bank) {
+        // V40 uses 1 for credentials; V53 uses 3. Non-ID/PW banks use 1 for certificate-only.
+        return "3".equals(bank.attr3())
+                || ("1".equals(bank.attr3()) && ID_PASSWORD_BANKS.contains(bank.code()));
     }
 
     public void validate(String organization) {
