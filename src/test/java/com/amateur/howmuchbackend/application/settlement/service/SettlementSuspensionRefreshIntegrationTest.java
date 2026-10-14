@@ -45,6 +45,8 @@ import java.util.concurrent.atomic.AtomicReference;
         })
 @DisplayName("정산 중단 입금 재조회 transaction 경계 통합")
 class SettlementSuspensionRefreshIntegrationTest {
+    @MockitoBean private com.amateur.howmuchbackend.application.port.out.settlement.SettlementBankLookupBudgetPort bankLookupBudget;
+
     private static final String ORGANIZATION = "0020";
     private static final String ACCOUNT_NUMBER = "1002123456789";
 

@@ -56,6 +56,8 @@ import static org.mockito.Mockito.*;
         "howmuch.settlement.automatic-reminder.enabled=false"
 })
 class SettlementWidgetHttpIntegrationTest {
+    @MockitoBean private com.amateur.howmuchbackend.application.port.out.settlement.SettlementBankLookupBudgetPort bankLookupBudget;
+
     private static final String PATH = "/api/v2/settlements/widget-summary";
     private static final String ACCOUNT = "1002123456789";
     @LocalServerPort private int port;
