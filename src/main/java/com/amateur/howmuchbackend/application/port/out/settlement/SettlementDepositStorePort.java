@@ -30,6 +30,11 @@ public interface SettlementDepositStorePort {
             String accountNumber
     );
 
+    /** Widget refresh considers every REQUESTED settlement on the account to reject ambiguous matches. */
+    List<PayableDepositCandidate> findWidgetPayableCandidatesByReceivingAccount(
+            Long creatorId, Long sourceAccountId, String organization, String accountNumber
+    );
+
     void saveAll(List<SettlementDeposit> deposits);
 
     record PayableDepositCandidate(

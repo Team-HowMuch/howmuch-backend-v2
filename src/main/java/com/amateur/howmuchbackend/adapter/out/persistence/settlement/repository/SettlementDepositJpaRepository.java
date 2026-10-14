@@ -77,8 +77,9 @@ public interface SettlementDepositJpaRepository
              WHERE settlement.creator_id = :creatorId
                AND snapshot.organization = :organization
                AND (settlement.status = 'AWAITING_DEPOSIT'
-                    OR (settlement.id = :targetSettlementId
+                    OR ((:includeAllRequested = TRUE OR settlement.id = :targetSettlementId)
                         AND settlement.status = 'REQUESTED'))
+               AND settlement.deleted_at IS NULL
                AND (participant.linked_user_id IS NULL
                     OR participant.linked_user_id <> settlement.creator_id)
              GROUP BY share.settlement_id, share.id, participant.display_name, share.amount,
@@ -90,7 +91,8 @@ public interface SettlementDepositJpaRepository
     List<PayableDepositCandidateProjection> findUnfinishedPayableCandidatesByCreatorIdAndOrganizationAndTargetSettlementId(
             @Param("creatorId") Long creatorId,
             @Param("organization") String organization,
-            @Param("targetSettlementId") UUID targetSettlementId
+            @Param("targetSettlementId") UUID targetSettlementId,
+            @Param("includeAllRequested") boolean includeAllRequested
     );
 
     interface MatchedTransactionProjection {
