@@ -1,6 +1,6 @@
 # Feature Plan: 중단된 정산 수정 API 지원
 
-- 상태: 구현 준비
+- 상태: 완료
 - 작성일: 2026-10-14
 - 관련 이슈: [#533](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/533)
 - 기준 문서: [Architecture](../../architecture.md), [Coding Guidelines](../../coding-guidelines.md), [Development Workflow](../../development-workflow.md)
@@ -10,10 +10,10 @@
 중단된 정산의 생성자가 영수증, 더치페이 금액, 참여자 이름을 수정한 뒤 명시적으로 재개할 수 있게 한다. 기존 영수증 교체와 더치페이 수정은 이미 구현되어 있으므로 해당 흐름을 재사용하고, DRAFT 전용 검사에 막힌 참여자 이름 수정만 확장한다.
 
 완료 조건:
-- [ ] SUSPENDED 생성자가 세 수정 API를 호출할 수 있고 수정 후에도 SUSPENDED를 유지한다.
-- [ ] 비생성자, 진행·완료 상태, 잘못된 요청을 거절한다.
-- [ ] 쓰기 도중 실패하면 전체 변경을 롤백한다.
-- [ ] 기존 DRAFT 수정과 정산 재개 흐름을 유지한다.
+- [x] SUSPENDED 생성자가 세 수정 API를 호출할 수 있고 수정 후에도 SUSPENDED를 유지한다.
+- [x] 비생성자, 진행·완료 상태, 잘못된 요청을 거절한다.
+- [x] 쓰기 도중 실패하면 전체 변경을 롤백한다.
+- [x] 기존 DRAFT 수정과 정산 재개 흐름을 유지한다.
 
 범위 제외: 참여자 추가·삭제 허용 상태 확장, 생성자 자신의 표시 이름 수정, API 신설, 은행 연동 변경, 배포.
 
@@ -53,10 +53,10 @@ Flyway migration required: **No**. 기존 display_name 열과 상태·금액 저
 ## 5. 구현·커밋 계획
 
 - [x] 기존 API 및 호출 경로 분석, 마이그레이션 불필요 확인
-- [ ] 이름 수정 상태·입금 검사 및 Swagger 수정
-- [ ] HTTP·PostgreSQL 회귀 테스트 추가
-- [ ] 컴파일·관련 테스트·전체 테스트와 문서 경로 확인
-- [ ] 완료 기록 후 docs/features/completed/로 이동
+- [x] 이름 수정 상태·입금 검사 및 Swagger 수정
+- [x] HTTP·PostgreSQL 회귀 테스트 추가
+- [x] 컴파일·관련 테스트·전체 테스트와 문서 경로 확인
+- [x] 완료 기록 후 docs/features/completed/로 이동
 
 예상 커밋 경계:
 1. fix(settlement): 중단된 정산 참여자 이름 수정 허용 — 설계 문서와 실제 변경.
@@ -71,4 +71,12 @@ Flyway migration required: **No**. 기존 display_name 열과 상태·금액 저
 
 ## 7. 결과·완료 기록
 
-검증 대기.
+- 구현: 이름 수정 전용 상태 검사와 기존 확정 입금 보호를 연결하고 Swagger에 허용 상태·409 오류를 반영했다.
+- 테스트: HTTP·PostgreSQL 통합 테스트 38개로 세 수정 API의 상태·권한·입력 검증, 저장 실패 롤백, 이름 변경 후 재개, 계정 이름·배분 데이터 보존을 확인했다.
+- 최종 전체 실행: compileJava·bootJar, Java 1,866개(240 suites), JavaScript 35개 통과. 실패·오류·skip 0.
+- 최종 기준: 작업 중 병합된 #532를 포함한 origin/develop 9ce31983. V52 적용 후 전체 재검증 통과.
+- 미검증: 실제 모바일 화면과 실제 은행 호출. 테스트의 현재 사용자는 CurrentActorPort로 대체하며, 이번 통합 테스트는 실제 JWT 인증을 포함하지 않는다.
+- 스키마·환경변수 변경 없음. 서버 배포는 수행하지 않았다.
+
+- 완료일: 2026-10-14
+- 문서 상대 링크, git diff --check 확인 완료.
