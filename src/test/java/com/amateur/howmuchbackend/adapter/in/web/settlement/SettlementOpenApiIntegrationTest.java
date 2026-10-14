@@ -59,7 +59,7 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementListItemWebResponse",
                 "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
-                "completedParticipantCount", "amountToPay", "requesterName", "groups"
+                "completedParticipantCount", "amountToPay", "receivableAmount", "requesterName", "groups"
         );
         assertRequired(
                 document,
@@ -102,7 +102,8 @@ class SettlementOpenApiIntegrationTest {
         assertNullable(
                 document,
                 "SettlementListItemWebResponse",
-                "endedAt", "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay", "requesterName"
+                "endedAt", "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay",
+                "receivableAmount", "requesterName"
         );
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "endedAt");
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "completedAt");

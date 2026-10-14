@@ -33,7 +33,6 @@ import static org.mockito.Mockito.when;
 class TreasurerSettlementQueryTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 12, 0, 0);
     private static final UUID CREATOR_PARTICIPANT_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-    private static final UUID PAYER_PARTICIPANT_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static final UUID EXPENSE_ID = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     @Mock
@@ -136,6 +135,50 @@ class TreasurerSettlementQueryTest {
         assertThat(query().loadMine()).singleElement()
                 .satisfies(settlement -> assertThat(settlement.amount()).isEqualTo(4_000L));
         verifyNoInteractions(loadRequestedItemReceivableFactsPort);
+    }
+
+    @Test
+    @DisplayName("중단된 영수증 정산도 정산 상세와 같이 받을 금액을 다시 계산한다")
+    void settlementQuery_suspendedItemAllocationReceive_usesCalculatedAmount() {
+        UUID receiveId = UUID.fromString("66666666-6666-6666-6666-666666666666");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(7L));
+        when(loadTreasurerSettlementsPort.findAll(7L))
+                .thenReturn(List.of(receiptRecord(receiveId, SettlementDirection.RECEIVE, SettlementStatus.SUSPENDED, 0L)));
+        when(loadRequestedItemReceivableFactsPort.findAllBySettlementIds(List.of(receiveId)))
+                .thenReturn(List.of(creatorPickedCola(receiveId)));
+
+        assertThat(query().loadMine()).singleElement()
+                .satisfies(settlement -> assertThat(settlement.amount()).isEqualTo(10_000L));
+    }
+
+    @Test
+    @DisplayName("입금 대기부터는 Share 합계를 그대로 쓴다")
+    void settlementQuery_awaitingDepositItemAllocation_keepsShareSum() {
+        UUID receiveId = UUID.fromString("77777777-7777-7777-7777-777777777777");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(7L));
+        when(loadTreasurerSettlementsPort.findAll(7L)).thenReturn(List.of(
+                receiptRecord(receiveId, SettlementDirection.RECEIVE, SettlementStatus.AWAITING_DEPOSIT, 9_000L)));
+
+        assertThat(query().loadMine()).singleElement()
+                .satisfies(settlement -> assertThat(settlement.amount()).isEqualTo(9_000L));
+        verifyNoInteractions(loadRequestedItemReceivableFactsPort);
+    }
+
+    @Test
+    @DisplayName("저장된 선택이 품목과 맞지 않으면 예외 없이 조회한 금액을 쓴다")
+    void settlementQuery_inconsistentSelection_keepsLoadedAmount() {
+        UUID receiveId = UUID.fromString("88888888-8888-8888-8888-888888888888");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(7L));
+        when(loadTreasurerSettlementsPort.findAll(7L))
+                .thenReturn(List.of(receiptRecord(receiveId, SettlementDirection.RECEIVE, SettlementStatus.REQUESTED, 0L)));
+        when(loadRequestedItemReceivableFactsPort.findAllBySettlementIds(List.of(receiveId))).thenReturn(List.of(
+                new RequestedItemReceivableFacts(receiveId, 10_000L, CREATOR_PARTICIPANT_ID, List.of(),
+                        List.of(new SettlementItemSelection(UUID.randomUUID(), receiveId, UUID.randomUUID(),
+                                CREATOR_PARTICIPANT_ID, SettlementItemAllocationFraction.ONE, 1, NOW, NOW)),
+                        List.of())));
+
+        assertThat(query().loadMine()).singleElement()
+                .satisfies(settlement -> assertThat(settlement.amount()).isZero());
     }
 
     private TreasurerSettlementQuery query() {

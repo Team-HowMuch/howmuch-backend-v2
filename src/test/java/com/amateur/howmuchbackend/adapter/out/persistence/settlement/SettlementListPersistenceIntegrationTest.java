@@ -72,6 +72,9 @@ class SettlementListPersistenceIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private RequestedItemReceivableFactsPersistenceAdapter requestedItemReceivableFactsAdapter;
+
     private Long creatorId;
     private Long payerId;
     private Long otherUserId;
@@ -629,6 +632,140 @@ class SettlementListPersistenceIntegrationTest {
                 CREATED_AT,
                 CREATED_AT
         );
+    }
+
+    @Test
+    @DisplayName("RECEIVE는 생성자 본인 Share를 뺀 Share 합계를 함께 조회하고 PAY는 비운다")
+    void receiveSettlement_receivableShareAmount_excludesCreatorShare() {
+        insertReceiveRequest(600L);
+        settlementShareJpaRepository.saveAndFlush(new SettlementShareJpaEntity(
+                UUID.randomUUID(),
+                receiveSettlementId,
+                receiveCreatorParticipantId,
+                100L,
+                CREATED_AT
+        ));
+
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null))
+                .singleElement()
+                .extracting(SettlementListReadModel::receivableShareAmount)
+                .isEqualTo(600L);
+        assertThat(settlementPersistenceAdapter.findAll(
+                payerId, SettlementListTab.PAY, SettlementListStatusFilter.IN_PROGRESS, null, null))
+                .singleElement()
+                .extracting(SettlementListReadModel::receivableShareAmount)
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("선택 대기 품목 정산의 목록 받을 금액은 영수증 총액에서 생성자가 고른 몫을 뺀다")
+    void receiveSettlement_requestedItemAllocation_receivableAmountExcludesCreatorPick() {
+        givenRequestedReceiptCreatorPickedCola();
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+
+        var result = settlementListService.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null));
+
+        assertThat(result).singleElement().satisfies(item -> {
+            assertThat(item.totalAmount()).isEqualTo(12_000L);
+            assertThat(item.receivableAmount()).isEqualTo(10_000L);
+            assertThat(item.amountToPay()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("받을 금액 계산 재료를 정산 ID 목록으로 한 번에 불러오고 없는 정산은 뺀다")
+    void requestedItemReceivableFacts_loadedForSettlementIds() {
+        givenRequestedReceiptCreatorPickedCola();
+        UUID missingId = UUID.randomUUID();
+
+        var facts = requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of(
+                receiveSettlementId, missingId, paySettlementId, receiveSettlementId));
+
+        assertThat(facts).extracting(fact -> fact.settlementId())
+                .containsExactly(receiveSettlementId, paySettlementId);
+        assertThat(facts.get(0)).satisfies(receipt -> {
+            assertThat(receipt.totalAmount()).isEqualTo(12_000L);
+            assertThat(receipt.creatorParticipantId()).isEqualTo(receiveCreatorParticipantId);
+            assertThat(receipt.items()).extracting(item -> item.name()).containsExactly("피자", "콜라");
+            assertThat(receipt.selections()).singleElement()
+                    .satisfies(selection -> assertThat(selection.participantId()).isEqualTo(receiveCreatorParticipantId));
+            assertThat(receipt.expenses()).singleElement()
+                    .satisfies(expense -> assertThat(expense.amount()).isEqualTo(12_000L));
+        });
+        assertThat(facts.get(1)).satisfies(dutchPay -> {
+            assertThat(dutchPay.creatorParticipantId()).isNotNull();
+            assertThat(dutchPay.items()).isEmpty();
+            assertThat(dutchPay.selections()).isEmpty();
+        });
+    }
+
+    @Test
+    @DisplayName("삭제된 정산의 계산 재료는 불러오지 않는다")
+    void requestedItemReceivableFacts_deletedSettlement_excluded() {
+        givenRequestedReceiptCreatorPickedCola();
+        jdbcTemplate.update("UPDATE settlements SET deleted_at = ? WHERE id = ?",
+                CREATED_AT.plusDays(1), receiveSettlementId);
+
+        assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of(receiveSettlementId)))
+                .isEmpty();
+        assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("저장된 행이 도메인 규칙과 맞지 않는 정산은 계산 재료에서 빼고 목록은 Share 합계로 대체한다")
+    void requestedItemReceivable_brokenRow_skippedWithoutFailingList() {
+        givenRequestedReceiptCreatorPickedCola();
+        // 영수증이 아닌 지출에는 할인이 있을 수 없다. DB는 막지 않지만 도메인 변환에서 거부된다.
+        jdbcTemplate.update("""
+                INSERT INTO settlement_expenses (
+                    id, settlement_id, source, description, amount, discount,
+                    display_order, created_at, updated_at
+                ) VALUES (?, ?, 'MANUAL', '깨진 지출', 1000, 100, 1, ?, ?)
+                """, UUID.randomUUID(), receiveSettlementId, CREATED_AT, CREATED_AT);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+
+        assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(
+                java.util.List.of(receiveSettlementId, paySettlementId)))
+                .extracting(fact -> fact.settlementId())
+                .containsExactly(paySettlementId);
+        assertThat(settlementListService.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                .singleElement()
+                .satisfies(item -> assertThat(item.receivableAmount()).isZero());
+    }
+
+    /** 총액 12,000원 영수증(피자 10,000원, 콜라 2,000원)에서 생성자가 콜라를 골랐고 참여자는 아직 고르지 않았다. */
+    private void givenRequestedReceiptCreatorPickedCola() {
+        jdbcTemplate.update("""
+                UPDATE settlements
+                   SET status = 'REQUESTED', allocation_type = 'ITEM_ALLOCATION', total_amount = 12000
+                 WHERE id = ?
+                """, receiveSettlementId);
+        UUID expenseId = UUID.randomUUID();
+        UUID pizzaId = UUID.randomUUID();
+        UUID colaId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO settlement_expenses (
+                    id, settlement_id, source, description, amount,
+                    display_order, created_at, updated_at
+                ) VALUES (?, ?, 'MANUAL', '영수증', 12000, 0, ?, ?)
+                """, expenseId, receiveSettlementId, CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_items (
+                    id, settlement_id, expense_id, name, quantity, amount,
+                    display_order, created_at, updated_at
+                ) VALUES (?, ?, ?, '피자', 1, 10000, 0, ?, ?), (?, ?, ?, '콜라', 1, 2000, 1, ?, ?)
+                """, pizzaId, receiveSettlementId, expenseId, CREATED_AT, CREATED_AT,
+                colaId, receiveSettlementId, expenseId, CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_item_selections (
+                    id, settlement_id, item_id, participant_id, fraction,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'ONE', ?, ?)
+                """, UUID.randomUUID(), receiveSettlementId, colaId, receiveCreatorParticipantId,
+                CREATED_AT, CREATED_AT);
     }
 
     private void cleanupFixtures() {

@@ -278,6 +278,7 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
                         org.hamcrest.Matchers.equalTo("completedAt"), org.hamcrest.Matchers.nullValue())))
                 .andExpect(jsonPath("$.data[0].totalAmount").value(600))
+                .andExpect(jsonPath("$.data[0].receivableAmount").value(400))
                 .andExpect(jsonPath("$.data[0].participantCount").value(3))
                 .andExpect(jsonPath("$.data[0].payableParticipantCount").value(2))
                 .andExpect(jsonPath("$.data[0].completedParticipantCount").value(0))

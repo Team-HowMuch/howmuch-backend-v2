@@ -1,5 +1,10 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import org.junit.jupiter.api.DisplayName;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItemAllocationFraction;
+import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadRequestedItemReceivableFactsPort.RequestedItemReceivableFacts;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSettlementsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
@@ -23,6 +28,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -199,5 +205,102 @@ class SettlementListServiceTest {
             assertThat(item.amountToPay()).isEqualTo(expectedAmount);
             assertThat(item.totalAmount()).isEqualTo(tab == SettlementListTab.RECEIVE ? 6_000L : null);
         });
+    }
+
+    @Test
+    @DisplayName("선택 대기 품목 정산의 받을 금액은 영수증 총액에서 생성자 몫을 뺀 값이다")
+    void receiveList_requestedItemAllocation_receivableAmountRecalculated() {
+        var readModel = receiveReadModel(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.REQUESTED, 0L);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS, null, null)).thenReturn(List.of(readModel));
+        when(loadRequestedItemReceivableFactsPort.findAllBySettlementIds(List.of(SETTLEMENT_ID)))
+                .thenReturn(List.of(creatorPickedCola()));
+
+        var result = service().get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null));
+
+        assertThat(result).singleElement().satisfies(item -> {
+            assertThat(item.totalAmount()).isEqualTo(12_000L);
+            assertThat(item.receivableAmount()).isEqualTo(10_000L);
+        });
+    }
+
+    @Test
+    @DisplayName("다시 계산할 대상이 아니면 생성자를 뺀 Share 합계를 받을 금액으로 쓰고 추가 조회하지 않는다")
+    void receiveList_notRequestedItemAllocation_usesShareSum() {
+        var dutchPay = receiveReadModel(SettlementAllocationType.DUTCH_PAY, SettlementStatus.AWAITING_DEPOSIT, 8_000L);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS, null, null)).thenReturn(List.of(dutchPay));
+
+        var result = service().get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null));
+
+        assertThat(result).singleElement()
+                .satisfies(item -> assertThat(item.receivableAmount()).isEqualTo(8_000L));
+        verifyNoInteractions(loadRequestedItemReceivableFactsPort);
+    }
+
+    @Test
+    @DisplayName("받을 금액 계산 재료가 없으면 Share 합계로 되돌린다")
+    void receiveList_factsMissing_fallsBackToShareSum() {
+        var readModel = receiveReadModel(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.SUSPENDED, 3_000L);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.ALL, null, null)).thenReturn(List.of(readModel));
+        when(loadRequestedItemReceivableFactsPort.findAllBySettlementIds(List.of(SETTLEMENT_ID))).thenReturn(List.of());
+
+        var result = service().get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null));
+
+        assertThat(result).singleElement()
+                .satisfies(item -> assertThat(item.receivableAmount()).isEqualTo(3_000L));
+    }
+
+    @Test
+    @DisplayName("PAY 탭의 받을 금액은 비우고 추가 조회하지 않는다")
+    void payList_receivableAmountNull() {
+        var readModel = new SettlementListReadModel(
+                SETTLEMENT_ID, SettlementStatus.REQUESTED, LocalDateTime.of(2026, 10, 1, 0, 0), null, null,
+                12_000L, SettlementAllocationType.ITEM_ALLOCATION, null, null, null, null, null, "요청자", List.of());
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.PAY,
+                SettlementListStatusFilter.IN_PROGRESS, null, null)).thenReturn(List.of(readModel));
+
+        var result = service().get(new GetSettlementsCommand(
+                SettlementListTab.PAY, SettlementListStatusFilter.IN_PROGRESS, null, null));
+
+        assertThat(result).singleElement()
+                .satisfies(item -> assertThat(item.receivableAmount()).isNull());
+        verifyNoInteractions(loadRequestedItemReceivableFactsPort);
+    }
+
+    private SettlementListReadModel receiveReadModel(
+            SettlementAllocationType allocationType,
+            SettlementStatus status,
+            long receivableShareAmount
+    ) {
+        return new SettlementListReadModel(
+                SETTLEMENT_ID, status, LocalDateTime.of(2026, 10, 1, 0, 0), null, null,
+                12_000L, allocationType, 3, 2, 0, null, receivableShareAmount, null, List.of());
+    }
+
+    /** 총액 12,000원 중 생성자가 콜라 2,000원을 골랐다. */
+    private RequestedItemReceivableFacts creatorPickedCola() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 0, 0);
+        UUID expenseId = UUID.randomUUID();
+        UUID creatorParticipantId = UUID.randomUUID();
+        SettlementItem pizza = new SettlementItem(UUID.randomUUID(), SETTLEMENT_ID, expenseId, "피자", 1, 10_000, 0, now, now);
+        SettlementItem cola = new SettlementItem(UUID.randomUUID(), SETTLEMENT_ID, expenseId, "콜라", 1, 2_000, 1, now, now);
+        return new RequestedItemReceivableFacts(
+                SETTLEMENT_ID,
+                12_000L,
+                creatorParticipantId,
+                List.of(pizza, cola),
+                List.of(new SettlementItemSelection(UUID.randomUUID(), SETTLEMENT_ID, cola.id(), creatorParticipantId,
+                        SettlementItemAllocationFraction.ONE, 1, now, now)),
+                List.of()
+        );
     }
 }
