@@ -264,6 +264,29 @@ class SettlementTransferIntentIntegrationTest {
                 .contains("현재 확정된 몫");
     }
 
+    @Test void fixtureCleanup_preservesDepositButRemovesPendingJob() throws Exception {
+        bankReturns(List.of(income(400, "fixture-cleanup")));
+        post(memberPath(), memberToken, null);
+        at(30);
+        worker.processDue(1);
+        assertThat(depositCount()).isOne();
+        assertThat(jobStatus()).isEqualTo("RETRY");
+
+        try (var otherFixtures = new SettlementUnpaidFixtures(jdbc)) {
+            var otherSettlement = otherFixtures.settlement(otherFixtures.user(),
+                    SettlementStatus.AWAITING_DEPOSIT, SettlementAllocationType.DUTCH_PAY);
+            jobs.schedule(otherSettlement, now(), now().plusSeconds(30), now().plusMinutes(10), now());
+
+            fixtures.close();
+
+            assertThat(depositCount()).isOne();
+            assertThat(jobCount()).isZero();
+            assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM settlement_deposit_reconciliation_jobs WHERE settlement_id=?",
+                    Long.class, otherSettlement)).isOne();
+        }
+    }
+
     @Test void reconcile_unpaid_stopsAfterThreeAttempts() throws Exception {
         post(memberPath(),memberToken,null);
         at(30); worker.processDue(10); assertThat(jobStatus()).isEqualTo("RETRY");

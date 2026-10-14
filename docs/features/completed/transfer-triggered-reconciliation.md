@@ -110,3 +110,12 @@ KST 날짜별 공유 예산과 사용자 예산을 한 Lua 실행으로 검사·
 수정 전 강화한 OpenAPI 테스트 1건이 새 타입 누락으로 실패하는 것을 재현했다. 수정 후 `compileJava`, `bootJar`, 입금 신호·알림함 통합 Java 43개 / 2 suites와 JavaScript 35개가 실패·오류·skip 없이 통과했다. 변경 범위가 스키마 선언과 기존 회귀 강화이므로 기존 전체 1,968개 검증은 다시 실행하지 않았다. 원격 CI의 기존 실행은 GitHub 결제·사용 한도 문제로 시작되지 못했다.
 
 추가 커밋: `fix(notification): 입금 확인 알림의 OpenAPI 유형 누락 보완`.
+
+## 2026-10-14 CI 테스트 격리 수정 (#548)
+
+- develop CI 38564808945에서 재시도 시각 전 처리 건수 0을 기대했지만 1이 처리됐다. V53 입금 불변성 때문에 테스트 정산을 보존하면서 RETRY 예약도 남아 다음 테스트의 전역 claimDue에 섞였다.
+- 별도 로컬 disposable PostgreSQL DB에서 fixture close 후 예약 1건이 남는 실패를 먼저 재현했다.
+- SettlementUnpaidFixtures.close가 자신이 생성한 정산 ID의 예약만 정리하도록 수정했다. 불변 입금 기록과 다른 fixture의 예약은 보존하는 회귀 검증을 추가했다.
+- 서비스/SQL schema 변경 및 새 Flyway migration은 없다. 커밋 경계는 fixture 격리 수정과 회귀 검증 한 건이다.
+- 로컬 검증: fixture 소비 통합 테스트 7개 클래스 85개 및 JavaScript 35개 통과. 기존 30/120/420초·3회 재시도 조건은 그대로 검증했다.
+- 테스트는 독립 DB와 비어 있던 Redis DB15에서 실행했다. 다른 개발 DB 및 Docker daemon 설정은 변경하지 않았다.
