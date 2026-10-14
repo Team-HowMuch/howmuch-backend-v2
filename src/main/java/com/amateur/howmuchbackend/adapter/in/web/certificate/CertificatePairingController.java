@@ -59,7 +59,7 @@ public class CertificatePairingController implements CertificatePairingDocs {
     public ApiResponse<CertificatePairingWebResponse> claim(
             @PathVariable UUID id, @Valid @RequestBody ClaimCertificatePairingWebRequest r) {
         return ApiResponse.success(
-                CertificatePairingWebResponse.from(pairDevice.pair(id, r.qrToken())));
+                CertificatePairingWebResponse.from(pairDevice.pair(r.toCommand(id))));
     }
 
     @GetMapping("/{id}")

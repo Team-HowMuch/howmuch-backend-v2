@@ -17,7 +17,7 @@ pairing 사용자/등록 세션/기존 연결 snapshot은 변경 불가다. 같�
 ## 계약
 - POST /api/v2/certificate-pairings: 초기 QR 및 PC capability(생성 응답만).
 - GET/DELETE /api/v2/certificate-pairings/{id}/pc: PC capability 상태/취소.
-- POST /api/v2/certificate-pairings/{id}/claim: JWT + qrToken으로 사용자 연결.
+- POST /api/v2/certificate-pairings/{id}/claim: JWT + qrToken + organization으로 사용자와 모바일 선택 금융기관 연결. PC는 반환 organization으로 은행을 고정한다.
 - GET /api/v2/certificate-pairings/{id}: JWT 소유자 상태(대기/등록 sessionId/공통 오류).
 - POST /api/v2/certificate-pairings/{id}/registrations: PC capability + organization, 기존 create/upload 계약 반환.
 - POST /api/v2/certificate-pairings/{id}/approval: JWT 소유자만 인증 성공 후 최종 claim 예약.

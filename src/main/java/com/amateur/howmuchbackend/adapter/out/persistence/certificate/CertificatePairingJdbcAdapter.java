@@ -30,6 +30,7 @@ public class CertificatePairingJdbcAdapter implements CertificatePairingStorePor
                 r.getObject("qr_expires_at", LocalDateTime.class),
                 r.getObject("expires_at", LocalDateTime.class),
                 (Long) r.getObject("paired_user_id"),
+                r.getString("organization_code"),
                 r.getObject("registration_session_id", UUID.class),
                 r.getBoolean("authentication_prepared"),
                 (Long) r.getObject("existing_connection_id"),
@@ -97,13 +98,14 @@ public class CertificatePairingJdbcAdapter implements CertificatePairingStorePor
                 .findFirst();
     }
 
-    public void pair(UUID id, long user, LocalDateTime now) {
+    public void pair(UUID id, long user, String organization, LocalDateTime now) {
         if (jdbc.update(
-                        "UPDATE certificate_pc_pairings SET paired_user_id=?,paired_at=? WHERE id=?"
+                        "UPDATE certificate_pc_pairings SET paired_user_id=?,paired_at=?,organization_code=? WHERE id=?"
                                 + " AND paired_user_id IS NULL AND cancelled_at IS NULL AND"
                                 + " qr_expires_at>?",
                         user,
                         now,
+                        organization,
                         id,
                         now)
                 != 1) throw ApplicationException.of(CERTIFICATE_CONFLICT);

@@ -533,7 +533,7 @@ class CertificateHttpIntegrationTest {
         assertThat(request("DELETE", root, null, null, null).statusCode()).isEqualTo(401);
         loginFixture();
         assertThat(request("POST", root + "/claim",
-                json.writeValueAsString(Map.of("qrToken", p.path("qrToken").asText())),
+                json.writeValueAsString(Map.of("qrToken", p.path("qrToken").asText(), "organization", "0020")),
                 null, null).statusCode()).isEqualTo(200);
         String ownerToken = mobileToken;
         var first = request("POST", root + "/registrations", "{\"organization\":\"0020\"}", pc, null);
@@ -571,7 +571,7 @@ class CertificateHttpIntegrationTest {
                                         "POST",
                                         root + "/claim",
                                         json.writeValueAsString(
-                                                Map.of("qrToken", p.path("qrToken").asText())),
+                                                Map.of("qrToken", p.path("qrToken").asText(), "organization", "0020")),
                                         null,
                                         null)
                                 .statusCode())
@@ -579,14 +579,18 @@ class CertificateHttpIntegrationTest {
         assertThat(request("GET", root + "/pc", null, "x".repeat(43), null).statusCode())
                 .isEqualTo(404);
         loginFixture();
+        assertThat(request("POST", root + "/claim", json.writeValueAsString(Map.of("qrToken", p.path("qrToken").asText())), null, null).statusCode()).isEqualTo(400);
         var paired =
                 request(
                         "POST",
                         root + "/claim",
-                        json.writeValueAsString(Map.of("qrToken", p.path("qrToken").asText())),
+                        json.writeValueAsString(Map.of("qrToken", p.path("qrToken").asText(), "organization", "0020")),
                         null,
                         null);
         assertThat(paired.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(paired.body()).at("/data/organization").asText()).isEqualTo("0020");
+        assertThat(json.readTree(request("GET", root + "/pc", null, pc, null).body()).at("/data/organization").asText()).isEqualTo("0020");
+        assertThat(request("POST", root + "/registrations", "{\"organization\":\"0004\"}", pc, null).statusCode()).isEqualTo(409);
         assertThat(json.readTree(paired.body()).at("/data/status").asText()).isEqualTo("PAIRED");
         var started =
                 request("POST", root + "/registrations", "{\"organization\":\"0020\"}", pc, null);

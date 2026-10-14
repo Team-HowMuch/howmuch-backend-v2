@@ -5,6 +5,7 @@ import static com.amateur.howmuchbackend.domain.certificate.CertificateStatusCod
 import com.amateur.howmuchbackend.application.certificate.model.*;
 import com.amateur.howmuchbackend.application.port.in.certificate.*;
 import com.amateur.howmuchbackend.application.port.in.certificate.command.CreateCertificateRegistrationCommand;
+import com.amateur.howmuchbackend.application.port.in.certificate.command.PairCertificateDeviceCommand;
 import com.amateur.howmuchbackend.application.port.in.certificate.result.*;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.certificate.*;
@@ -33,6 +34,7 @@ public class CertificatePairingService
                 ReservePairedCertificateClaimUseCase,
                 CancelCertificatePairingUseCase {
     private final CertificatePairingStorePort pairings;
+    private final CertificateInstitutionCatalogPort catalog;
     private final CertificateCapabilityPort capabilities;
     private final CertificateRequestLimitPort limits;
     private final CurrentActorPort actor;
@@ -60,6 +62,7 @@ public class CertificatePairingService
                         time.plusMinutes(15),
                         null,
                         null,
+                        null,
                         false,
                         null,
                         null);
@@ -73,7 +76,9 @@ public class CertificatePairingService
     }
 
     @Transactional
-    public CertificatePairingResult pair(UUID id, String qrToken) {
+    public CertificatePairingResult pair(PairCertificateDeviceCommand command) {
+        var id = command.pairingId();
+        var qrToken = command.qrToken();
         long user = actor.getCurrentActor().userId();
         if (!limits.acquire(capabilities.hash("pair-claim:" + user)))
             throw ApplicationException.of(CERTIFICATE_RATE_LIMITED);
@@ -83,6 +88,8 @@ public class CertificatePairingService
         active(p);
         if (p.userId() != null) {
             if (p.userId() != user) throw ApplicationException.of(CERTIFICATE_NOT_FOUND);
+            if (!Objects.equals(p.organization(), command.organization()))
+                throw ApplicationException.of(CERTIFICATE_CONFLICT);
             return result(p, null, null);
         }
         if (!p.qrExpiresAt().isAfter(now())) throw ApplicationException.of(CERTIFICATE_EXPIRED);
@@ -93,7 +100,10 @@ public class CertificatePairingService
                                 ApplicationException.of(
                                         com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode
                                                 .USER_NOT_FOUND));
-        pairings.pair(id, user, now());
+        if (catalog.institutions().stream()
+                .noneMatch(i -> i.supported() && i.organization().equals(command.organization())))
+            throw ApplicationException.of(CERTIFICATE_BANK_UNAVAILABLE);
+        pairings.pair(id, user, command.organization(), now());
         return result(find(id, false), null, null);
     }
 
@@ -110,7 +120,10 @@ public class CertificatePairingService
         var id = command.pairingId();
         var p = pc(id, command.pcCapability(), true);
         active(p);
-        if (p.userId() == null) throw ApplicationException.of(CERTIFICATE_CONFLICT);
+        if (p.userId() == null
+                || p.organization() == null
+                || !p.organization().equals(command.organization()))
+            throw ApplicationException.of(CERTIFICATE_CONFLICT);
         if (p.sessionId() != null) {
             var previous = sessions.find(p.sessionId(), true)
                     .orElseThrow(() -> ApplicationException.of(CERTIFICATE_NOT_FOUND));
@@ -233,7 +246,7 @@ public class CertificatePairingService
                 qr,
                 qr == null ? null : p.qrExpiresAt(),
                 p.sessionId(),
-                s == null ? null : s.organization(),
+                p.organization(),
                 s == null ? null : s.currentClaimId(),
                 failure == null ? null : failure.getCode(),
                 failure == null ? null : failure.getMessage());

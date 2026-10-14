@@ -10,6 +10,7 @@ public record CertificatePairing(
         LocalDateTime qrExpiresAt,
         LocalDateTime expiresAt,
         Long userId,
+        String organization,
         UUID sessionId,
         boolean authenticationPrepared,
         Long existingConnectionId,

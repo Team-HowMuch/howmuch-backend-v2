@@ -319,6 +319,7 @@ class CertificatePersistenceIntegrationTest {
                 transactional(
                         new CertificatePairingService(
                                 pairings,
+                                () -> List.of(new CertificateInstitutionResult("0020", "우리은행", true, false, null, 3)),
                                 caps,
                                 key -> true,
                                 actor,
@@ -1263,7 +1264,7 @@ class CertificatePersistenceIntegrationTest {
 
     CertificatePairingResult pairedDevice() {
         var p = pairingService.createPairing("127.0.0.1");
-        assertThat(pairingService.pair(p.id(), p.qrToken()).status()).isEqualTo("PAIRED");
+        assertThat(pairingService.pair(new PairCertificateDeviceCommand(p.id(), p.qrToken(), "0020")).status()).isEqualTo("PAIRED");
         return p;
     }
 
@@ -1297,6 +1298,38 @@ class CertificatePersistenceIntegrationTest {
     }
 
     @Test
+    void mobileBankIsVisibleBeforeRegistrationAndCannotBeChanged() {
+        var p = pairedDevice();
+        assertThat(pairingService.getPcPairing(p.id(), p.pcCapability()).organization()).isEqualTo("0020");
+        assertThat(pairingService.getMobilePairing(p.id()).organization()).isEqualTo("0020");
+        assertThat(pairings.find(p.id(), false).orElseThrow().organization()).isEqualTo("0020");
+        assertThatThrownBy(() -> pairingService.pair(new PairCertificateDeviceCommand(p.id(), p.qrToken(), "0004")))
+                .isInstanceOf(ApplicationException.class);
+        assertThatThrownBy(() -> pairingService.createRegistration(new StartPairedCertificateRegistrationCommand(p.id(), p.pcCapability(), "0004", "127.0.0.1")))
+                .isInstanceOf(ApplicationException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM certificate_registration_sessions", Integer.class)).isZero();
+        assertThat(pairingService.createRegistration(new StartPairedCertificateRegistrationCommand(p.id(), p.pcCapability(), "0020", "127.0.0.1")).organization()).isEqualTo("0020");
+    }
+
+    @Test
+    void unsupportedMobileBankDoesNotClaimPairing() {
+        var p = pairingService.createPairing("127.0.0.1");
+        assertThatThrownBy(() -> pairingService.pair(new PairCertificateDeviceCommand(p.id(), p.qrToken(), "9999")))
+                .isInstanceOf(ApplicationException.class);
+        assertThat(pairings.find(p.id(), false).orElseThrow().userId()).isNull();
+        assertThat(pairings.find(p.id(), false).orElseThrow().organization()).isNull();
+    }
+
+    @Test
+    void legacyPairingWithoutMobileBankCannotStartRegistration() {
+        var p = pairingService.createPairing("127.0.0.1");
+        new TransactionTemplate(manager).executeWithoutResult(t -> pairings.pair(p.id(), user, null, NOW));
+        assertThatThrownBy(() -> pairingService.createRegistration(new StartPairedCertificateRegistrationCommand(p.id(), p.pcCapability(), "0020", "127.0.0.1")))
+                .isInstanceOf(ApplicationException.class);
+        verifyNoInteractions(provider);
+    }
+
+    @Test
     void initialPairingDoesNotCreateRegistrationOrProviderCall() {
         var p = pairedDevice();
         assertThat(pairingService.getPcPairing(p.id(), p.pcCapability()).pcCapability()).isNull();
@@ -1312,9 +1345,9 @@ class CertificatePersistenceIntegrationTest {
     @Test
     void pairingIsIdempotentForOwnerAndCannotBeClaimedByAnotherUser() {
         var p = pairedDevice();
-        assertThat(pairingService.pair(p.id(), p.qrToken()).status()).isEqualTo("PAIRED");
+        assertThat(pairingService.pair(new PairCertificateDeviceCommand(p.id(), p.qrToken(), "0020")).status()).isEqualTo("PAIRED");
         when(actor.getCurrentActor()).thenReturn(new CurrentActor(user + 100000));
-        assertThatThrownBy(() -> pairingService.pair(p.id(), p.qrToken()))
+        assertThatThrownBy(() -> pairingService.pair(new PairCertificateDeviceCommand(p.id(), p.qrToken(), "0020")))
                 .isInstanceOf(ApplicationException.class);
         assertThatThrownBy(() -> pairingService.getMobilePairing(p.id()))
                 .isInstanceOf(ApplicationException.class);
@@ -1324,7 +1357,7 @@ class CertificatePersistenceIntegrationTest {
     @Test
     void wrongPcOrQrCapabilityNeverPairsOrStartsRegistration() {
         var p = pairingService.createPairing("127.0.0.1");
-        assertThatThrownBy(() -> pairingService.pair(p.id(), "x".repeat(43)))
+        assertThatThrownBy(() -> pairingService.pair(new PairCertificateDeviceCommand(p.id(), "x".repeat(43), "0020")))
                 .isInstanceOf(ApplicationException.class);
         assertThatThrownBy(() -> pairingService.getPcPairing(p.id(), "x".repeat(43)))
                 .isInstanceOf(ApplicationException.class);
@@ -1699,7 +1732,7 @@ class CertificatePersistenceIntegrationTest {
         deliverCommand();
         successfulRegistration();
         var p = pairingService.createPairing("127.0.0.1");
-        pairings.pair(p.id(), anotherUser(), NOW);
+        pairings.pair(p.id(), anotherUser(), "0020", NOW);
         assertThatThrownBy(
                         () ->
                                 new TransactionTemplate(manager)
@@ -1720,6 +1753,7 @@ class CertificatePersistenceIntegrationTest {
                 transactional(
                         new CertificatePairingService(
                                 pairings,
+                                () -> List.of(new CertificateInstitutionResult("0020", "우리은행", true, false, null, 3)),
                                 caps,
                                 key -> true,
                                 actor,
@@ -1734,7 +1768,7 @@ class CertificatePersistenceIntegrationTest {
                                         NOW.plusSeconds(121).toInstant(ZoneOffset.UTC),
                                         ZoneOffset.UTC)));
         assertThat(late.getPcPairing(p.id(), p.pcCapability()).status()).isEqualTo("EXPIRED");
-        assertThatThrownBy(() -> late.pair(p.id(), p.qrToken()))
+        assertThatThrownBy(() -> late.pair(new PairCertificateDeviceCommand(p.id(), p.qrToken(), "0020")))
                 .isInstanceOf(ApplicationException.class);
         assertThat(pairings.find(p.id(), false).orElseThrow().userId()).isNull();
     }
