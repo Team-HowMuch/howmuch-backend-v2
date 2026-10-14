@@ -110,8 +110,13 @@ public class CertificatePairingService
         var id = command.pairingId();
         var p = pc(id, command.pcCapability(), true);
         active(p);
-        if (p.userId() == null || p.sessionId() != null)
-            throw ApplicationException.of(CERTIFICATE_CONFLICT);
+        if (p.userId() == null) throw ApplicationException.of(CERTIFICATE_CONFLICT);
+        if (p.sessionId() != null) {
+            var previous = sessions.find(p.sessionId(), true)
+                    .orElseThrow(() -> ApplicationException.of(CERTIFICATE_NOT_FOUND));
+            if (!previous.status().equals("FAILED") || previous.approved())
+                throw ApplicationException.of(CERTIFICATE_CONFLICT);
+        }
         var s =
                 registrations.create(
                         new CreateCertificateRegistrationCommand(
@@ -154,15 +159,27 @@ public class CertificatePairingService
 
     @Transactional
     public void cancelPairing(UUID id, String pc) {
-        var p = pc(id, pc, false);
+        var p = pc(id, pc, true);
         if (p.cancelledAt() != null) return;
         if (p.sessionId() != null) transactions.cancelPaired(id, pc);
         pairings.cancel(id, now());
     }
 
+    @Transactional
+    public void cancelMobilePairing(UUID id) {
+        var p = mobile(id, true);
+        if (p.cancelledAt() != null) return;
+        transactions.cancelPairedForUser(id, p.userId());
+        pairings.cancel(id, now());
+    }
+
     private CertificatePairing mobile(UUID id) {
-        var p = find(id, false);
-        if (p.userId() == null || p.userId() != actor.getCurrentActor().userId())
+        return mobile(id, false);
+    }
+
+    private CertificatePairing mobile(UUID id, boolean lock) {
+        var p = find(id, lock);
+        if (p.userId() == null || !java.util.Objects.equals(p.userId(), actor.getCurrentActor().userId()))
             throw ApplicationException.of(CERTIFICATE_NOT_FOUND);
         return p;
     }
