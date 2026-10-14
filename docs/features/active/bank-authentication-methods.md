@@ -212,3 +212,5 @@ feat(account): 은행 인증 수준 기반 연결 지원       # 후속 구현 P
 - 커밋 경계: `fix(account)` 번호와 참조 경로 수정; `build(db)` 중복 번호 사전 검사.
 - 로컬 결과: 임시 V054 fixture가 V54와 중복임을 감지해 실패했고 fixture는 제거했다. `./gradlew clean verifyMigrationVersions compileJava test --tests '*BankCatalogTest' --tests '*CertificateInstitutionCatalogAdapterTest' --no-daemon` 통과.
 - 최신 origin/develop 및 열린 PR의 migration 파일을 재확인해 V54가 비어 있음을 확인했다.
+
+- 수정 PR #547의 원격 CI run 38563075640은 결제/사용 한도 차단으로 실행되지 않았다. develop push는 self-hosted이고 PR은 ubuntu-latest이므로 실행 경로가 다르다. 원격 전체 통합 테스트 통과를 주장하지 않는다.
