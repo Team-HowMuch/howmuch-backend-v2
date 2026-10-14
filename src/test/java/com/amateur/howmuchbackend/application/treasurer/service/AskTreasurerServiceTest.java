@@ -1,6 +1,8 @@
 package com.amateur.howmuchbackend.application.treasurer.service;
 
 import com.amateur.howmuchbackend.application.port.in.treasurer.command.AskTreasurerCommand;
+import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerAnswerResult;
+import com.amateur.howmuchbackend.application.treasurer.model.TreasurerGuideReply;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
@@ -43,6 +45,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -976,6 +979,184 @@ class AskTreasurerServiceTest {
 
         assertThat(result.answerId()).isNull();
         assertThat(result.answer()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("정산 관련이지만 키워드로 못 알아들은 질문은 서비스 안내 문서로 답한다")
+    void relatedUnknown_guideAccepted_returnsGuideAnswer() {
+        when(generateTreasurerGuidePort.generate(eq("독촉 알림 또 보내고 싶어"), eq(KNOWLEDGE)))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.GUIDE,
+                        "독촉 알림은 한 번 보내면 30분 동안 다시 보낼 수 없어요.",
+                        List.of("REMIND"),
+                        List.of("송금은 어떻게 해?", "정기 정산도 돼?")
+                )));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("독촉 알림 또 보내고 싶어"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.GUIDE);
+        assertThat(result.view()).isEqualTo(TreasurerAnswerView.TEXT);
+        assertThat(result.answer()).isEqualTo("독촉 알림은 한 번 보내면 30분 동안 다시 보낼 수 없어요.");
+        assertThat(result.prompts())
+                .extracting(TreasurerAnswerResult.Prompt::question)
+                .containsExactly("송금은 어떻게 해?", "정기 정산도 돼?");
+        assertThat(result.prompts())
+                .extracting(TreasurerAnswerResult.Prompt::type)
+                .containsOnly(InquiryIntent.GUIDE);
+        verifyNoInteractions(treasurerSettlementQuery);
+        verifyNoInteractions(generateTreasurerAnswerPort);
+    }
+
+    @Test
+    @DisplayName("안내 답변은 LLM이 만든 문장으로 저장해 신고 때 구분한다")
+    void guideAnswer_savedAsLlm() {
+        when(generateTreasurerGuidePort.generate(any(), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.GUIDE,
+                        "정산 상세에서 [독촉 알림 보내기]를 누르면 돼요.",
+                        List.of("REMIND"),
+                        List.of()
+                )));
+        AskTreasurerService service = service();
+
+        service.ask(new AskTreasurerCommand("독촉 알림 또 보내고 싶어"));
+
+        ArgumentCaptor<SavedTreasurerAnswer> saved = ArgumentCaptor.forClass(SavedTreasurerAnswer.class);
+        verify(saveTreasurerAnswerPort).save(saved.capture());
+        assertThat(saved.getValue().generatedBy()).isEqualTo(TreasurerAnswerGeneratedBy.LLM);
+        assertThat(saved.getValue().intent()).isEqualTo(InquiryIntent.GUIDE);
+    }
+
+    @Test
+    @DisplayName("얼마와 관계없는 질문은 안내 LLM을 부르지 않는다")
+    void unrelatedQuestion_skipsGuide() {
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("푸딩은 어떻게 만드나요?"));
+
+        assertThat(result.answer()).contains("이렇게 물어볼 수 있어요");
+        verifyNoInteractions(generateTreasurerGuidePort);
+    }
+
+    @Test
+    @DisplayName("데이터 키워드가 걸려도 사용법을 묻는 말투면 안내로 답하고 정산을 조회하지 않는다")
+    void howToWithDataKeyword_guideAccepted_skipsSettlementLookup() {
+        when(generateTreasurerGuidePort.generate(eq("송금은 어떻게 해?"), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.GUIDE,
+                        "정산 참여 화면에서 [토스로 N원 보내기]를 누르면 토스가 열려요.",
+                        List.of("PAY"),
+                        List.of()
+                )));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("송금은 어떻게 해?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.GUIDE);
+        assertThat(result.answer()).contains("토스");
+        verifyNoInteractions(treasurerSettlementQuery);
+    }
+
+    @Test
+    @DisplayName("안내가 데이터 질문이라고 돌려보내면 지금처럼 정산을 조회한다")
+    void howToWithDataKeyword_guideSaysData_answersFromSettlements() {
+        when(generateTreasurerGuidePort.generate(any(), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.DATA, null, List.of(), List.of())));
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of(
+                new PersonalSettlement(
+                        UUID.randomUUID(),
+                        "회식 정산",
+                        SettlementDirection.SEND,
+                        SettlementStatus.REQUESTED,
+                        LocalDateTime.of(2026, 8, 10, 0, 0),
+                        12_000L,
+                        "요청자"
+                )
+        ));
+        when(generateTreasurerAnswerPort.generate(any())).thenReturn(Optional.empty());
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 보낼 돈은 어떻게 보내?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(result.answer()).contains("1건").contains("12,000원");
+    }
+
+    @Test
+    @DisplayName("내 금액을 묻는 흔한 말투는 안내 LLM을 거치지 않고 바로 정산을 조회한다")
+    void dataPhrasing_skipsGuide() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("이번 달 보낼 돈 어떻게 돼?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        verifyNoInteractions(generateTreasurerGuidePort);
+    }
+
+    @Test
+    @DisplayName("안내 LLM을 쓸 수 없으면 사용법 말투여도 지금처럼 정산을 조회한다")
+    void howToWithDataKeyword_guideUnavailable_answersFromSettlements() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("송금은 어떻게 해?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        verify(generateTreasurerGuidePort).generate(eq("송금은 어떻게 해?"), eq(KNOWLEDGE));
+    }
+
+    @Test
+    @DisplayName("문서에 없는 근거 ID를 댄 안내 답변은 버리고 고정 안내로 되돌린다")
+    void guideWithUnknownSource_fallsBackToClarify() {
+        when(generateTreasurerGuidePort.generate(any(), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.GUIDE,
+                        "독촉 알림은 하루에 세 번까지 보낼 수 있어요.",
+                        List.of("MADE-UP"),
+                        List.of()
+                )));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("독촉 알림 또 보내고 싶어"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(result.answer()).isEqualTo(TreasurerCardCopy.CLARIFY_ANSWER);
+    }
+
+    @Test
+    @DisplayName("안내가 관계없는 질문이라고 하면 질문 예시를 보여준다")
+    void guideSaysUnrelated_returnsExamples() {
+        when(generateTreasurerGuidePort.generate(any(), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.UNRELATED, null, List.of(), List.of())));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("얼마 앱으로 주식도 살 수 있어?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(result.answer()).isEqualTo(TreasurerCardCopy.UNKNOWN_ANSWER);
+        assertThat(result.prompts()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("영수증 안내 질문은 안내 문서 답이 있으면 그 답을 쓴다")
+    void guideIntent_guideAccepted_replacesFixedOcrAnswer() {
+        when(generateTreasurerGuidePort.generate(any(), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.GUIDE,
+                        "정산 만들기에서 [영수증 인식]을 누르면 돼요.",
+                        List.of("CREATE-AMOUNT"),
+                        List.of()
+                )));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand("영수증으로 정산하려면 어떻게 해?"));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.GUIDE);
+        assertThat(result.answer()).isEqualTo("정산 만들기에서 [영수증 인식]을 누르면 돼요.");
     }
 
     private AskTreasurerService service() {
