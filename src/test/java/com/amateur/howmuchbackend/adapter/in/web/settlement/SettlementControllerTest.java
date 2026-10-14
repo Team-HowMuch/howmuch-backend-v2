@@ -256,6 +256,7 @@ class SettlementControllerTest {
                 2,
                 0,
                 null,
+                400L,
                 null,
                 List.of(new SettlementListItemResult.GroupSummary(
                         10L,
@@ -277,6 +278,7 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
                         org.hamcrest.Matchers.equalTo("completedAt"), org.hamcrest.Matchers.nullValue())))
                 .andExpect(jsonPath("$.data[0].totalAmount").value(600))
+                .andExpect(jsonPath("$.data[0].receivableAmount").value(400))
                 .andExpect(jsonPath("$.data[0].participantCount").value(3))
                 .andExpect(jsonPath("$.data[0].payableParticipantCount").value(2))
                 .andExpect(jsonPath("$.data[0].completedParticipantCount").value(0))
@@ -294,7 +296,7 @@ class SettlementControllerTest {
                 SettlementListTab.PAY, SettlementListStatusFilter.COMPLETED, 10L, month)))
                 .thenReturn(List.of(new SettlementListItemResult(
                         SETTLEMENT_ID, SettlementStatus.COMPLETED, CREATED_AT, completedAt, completedAt,
-                        null, SettlementAllocationType.DUTCH_PAY, null, null, null, 600L,
+                        null, SettlementAllocationType.DUTCH_PAY, null, null, null, 600L, null,
                         "요청자", List.of())));
         mockMvc.perform(get("/api/v2/settlements")
                         .queryParam("tab", "PAY").queryParam("status", "COMPLETED")
@@ -311,7 +313,7 @@ class SettlementControllerTest {
                 SettlementListTab.RECEIVE, SettlementListStatusFilter.SUSPENDED, null, null)))
                 .thenReturn(List.of(new SettlementListItemResult(
                         SETTLEMENT_ID, SettlementStatus.SUSPENDED, CREATED_AT, suspendedAt, null,
-                        null, null, null, null, null, null, null, List.of())));
+                        null, null, null, null, null, null, null, null, List.of())));
 
         mockMvc.perform(get("/api/v2/settlements").queryParam("status", "SUSPENDED"))
                 .andExpect(status().isOk())

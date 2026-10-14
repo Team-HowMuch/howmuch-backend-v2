@@ -343,10 +343,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 .filter(payment -> payment.expectedAmount() != null)
                 .mapToLong(SettlementDetailResult.ParticipantPayment::expectedAmount)
                 .reduce(0L, Math::addExact);
-        long expectedAmount = settlement.allocationType()
-                == SettlementAllocationType.ITEM_ALLOCATION
-                && (settlement.status() == SettlementStatus.REQUESTED
-                        || settlement.status() == SettlementStatus.SUSPENDED)
+        long expectedAmount = itemAllocationPolicy.usesRequestedReceivable(
+                settlement.allocationType(), settlement.status())
                 ? requestedItemExpectedAmount(settlement, creatorParticipant, receiptDiscount, deliveryFee)
                 : shareExpectedAmount;
         long confirmedAmount = payments.stream()

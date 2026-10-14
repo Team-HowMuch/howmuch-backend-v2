@@ -19,6 +19,7 @@ public record SettlementListItemResult(
         Integer payableParticipantCount,
         Integer completedParticipantCount,
         Long amountToPay,
+        Long receivableAmount,
         String requesterName,
         List<GroupSummary> groups
 ) {

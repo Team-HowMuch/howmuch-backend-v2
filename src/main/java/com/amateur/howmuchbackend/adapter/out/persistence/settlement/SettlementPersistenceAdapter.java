@@ -164,6 +164,7 @@ public class SettlementPersistenceAdapter implements
                         : null,
                 tab == SettlementListTab.RECEIVE ? completedParticipantCount : null,
                 projection.getAmountToPay(),
+                tab == SettlementListTab.RECEIVE ? projection.getReceivableShareAmount() : null,
                 tab == SettlementListTab.PAY ? projection.getRequesterName() : null,
                 groups
         );

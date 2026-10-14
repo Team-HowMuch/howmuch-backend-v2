@@ -38,7 +38,12 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 MAX(payment_summary.completed_participant_count) AS completedParticipantCount,
                 MAX(CASE
                         WHEN participant.linked_user_id = :userId THEN share.amount
-                    END) AS amountToPay
+                    END) AS amountToPay,
+                COALESCE(SUM(CASE
+                        WHEN participant.linked_user_id IS NULL
+                             OR participant.linked_user_id <> settlement.creator_id
+                        THEN share.amount
+                    END), 0) AS receivableShareAmount
               FROM settlements settlement
               JOIN users creator
                 ON creator.id = settlement.creator_id
@@ -284,6 +289,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         Long getCompletedParticipantCount();
 
         Long getAmountToPay();
+
+        long getReceivableShareAmount();
 
         String getAllocationType();
     }
