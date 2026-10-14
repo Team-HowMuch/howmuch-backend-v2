@@ -115,8 +115,6 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 - 기존 `LoadSettlementListPort`는 title이 없어 treasurer 전용 조회를 둔다. 목록 HTTP 계약은 변경하지 않는다.
 - 내부 시각은 UTC 저장값을 쓰되, `이번 달`은 Asia/Seoul 달력이다.
 - 받을 금액은 생성자 본인 share를 제외한 금액이다.
-- 품목 정산(`ITEM_ALLOCATION`)은 참여자가 품목을 제출해야 share가 생긴다. `REQUESTED`/`SUSPENDED`에서는 받을 금액을 `settlements.total_amount`로 보고, 보낼 금액은 내 share가 없을 때만 `total_amount`로 대체한다. `GET /settlements` PAY 탭의 대체 규칙과 같다. `AWAITING_DEPOSIT` 이후에는 share 기준으로 돌아간다(#364).
-- `summary`는 기간 없이 진행 중 전체를, 질문은 기간(기본 이번 달) 안의 정산만 집계하므로 두 금액은 다를 수 있다.
 - 보낼/받을 금액과 추천은 `REQUESTED`/`AWAITING_DEPOSIT`/`SUSPENDED`만 포함한다. `DRAFT`는 진행 중 건수에만 넣고 잔액·추천에서는 뺀다.
 - 지출 요약은 SEND 방향만 합산하고 `DRAFT`는 제외한다.
 - 제목은 `모임`/`정산` 접미사 앞을 문법 어휘 구간에 닿을 때까지 거슬러 올라가 뽑는다. 질문에서 문법을 잘라내지 않으므로 제목은 항상 원문의 연속 부분 문자열이다.
