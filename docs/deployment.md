@@ -51,7 +51,7 @@ The [completed Feature Plan](features/completed/monthly-recap.md) records API co
 
 ## Readiness gate
 
-After image identity verification, the [deployment script](../scripts/deploy-readiness.sh) waits up to 180 seconds for HTTP 200 from `/actuator/health/readiness` inside the same container. The loopback management port defaults to 9091 (`MANAGEMENT_SERVER_PORT`); readiness includes application availability, PostgreSQL, and Redis. EC2 requires Bash and GNU `timeout`, and the application image includes curl. The management port remains private.
+After image identity verification, the [deployment script](../scripts/deploy-readiness.sh) waits up to 180 seconds for HTTP 200 from `/actuator/health/readiness` inside the same container. The probe uses loopback on the management port, which is allowed independently of `MANAGEMENT_ALLOWED_CIDR`; remote management requests still require that CIDR. The port defaults to 9091 (`MANAGEMENT_SERVER_PORT`); readiness includes application availability, PostgreSQL, and Redis. EC2 requires Bash and GNU `timeout`, and the application image includes curl. The management port remains private.
 
 Exited or restarting containers fail immediately; persistent unready responses time out. Failure diagnostics report container status, exit code, OOM, restart count, and the last HTTP code, without printing environment variables or raw application logs. Diagnosis may take up to 10 additional seconds. Both success and failure remove the temporary image override; image pruning and the final verification log occur only after both checks pass. Manual Compose commands above do not run this gate.
 

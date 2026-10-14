@@ -35,7 +35,8 @@ public class ManagementSecurityConfig {
                             "howmuch.observability.management.allowed-cidr", "127.0.0.1/32");
                     return new AuthorizationDecision(managementPort != applicationPort
                             && request.getLocalPort() == managementPort
-                            && isWithinNetwork(request.getRemoteAddr(), allowedCidr));
+                            && (isLoopbackAddress(request.getRemoteAddr())
+                            || isWithinNetwork(request.getRemoteAddr(), allowedCidr)));
                 }).anyRequest().denyAll())
                 .build();
     }
@@ -46,6 +47,14 @@ public class ManagementSecurityConfig {
             return runtimePort;
         }
         return environment.getProperty(configuredProperty, Integer.class, -1);
+    }
+
+    private boolean isLoopbackAddress(String address) {
+        try {
+            return InetAddress.getByName(address).isLoopbackAddress();
+        } catch (Exception exception) {
+            return false;
+        }
     }
 
     private boolean isWithinNetwork(String address, String cidr) {

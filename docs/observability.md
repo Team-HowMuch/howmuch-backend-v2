@@ -57,8 +57,10 @@ Prometheus는 애플리케이션의 management listener를 직접 scrape하고 A
 
 `local`은 기존처럼 `127.0.0.1:9091`에 바인딩한다. `dev`/`prod`는 컨테이너 내부에서만 접근하도록
 `MANAGEMENT_SERVER_ADDRESS=0.0.0.0`을 사용하며 compose에는 management 포트를 host에 publish하지
-않는다. `MANAGEMENT_ALLOWED_CIDR`에 Prometheus/관측성 private Docker network CIDR을 설정하고,
-보안 체인은 실제 management port와 remote address가 모두 일치할 때만 허용한다.
+않는다. `MANAGEMENT_ALLOWED_CIDR`에 Prometheus/관측성 private Docker network CIDR을 설정한다.
+보안 체인은 실제 management port와 요청 local port가 일치해야 하며, 요청 source는 loopback 또는
+설정된 CIDR 안에 있어야 한다. 따라서 컨테이너 내부 readiness probe는 loopback으로 확인할 수 있고,
+Prometheus scrape는 기존 사설 네트워크 범위로 제한된다.
 
 ```bash
 curl --fail http://127.0.0.1:9091/actuator/health
