@@ -384,6 +384,7 @@ class SettlementTransferIntentIntegrationTest {
         assertThat(paths.path("/api/v2/settlement-links/{token}/transfer-intent").path("post").path("parameters").toString())
                 .contains("Link-Participant-Context");
         assertThat(response.body()).contains("SETTLEMENT_DEPOSIT_CONFIRMED");
+        assertThat(paths.path("/api/v2/settlements/{settlementId}/deposits/reconcile").path("post").path("responses").has("429")).isTrue();
     }
 
     private Long iUser() { return budgetActor.getAndIncrement() % 2 == 0 ? creator : outsider; }
