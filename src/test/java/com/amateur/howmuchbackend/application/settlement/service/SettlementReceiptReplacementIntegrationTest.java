@@ -30,6 +30,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemAllocationFraction;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.support.SettlementDepositTestCleanup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -127,7 +128,10 @@ class SettlementReceiptReplacementIntegrationTest {
 
     @AfterEach
     void cleanUp() {
-        jdbcTemplate.update("DELETE FROM settlement_deposits WHERE settlement_id = ?", settlementId);
+        if (SettlementDepositTestCleanup.preserveSettlement(jdbcTemplate, settlementId)) {
+            return;
+        }
+        SettlementDepositTestCleanup.deleteDepositsWhenMutable(jdbcTemplate, settlementId);
         jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", settlementId);
         jdbcTemplate.update("DELETE FROM account_transactions WHERE account_id = ?", accountId);
         jdbcTemplate.update("DELETE FROM accounts WHERE id = ?", accountId);
@@ -654,7 +658,7 @@ class SettlementReceiptReplacementIntegrationTest {
         Long transactionId = jdbcTemplate.queryForObject("""
                 INSERT INTO account_transactions (account_id,external_transaction_key,transaction_type,amount,transacted_at)
                 VALUES (?,?,'INCOME',1000,?) RETURNING id
-                """, Long.class, accountId, "d".repeat(64), NOW);
+                """, Long.class, accountId, UUID.randomUUID().toString().replace("-", "").repeat(2), NOW);
         jdbcTemplate.update("""
                 INSERT INTO settlement_deposits (id,settlement_id,share_id,source_account_id,account_transaction_id,matched_at)
                 VALUES (?,?,?,?,?,?)

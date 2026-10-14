@@ -16,6 +16,7 @@ import com.amateur.howmuchbackend.domain.auth.session.AuthSession;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.support.SettlementDepositTestCleanup;
 import com.amateur.howmuchbackend.support.SettlementUnpaidFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -104,15 +105,19 @@ class SettlementWidgetHttpIntegrationTest {
     void tearDown() {
         sessions.deleteByUserId(creator);
         sessions.deleteByUserId(payer);
+        boolean preserveAccount = accountId != null && SettlementDepositTestCleanup.preserveAccount(jdbc, accountId);
         for (UUID id : owned) {
-            jdbc.update("DELETE FROM settlement_deposits WHERE settlement_id=?", id);
-            jdbc.update("DELETE FROM settlements WHERE id=?", id);
+            if (!SettlementDepositTestCleanup.preserveSettlement(jdbc, id)) {
+                SettlementDepositTestCleanup.deleteDepositsWhenMutable(jdbc, id);
+                jdbc.update("DELETE FROM settlements WHERE id=?", id);
+            }
         }
-        if (accountId != null) {
+        if (accountId != null && !preserveAccount) {
+            SettlementDepositTestCleanup.deleteDepositsForAccountWhenMutable(jdbc, accountId);
             jdbc.update("DELETE FROM account_transactions WHERE account_id=?", accountId);
             jdbc.update("DELETE FROM accounts WHERE id=?", accountId);
         }
-        if (connectionId != null) jdbc.update("DELETE FROM external_connections WHERE id=?", connectionId);
+        if (connectionId != null && !preserveAccount) jdbc.update("DELETE FROM external_connections WHERE id=?", connectionId);
         clearRefresh();
         fixtures.close();
         owned.clear();

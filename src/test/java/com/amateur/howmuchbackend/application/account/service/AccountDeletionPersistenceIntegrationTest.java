@@ -136,6 +136,9 @@ class AccountDeletionPersistenceIntegrationTest {
                 false,
                 2
         ))).getFirst();
+        LocalDateTime fixtureLinkedAt = LocalDateTime.of(2000, 1, 1, 0, 0);
+        jdbcTemplate.update("UPDATE accounts SET created_at = ?, updated_at = ? WHERE id = ?",
+                fixtureLinkedAt, fixtureLinkedAt, reconnected.id());
 
         assertThat(count("SELECT COUNT(*) FROM accounts WHERE id = ?", deletedAccountId)).isZero();
         assertThat(count("SELECT COUNT(*) FROM account_records WHERE id = ? AND deleted_at IS NOT NULL",

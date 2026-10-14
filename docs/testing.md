@@ -39,6 +39,10 @@ The [test script](../scripts/test.sh) requires explicit database/Redis connectio
 
 With no arguments the script runs `./gradlew clean test --no-daemon`, then `node --test src/test/js/*.test.cjs`. A Java or JavaScript failure returns a nonzero exit code. Java failure stops the script before Node. Existing tests that explicitly select `local` still receive the same environment settings.
 
+## Immutable settlement deposit fixtures
+
+The V53 schema treats a matched `settlement_deposits` row as permanent bank evidence. A test must not delete or truncate that row to clean up a fixture. Same-thread persistence tests may use a test-managed rollback transaction when it preserves the transaction boundary under test. Tests that need committed fixture rows, including requests handled on a separate server thread, use unique settlement, user, account, and transaction identifiers and retain the related rows when the permanence trigger is installed. Their assertions stay scoped to those fixture identifiers. Cleanup checks the disposable schema for the trigger and deletes deposits only on schemas where the permanence rule is not installed; it never disables the trigger or clears shared tables.
+
 ## Inspect CI results
 
 ```bash

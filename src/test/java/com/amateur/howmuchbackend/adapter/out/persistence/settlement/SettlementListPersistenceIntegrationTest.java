@@ -20,6 +20,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.support.SettlementDepositTestCleanup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,25 +83,34 @@ class SettlementListPersistenceIntegrationTest {
     private Long otherUserId;
     private Long connectionId;
     private Long accountId;
+    private Long creatorConnectionId;
+    private Long receiveAccountId;
     private UUID receiveSettlementId;
     private LocalDateTime receiveCreatedAt;
     private UUID receiveCreatorParticipantId;
     private UUID receivePayerParticipantId;
     private UUID paySettlementId;
     private UUID payPayerParticipantId;
+    private final List<UUID> fixtureSettlementIds = new ArrayList<>();
+    private final List<Long> fixtureGroupIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
-        cleanupFixtures();
+        fixtureSettlementIds.clear();
+        fixtureGroupIds.clear();
         String uniqueKey = UUID.randomUUID().toString().replace("-", "");
         creatorId = insertUser("list-creator-" + uniqueKey, "받는 사람");
         payerId = insertUser("list-payer-" + uniqueKey, "낼 사람");
         otherUserId = insertUser("list-other-" + uniqueKey, "다른 사람");
         connectionId = insertConnection(otherUserId, uniqueKey);
         accountId = insertAccount(otherUserId, connectionId, uniqueKey);
+        creatorConnectionId = insertConnection(creatorId, uniqueKey + "-receive");
+        receiveAccountId = insertAccount(creatorId, creatorConnectionId, uniqueKey + "-receive");
 
         receiveSettlementId = UUID.randomUUID();
         paySettlementId = UUID.randomUUID();
+        fixtureSettlementIds.add(receiveSettlementId);
+        fixtureSettlementIds.add(paySettlementId);
         SettlementJpaEntity receiveSettlement = new SettlementJpaEntity(new Settlement(
                 receiveSettlementId,
                 creatorId,
@@ -258,6 +270,7 @@ class SettlementListPersistenceIntegrationTest {
     @DisplayName("작성하다 만 초안은 목록에 나오지 않는다")
     void settlementList_draft_excluded() {
         UUID draftId = UUID.randomUUID();
+        fixtureSettlementIds.add(draftId);
         settlementJpaRepository.saveAndFlush(new SettlementJpaEntity(new Settlement(
                 draftId,
                 creatorId,
@@ -769,73 +782,28 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     private void cleanupFixtures() {
-        jdbcTemplate.update("""
-                DELETE FROM settlement_payments
-                 WHERE settlement_id IN (
-                     SELECT id FROM settlements
-                      WHERE creator_id IN (
-                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                      )
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM settlement_deposits
-                 WHERE settlement_id IN (
-                     SELECT id FROM settlements
-                      WHERE creator_id IN (
-                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                      )
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM account_transactions
-                 WHERE account_id IN (
-                     SELECT id FROM account_records
-                      WHERE user_id IN (
-                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                      )
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM settlements
-                 WHERE creator_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM group_members
-                 WHERE group_id IN (
-                     SELECT id FROM groups
-                      WHERE creator_id IN (
-                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                      )
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM groups
-                 WHERE creator_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM accounts
-                 WHERE user_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM account_records
-                 WHERE user_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM external_connections
-                 WHERE user_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("DELETE FROM users WHERE identity_key LIKE 'list-%'");
+        if (fixtureSettlementIds.stream().anyMatch(id ->
+                SettlementDepositTestCleanup.preserveSettlement(jdbcTemplate, id))) {
+            return;
+        }
+        fixtureSettlementIds.forEach(id -> SettlementDepositTestCleanup.deleteDepositsWhenMutable(jdbcTemplate, id));
+        fixtureSettlementIds.forEach(id -> jdbcTemplate.update(
+                "DELETE FROM settlement_payments WHERE settlement_id = ?", id));
+        fixtureSettlementIds.forEach(id -> jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", id));
+        fixtureGroupIds.forEach(id -> jdbcTemplate.update("DELETE FROM group_members WHERE group_id = ?", id));
+        fixtureGroupIds.forEach(id -> jdbcTemplate.update("DELETE FROM groups WHERE id = ?", id));
+        if (accountId != null) {
+            jdbcTemplate.update("DELETE FROM account_transactions WHERE account_id = ?", accountId);
+        }
+        if (receiveAccountId != null) {
+            jdbcTemplate.update("DELETE FROM account_transactions WHERE account_id = ?", receiveAccountId);
+        }
+        if (creatorId != null && payerId != null && otherUserId != null) {
+            jdbcTemplate.update("DELETE FROM accounts WHERE user_id IN (?, ?, ?)", creatorId, payerId, otherUserId);
+            jdbcTemplate.update("DELETE FROM account_records WHERE user_id IN (?, ?, ?)", creatorId, payerId, otherUserId);
+            jdbcTemplate.update("DELETE FROM external_connections WHERE user_id IN (?, ?, ?)", creatorId, payerId, otherUserId);
+            jdbcTemplate.update("DELETE FROM users WHERE id IN (?, ?, ?)", creatorId, payerId, otherUserId);
+        }
     }
 
     private RequestFixture insertReceiveRequest(long shareAmount) {
@@ -844,7 +812,7 @@ class SettlementListPersistenceIntegrationTest {
                     settlement_id, source_account_id, organization,
                     account_number_ciphertext, account_holder, created_at
                 ) VALUES (?, ?, '0020', 'test-snapshot', '받는 사람', ?)
-                """, receiveSettlementId, accountId, CREATED_AT);
+                """, receiveSettlementId, receiveAccountId, CREATED_AT);
         UUID shareId = UUID.randomUUID();
         settlementShareJpaRepository.saveAndFlush(new SettlementShareJpaEntity(
                 shareId,
@@ -874,7 +842,7 @@ class SettlementListPersistenceIntegrationTest {
                         RETURNING id
                         """,
                 Long.class,
-                accountId,
+                receiveAccountId,
                 randomExternalKey(),
                 amount,
                 CREATED_AT.plusHours(3),
@@ -890,7 +858,7 @@ class SettlementListPersistenceIntegrationTest {
                 UUID.randomUUID(),
                 receiveSettlementId,
                 shareId,
-                accountId,
+                receiveAccountId,
                 transactionId,
                 CREATED_AT.plusHours(3)
         );
@@ -901,7 +869,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     private Long insertGroup(String name, Long ownerId) {
-        return jdbcTemplate.queryForObject("""
+        Long groupId = jdbcTemplate.queryForObject("""
                         INSERT INTO groups (
                             name, owner_id, invite_code, status, creator_id,
                             created_at, updated_at
@@ -917,6 +885,8 @@ class SettlementListPersistenceIntegrationTest {
                 CREATED_AT,
                 CREATED_AT
         );
+        fixtureGroupIds.add(groupId);
+        return groupId;
     }
 
     private void insertGroupMember(Long groupId, Long userId, String status) {
