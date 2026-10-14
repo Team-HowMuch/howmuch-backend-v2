@@ -1,6 +1,6 @@
 # Feature Plan: 정산 목록 받을 금액(receivableAmount) 추가
 
-- Status: Draft
+- Status: In progress
 - Last updated: 2026-10-14
 - Related issue: (생성 후 기입)
 - Related ADR: [Capability-oriented Output Ports](../../adr/0003-capability-oriented-output-ports.md)
@@ -102,9 +102,9 @@ Result -> Web Response DTO: SettlementListItemWebResponse.from(result)에 receiv
 | Port | Purpose | Caller | Expected Adapter |
 |---|---|---|---|
 | `LoadSettlementListPort` (기존) | 목록 Read Model에 share 기준 받을 금액(`receivableShareAmount`) 추가 | `SettlementListService` | `SettlementPersistenceAdapter` |
-| `LoadRequestedItemReceivableFactsPort` (신규, 이름 검토) | 여러 정산의 품목·선택·할인·배달비·생성자 참여자 ID를 한 번에 불러온다 | 결정 D2의 계산 컴포넌트 | 기존 settlement 영속 Adapter |
+| `LoadRequestedItemReceivableFactsPort` (신규) | 여러 정산의 총액·생성자 참여자 ID·품목(옵션 포함)·선택·지출을 한 번에 불러온다 | `RequestedItemReceivableCalculator` | `RequestedItemReceivableFactsPersistenceAdapter` |
 
-신규 Port는 "선택 대기 품목 정산의 받을 금액 계산 재료"라는 하나의 능력을 표현한다. 기존 단건 Port 네 개(`LoadSettlementItemPort`, `SettlementItemAllocationStorePort`, `LoadSettlementExpensePort`, `LoadSettlementParticipantPort`)에 `findAllBySettlementIds`를 각각 더하는 대안은 결정 D3에서 비교한다.
+신규 Port는 "선택 대기 품목 정산의 받을 금액 계산 재료"라는 하나의 능력을 표현한다(결정 D3). Adapter는 정산·참여자·품목·옵션·선택·지출을 정산 ID 목록으로 한 번씩, 모두 여섯 번 조회한다. 정산 안의 품목 순서는 단건 조회(`findAllOrderedBySettlementId`)와 같다.
 
 ### Application Policy
 
@@ -113,7 +113,7 @@ Result -> Web Response DTO: SettlementListItemWebResponse.from(result)에 receiv
 - Why the rule is not an Entity-local invariant: 여러 참여자의 선택과 지출 조정을 함께 봐야 한다
 - Future inputs deliberately not implemented yet: 없음
 
-어떤 정산에 보정을 적용할지(`ITEM_ALLOCATION` + `REQUESTED`/`SUSPENDED`)는 정산 상세 `SettlementDetailService.summary`와 같은 조건을 쓴다. 조건이 세 곳(상세, AI 비서, 목록)에 흩어지지 않도록 한 곳에 둔다(결정 D2).
+어떤 정산에 보정을 적용할지(`ITEM_ALLOCATION` + `REQUESTED`/`SUSPENDED`)는 `SettlementItemAllocationPolicy.usesRequestedReceivable` 한 곳에 둔다. 정산 상세, 목록, AI 비서가 이 메서드를 같이 쓴다(결정 D2).
 
 ### Web API
 
@@ -160,24 +160,26 @@ Authentication: 변경 없음 (로그인 사용자)
 - Alternatives considered: 정산마다 `TreasurerRequestedReceivableResolver.resolve` 호출(N+1). SQL로 생성자 몫 계산(정책 중복, 할인·배달비 배분 규칙이 두 곳에 생김)
 - Trade-offs and limits: 신규 일괄 조회 쿼리와 매핑 코드가 늘어난다
 
-### 결정이 필요한 항목
+### 결정
 
-- **D1. `SUSPENDED` 정렬.** 정산 상세는 `683b116d`(2026-09-29)부터 `REQUESTED`/`SUSPENDED` 모두 보정 금액을 쓴다. #514의 `TreasurerRequestedReceivableResolver.appliesTo`는 `REQUESTED`만 본다. #514 Plan의 "정산 상세도 이 상태는 share 합계를 쓴다"는 현재 코드와 다르다. 목록은 상세 기준을 따르고, 같은 PR에서 AI 비서도 `SUSPENDED`를 포함하도록 맞출 것을 제안한다.
-- **D2. 계산 진입점 공유.** 보정 조건과 일괄 계산을 Application 컴포넌트 하나(예: `RequestedItemReceivableCalculator`)로 만들고, 목록과 AI 비서가 같이 쓴다. AI 비서도 일괄 계산으로 바뀌어 정산마다 트랜잭션을 여는 현재 구조의 N+1이 사라진다. 상세는 단건이라 기존 코드를 유지하되 같은 조건 메서드를 쓰게 할지 검토한다.
-- **D3. Port 모양.** 신규 능력 Port 하나 vs 기존 Port 네 개에 일괄 메서드 추가. ADR 0003 기준으로는 하나의 대화를 표현하는 신규 Port가 더 응집된다.
+리뷰를 기다리지 않고 아래와 같이 정해 구현한다. 근거는 Decision log에 있다.
+
+- **D1. `SUSPENDED` 정렬 → 포함.** 정산 상세는 `683b116d`(2026-09-29)부터 `REQUESTED`/`SUSPENDED` 모두 보정 금액을 쓴다. #514의 AI 비서는 `REQUESTED`만 봤고, #514 Plan의 "정산 상세도 이 상태는 share 합계를 쓴다"는 문장은 당시에도 코드와 달랐다. 목록과 AI 비서 모두 `SUSPENDED`를 포함한다.
+- **D2. 계산 진입점 공유 → `RequestedItemReceivableCalculator`.** 목록과 AI 비서가 같은 일괄 계산 컴포넌트를 쓴다. AI 비서의 정산별 조회(`TreasurerRequestedReceivableResolver`)는 지우고 일괄 계산으로 바꾼다. 정산 상세는 한 건이라 Policy 메서드를 그대로 부르되, 적용 조건은 같은 `usesRequestedReceivable`을 쓴다.
+- **D3. Port 모양 → 신규 능력 Port 하나.** ADR 0003 기준으로 "받을 금액 계산 재료"라는 한 능력을 표현하는 Port가 기존 Port 네 개에 일괄 메서드를 흩어 넣는 것보다 응집된다.
 
 ## 6. Impact surface
 
 | Area | Impact | Verified file or contract |
 |---|---|---|
 | API | 목록 응답에 nullable 필드 추가(하위 호환) | `SettlementListItemWebResponse` |
-| Application | 목록 서비스에 받을 금액 계산 추가, 계산 컴포넌트 신설 | `SettlementListService`, `TreasurerRequestedReceivableResolver`, `TreasurerSettlementQuery` |
+| Application | 목록 서비스에 받을 금액 계산 추가, 계산 컴포넌트 신설, AI 비서 정산별 조회 제거, 적용 조건 Policy 메서드 | `SettlementListService`, `RequestedItemReceivableCalculator`, `TreasurerSettlementQuery`, `SettlementItemAllocationPolicy`, `SettlementDetailService` |
 | Domain | 없음 | - |
 | Persistence | 목록 쿼리 컬럼 추가, 일괄 조회 쿼리 추가 | `SettlementJpaRepository.findAllForUser`, `SettlementPersistenceAdapter` |
 | Redis | 없음 | - |
 | Security | 없음 | - |
 | Configuration | 없음 | - |
-| Documentation | Swagger 설명, 클라이언트 계약 문서, #514 Plan의 SUSPENDED 문장 정정 | `SettlementDocs`, `docs/features/active/settlement-client-contract.md`, `docs/features/active/treasurer-item-allocation-receivable.md` |
+| Documentation | Swagger 설명, 클라이언트 계약 문서, #514 Plan의 SUSPENDED 문장 정정과 완료 이동, AI 비서 문서 | `SettlementListItemWebResponse`, `docs/features/active/settlement-client-contract.md`, `docs/features/completed/treasurer-item-allocation-receivable.md`, `docs/features/active/ai-treasurer.md` |
 
 Existing behavior that must remain unchanged:
 
@@ -203,8 +205,11 @@ Existing behavior that must remain unchanged:
 
 ```text
 docs(settlement): 정산 목록 받을 금액 설계 수립
+docs(settlement): 정산 목록 받을 금액 설계 결정 반영
 feat(settlement): 받을 정산 목록에 생성자 몫을 뺀 받을 금액을 내려준다
-fix(treasurer): 중단된 품목 정산의 받을 금액을 정산 상세와 맞춘다   # D1 채택 시
+fix(treasurer): 중단된 품목 정산의 받을 금액을 정산 상세와 맞춘다
+test(settlement): 정산 목록 받을 금액 검증 추가
+docs(treasurer): 받을 금액 기준 문서 정정
 docs(settlement): 정산 목록 받을 금액 검증 결과 기록
 ```
 
@@ -246,12 +251,16 @@ git status --short --untracked-files=all
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-10-14 | 초안 작성. develop `1d0c9826` 기준 코드 대조 | D1~D3 결정, 이슈 생성 | AI 비서와 상세의 `SUSPENDED` 금액 불일치 |
+| 2026-10-14 | D1~D3 결정, develop `23c18cf9` 기준 구현 | Gradle 테스트, 이슈 생성 | 없음 |
 
 ## 10. Decision log
 
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
 | 2026-10-14 | `totalAmount` 유지, `receivableAmount` 추가 | 기존 계약(PAY 탭 대체 규칙 설명 포함)과 배포된 앱 버전을 조용히 깨지 않는다 | `totalAmount` 의미 변경은 하위 호환 불가 |
+| 2026-10-14 | D1: AI 비서도 `SUSPENDED` 보정 | 같은 정산의 받을 금액이 상세·목록·AI 비서에서 같아야 한다 | 중단된 품목 정산의 AI 비서 금액이 커진다(0원 → 실제 받을 금액) |
+| 2026-10-14 | D2: 일괄 계산 컴포넌트 공유, AI 비서 정산별 조회 제거 | 조건과 계산이 한 곳에 있고 AI 비서 N+1도 사라진다 | `TreasurerRequestedReceivableResolver` 삭제 |
+| 2026-10-14 | D3: 신규 능력 Port | ADR 0003. 계산 재료를 한 대화로 표현한다 | 기존 Port 네 개는 바꾸지 않는다 |
 
 ## 11. Completion record
 
