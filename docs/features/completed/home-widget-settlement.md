@@ -1,6 +1,6 @@
 # Feature Plan: 홈 위젯 정산 요약과 새로고침
 
-- 상태: 설계 완료, 구현 진행
+- 상태: 완료
 - 갱신일: 2026-10-14
 - 관련 이슈: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/529
 
@@ -29,7 +29,7 @@
 - `LoadSettlementWidgetPort`: 진행 정산 및 참여자·Share·확인 입금·제출 사실 일괄 조회. PostgreSQL Adapter 구현.
 - 기존 품목/지출/선택 조회 Port 및 `SettlementItemAllocationPolicy`를 예상액 계산에 재사용.
 - `SettlementWidgetRefreshStorePort`: 사용자별 대조 잠금·쿨다운·마지막 성공 시각. Redis Adapter 구현.
-- `CurrentAuthSessionPort`: 현재 요청의 사용자/세션 식별. Security Adapter 구현.
+- `CurrentAuthSessionPort`: 현재 요청의 사용자/세션 식별. 전용 `SpringSecuritySessionAdapter` 구현. 기존 CurrentActor Adapter와 분리한다.
 - `WidgetTokenPort`: 세션 만료 이하로 WIDGET JWT 생성. 기존 JWT Adapter 구현.
 - Flyway migration required: **No**. 기존 테이블과 인덱스를 사용하며 장기 인증의 원본은 기존 Redis AuthSession이다. DB 컬럼/테이블 추가 없음.
 - Redis: 사용자별 `settlement:widget:{userId}:lock`(10분 lease), `cooldown`(60초), `last-reconciled`(30일). 잠금 소유 토큰의 원자적 검증·갱신·해제. 실패에도 쿨다운 유지.
@@ -57,7 +57,10 @@
 1. `docs(settlement): 홈 위젯 API 설계 기록`
 2. `feat(auth): 세션 연동 위젯 전용 토큰 발급`
 3. `feat(settlement): 위젯 정산 요약과 일괄 입금 대조 구현`
-4. `test(widget): 위젯 인증과 정산 대조 회귀 검증`
+4. `fix(settlement): 위젯 미확정 송금액의 null 처리 보정` + 정책 회귀 테스트
+5. `fix(auth): 현재 세션 조회 어댑터를 독립 경계로 분리` + JWT 신규 타입 회귀 보정
+6. `test(widget): 위젯 인증과 정산 대조 회귀 검증`
+7. `docs(settlement): 홈 위젯 API 검증 결과 기록`
 
 각 기능 커밋은 실제 연결된 Port/Service/Adapter/API를 포함한다. 마이그레이션 단계는 N/A.
 
@@ -73,4 +76,43 @@
 ## 결과 및 진행 기록
 
 - 설계 검토 완료. DB 마이그레이션 불필요.
-- 검증 결과는 구현 후 기록한다.
+- 위젯 정책 6개·HTTP 13개 검증 완료. 기존 인증 어댑터 mock 교체 충돌은 세션 전용 Adapter로 분리해 해결했다.
+- `DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test`와 격리 Redis에서 `bash scripts/test.sh compileJava test bootJar` 통과.
+- Java 1,849개 / 240 suites: 실패·오류·건너뜀 0. JavaScript 35개 통과.
+- `compileJava`, `bootJar`, `git diff --check` 통과. 문서 상대 링크 검증 오류 0.
+- 실제 HTTP 서버에서 토큰 발급·권한 범위·세션 폐기·OpenAPI, SQL 조회·부분/완납/선택 대기·할인/배달비, Redis 동시 대조·소유자 검사·쿨다운을 검증했다.
+- 전체 실행 초기 CurrentActor mock의 다중 Port Bean 충돌, 신규 enum 타입에 맞지 않는 기존 JWT 테스트, 신규 fixture의 영수증 참조 누락을 발견해 수정하고 전체 재실행으로 통과했다.
+
+## 클라이언트 연동
+
+1. 앱 로그인 후 ACCESS Bearer로 `POST /api/v2/auth/widget-token`을 호출하고 `widgetToken`·`expiresAt`을 위젯 공유 저장소에 보관한다.
+2. 위젯은 같은 Bearer로 요약 조회 또는 새로고침을 호출한다. `settlements`는 전체 목록이며 표시 개수는 클라이언트가 결정한다.
+3. `amountUnconfirmed=true`는 품목 선택 완료 전 예상 수금액이다. payable의 null 금액은 0원과 구분한다.
+4. 401이면 앱에서 다시 확인하도록 표시한다. 429이면 추가 대조를 시도하지 않고 GET으로 현재 요약을 조회한다. 은행 오류에서도 마지막 성공 시각을 새 성공으로 표시하지 않는다.
+5. `expiresAt`·`lastReconciledAt`은 UTC이며 화면에서 로컬 시각으로 변환한다.
+
+## 구현 확인
+
+- [x] 기존 도메인/스키마 재사용, Flyway 단계 N/A
+- [x] UseCase/Result와 실제 호출되는 Output Ports
+- [x] 요약 Policy 및 기존 품목 계산 재사용
+- [x] Application Service와 Persistence/Redis/JWT Adapters
+- [x] Web Response 매핑과 Swagger
+- [x] 세션 확인과 정확한 토큰 method/path 범위
+- [x] 금액·권한·동시 요청·모호한 입금 회귀 검증
+- [x] 전체 회귀·패키징 결과 기록
+
+## 후속 확인과 제한
+
+- 실제 금융기관/CODEF와 iOS·Android 홈 위젯의 실행 시간·App Group 저장·화면 연동은 검증하지 않았다.
+- 새로고침은 동기 API이며 조회 기간과 계좌 수에 따라 오래 걸릴 수 있다.
+- `lastReconciledAt`은 위젯 전체 대조의 성공 시각이며 개별 정산 대조 시각을 통합하지 않는다. Redis 기록은 30일 후 만료한다.
+- 선택 중 정산의 예상액은 추가 데이터 조회가 필요해 정산 수에 비례한 DB 비용이 남는다.
+
+
+## 완료 기록
+
+- 완료일: 2026-10-14
+- 정산 전체 요약·일괄 대조·세션 연동 위젯 전용 토큰 API 구현 완료.
+- DB 마이그레이션·새 환경변수 없음.
+- 배포·실제 CODEF/은행 호출·모바일 위젯 E2E는 수행하지 않았다.
