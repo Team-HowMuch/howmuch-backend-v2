@@ -33,6 +33,7 @@ public record UserNotification(UUID id, Long recipientUserId, UUID settlementId,
             boolean compatible = switch (type) {
                 case SETTLEMENT_REQUEST, SETTLEMENT_REMINDER, SETTLEMENT_PAYMENT_COMPLETED, SETTLEMENT_COMPLETED
                         -> target.type().isSettlement();
+                case SETTLEMENT_DEPOSIT_CONFIRMED -> target.type() == NotificationTargetType.SETTLEMENT_DETAIL;
                 case GROUP_INVITATION -> target.type() == NotificationTargetType.GROUP_INVITATION;
                 case GROUP_MEMBER_LEFT -> target.type() == NotificationTargetType.GROUP_DETAIL;
                 case MONTHLY_RECAP -> target.type() == NotificationTargetType.MONTHLY_RECAP;

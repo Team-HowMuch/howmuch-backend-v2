@@ -108,6 +108,12 @@ howmuch:
       ttl: ${SETTLEMENT_LINK_TTL:720h}
     participant-context:
       ttl: ${SETTLEMENT_PARTICIPANT_CONTEXT_TTL:30m}
+    bank-lookup-budget:
+      namespace: ${SETTLEMENT_BANK_LOOKUP_BUDGET_NAMESPACE:default}
+    transfer-reconciliation:
+      enabled: ${SETTLEMENT_TRANSFER_RECONCILIATION_ENABLED:true}
+      poll-interval: ${SETTLEMENT_TRANSFER_RECONCILIATION_POLL_INTERVAL:5s}
+      batch-size: ${SETTLEMENT_TRANSFER_RECONCILIATION_BATCH_SIZE:10}
     automatic-reminder:
       enabled: ${SETTLEMENT_AUTOMATIC_REMINDER_ENABLED:false}
       poll-interval: ${SETTLEMENT_AUTOMATIC_REMINDER_POLL_INTERVAL:1m}

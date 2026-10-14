@@ -8,6 +8,10 @@ import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransa
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositStorePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositReconciliationJobStorePort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementTransferReconciliationPolicy;
+import com.amateur.howmuchbackend.domain.settlement.SettlementDepositReconciliationJob;
+import com.amateur.howmuchbackend.domain.settlement.SettlementDepositReconciliationStatus;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementDepositMatchingPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
@@ -22,9 +26,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +50,9 @@ class SettlementDepositWriter {
     private final SettlementDepositMatchingPolicy matchingPolicy;
     private final SettlementDepositReader reader;
     private final BusinessNotificationService notifications;
+    private final SettlementDepositReconciliationJobStorePort reconciliationJobs;
+    private final SettlementTransferReconciliationPolicy reconciliationPolicy;
+    private final Clock clock;
 
     @Transactional
     public SettlementDepositSummaryResult reconcile(
@@ -61,7 +70,8 @@ class SettlementDepositWriter {
                 fetchedTransactions,
                 now,
                 false,
-                false
+                false,
+                null
         );
     }
 
@@ -82,7 +92,8 @@ class SettlementDepositWriter {
                 fetchedTransactions,
                 now,
                 true,
-                false
+                false,
+                null
         );
     }
 
@@ -91,7 +102,16 @@ class SettlementDepositWriter {
             UUID settlementId, Long userId, SettlementReceivingAccountSnapshot expectedSnapshot,
             SettlementStatus expectedStatus, List<Transaction> fetchedTransactions, LocalDateTime now
     ) {
-        return reconcile(settlementId, userId, expectedSnapshot, expectedStatus, fetchedTransactions, now, true, true);
+        return reconcile(settlementId, userId, expectedSnapshot, expectedStatus, fetchedTransactions, now, true, true, null);
+    }
+
+    @Transactional
+    public SettlementDepositSummaryResult reconcileAutomatically(
+            SettlementDepositReconciliationJob claim, Long userId,
+            SettlementReceivingAccountSnapshot snapshot, SettlementStatus expectedStatus,
+            List<Transaction> transactions, LocalDateTime now) {
+        return reconcile(claim.settlementId(), userId, snapshot, expectedStatus,
+                transactions, now, true, true, claim);
     }
 
     private SettlementDepositSummaryResult reconcile(
@@ -102,7 +122,8 @@ class SettlementDepositWriter {
             List<Transaction> fetchedTransactions,
             LocalDateTime now,
             boolean allowRequested,
-            boolean widgetRefresh
+            boolean widgetRefresh,
+            SettlementDepositReconciliationJob claim
     ) {
         var lockedAccount = loadAccountPort.findActiveByIdAndUserIdForUpdate(
                 expectedSnapshot.sourceAccountId(),
@@ -120,6 +141,11 @@ class SettlementDepositWriter {
             throw ApplicationException.of(CommonStatusCode.CONCURRENT_UPDATE);
         }
         ensureAvailable(settlement.status(), allowRequested);
+        // 계좌 → 정산 → job 순서로 잠그고 외부 조회를 끝낸 워커의 소유권을 검사한다.
+        LocalDateTime commitTime = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+        if (claim != null && !reconciliationJobs.lockCurrentClaim(claim, commitTime)) {
+            throw ApplicationException.of(CommonStatusCode.CONCURRENT_UPDATE);
+        }
 
         var data = reader.load(settlement, now);
         if (!data.snapshot().equals(expectedSnapshot)) {
@@ -144,7 +170,6 @@ class SettlementDepositWriter {
         List<SettlementDeposit> existingDeposits =
                 depositStorePort.findAllBySettlementId(settlement.id());
         Map<UUID, Long> confirmedAmounts = confirmedAmounts(existingDeposits, transactionById);
-        Map<UUID, Long> previousAmounts = new HashMap<>(confirmedAmounts);
         Map<UUID, SettlementDepositReader.PayableShare> currentPayableByShareId =
                 data.payableShares().stream()
                         .collect(Collectors.toMap(
@@ -208,21 +233,34 @@ class SettlementDepositWriter {
                     });
         }
         depositStorePort.saveAll(newDeposits);
-        for (var payable : data.payableShares()) {
-            long expected = payable.share().amount();
-            UUID shareId = payable.share().id();
-            if (previousAmounts.getOrDefault(shareId, 0L) < expected
-                    && confirmedAmounts.getOrDefault(shareId, 0L) >= expected) {
-                notifications.settlementPaymentCompleted(settlement, shareId, payable.payerName(), now);
-            }
-        }
-
         Settlement result = settlement.status() == SettlementStatus.AWAITING_DEPOSIT
                 && allCompleted(data.payableShares(), confirmedAmounts)
                 ? saveSettlementPort.update(settlement.complete(now))
                 : settlement;
-        if (result.status() == SettlementStatus.COMPLETED) notifications.settlementCompleted(result, now);
-        return reader.summarize(result, data.payableShares(), confirmedAmounts);
+        Map<UUID, SettlementDeposit> newestDepositByShare = new LinkedHashMap<>();
+        newDeposits.forEach(deposit -> newestDepositByShare.put(deposit.shareId(), deposit));
+        if (result.status() == SettlementStatus.COMPLETED) {
+            var payerNames = newestDepositByShare.keySet().stream()
+                    .map(id -> currentPayableByShareId.get(id).payerName()).toList();
+            notifications.settlementCompleted(result, payerNames, now);
+        } else {
+            long remaining = Math.max(0L, reader.summarize(result, data.payableShares(), confirmedAmounts)
+                    .expectedAmount() - confirmedAmounts.values().stream().mapToLong(Long::longValue).sum());
+            newestDepositByShare.forEach((shareId, deposit) -> notifications.settlementDepositConfirmed(
+                    result, deposit.id(), currentPayableByShareId.get(shareId).payerName(), remaining, now));
+        }
+        var summary = reader.summarize(result, data.payableShares(), confirmedAmounts);
+        if (claim != null) {
+            var decision = summary.confirmedAmount() >= summary.expectedAmount()
+                    ? new SettlementTransferReconciliationPolicy.Decision(
+                            SettlementDepositReconciliationStatus.SUCCEEDED, null, null)
+                    : reconciliationPolicy.retry(claim, commitTime, "NO_NEW_DEPOSIT");
+            if (!reconciliationJobs.finish(claim, decision.status(), decision.nextAttemptAt(),
+                    decision.failureCode(), commitTime)) {
+                throw ApplicationException.of(CommonStatusCode.CONCURRENT_UPDATE);
+            }
+        }
+        return summary;
     }
 
     private SettlementDepositMatchingPolicy.PayableShare toMatchingCandidate(

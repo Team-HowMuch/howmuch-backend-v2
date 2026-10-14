@@ -35,7 +35,7 @@ docker compose -p howmuch-test -f compose.test.yml down -v
 
 The [test compose file](../compose.test.yml) binds ports to loopback and keeps PostgreSQL data in temporary storage. If these ports are occupied, change the compose port mapping and the corresponding environment variable. Native PostgreSQL 18 and Redis 8 on dedicated ports work too.
 
-The [test script](../scripts/test.sh) requires explicit database/Redis connection variables and never reads `.env`. It selects the existing `local` profile, overrides JWT/HMAC values with public synthetic test values, directs SMS/CODEF endpoints to loopback, disables Firebase/LLM and both notification schedulers, and stores test images under `build/test-storage`. These settings are for disposable tests only. No GitHub deployment secrets are needed by the test job.
+The [test script](../scripts/test.sh) requires explicit database/Redis connection variables and never reads `.env`. It selects the existing `local` profile, overrides JWT/HMAC values with public synthetic test values, directs SMS/CODEF endpoints to loopback, disables Firebase/LLM and notification schedulers and the automatic transfer reconciliation scheduler, and stores test images under `build/test-storage`. These settings are for disposable tests only. No GitHub deployment secrets are needed by the test job.
 
 With no arguments the script runs `./gradlew clean test --no-daemon`, then `node --test src/test/js/*.test.cjs`. A Java or JavaScript failure returns a nonzero exit code. Java failure stops the script before Node. Existing tests that explicitly select `local` still receive the same environment settings.
 

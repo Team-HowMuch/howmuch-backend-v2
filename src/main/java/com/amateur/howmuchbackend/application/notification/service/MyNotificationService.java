@@ -62,7 +62,7 @@ public class MyNotificationService implements GetMyNotificationsUseCase, CountMy
             case SETTLEMENT_REMINDER -> "지금 바로 정산하러 가기";
             case SETTLEMENT_REQUEST -> n.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
                     ? "영수증 정산하러 가기" : "정산하러 가기";
-            case SETTLEMENT_PAYMENT_COMPLETED, SETTLEMENT_COMPLETED -> "정산 내역 확인하기";
+            case SETTLEMENT_PAYMENT_COMPLETED, SETTLEMENT_COMPLETED, SETTLEMENT_DEPOSIT_CONFIRMED -> "정산 내역 확인하기";
             case GROUP_INVITATION -> "초대 확인하기";
             case GROUP_MEMBER_LEFT -> "그룹 확인하기";
             case MONTHLY_RECAP -> "리캡 확인하기";
