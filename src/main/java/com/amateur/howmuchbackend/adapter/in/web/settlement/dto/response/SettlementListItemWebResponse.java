@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Schema(requiredProperties = {
         "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
-        "payableParticipantCount", "completedParticipantCount", "amountToPay",
+        "payableParticipantCount", "completedParticipantCount", "amountToPay", "receivableAmount",
         "requesterName", "groups"
 })
 public record SettlementListItemWebResponse(
@@ -24,7 +24,8 @@ public record SettlementListItemWebResponse(
         @Schema(nullable = true, description = "기존 호환 필드. 완료 시각이며 COMPLETED 외 상태는 null입니다. "
                 + "UTC 기준 offset 없는 값입니다.")
         LocalDateTime completedAt,
-        @Schema(nullable = true)
+        @Schema(nullable = true, description = "RECEIVE 탭의 정산 총액. 생성자 본인 몫을 포함한다. "
+                + "생성자가 받을 금액은 receivableAmount를 쓴다. PAY 탭에서는 null입니다.")
         Long totalAmount,
         @Schema(
                 nullable = true,
@@ -48,6 +49,11 @@ public record SettlementListItemWebResponse(
                 + "생성자 몫을 포함한 정산 총액을 목록 표시값으로 반환하며 실제 개인 납부액을 뜻하지 않습니다. "
                 + "그 외 금액 미확정 상태와 RECEIVE 탭에서는 null입니다.")
         Long amountToPay,
+        @Schema(nullable = true, description = "RECEIVE 탭에서 생성자가 받을 금액. 생성자 본인 몫을 뺀 참여자 납부 총액이며 "
+                + "입금 여부와 무관하다. 정산 상세의 summary.expectedAmount와 같다. "
+                + "ITEM_ALLOCATION의 REQUESTED·SUSPENDED 상태에서는 영수증 총액에서 생성자가 고른 몫을 뺀 값이다. "
+                + "PAY 탭에서는 null입니다.")
+        Long receivableAmount,
         @Schema(nullable = true)
         String requesterName,
         List<GroupSummary> groups
@@ -65,6 +71,7 @@ public record SettlementListItemWebResponse(
                 result.payableParticipantCount(),
                 result.completedParticipantCount(),
                 result.amountToPay(),
+                result.receivableAmount(),
                 result.requesterName(),
                 result.groups().stream()
                         .map(GroupSummary::from)

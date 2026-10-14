@@ -6,7 +6,9 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.Settlem
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadRequestedItemReceivableFactsPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementItemAllocationPolicy;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
@@ -37,9 +39,21 @@ class SettlementListServiceTest {
     @Mock
     private LoadSettlementListPort loadSettlementListPort;
 
+    @Mock
+    private LoadRequestedItemReceivableFactsPort loadRequestedItemReceivableFactsPort;
+
+    private SettlementListService service() {
+        return new SettlementListService(
+                currentActorPort,
+                loadSettlementListPort,
+                new RequestedItemReceivableCalculator(
+                        loadRequestedItemReceivableFactsPort, new SettlementItemAllocationPolicy())
+        );
+    }
+
     @Test
     void settlementList_currentUser_preservesNumbersAndRawStatus() {
-        SettlementListService service = new SettlementListService(currentActorPort, loadSettlementListPort);
+        SettlementListService service = service();
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID,
                 SettlementStatus.AWAITING_DEPOSIT,
@@ -52,6 +66,7 @@ class SettlementListServiceTest {
                 2,
                 0,
                 null,
+                400L,
                 null,
                 List.of(new SettlementListReadModel.GroupSummary(
                         10L,
@@ -95,6 +110,7 @@ class SettlementListServiceTest {
                 2,
                 0,
                 null,
+                400L,
                 null,
                 List.of(new SettlementListItemResult.GroupSummary(
                         10L,
@@ -109,11 +125,11 @@ class SettlementListServiceTest {
         var completedAt = LocalDateTime.of(2026, 9, 1, 0, 0);
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID, SettlementStatus.COMPLETED, completedAt.minusMonths(1), completedAt, completedAt,
-                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 1, null, null, List.of());
+                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 1, null, 300L, null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.COMPLETED, 10L, month)).thenReturn(List.of(readModel));
-        var service = new SettlementListService(currentActorPort, loadSettlementListPort);
+        var service = service();
         assertThat(service.get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE, SettlementListStatusFilter.COMPLETED, 10L, month)))
                 .singleElement().satisfies(item -> {
@@ -128,12 +144,12 @@ class SettlementListServiceTest {
         var suspendedAt = LocalDateTime.of(2026, 9, 2, 12, 30);
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID, SettlementStatus.SUSPENDED, suspendedAt.minusDays(1), suspendedAt, null,
-                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, null, List.of());
+                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS, null, null)).thenReturn(List.of(readModel));
 
-        var result = new SettlementListService(currentActorPort, loadSettlementListPort).get(
+        var result = service().get(
                 new GetSettlementsCommand(
                         SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null));
 
@@ -170,12 +186,13 @@ class SettlementListServiceTest {
     ) {
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID, status, LocalDateTime.of(2026, 9, 30, 0, 0), null, null,
-                6_000L, allocationType, null, null, null, shareAmount, null, List.of());
+                6_000L, allocationType, null, null, null, shareAmount,
+                tab == SettlementListTab.RECEIVE ? 0L : null, null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(USER_ID, tab, SettlementListStatusFilter.ALL, null, null))
                 .thenReturn(List.of(readModel));
 
-        var result = new SettlementListService(currentActorPort, loadSettlementListPort).get(
+        var result = service().get(
                 new GetSettlementsCommand(tab, SettlementListStatusFilter.ALL, null, null));
 
         assertThat(result).singleElement().satisfies(item -> {

@@ -13,19 +13,30 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class SettlementListService implements GetSettlementsUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementListPort loadSettlementListPort;
+    private final RequestedItemReceivableCalculator requestedItemReceivableCalculator;
 
     @Override
     public List<SettlementListItemResult> get(GetSettlementsCommand command) {
         Long userId = currentActorPort.getCurrentActor().userId();
-        return loadSettlementListPort.findAll(
-                        userId, command.tab(), command.status(), command.groupId(), command.yearMonth()
-                ).stream()
+        List<SettlementListReadModel> items = loadSettlementListPort.findAll(
+                userId, command.tab(), command.status(), command.groupId(), command.yearMonth()
+        );
+        Map<UUID, Long> requestedReceivables = command.tab() == SettlementListTab.RECEIVE
+                ? requestedItemReceivableCalculator.calculate(items.stream()
+                        .filter(item -> requestedItemReceivableCalculator.appliesTo(
+                                item.allocationType(), item.status()))
+                        .map(SettlementListReadModel::settlementId)
+                        .toList())
+                : Map.of();
+        return items.stream()
                 .map(item -> new SettlementListItemResult(
                         item.settlementId(),
                         item.status(),
@@ -38,6 +49,7 @@ public class SettlementListService implements GetSettlementsUseCase {
                         item.payableParticipantCount(),
                         item.completedParticipantCount(),
                         amountToPay(item, command.tab()),
+                        receivableAmount(item, command.tab(), requestedReceivables),
                         item.requesterName(),
                         item.groups().stream()
                                 .map(group -> new SettlementListItemResult.GroupSummary(
@@ -48,6 +60,22 @@ public class SettlementListService implements GetSettlementsUseCase {
                                 .toList()
                 ))
                 .toList();
+    }
+
+    /**
+     * 생성자가 받을 금액. 정산 상세의 {@code summary.expectedAmount}와 같은 기준이다.
+     * 선택 대기 품목 정산은 다시 계산한 값을, 그 밖에는 생성자를 뺀 share 합계를 쓴다.
+     * 다시 계산하지 못한 정산도 share 합계로 되돌린다.
+     */
+    private Long receivableAmount(
+            SettlementListReadModel item,
+            SettlementListTab tab,
+            Map<UUID, Long> requestedReceivables
+    ) {
+        if (tab != SettlementListTab.RECEIVE) {
+            return null;
+        }
+        return requestedReceivables.getOrDefault(item.settlementId(), item.receivableShareAmount());
     }
 
     private Long amountToPay(SettlementListReadModel item, SettlementListTab tab) {
