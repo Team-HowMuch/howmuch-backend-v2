@@ -96,11 +96,17 @@ class CertificateHttpIntegrationTest {
     @org.springframework.beans.factory.annotation.Autowired
     com.amateur.howmuchbackend.application.port.out.user.LoadUserPort users;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    org.springframework.data.redis.core.StringRedisTemplate redis;
+
     String mobileToken;
 
     @BeforeEach
     void resetToken() {
         mobileToken = null;
+        // Each test has its own request budget in the dedicated Redis container.
+        var limitKeys = redis.keys("certificate:create:*");
+        if (limitKeys != null && !limitKeys.isEmpty()) redis.delete(limitKeys);
     }
 
     void loginFixture() {
@@ -457,6 +463,41 @@ class CertificateHttpIntegrationTest {
     }
 
     @Test
+    void failedPairingRetriesAndMobileOwnerCanCancel() throws Exception {
+        var initial = request("POST", "/api/v2/certificate-pairings", "{}", null, null);
+        var p = json.readTree(initial.body()).path("data");
+        String root = "/api/v2/certificate-pairings/" + p.path("id").asText();
+        String pc = p.path("pcCapability").asText();
+        assertThat(request("DELETE", root, null, null, null).statusCode()).isEqualTo(401);
+        loginFixture();
+        assertThat(request("POST", root + "/claim",
+                json.writeValueAsString(Map.of("qrToken", p.path("qrToken").asText())),
+                null, null).statusCode()).isEqualTo(200);
+        String ownerToken = mobileToken;
+        var first = request("POST", root + "/registrations", "{\"organization\":\"0020\"}", pc, null);
+        assertThat(first.statusCode()).isEqualTo(201);
+        assertThat(request("POST", root + "/registrations", "{\"organization\":\"0020\"}", pc, null)
+                .statusCode()).isEqualTo(409);
+        UUID firstId = UUID.fromString(json.readTree(first.body()).at("/data/id").asText());
+        jdbc.update("UPDATE certificate_registration_sessions SET status='UNKNOWN' WHERE id=?", firstId);
+        assertThat(request("POST", root + "/registrations", "{\"organization\":\"0020\"}", pc, null)
+                .statusCode()).isEqualTo(409);
+        jdbc.update("UPDATE certificate_registration_sessions SET status='FAILED' WHERE id=?", firstId);
+        var retry = request("POST", root + "/registrations", "{\"organization\":\"0020\"}", pc, null);
+        assertThat(retry.statusCode()).isEqualTo(201);
+        assertThat(json.readTree(retry.body()).at("/data/id").asText()).isNotEqualTo(firstId.toString());
+        loginFixture();
+        assertThat(request("DELETE", root, null, null, null).statusCode()).isEqualTo(404);
+        mobileToken = ownerToken;
+        assertThat(request("DELETE", root, null, null, null).statusCode()).isEqualTo(200);
+        assertThat(request("DELETE", root, null, null, null).statusCode()).isEqualTo(200);
+        assertThat(json.readTree(request("GET", root + "/pc", null, pc, null).body())
+                .at("/data/status").asText()).isEqualTo("CANCELLED");
+        assertThat(request("POST", root + "/registrations", "{\"organization\":\"0020\"}", pc, null)
+                .statusCode()).isEqualTo(409);
+    }
+
+    @Test
     void earlyPairingAuthenticatesBeforeFinalMobileApproval() throws Exception {
         var initial = request("POST", "/api/v2/certificate-pairings", "{}", null, null);
         assertThat(initial.statusCode()).isEqualTo(201);
@@ -552,6 +593,7 @@ class CertificateHttpIntegrationTest {
         assertThat(bound.statusCode()).isEqualTo(200);
         assertThat(json.readTree(bound.body()).at("/data/status").asText()).isEqualTo("BOUND");
         assertThat(json.readTree(bound.body()).at("/data/connectionId").asLong()).isPositive();
+        assertThat(request("DELETE", root, null, null, null).statusCode()).isEqualTo(409);
         assertThat(
                         json.readTree(request("GET", root, null, null, null).body())
                                 .at("/data/status")
