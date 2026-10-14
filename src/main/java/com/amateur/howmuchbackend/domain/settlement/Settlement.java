@@ -95,6 +95,12 @@ public record Settlement(
         requireDraft();
     }
 
+    public void ensureParticipantRenameable() {
+        if (status != SettlementStatus.DRAFT && status != SettlementStatus.SUSPENDED) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_EDITABLE);
+        }
+    }
+
     public void ensureExpensesEditable() {
         requireDraft();
     }

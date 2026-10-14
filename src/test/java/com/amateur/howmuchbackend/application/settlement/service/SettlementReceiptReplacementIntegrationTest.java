@@ -9,6 +9,9 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementI
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementItemAllocationPersistenceAdapter;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementSharePersistenceAdapter;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementPersistenceAdapter;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementParticipantPersistenceAdapter;
+import com.amateur.howmuchbackend.adapter.out.persistence.settlement.SettlementShareDeletionAdapter;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.SettlementReceiptExpenseController;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.SettlementAllocationController;
 import com.amateur.howmuchbackend.adapter.in.web.settlement.SettlementController;
@@ -52,6 +55,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -60,7 +64,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@DisplayName("중단 정산 영수증·더치페이 수정 HTTP·PostgreSQL 통합")
+@DisplayName("중단 정산 영수증·더치페이·참여자 이름 수정 HTTP·PostgreSQL 통합")
 class SettlementReceiptReplacementIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 1, 10, 0);
     @MockitoBean private CurrentActorPort currentActorPort;
@@ -70,6 +74,8 @@ class SettlementReceiptReplacementIntegrationTest {
     @Autowired private SettlementAllocationController allocationController;
     @Autowired private SettlementController settlementController;
     @Autowired private SettlementAllocationService allocationService;
+    @MockitoSpyBean private SettlementParticipantPersistenceAdapter participants;
+    @Autowired private SettlementParticipantService participantService;
     @Autowired private SettlementService lifecycle;
     @Autowired private SettlementItemAllocationWriter itemWriter;
     @Autowired private SettlementDutchPayAllocationStorePort dutchPayStore;
@@ -77,9 +83,12 @@ class SettlementReceiptReplacementIntegrationTest {
     @MockitoSpyBean private SettlementItemPersistenceAdapter items;
     @Autowired private SettlementItemAllocationPersistenceAdapter allocations;
     @Autowired private SettlementSharePersistenceAdapter shares;
+    @Autowired private LoadSettlementSharePort loadShares;
+    @MockitoSpyBean private SettlementShareDeletionAdapter shareDeletion;
     @Autowired private SettlementPersistenceAdapter settlements;
     @Autowired private JdbcTemplate jdbcTemplate;
     private Long creatorId;
+    private Long payerUserId;
     private Long connectionId;
     private Long accountId;
     private UUID settlementId;
@@ -125,6 +134,9 @@ class SettlementReceiptReplacementIntegrationTest {
         jdbcTemplate.update("DELETE FROM account_records WHERE id = ?", accountId);
         jdbcTemplate.update("DELETE FROM external_connections WHERE id = ?", connectionId);
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", creatorId);
+        if (payerUserId != null) {
+            jdbcTemplate.update("DELETE FROM users WHERE id = ?", payerUserId);
+        }
     }
 
     @Test
@@ -237,6 +249,9 @@ class SettlementReceiptReplacementIntegrationTest {
                 """,
                 """
                 {"storeName":"수정","items":[{"name":"품목","quantity":0,"amount":100}]}
+                """,
+                """
+                {"storeName":"수정","items":[{"name":"품목","quantity":1,"amount":100,"discount":101}]}
                 """)) {
             http.perform(put("/api/v2/settlements/{id}/expenses/receipt/{expense}", settlementId, receipt.id())
                     .contentType("application/json").content(body)).andExpect(status().isBadRequest());
@@ -388,6 +403,207 @@ class SettlementReceiptReplacementIntegrationTest {
         assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
         assertThat(jdbcTemplate.queryForList("SELECT amount FROM settlement_shares WHERE settlement_id = ?", Long.class, settlementId))
                 .containsExactlyInAnyOrder(6000L, 6000L);
+    }
+
+    @ParameterizedTest
+    @EnumSource(SettlementAllocationType.class)
+    void rename_suspended_preservesIdentityAllocationsAndStatus(SettlementAllocationType type) throws Exception {
+        if (type == SettlementAllocationType.DUTCH_PAY) {
+            initializeDutchPay();
+        } else {
+            insertSnapshot();
+        }
+        allocations.saveSelection(SettlementItemSelection.create(settlementId, originalItem.id(),
+                payerParticipantId, SettlementItemAllocationFraction.ONE, 1, NOW));
+        allocations.saveSubmission(SettlementItemSubmission.submit(settlementId, payerParticipantId, NOW));
+        shares.saveAll(List.of(SettlementShare.create(settlementId, payerParticipantId, 6000, NOW)));
+        var beforeParticipant = participants.findBySettlementIdAndId(settlementId, payerParticipantId).orElseThrow();
+        var beforeSettlement = settlements.findById(settlementId).orElseThrow();
+        var beforeSelections = allocations.findAllSelections(settlementId);
+        var beforeSubmissions = allocations.findAllSubmissions(settlementId);
+        var beforeDutchPay = dutchPayStore.findAllBySettlementId(settlementId);
+        var beforeShares = loadShares.findAllBySettlementId(settlementId);
+
+        renameRequest(payerParticipantId, "수정 이름").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.participantId").value(payerParticipantId.toString()))
+                .andExpect(jsonPath("$.data.displayName").value("수정 이름"));
+
+        var saved = participants.findBySettlementIdAndId(settlementId, payerParticipantId).orElseThrow();
+        assertThat(saved).usingRecursiveComparison().ignoringFields("displayName", "updatedAt")
+                .isEqualTo(beforeParticipant);
+        assertThat(saved.displayName()).isEqualTo("수정 이름");
+        assertThat(settlements.findById(settlementId).orElseThrow()).isEqualTo(beforeSettlement);
+        assertThat(allocations.findAllSelections(settlementId)).isEqualTo(beforeSelections);
+        assertThat(allocations.findAllSubmissions(settlementId)).isEqualTo(beforeSubmissions);
+        assertThat(dutchPayStore.findAllBySettlementId(settlementId)).isEqualTo(beforeDutchPay);
+        assertThat(loadShares.findAllBySettlementId(settlementId)).isEqualTo(beforeShares);
+        assertThat(lifecycle.resume(settlementId).status()).isEqualTo(
+                type == SettlementAllocationType.DUTCH_PAY
+                        ? SettlementStatus.AWAITING_DEPOSIT : SettlementStatus.REQUESTED);
+        assertThat(participants.findBySettlementIdAndId(settlementId, payerParticipantId).orElseThrow().displayName())
+                .isEqualTo("수정 이름");
+    }
+
+    @Test
+    void rename_draft_preservesExistingFlow() throws Exception {
+        jdbcTemplate.update("UPDATE settlements SET status = 'DRAFT' WHERE id = ?", settlementId);
+        renameRequest(payerParticipantId, "수정 이름").andExpect(status().isOk());
+        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.DRAFT);
+    }
+
+    @Test
+    void rename_linkedParticipant_doesNotChangeUserName() throws Exception {
+        payerUserId = insertUser(UUID.randomUUID().toString());
+        jdbcTemplate.update("UPDATE settlement_participants SET source = 'REGISTERED_USER', linked_user_id = ?, phone_hash = NULL WHERE id = ?",
+                payerUserId, payerParticipantId);
+        String accountName = jdbcTemplate.queryForObject("SELECT name FROM users WHERE id = ?", String.class, payerUserId);
+        renameRequest(payerParticipantId, "정산 별칭").andExpect(status().isOk());
+        var saved = participants.findBySettlementIdAndId(settlementId, payerParticipantId).orElseThrow();
+        assertThat(saved.linkedUserId()).isEqualTo(payerUserId);
+        assertThat(saved.displayName()).isEqualTo("정산 별칭");
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM users WHERE id = ?", String.class, payerUserId))
+                .isEqualTo(accountName);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SettlementStatus.class, names = {"REQUESTED", "AWAITING_DEPOSIT", "COMPLETED"})
+    void rename_runningOrCompleted_rejected(SettlementStatus state) throws Exception {
+        jdbcTemplate.update("UPDATE settlements SET status = ? WHERE id = ?", state.name(), settlementId);
+        var before = participants.findAllBySettlementId(settlementId);
+        renameRequest(payerParticipantId, "수정 이름").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_NOT_EDITABLE"));
+        assertThat(participants.findAllBySettlementId(settlementId)).isEqualTo(before);
+    }
+
+    @Test
+    void rename_invalidNameOrParticipant_rejectedAndPreserved() throws Exception {
+        var before = participants.findAllBySettlementId(settlementId);
+        for (String name : List.of("", "   ", "가".repeat(101))) {
+            renameRequest(payerParticipantId, name).andExpect(status().isBadRequest());
+        }
+        assertError(() -> participantService.rename(settlementId, payerParticipantId, " "),
+                SettlementStatusCode.INVALID_SETTLEMENT_PARTICIPANT_DISPLAY_NAME);
+        renameRequest(UUID.randomUUID(), "수정 이름").andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_PARTICIPANT_NOT_FOUND"));
+        renameRequest(creatorParticipantId, "수정 이름").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED"));
+        assertThat(participants.findAllBySettlementId(settlementId)).isEqualTo(before);
+    }
+
+    @Test
+    void rename_confirmedDeposit_rejectedAndPreserved() throws Exception {
+        insertDeposit();
+        var before = participants.findAllBySettlementId(settlementId);
+        renameRequest(payerParticipantId, "수정 이름").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_REVISION_PAYMENT_EXISTS"));
+        assertThat(participants.findAllBySettlementId(settlementId)).isEqualTo(before);
+        assertThat(count("settlement_deposits")).isEqualTo(1);
+        assertThat(count("settlement_shares")).isEqualTo(1);
+    }
+
+    @Test
+    void rename_writeFailure_rollsBackParticipant() {
+        var before = participants.findAllBySettlementId(settlementId);
+        doAnswer(invocation -> {
+            invocation.callRealMethod();
+            throw new IllegalStateException("synthetic failure after participant update");
+        }).when(participants).update(any());
+        assertThatThrownBy(() -> participantService.rename(settlementId, payerParticipantId, "수정 이름"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(participants.findAllBySettlementId(settlementId)).isEqualTo(before);
+        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.SUSPENDED);
+    }
+
+    @Test
+    void suspended_addAndRemoveParticipants_remainRejected() throws Exception {
+        var before = participants.findAllBySettlementId(settlementId);
+        http.perform(post("/api/v2/settlements/{id}/participants", settlementId)
+                .contentType("application/json").content("{\"source\":\"CONTACT\",\"displayName\":\"신규\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("SETTLEMENT_NOT_EDITABLE"));
+        assertError(() -> participantService.remove(settlementId, payerParticipantId),
+                SettlementStatusCode.SETTLEMENT_NOT_EDITABLE);
+        assertThat(participants.findAllBySettlementId(settlementId)).isEqualTo(before);
+    }
+
+    @Test
+    void suspended_actualParticipant_cannotUseAnyEditApi() throws Exception {
+        initializeDutchPay();
+        payerUserId = insertUser(UUID.randomUUID().toString());
+        jdbcTemplate.update("UPDATE settlement_participants SET source = 'REGISTERED_USER', linked_user_id = ?, phone_hash = NULL WHERE id = ?",
+                payerUserId, payerParticipantId);
+        var before = participants.findAllBySettlementId(settlementId);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(payerUserId));
+        renameRequest(payerParticipantId, "수정 이름").andExpect(status().isForbidden());
+        http.perform(put("/api/v2/settlements/{id}/expenses/receipt/{expense}", settlementId, receipt.id())
+                .contentType("application/json").content("""
+                {"storeName":"수정","items":[{"name":"품목","quantity":1,"amount":1000}]}
+                """)).andExpect(status().isForbidden());
+        http.perform(put("/api/v2/settlements/{id}/dutch-pay-allocations", settlementId)
+                .contentType("application/json").content(dutchBody(creatorParticipantId, 3000, payerParticipantId, 7000)))
+                .andExpect(status().isForbidden());
+        assertThat(participants.findAllBySettlementId(settlementId)).isEqualTo(before);
+        assertUnchanged();
+        assertThat(dutchPayStore.findAllBySettlementId(settlementId)).extracting(SettlementDutchPayAllocation::amount)
+                .containsExactlyInAnyOrder(4000L, 6000L);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SettlementStatus.class, names = {"REQUESTED", "AWAITING_DEPOSIT", "COMPLETED"})
+    void dutchPay_runningOrCompleted_rejected(SettlementStatus state) throws Exception {
+        initializeDutchPay();
+        jdbcTemplate.update("UPDATE settlements SET status = ? WHERE id = ?", state.name(), settlementId);
+        var before = dutchPayStore.findAllBySettlementId(settlementId);
+        http.perform(put("/api/v2/settlements/{id}/dutch-pay-allocations", settlementId)
+                .contentType("application/json").content(dutchBody(creatorParticipantId, 3000, payerParticipantId, 7000)))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("SETTLEMENT_NOT_EDITABLE"));
+        assertThat(dutchPayStore.findAllBySettlementId(settlementId)).isEqualTo(before);
+    }
+
+    @Test
+    void dutchPay_invalidIdsAndAmounts_rejectedWithoutPartialWrites() throws Exception {
+        initializeDutchPay();
+        shares.saveAll(List.of(SettlementShare.create(settlementId, payerParticipantId, 6000, NOW)));
+        var before = dutchPayStore.findAllBySettlementId(settlementId);
+        for (String body : List.of(
+                dutchBody(creatorParticipantId, 3000, UUID.randomUUID(), 7000),
+                dutchBody(creatorParticipantId, 3000, creatorParticipantId, 7000),
+                dutchBody(creatorParticipantId, -1, payerParticipantId, 10_001),
+                dutchBody(creatorParticipantId, 5000, payerParticipantId, 7000),
+                "{\"allocations\":[]}")) {
+            http.perform(put("/api/v2/settlements/{id}/dutch-pay-allocations", settlementId)
+                    .contentType("application/json").content(body)).andExpect(status().is4xxClientError());
+            assertThat(dutchPayStore.findAllBySettlementId(settlementId)).isEqualTo(before);
+            assertThat(count("settlement_shares")).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void dutchPay_lateWriteFailure_rollsBackAllAmountsAndShares() {
+        initializeDutchPay();
+        shares.saveAll(List.of(SettlementShare.create(settlementId, payerParticipantId, 6000, NOW)));
+        var before = dutchPayStore.findAllBySettlementId(settlementId);
+        var beforeShares = loadShares.findAllBySettlementId(settlementId);
+        // 마지막 Share 초기화까지 진행한 뒤 실패시켜 전원 금액 변경도 롤백되는지 확인한다.
+        doAnswer(invocation -> {
+            invocation.callRealMethod();
+            throw new IllegalStateException("synthetic failure after share deletion");
+        }).when(shareDeletion).deleteAllBySettlementId(settlementId);
+        assertThatThrownBy(() -> allocationService.replace(settlementId, dutchCommand(3000, 7000)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(dutchPayStore.findAllBySettlementId(settlementId)).isEqualTo(before);
+        assertThat(loadShares.findAllBySettlementId(settlementId)).isEqualTo(beforeShares);
+        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.SUSPENDED);
+    }
+
+    private org.springframework.test.web.servlet.ResultActions renameRequest(UUID participantId, String name) throws Exception {
+        return http.perform(patch("/api/v2/settlements/{id}/participants/{participant}", settlementId, participantId)
+                .contentType("application/json").content("{\"displayName\":\"%s\"}".formatted(name)));
+    }
+
+    private String dutchBody(UUID firstId, long firstAmount, UUID secondId, long secondAmount) {
+        return """
+                {"allocations":[{"participantId":"%s","amount":%d},{"participantId":"%s","amount":%d}]}
+                """.formatted(firstId, firstAmount, secondId, secondAmount);
     }
 
     private void initializeDutchPay() {
