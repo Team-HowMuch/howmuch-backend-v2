@@ -41,6 +41,7 @@ import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
@@ -95,6 +96,7 @@ public class SettlementParticipantService implements
     private final SettlementContactMatchQuotaPolicy contactMatchQuotaPolicy;
     private final SaveSettlementPort saveSettlementPort;
     private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
+    private final SettlementRevisionGuard revisionGuard;
 
     @Override
     @Transactional
@@ -123,7 +125,11 @@ public class SettlementParticipantService implements
             UUID participantId,
             String displayName
     ) {
-        Settlement settlement = loadOwnedEditableSettlement(settlementId);
+        Settlement settlement = loadOwnedSettlementForUpdate(settlementId);
+        settlement.ensureParticipantRenameable();
+        if (settlement.status() == SettlementStatus.SUSPENDED) {
+            revisionGuard.ensureUnpaid(settlement.id());
+        }
         SettlementParticipant participant = loadSettlementParticipantPort
                 .findBySettlementIdAndId(settlement.id(), participantId)
                 .orElseThrow(() -> ApplicationException.of(
@@ -433,11 +439,16 @@ public class SettlementParticipantService implements
     }
 
     private Settlement loadOwnedEditableSettlement(UUID settlementId) {
+        Settlement settlement = loadOwnedSettlementForUpdate(settlementId);
+        settlement.ensureParticipantsEditable();
+        return settlement;
+    }
+
+    private Settlement loadOwnedSettlementForUpdate(UUID settlementId) {
         CurrentActor actor = currentActorPort.getCurrentActor();
         Settlement settlement = loadSettlementPort.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_FOUND));
         ensureOwnedBy(settlement, actor.userId());
-        settlement.ensureParticipantsEditable();
         return settlement;
     }
 

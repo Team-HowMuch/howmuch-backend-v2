@@ -575,7 +575,9 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 참여자 이름 수정",
-            description = "현재 로그인한 생성자가 DRAFT 정산의 참여자를 이 정산에서 부를 이름으로 바꿉니다. "
+            description = "현재 로그인한 생성자가 DRAFT·SUSPENDED 정산의 참여자를 이 정산에서 부를 이름으로 바꿉니다. "
+                    + "SUSPENDED에서는 확정 입금이 없을 때만 수정할 수 있으며 수정 후에도 중단 상태를 유지합니다. "
+                    + "재개 API를 호출해야 정산이 다시 진행됩니다. "
                     + "연락처에 없어 자동 생성된 참여자를 구분하기 위한 기능이며, "
                     + "가입 회원 참여자에게 적용해도 해당 회원의 계정 이름은 바뀌지 않습니다. "
                     + "정산 생성자 자신의 이름은 바꿀 수 없습니다.",
@@ -605,7 +607,8 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED"
+                    description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED "
+                            + "또는 SETTLEMENT_REVISION_PAYMENT_EXISTS"
             )
     })
     ApiResponse<SettlementParticipantWebResponse> renameSettlementParticipant(
