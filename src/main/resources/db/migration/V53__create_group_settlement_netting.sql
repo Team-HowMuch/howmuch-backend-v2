@@ -2660,6 +2660,3 @@ COMMENT ON TABLE settlement_bank_transaction_claims IS
     'Permanent global attribution of original settlement and netted transfer bank transactions; claims survive rollover and review resolution.';
 COMMENT ON TABLE group_netting_rollover_obligations IS
     'Positive unpaid prior-transfer residuals carried exactly once into a successor generation; zero residuals are not re-created as debt.';
-
-
-
