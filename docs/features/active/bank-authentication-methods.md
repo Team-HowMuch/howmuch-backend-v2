@@ -199,4 +199,4 @@ feat(account): 은행 인증 수준 기반 연결 지원       # 후속 구현 P
 - v3 Swagger 메타데이터는 `BankCatalogDocs`로 이동했다.
 - 선행 호환 reader [#545](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/545)를 먼저 병합·배포하고 그 이미지 SHA를 롤백 기준으로 기록한다. 그다음 #543의 V53과 새 reader를 배포한다.
 - V53 이후에는 호환 reader 이미지까지만 롤백한다. 더 오래된 `1` 전용 reader로 돌아가지 않는다. 호환 기간에 초기 수준/지원 은행 매핑은 변경하지 않는다.
-- 검증: 호환 reader의 `1`·`3` 회귀 테스트 및 본 PR의 인증 수준 카탈로그 단위 테스트 통과. HTTP·영속성 통합 테스트 재실행 중.
+- 검증: 호환 reader의 `1`·`3` 회귀 테스트 및 본 PR의 인증 수준 카탈로그 단위 테스트 통과. HTTP·영속성 통합 테스트는 Docker daemon ping 응답 대기에서 진행되지 않아 실행 프로세스만 종료했다(exit 143). 신규 비활성 은행 SQL 회귀 테스트는 컴파일됐으나 DB 실행은 검증하지 못했다. Docker 복구 후 재실행이 필요하다.
