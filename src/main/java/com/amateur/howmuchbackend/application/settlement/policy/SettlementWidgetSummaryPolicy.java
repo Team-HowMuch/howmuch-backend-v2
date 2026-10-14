@@ -46,9 +46,12 @@ public class SettlementWidgetSummaryPolicy {
                 }
                 receivable.add(new ReceivableSettlement(first.settlementId(), first.title(), remaining, unpaid, unconfirmed));
             } else {
-                Long remaining = first.shareAmount() == null
-                        ? (first.submitted() && !first.receiptAdjustmentPending() ? 0L : null)
-                        : remaining(first);
+                Long remaining = null;
+                if (first.shareAmount() != null) {
+                    remaining = remaining(first);
+                } else if (first.submitted() && !first.receiptAdjustmentPending()) {
+                    remaining = 0L;
+                }
                 PayableStatus status = remaining != null && remaining > 0 ? PayableStatus.PAYABLE
                         : first.allocationType() == SettlementAllocationType.ITEM_ALLOCATION && !first.submitted()
                                 && first.shareAmount() == null ? PayableStatus.SELECTION_REQUIRED : PayableStatus.WAITING;
