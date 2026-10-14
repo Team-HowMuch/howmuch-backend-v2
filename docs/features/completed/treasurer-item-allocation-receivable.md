@@ -1,9 +1,11 @@
 # Feature Plan: AI 총무 품목별 정산의 받을 금액 보정
 
-- Status: Verified (Gradle 테스트 통과, PR 대기)
-- Last updated: 2026-10-13
+- Status: Completed
+- Last updated: 2026-10-14
 - Related issue: (미생성)
 - Related ADR: N/A
+
+> 후속 변경: `TreasurerRequestedReceivableResolver`는 `settlement-list-receivable-amount.md` 작업에서 정산 목록과 같이 쓰는 일괄 계산(`RequestedItemReceivableCalculator`)으로 바뀌어 삭제되었다. 아래 기록은 이 PR(#514) 당시 상태다.
 
 ## 1. Purpose
 
@@ -35,7 +37,7 @@ GET  /api/v2/treasurer/summary    -> receiveAmount 가 정산 상세의 예상 �
 ### Out of scope
 
 - 품목별 보낼 정산(내가 낼 돈)의 금액. 내가 품목을 고르기 전에는 내 몫이 정해지지 않아 금액 표시 방식(`금액 미정` 등)이 화면 계약 결정이 필요하다. 별도 이슈로 다룬다
-- `SUSPENDED` 품목별 정산. 정산 상세도 이 상태는 share 합계를 쓴다
+- `SUSPENDED` 품목별 정산. (정정: 정산 상세는 `683b116d`부터 `SUSPENDED`도 보정 금액을 쓴다. 이 문장은 사실과 달랐고, `SUSPENDED` 보정은 `settlement-list-receivable-amount.md`에서 AI 비서에도 적용했다)
 - `/summary`(전체 기간)와 `/questions`(기간 생략 시 이번 달)의 기간 기준 차이
 - `GET /api/v2/settlements`의 응답 계약
 
