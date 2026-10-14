@@ -45,9 +45,8 @@ BEGIN
            OR account.organization <> snapshot.organization
            OR transaction.transaction_type <> 'INCOME'
            OR transaction.amount <= 0
-           OR transaction.amount <> trunc(transaction.amount)
     ) THEN
-        RAISE EXCEPTION 'Existing settlement deposit has invalid receiver, transaction type, or non-integral KRW amount';
+        RAISE EXCEPTION 'Existing settlement deposit has invalid receiver, transaction type, or non-positive income';
     END IF;
 
     IF EXISTS (
@@ -63,20 +62,6 @@ BEGIN
         RAISE EXCEPTION 'Existing settlement deposits contain duplicate organization/transaction keys';
     END IF;
 
-    IF EXISTS (
-        SELECT 1
-        FROM settlement_deposits deposit
-        JOIN settlement_shares share
-            ON share.settlement_id = deposit.settlement_id
-           AND share.id = deposit.share_id
-        JOIN account_transactions transaction
-            ON transaction.id = deposit.account_transaction_id
-           AND transaction.account_id = deposit.source_account_id
-        GROUP BY deposit.settlement_id, deposit.share_id, share.amount
-        HAVING sum(transaction.amount) > share.amount
-    ) THEN
-        RAISE EXCEPTION 'Existing settlement deposits exceed their share amount';
-    END IF;
 END;
 $$;
 
@@ -1618,9 +1603,13 @@ DECLARE
     source_transfer_created_at TIMESTAMP(6) WITHOUT TIME ZONE;
     source_is_ancestor BOOLEAN;
 BEGIN
+    -- A review and a rollover both lock this generation row. Whichever obtains
+    -- the lock first determines whether the review belongs to the still-current
+    -- generation; a waiting insert rechecks the committed status after rollover.
     SELECT status INTO STRICT netting_status
     FROM group_settlement_nettings
-    WHERE id = NEW.netting_id AND group_id = NEW.group_id;
+    WHERE id = NEW.netting_id AND group_id = NEW.group_id
+    FOR UPDATE;
 
     IF netting_status NOT IN ('ACTIVE', 'COMPLETED')
        OR NEW.status <> 'OPEN'
@@ -2245,7 +2234,6 @@ DECLARE
     transaction_type VARCHAR(20);
     transaction_amount NUMERIC(19, 4);
     share_amount BIGINT;
-    previously_paid NUMERIC;
 BEGIN
     SELECT creator_id INTO STRICT settlement_creator
     FROM settlements
@@ -2273,25 +2261,11 @@ BEGIN
     IF account_owner <> settlement_creator
        OR transaction_type <> 'INCOME'
        OR transaction_amount <= 0
-       OR transaction_amount <> trunc(transaction_amount)
        OR EXISTS (
            SELECT 1 FROM group_netting_sources source
            WHERE source.settlement_id = NEW.settlement_id
        ) THEN
         RAISE EXCEPTION 'Original deposit does not belong to an unpaid original settlement'
-            USING ERRCODE = '23514';
-    END IF;
-
-    SELECT COALESCE(sum(transaction.amount), 0) INTO previously_paid
-    FROM settlement_deposits deposit
-    JOIN account_transactions transaction
-      ON transaction.id = deposit.account_transaction_id
-     AND transaction.account_id = deposit.source_account_id
-    WHERE deposit.settlement_id = NEW.settlement_id
-      AND deposit.share_id = NEW.share_id;
-
-    IF previously_paid + transaction_amount > share_amount THEN
-        RAISE EXCEPTION 'Original settlement deposits cannot exceed the share amount'
             USING ERRCODE = '23514';
     END IF;
 
@@ -2347,6 +2321,47 @@ BEGIN
     FROM settlement_shares share
     WHERE share.settlement_id = NEW.settlement_id;
 
+    IF EXISTS (
+        SELECT 1
+        FROM settlement_deposits deposit
+        JOIN settlement_shares share
+          ON share.settlement_id = deposit.settlement_id
+         AND share.id = deposit.share_id
+        JOIN settlement_participants participant
+          ON participant.settlement_id = share.settlement_id
+         AND participant.id = share.payer_participant_id
+        JOIN account_transactions transaction
+          ON transaction.id = deposit.account_transaction_id
+         AND transaction.account_id = deposit.source_account_id
+        WHERE deposit.settlement_id = NEW.settlement_id
+          AND participant.linked_user_id IS DISTINCT FROM NEW.creator_id
+          AND (transaction.amount <= 0 OR transaction.amount <> trunc(transaction.amount))
+    ) THEN
+        RAISE EXCEPTION 'Netting source contains a non-positive or non-integral original deposit'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM settlement_deposits deposit
+        JOIN settlement_shares share
+          ON share.settlement_id = deposit.settlement_id
+         AND share.id = deposit.share_id
+        JOIN settlement_participants participant
+          ON participant.settlement_id = share.settlement_id
+         AND participant.id = share.payer_participant_id
+        JOIN account_transactions transaction
+          ON transaction.id = deposit.account_transaction_id
+         AND transaction.account_id = deposit.source_account_id
+        WHERE deposit.settlement_id = NEW.settlement_id
+          AND participant.linked_user_id IS DISTINCT FROM NEW.creator_id
+        GROUP BY deposit.share_id, share.amount
+        HAVING sum(transaction.amount) > share.amount
+    ) THEN
+        RAISE EXCEPTION 'Netting source contains an overpaid original share'
+            USING ERRCODE = '23514';
+    END IF;
+
     SELECT COALESCE(sum(transaction.amount), 0)::BIGINT INTO total_paid
     FROM settlement_deposits deposit
     JOIN settlement_shares share
@@ -2395,6 +2410,33 @@ BEGIN
     SELECT amount INTO STRICT share_amount
     FROM settlement_shares
     WHERE settlement_id = NEW.settlement_id AND id = NEW.share_id;
+
+    IF EXISTS (
+        SELECT 1
+        FROM settlement_deposits deposit
+        JOIN account_transactions transaction
+          ON transaction.id = deposit.account_transaction_id
+         AND transaction.account_id = deposit.source_account_id
+        WHERE deposit.settlement_id = NEW.settlement_id
+          AND deposit.share_id = NEW.share_id
+          AND (transaction.amount <= 0 OR transaction.amount <> trunc(transaction.amount))
+    ) THEN
+        RAISE EXCEPTION 'Netting source share contains a non-positive or non-integral deposit'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF (
+        SELECT COALESCE(sum(transaction.amount), 0)
+        FROM settlement_deposits deposit
+        JOIN account_transactions transaction
+          ON transaction.id = deposit.account_transaction_id
+         AND transaction.account_id = deposit.source_account_id
+        WHERE deposit.settlement_id = NEW.settlement_id
+          AND deposit.share_id = NEW.share_id
+    ) > share_amount THEN
+        RAISE EXCEPTION 'Netting source share is overpaid'
+            USING ERRCODE = '23514';
+    END IF;
 
     SELECT COALESCE(sum(transaction.amount), 0)::BIGINT INTO paid_amount
     FROM settlement_deposits deposit
