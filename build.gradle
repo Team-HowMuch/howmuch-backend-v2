@@ -90,6 +90,11 @@ def verifyMigrationVersions = tasks.register('verifyMigrationVersions') {
 
 tasks.named('processResources') {
     dependsOn verifyMigrationVersions
+    // ProcessResources copies files but does not remove renamed/deleted resources.
+    // Regenerate only this task's output so no-clean test/bootRun cannot load stale SQL.
+    doFirst {
+        delete destinationDir
+    }
 }
 
 tasks.named('test') {

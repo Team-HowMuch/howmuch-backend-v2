@@ -214,3 +214,10 @@ feat(account): 은행 인증 수준 기반 연결 지원       # 후속 구현 P
 - 최신 origin/develop 및 열린 PR의 migration 파일을 재확인해 V54가 비어 있음을 확인했다.
 
 - 수정 PR #547의 원격 CI run 38563075640은 결제/사용 한도 차단으로 실행되지 않았다. develop push는 self-hosted이고 PR은 ubuntu-latest이므로 실행 경로가 다르다. 원격 전체 통합 테스트 통과를 주장하지 않는다.
+
+### PR #547 리뷰: no-clean 리소스 출력 정리
+
+- `processResources`는 Copy 작업이므로 파일명 변경 전 SQL이 출력 폴더에 남을 수 있다. 실행 직전에 해당 작업 소유의 `destinationDir`만 지우고 현재 리소스를 다시 복사한다. 원본 리소스와 다른 build 출력은 건드리지 않는다.
+- 이전 `build/resources/main/db/migration/V53__set_bank_authentication_levels.sql`을 재현용으로 생성한 뒤 `./gradlew processResources --no-daemon`을 clean 없이 실행했다. 구 파일 삭제, 현재 V53 정산/V54 은행 파일 유지, 원본과 전체 출력 파일 목록 일치를 확인했다.
+- `./gradlew compileJava test --tests '*BankCatalogTest' --tests '*CertificateInstitutionCatalogAdapterTest' --no-daemon`도 clean 없이 통과했다. Docker 기반 전체 통합 테스트는 별도 환경에서 검증해야 한다.
+- 커밋 경계: `fix(build): 리소스 복사 전 이전 작업 출력 제거`.
