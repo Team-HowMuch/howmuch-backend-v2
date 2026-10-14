@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -52,7 +53,7 @@ class SettlementDepositPersistenceIntegrationTest {
         insertAccountRecord(sourceAccountId);
         insertAccountRecord(reconnectedAccountId);
 
-        settlementIds = List.of(UUID.randomUUID(), UUID.randomUUID());
+        settlementIds = new ArrayList<>(List.of(UUID.randomUUID(), UUID.randomUUID()));
         insertAwaitingSettlement(settlementIds.get(0), sourceAccountId);
         insertAwaitingSettlement(settlementIds.get(1), reconnectedAccountId);
     }
@@ -96,7 +97,8 @@ class SettlementDepositPersistenceIntegrationTest {
     @Test
     @DisplayName("삭제 후 재연결된 같은 수금 계좌의 미완료 Share도 함께 조회한다")
     void depositCandidates_reconnectedAccount_includesPendingShares() {
-        var candidates = adapter.findUnfinishedPayableCandidatesByReceivingAccount(
+        var candidates = adapter.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                settlementIds.get(0),
                 creatorId,
                 sourceAccountId,
                 "0020",
@@ -111,6 +113,39 @@ class SettlementDepositPersistenceIntegrationTest {
             assertThat(candidate.remainingAmount()).isEqualTo(6_000);
             assertThat(candidate.snapshotCreatedAt()).isEqualTo(NOW);
         });
+    }
+
+    @Test
+    @DisplayName("후보에는 모든 AWAITING_DEPOSIT와 지정된 REQUESTED 정산만 포함한다")
+    void depositCandidates_requestedScope_includesOnlyTargetSettlement() {
+        UUID targetRequestedId = UUID.randomUUID();
+        UUID unrelatedRequestedId = UUID.randomUUID();
+        settlementIds.add(targetRequestedId);
+        settlementIds.add(unrelatedRequestedId);
+        insertRequestedSettlement(targetRequestedId, sourceAccountId);
+        insertRequestedSettlement(unrelatedRequestedId, reconnectedAccountId);
+
+        var awaitingCandidates = adapter.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                settlementIds.get(0),
+                creatorId,
+                sourceAccountId,
+                "0020",
+                ACCOUNT_NUMBER
+        );
+        var requestedCandidates = adapter.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                targetRequestedId,
+                creatorId,
+                sourceAccountId,
+                "0020",
+                ACCOUNT_NUMBER
+        );
+
+        assertThat(awaitingCandidates).extracting(candidate -> candidate.settlementId())
+                .containsExactlyInAnyOrderElementsOf(List.of(settlementIds.get(0), settlementIds.get(1)));
+        assertThat(requestedCandidates).extracting(candidate -> candidate.settlementId())
+                .containsExactlyInAnyOrderElementsOf(List.of(
+                        settlementIds.get(0), settlementIds.get(1), targetRequestedId
+                ));
     }
 
     @Test
@@ -238,13 +273,21 @@ class SettlementDepositPersistenceIntegrationTest {
     }
 
     private void insertAwaitingSettlement(UUID settlementId, Long accountId) {
+        insertSettlement(settlementId, accountId, "AWAITING_DEPOSIT");
+    }
+
+    private void insertRequestedSettlement(UUID settlementId, Long accountId) {
+        insertSettlement(settlementId, accountId, "REQUESTED");
+    }
+
+    private void insertSettlement(UUID settlementId, Long accountId, String status) {
         UUID participantId = UUID.randomUUID();
         UUID shareId = UUID.randomUUID();
         jdbcTemplate.update("""
                 INSERT INTO settlements (
                     id, creator_id, title, total_amount, status, created_at, updated_at
-                ) VALUES (?, ?, '회식 정산', 10000, 'AWAITING_DEPOSIT', ?, ?)
-                """, settlementId, creatorId, NOW, NOW);
+                ) VALUES (?, ?, '회식 정산', 10000, ?, ?, ?)
+                """, settlementId, creatorId, status, NOW, NOW);
         jdbcTemplate.update("""
                 INSERT INTO settlement_participants (
                     id, settlement_id, source, linked_user_id, phone_hash, display_name,

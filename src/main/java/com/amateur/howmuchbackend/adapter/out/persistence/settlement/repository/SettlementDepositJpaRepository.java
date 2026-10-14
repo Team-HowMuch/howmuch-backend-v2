@@ -76,7 +76,9 @@ public interface SettlementDepositJpaRepository
                 ON account_transaction.id = deposit.account_transaction_id
              WHERE settlement.creator_id = :creatorId
                AND snapshot.organization = :organization
-               AND settlement.status IN ('REQUESTED', 'AWAITING_DEPOSIT')
+               AND (settlement.status = 'AWAITING_DEPOSIT'
+                    OR (settlement.id = :targetSettlementId
+                        AND settlement.status = 'REQUESTED'))
                AND (participant.linked_user_id IS NULL
                     OR participant.linked_user_id <> settlement.creator_id)
              GROUP BY share.settlement_id, share.id, participant.display_name, share.amount,
@@ -85,9 +87,10 @@ public interface SettlementDepositJpaRepository
             HAVING share.amount > COALESCE(SUM(account_transaction.amount), 0)
              ORDER BY share.settlement_id, share.id
             """, nativeQuery = true)
-    List<PayableDepositCandidateProjection> findUnfinishedPayableCandidatesByCreatorIdAndOrganization(
+    List<PayableDepositCandidateProjection> findUnfinishedPayableCandidatesByCreatorIdAndOrganizationAndTargetSettlementId(
             @Param("creatorId") Long creatorId,
-            @Param("organization") String organization
+            @Param("organization") String organization,
+            @Param("targetSettlementId") UUID targetSettlementId
     );
 
     interface MatchedTransactionProjection {

@@ -56,6 +56,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -132,7 +133,7 @@ class SettlementDepositServiceTest {
                 writer,
                 reader
         );
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        lenient().when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
     }
 
     @Test
@@ -184,7 +185,8 @@ class SettlementDepositServiceTest {
         accountUpdateOrder.verify(saveTransactionPort).saveAllIgnoringDuplicates(anyList());
         InOrder duplicateGuardOrder = inOrder(depositStorePort);
         duplicateGuardOrder.verify(depositStorePort)
-                .findUnfinishedPayableCandidatesByReceivingAccount(
+                .findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                        SETTLEMENT_ID,
                         CREATOR_ID,
                         7L,
                         "0020",
@@ -250,7 +252,8 @@ class SettlementDepositServiceTest {
     void settlementDeposit_ambiguousTransaction_notMatched() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("6000"));
-        when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
+        when(depositStorePort.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                SETTLEMENT_ID,
                 CREATOR_ID,
                 7L,
                 "0020",
@@ -274,8 +277,8 @@ class SettlementDepositServiceTest {
     void settlementDeposit_substringName_notConfirmed() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("6000"));
-        when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
-                CREATOR_ID, 7L, "0020", "1002123456789"
+        when(depositStorePort.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                SETTLEMENT_ID, CREATOR_ID, 7L, "0020", "1002123456789"
         )).thenReturn(List.of(new SettlementDepositStorePort.PayableDepositCandidate(
                 SETTLEMENT_ID, PAYER_SHARE_ID, "선영", 6_000, CREATED_AT
         )));
@@ -477,6 +480,38 @@ class SettlementDepositServiceTest {
         verify(saveSettlementPort, times(1)).update(any(Settlement.class));
     }
 
+    @Test
+    @DisplayName("REQUESTED 중단 재조회는 현재 정산 ID를 후보 범위로 전달한다")
+    void suspensionRefresh_requestedSettlement_scopesPayableCandidatesToTarget() {
+        arrangeSettlement(SettlementStatus.REQUESTED);
+        when(connectionStorePort.findActiveByUserId(CREATOR_ID))
+                .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
+        when(bankTransactionPort.fetch(
+                eq("CID-1"),
+                eq("0020"),
+                eq("1002123456789"),
+                any(LocalDate.class),
+                any(LocalDate.class),
+                eq(null)
+        )).thenReturn(List.of());
+
+        service.refreshForSuspension(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                snapshot(),
+                SettlementStatus.REQUESTED,
+                CREATED_AT.plusHours(2)
+        );
+
+        verify(depositStorePort).findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                7L,
+                "0020",
+                "1002123456789"
+        );
+    }
+
     private void arrangeSettlement(SettlementStatus status) {
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(status)));
@@ -498,7 +533,8 @@ class SettlementDepositServiceTest {
         when(loadTransactionPort.findIncomeByAccountIdBetween(eq(7L), eq(CREATED_AT), any()))
                 .thenReturn(List.of(), List.of(savedTransaction));
         when(depositStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
-        when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
+        when(depositStorePort.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                SETTLEMENT_ID,
                 CREATOR_ID,
                 7L,
                 "0020",

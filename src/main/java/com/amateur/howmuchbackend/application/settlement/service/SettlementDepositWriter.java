@@ -141,7 +141,8 @@ class SettlementDepositWriter {
                                 Function.identity()
                         ));
         List<SettlementDepositStorePort.PayableDepositCandidate> accountCandidates =
-                depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
+                depositStorePort.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                        settlement.id(),
                         userId,
                         data.snapshot().sourceAccountId(),
                         data.snapshot().organization(),

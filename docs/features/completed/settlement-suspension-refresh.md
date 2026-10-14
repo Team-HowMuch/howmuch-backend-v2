@@ -20,6 +20,7 @@
 
 - [x] 기존 중단 API와 응답 계약을 유지하면서 생성자만 `REQUESTED` 또는 `AWAITING_DEPOSIT` 정산을 중단할 수 있다.
 - [x] Share 또는 제출 등 참여자 송금 가능성이 있으면 기존 CODEF 거래 조회와 입금 매칭을 다시 사용한 뒤, 부분·완납 입금이 확인되지 않은 경우에만 중단한다.
+- [x] 일반 reconciliation은 `AWAITING_DEPOSIT` 후보만 대조하고, 수동 중단 재조회는 현재 대상의 `REQUESTED` 후보 하나만 추가한다.
 - [x] 양수 입금 중 어떤 정산에도 귀속되지 않은 거래, CODEF 조회 실패, 추가 인증, 정산/수금계좌/Share/제출 변경이 있으면 fail closed한다.
 - [x] 외부 CODEF 호출은 DB 트랜잭션과 잠금 밖에서 실행하고, refresh 저장과 최종 중단은 account → settlement 잠금 순서로 짧게 처리한다.
 - [x] 입금/선택 기록을 삭제하지 않는다. 수동 중단 후 이미 은행 앱에서 시작한 송금은 취소되지 않을 수 있음을 API 문서에 알린다.
@@ -70,7 +71,7 @@
 
 1. 현재 사용자가 생성자인지 확인하고 settlement/participant/share/submission/snapshot 상태를 짧은 read-only 트랜잭션에서 읽는다.
 2. 생성자 외 Share 또는 submission이 있어 송금 가능성이 있으면 CODEF를 트랜잭션 밖에서 조회한다. Share/submission이 모두 없고 송금 가능성이 없었던 기존 `REQUESTED` 직접 중단은 CODEF 설정 없이 유지한다.
-3. 기존 deposit writer가 account → settlement 순서로 잠그고 조회 거래를 저장/대조한다. `REQUESTED`는 현재 Share의 매칭에 포함하되 자동 완료 전이는 하지 않는다.
+3. 기존 deposit writer가 account → settlement 순서로 잠그고 조회 거래를 저장/대조한다. 일반 reconciliation 후보는 `AWAITING_DEPOSIT`만 사용한다. 중단 재조회에서는 이 후보에 현재 대상 정산이 `REQUESTED`인 경우 그 Share만 추가하며, 자동 완료 전이는 하지 않는다.
 4. 별도 짧은 최종 트랜잭션이 같은 lock 순서로 정산/계좌/참여몫 상태를 재검증하고, 해당 정산 입금 및 미귀속 양수 거래가 없을 때 `SUSPENDED`를 저장한다.
 5. 실제 partial/full deposit 또는 미귀속 양수 거래가 있으면 `SETTLEMENT_NOT_SUSPENDABLE`로 거절한다. refresh가 먼저 커밋되므로 새로 발견한 계좌 거래와 명확한 매칭 기록은 남는다.
 
@@ -165,7 +166,7 @@ Swagger와 `SETTLEMENT_NOT_SUSPENDABLE` 문구를 “입금 확인 또는 입금
 | API | endpoint/response 유지, 상태 및 오류 설명 갱신 | `SettlementController`, `SettlementDocs`, `SettlementStatusCode` |
 | Application | 두 단계 suspension, 기존 CODEF fetch/deposit writer 재사용 | `SettlementService`, `SettlementDepositService`, `SettlementDepositWriter`, 새 suspension reader/writer/service |
 | Domain | 수동 상태 전이만 AWAITING_DEPOSIT 허용 | `Settlement` |
-| Persistence | schema/migration 불필요; 기존 payable candidate query가 REQUESTED와 AWAITING_DEPOSIT를 조회해 기존 matcher에 전달 | `SettlementDepositJpaRepository`, `SettlementDepositPersistenceAdapter` |
+| Persistence | schema/migration 불필요; 일반 대조는 AWAITING_DEPOSIT만, 중단 재조회는 여기에 현재 대상이 REQUESTED일 때 해당 정산 하나만 후보로 추가 | `SettlementDepositJpaRepository`, `SettlementDepositPersistenceAdapter` |
 | Security | 생성자 확인 유지, 추가 권한 없음 | `CurrentActorPort`, Settlement service |
 | Documentation | Feature Plan, Swagger, status message, 은행 앱 송금 한계 | `SettlementDocs`, `SettlementStatusCode` |
 | Compatibility | resume 전 미납 guard 후 기존 Share 삭제, selections/submissions 흐름 보존 | `SettlementService`, `SettlementRevisionGuard`, `DeleteSettlementSharePort` |
@@ -195,6 +196,8 @@ Swagger와 `SETTLEMENT_NOT_SUSPENDABLE` 문구를 “입금 확인 또는 입금
 
 사용자의 PR 게시 요청에 따라 `fix(settlement): 중단 전 입금을 재조회하고 미납 여부 확인`으로 구현·회귀 테스트·완료 문서를 함께 커밋한다. 기존 CODEF 조회 재사용과 transaction 경계 및 재개 호환이 하나의 동작 변경을 구성한다.
 
+PR 522 리뷰 후속 변경은 후보 범위 제한, 회귀 테스트, 이 완료 계획 갱신을 하나의 `fix(settlement): 입금 후보를 현재 정산으로 제한` 커밋 경계로 묶는다. 현재 작업에서는 커밋하지 않으며 최종 검토 후 게시 담당자가 처리한다.
+
 ## 8. 검증
 
 ### 명령
@@ -217,6 +220,7 @@ git status --short --untracked-files=all
 - [x] refresh writer와 final writer가 account → settlement 순서로 잠금; 기존 settlement lock-order 테스트 통과
 - [x] item resume deletes only unpaid shares and 0원/re-submit avoids stale Share; confirmed-payment resume does not delete
 - [x] actual proxy path verifies external fetch has no active transaction
+- [x] 일반 후보 범위는 모든 `REQUESTED` 정산을 제외하고, 중단 재조회 범위는 현재 대상만 추가한다.
 - [x] Swagger/error text and bank-app transfer limitation are documented
 
 별도 동시 refresh/suspend interleaving integration test는 추가하지 않았다. 새 refresh/final writer 모두 기존 account → settlement 잠금 순서를 사용하며, 기존 lock-order 테스트만 검증 범위에 포함한다.
@@ -229,6 +233,8 @@ git status --short --untracked-files=all
 | Settlement 테스트 | 통과 | `build/suspension-focused.log`; 격리 DB/Redis fixture로 786개 통과, 재조회 통합 시나리오 포함 |
 | 최종 Java 검증 | 통과 | `build/suspension-final.log`; `compileJava`, 변경 영향 focused tests 24개, `bootJar` 통과 |
 | PR 게시 전 영수증·중단 재검증 | 통과 | `compileJava`, `*SettlementReceipt*` 및 `*SettlementSuspension*` 67개 통과; `build/suspension-pr-receipt.log` |
+| PR 522 리뷰 후보 범위 회귀 | 통과 | DB 통합 테스트로 일반 조회의 `AWAITING_DEPOSIT`만 포함하고, 중단 조회는 대상 `REQUESTED`만 추가함을 확인; Application 테스트에서 대상 ID 전달 확인 |
+| 전체 로컬 검증 | 통과 | `bash scripts/test.sh compileJava test bootJar`; Java 1,812개 통과, JavaScript 35개 통과 |
 | JavaScript 테스트 | 통과 | 35개 통과 |
 | 외부조회 transaction 경계 | 통과 | 실제 Spring proxy 호출에서 CODEF fetch 시 transaction inactive 확인 |
 | 문서/차이 검증 | 통과 | relative link 대상 없음, `git diff --check` 통과 |
@@ -238,11 +244,13 @@ git status --short --untracked-files=all
 | 날짜 | 완료 | 다음 작업 | 위험 |
 |---|---|---|---|
 | 2026-10-14 | 기존 흐름을 재사용한 suspend refresh, REQUESTED 후보 조회, 안전한 ITEM Share 재개 초기화 구현; Settlement 786개·JavaScript 35개·최종 focused 24개 통과, `compileJava`/`bootJar` 통과 | 완료 | 별도 동시 interleaving test는 없고, 은행 반영 지연은 보수적 fail-closed와 문서화로 한정 |
+| 2026-10-14 | PR 522 리뷰에서 발견한 일반 reconciliation 후보 오염을 수정; 대상 정산 ID로 REQUESTED 후보를 제한하고 로컬 전체 Java 1,812개 및 JavaScript 35개 통과 | root 최종 검토 및 게시 | 스키마·migration 변경 없음 |
 
 ## 10. 결정 로그
 
 | 날짜 | 결정 | 이유 | 대안/영향 |
 |---|---|---|---|
 | 2026-10-14 | migration 없이 기존 CODEF/deposit Writer 사용, refresh commit 뒤 최종 suspension | 기존 DB 구조로 재조회/매칭/저장 가능하며 외부 호출을 lock 밖에 둔다 | 새 조회 Port/provider 없이 기존 fetch 흐름을 추출하고 REQUESTED payable 후보를 기존 query에 포함한다 |
+| 2026-10-14 | payable 후보를 모든 `REQUESTED`로 확장하지 않고 현재 중단 대상의 `REQUESTED` Share만 추가 | 전체 `REQUESTED`가 같은 계좌의 일반 `AWAITING_DEPOSIT` 입금 대조를 모호하게 만들 수 있다 | 기존 스키마와 저장 구조를 유지하고 대상 정산 ID 조건만 후보 query에 전달한다. migration은 필요하지 않다 |
 | 2026-10-14 | 미귀속 양수 계좌 입금도 suspension reject | 기존 matcher의 `Optional.empty()`만으로 무입금이라 단정할 수 없다 | 계좌의 무관한 입금까지 막을 수 있는 보수적 한계를 허용한다 |
 | 2026-10-14 | resume에서 guard 통과 후 기존 unpaid ITEM Share 삭제 | 기존 selections를 유지하며 Share를 다시 계산하고 0원 Share 잔존/unique 충돌 방지 | guard가 입금 이력 존재 시 재개를 막으며 deposit rows는 삭제하지 않는다 |

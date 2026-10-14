@@ -19,7 +19,11 @@ public interface SettlementDepositStorePort {
             Collection<String> externalTransactionKeys
     );
 
-    List<PayableDepositCandidate> findUnfinishedPayableCandidatesByReceivingAccount(
+    /**
+     * Loads all AWAITING_DEPOSIT candidates and only the target settlement when it is REQUESTED.
+     */
+    List<PayableDepositCandidate> findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+            UUID targetSettlementId,
             Long creatorId,
             Long sourceAccountId,
             String organization,
