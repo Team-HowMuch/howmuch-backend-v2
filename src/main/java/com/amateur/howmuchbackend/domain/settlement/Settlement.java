@@ -195,7 +195,10 @@ public record Settlement(
     }
 
     public Settlement suspendManually(LocalDateTime now) {
-        return suspend(now);
+        if (status == SettlementStatus.REQUESTED) {
+            return suspend(now);
+        }
+        return transition(SettlementStatus.AWAITING_DEPOSIT, SettlementStatus.SUSPENDED, now);
     }
 
     public Settlement resume(LocalDateTime now) {

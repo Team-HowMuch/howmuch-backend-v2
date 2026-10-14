@@ -76,7 +76,7 @@ class SettlementDepositReader {
                 depositStorePort.findAllBySettlementId(settlement.id()),
                 transactionById
         );
-        return new DepositData(snapshot, payableShares, confirmedAmounts);
+        return new DepositData(snapshot, payableShares, confirmedAmounts, transactions);
     }
 
     SettlementDepositSummaryResult summarize(
@@ -175,7 +175,8 @@ class SettlementDepositReader {
     record DepositData(
             SettlementReceivingAccountSnapshot snapshot,
             List<PayableShare> payableShares,
-            Map<UUID, Long> confirmedAmounts
+            Map<UUID, Long> confirmedAmounts,
+            List<Transaction> transactions
     ) {
     }
 }
