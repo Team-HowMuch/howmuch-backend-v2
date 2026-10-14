@@ -6,11 +6,13 @@
 - 기능 PR: [#441](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/441) (`feat/439-bank-credentials-migration` 대상)
 - 관련 기능: [CODEF 은행 계좌 연결](../completed/codef-bank-account-connection.md)
 
+> 현재 계약 변경: 이 문서는 V40 당시 구현을 기록한다. [은행별 인증 방식 설정](bank-authentication-methods.md)의 V53 전환부터 `BANK.attr3`는 `1=공동인증서만`, `2=공동인증서+ID/PW`, `3=공동인증서+ID/PW+계좌정보`를 뜻한다. 수준 3이면 ID/PW와 인증서 등록 모두 계좌번호·계좌 비밀번호가 필요하며, 새 `GET /api/v3/banks`는 `authenticationLevel`을 반환한다. 레거시 `GET /api/v2/accounts/banks`는 기존 `requiresAccountCredentials` Boolean 계약을 유지한다.
+
 ## 목적과 완료 기준
 
 우리은행(`0020`)·대구은행(`0031`)은 운영 `BANK.attr3=1`이다. 두 값은 계좌 목록의 추가 입력이 아니라 CODEF 로그인 시작부터 필요한 계좌번호·계좌 비밀번호다.
 
-- [x] `GET /api/v2/accounts/banks`에 `requiresAccountCredentials`를 반환한다. `attr3`가 정확히 `"1"`일 때만 true이며 null/기타 값은 false다. 대구은행도 지원 은행 목록에 포함한다.
+- [x] V40 당시 `GET /api/v2/accounts/banks`에 Boolean을 반환했다. V53 이후에도 v2 Boolean 응답을 유지한다. 새 v3 카탈로그는 `authenticationLevel`을 반환하며 계좌 자격정보 필요 여부는 수준 `3`으로 판단한다.
 - [x] 연결 요청에서 필요한 두 값을 CODEF 호출 전에 검증하고 create/add/update 로그인과 account-list에 전달한다. 이후 link의 account-list에는 저장값을 사용한다.
 - [x] 기관별 자격정보는 LOCAL AES-256-GCM 암호문을 필수 저장하고, KMS 사용 시 KMS 암호문도 저장한다. 평문은 DB·API 응답·로그·trace·Kafka에 남기지 않는다.
 - [x] KMS 일시 장애(서비스 오류·연결 끊김·TLS 전송 중단) 때 LOCAL 암호문으로 자동 복호화하고, 복구 후 누락 KMS 암호문을 보충한다. 암호문 손상·KMS 권한 거부·인증서 검증 실패에는 자동 전환하지 않는다.

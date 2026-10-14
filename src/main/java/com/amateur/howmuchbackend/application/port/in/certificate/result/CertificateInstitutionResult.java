@@ -4,7 +4,10 @@ public record CertificateInstitutionResult(
         String organization,
         String name,
         boolean supported,
-        boolean registrationAccountRequired,
-        boolean accountListAccountRequired,
         boolean birthDateRequired,
-        String reference) {}
+        String reference,
+        int authenticationLevel) {
+    public boolean requiresAccountCredentials() {
+        return authenticationLevel == 3;
+    }
+}

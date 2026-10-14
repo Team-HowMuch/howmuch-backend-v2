@@ -132,15 +132,16 @@ public interface AccountDocs {
     );
 
     @Operation(
-            summary = "연동 가능한 은행 목록 조회",
-            description = "활성 은행의 CODEF 기관코드, 이름, 아이콘 URL과 계좌 자격정보 필요 여부를 정렬 순서대로 반환합니다. BANK.attr3가 1일 때만 requiresAccountCredentials=true입니다.",
+            summary = "연동 가능한 은행 목록 조회 (레거시)",
+            deprecated = true,
+            description = "기존 ID/PW 연결 은행의 기관코드, 이름, 아이콘 URL, requiresAccountCredentials를 반환합니다. 전체 은행 및 authenticationLevel은 GET /api/v3/banks를 사용합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     ApiResponse<List<BankCatalogWebResponse>> getBanks();
 
     @Operation(
             summary = "은행 연결 및 계좌 후보 조회",
-            description = "은행 ID/PW를 CODEF에 연결하고 마스킹된 계좌 후보를 반환합니다. requiresAccountCredentials=true인 은행은 accountNumber와 accountPassword가 필수이며 서버에 암호화하여 보관합니다.",
+            description = "은행 ID/PW를 CODEF에 연결하고 마스킹된 계좌 후보를 반환합니다. authenticationLevel=3인 은행은 accountNumber와 accountPassword가 필수이며 서버에 암호화하여 보관합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({

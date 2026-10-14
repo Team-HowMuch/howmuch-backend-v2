@@ -93,7 +93,7 @@ Electron:
 
 ## 5. 금융사별 입력·CODEF 보안
 
-기존 V40 BANK.attr3의 우리은행 `0020`·대구/iM뱅크 `0031` ID/PW 조건을 인증서 로그인 조건으로 복사하지 않는다. catalog는 certificateRegistration/accountList별 계좌번호·계좌 비밀번호·생년월일의 필수/선택·형식·최대 길이와 확인 근거를 제공한다. 사용자 확인에 따라 활성 `BANK`는 모두 기본 지원하고, 기관별 설정은 추가 입력 조건만 지정한다(§18).
+`BANK.attr3`는 은행별 연결 인증 수준을 제공한다. 수준 3이면 공동인증서 등록에서도 계좌번호와 계좌 비밀번호를 요구하며 등록 API도 이를 검증한다. 활성 `BANK`는 공통 공개 카탈로그에서 모두 조회할 수 있다(§18).
 
 공식 SDK의 공통 계정등록은 `loginType=0`, Base64 `derFile`/`keyFile`, CODEF 공개키 RSA 암호화 password다. 계좌 조회 추가 비밀번호도 제공사 계약에 따라 전송 직전 RSA 암호화한다. 기존 CodefClient/TokenClient/RsaEncryptor/관측기의 원문 없는 오류 처리를 재사용한다. 응답 successList의 선택 기관·connectedId를 모두 확인한다. 부분 실패/2-way/UNKNOWN을 성공으로 취급하지 않는다.
 
@@ -179,7 +179,7 @@ SQL gate 이후 별도 기능 작업으로 API와 설치 앱을 구현했다. �
 - PC 세션·서로 독립적인 일회 upload/PC capability, 암호화 JSON/Base64 업로드, 상태/취소.
 - KMS envelope + AES-256-GCM/AAD, 별도 local/test key, 원문 upload 삭제와 connection 전용 암호문 분리.
 - REGISTER/CANCEL Outbox, ACK 기반 relay와 fencing, provider Inbox/job, 요청 시작 marker, UNKNOWN 복구, result Outbox/Inbox 및 중복/재정렬 보호.
-- 기관별 등록/조회 추가 입력 분리 catalog. 조회에만 필요한 계좌 자격정보는 등록 요청에 보내지 않고 암호화된 connection 자료에 유지한다. 검증된 운영 catalog는 아직 없다.
+- 공통 은행 카탈로그의 `authenticationLevel`을 사용한다. 수준 3은 계좌번호·계좌 비밀번호 입력과 서버 검증을 요구한다. 조회에만 필요한 자격정보는 등록 요청에 보내지 않고 암호화된 connection 자료에 유지한다.
 - 60초 QR 발급·회전, JWT 회원의 배타적/멱등 예약, PC/모바일 동일 확인 코드, 예약 거절. QR은 `v/type/sessionId/qrToken`만 담는다.
 - 미승인 취소/만료 연결 정리. 확인된 삭제 후 비밀 제거, 불명확한 삭제는 DELETE_UNKNOWN으로 보존하며 자동 재삭제하지 않는다.
 - 독립 Electron main/preload/local renderer, 한 API origin 통신, Windows NSIS 빌드/CI 정의, 보안 fuse, 합성 UI smoke.
@@ -190,7 +190,7 @@ SQL gate 이후 별도 기능 작업으로 API와 설치 앱을 구현했다. �
 
 | Method | Path | 인증/용도 |
 |---|---|---|
-| GET | `/api/v2/certificate-registrations/institutions` | 공개 catalog, 활성 BANK 전체 지원, 기관별 추가 입력 조건 제공 |
+| GET | `/api/v3/banks` | 비로그인 공개 카탈로그, 활성 BANK 전체와 인증 수준 제공 |
 | POST | `/api/v2/certificate-registrations` | PC 세션/capability 발급 |
 | POST | `/api/v2/certificate-registrations/{id}/upload` | PC + upload capability header, 제한된 JSON body |
 | GET / DELETE | `/api/v2/certificate-registrations/{id}` | PC 상태/취소 |
@@ -331,7 +331,7 @@ Flyway migration은 필요 없다. Java/API/DB/서버 활성화는 변경하지 
 설계와 영향 범위:
 
 - 기존 기관 catalog Output Adapter가 활성 BANK를 그대로 지원 목록으로 제공한다. 목록 밖/비활성 은행을 생성·처리하지 않는 Application 검사는 유지한다. 새로운 UseCase/Port/API/저장 구조는 추가하지 않는다.
-- `howmuch.certificate.institutions`는 은행별 등록/계좌조회 계좌 정보와 생년월일 추가 입력 조건만 지정한다. 미설정 은행은 추가 입력을 요구하지 않는다. `BANK.attr3` ID/PW 요구사항을 복사하지 않는다.
+- `BANK.attr3=3`이면 앱은 계좌번호·계좌 비밀번호 입력을 표시하고 등록 API도 두 값을 필수 검증한다. 기관 설정은 서버 측 추가 입력 검증에만 사용한다.
 - 기존 `reviewed` 필드는 설정 호환성을 위해 수용하지만 지원 판단에 사용하지 않는다. `reference`는 선택적인 근거 metadata이며 비어 있어도 지원한다. 운영 문서의 이전 allowlist 설명을 수정한다.
 - 인증서 feature flag, capability/JWT, 암호화, 원문 전송 조건, 명의확인/최종 BIND 경계는 변경하지 않는다.
 
@@ -355,7 +355,7 @@ Flyway migration은 필요 없다. 예상 변경 단위는 `fix(certificate): �
 설계와 영향 범위:
 
 - Electron HTML title/header, native app name, installer product/artifact 이름과 CI의 실행 경로를 변경하고 클라이언트 버전을 0.1.5로 올린다. 내부 npm ID, appId, protocol/API/QR 계약과 원본 아이콘은 유지한다.
-- 기존 `howmuch.certificate.institutions` 기본 설정에 우리은행 `0020`의 `registration-account-required=true`를 넣는다. 활성 BANK 전체 기본 지원을 유지하며 다른 은행의 추가 입력 규격이나 생년월일을 추정하지 않는다. 외부 설정이 institutions 목록을 교체하면 우리은행 항목도 함께 지정해야 한다.
+- PC 앱은 `GET /api/v3/banks`에서 은행명과 `authenticationLevel`을 조회하며 수준 3에서 계좌번호·계좌 비밀번호 입력란을 표시한다. 인증서 전용 `/api/v2/certificate-registrations/institutions` 경로는 사용하지 않는다.
 - 기존 renderer의 필수 입력, Application의 누락 거부, provider의 `withdrawAccountNo` 및 RSA 암호화된 `withdrawAccountPassword` 전송을 사용한다. 새로운 Port/UseCase/Endpoint/저장 구조나 원문 로그를 추가하지 않는다. 과거 실패 등록을 재실행하지 않는다.
 
 Flyway migration은 필요 없다. 예상 변경 단위는 `fix(certificate): 우리은행 인증서 등록 계좌 입력 필수화`, `build(certificate): 인증서 앱 한국어 이름 적용`이다. commit/push/PR/운영 배포는 요청되지 않아 수행하지 않는다.

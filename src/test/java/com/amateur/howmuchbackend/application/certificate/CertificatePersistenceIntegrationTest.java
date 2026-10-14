@@ -165,9 +165,8 @@ class CertificatePersistenceIntegrationTest {
                                                 "테스트 은행",
                                                 true,
                                                 true,
-                                                true,
-                                                true,
-                                                "synthetic-test")),
+                                                "synthetic-test",
+                                                3)),
                         key -> true,
                         storage,
                         policy,
@@ -307,9 +306,8 @@ class CertificatePersistenceIntegrationTest {
                                                 "테스트 은행",
                                                 true,
                                                 true,
-                                                true,
-                                                true,
-                                                "synthetic-test")),
+                                                "synthetic-test",
+                                                3)),
                         approved,
                         pairings);
         decisions =

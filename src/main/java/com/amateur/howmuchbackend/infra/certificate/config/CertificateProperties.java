@@ -65,8 +65,6 @@ public record CertificateProperties(
             String code,
             // Legacy configuration compatibility; does not gate certificate support.
             boolean reviewed,
-            boolean registrationAccountRequired,
-            boolean accountListAccountRequired,
             boolean birthDateRequired,
             String reference) {}
 

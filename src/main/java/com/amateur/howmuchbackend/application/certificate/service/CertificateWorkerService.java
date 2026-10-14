@@ -78,7 +78,7 @@ public class CertificateWorkerService implements RunCertificateWorkUseCase {
             if (!transactions.start(e)) return;
             try {
                 approvedRegistration.register(
-                        e, material, rule.get().registrationAccountRequired());
+                        e, material, rule.get().requiresAccountCredentials());
             } catch (RuntimeException uncertain) {
                 log.warn(
                         "Certificate registration requires reconciliation. sessionId={}"

@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface GetBankCatalogUseCase {
     List<BankCatalogResult> getBanks();
+
+    List<BankCatalogResult> getAllBanks();
 }

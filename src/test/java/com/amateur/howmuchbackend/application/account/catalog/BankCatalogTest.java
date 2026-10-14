@@ -5,8 +5,7 @@ import com.amateur.howmuchbackend.application.port.out.commoncode.LoadCommonCode
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.commoncode.CommonCode;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
@@ -16,21 +15,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class BankCatalogTest {
-    @ParameterizedTest
-    @ValueSource(strings = {"1", "3"})
-    void bankCatalog_betaBanks_requireIdAndPassword(String credentialsAttribute) {
+    @Test
+    void bankCatalog_betaBanks_requireIdAndPassword() {
         LoadCommonCodePort port = mock(LoadCommonCodePort.class);
         when(port.findActiveByGroupCode("BANK")).thenReturn(List.of(
-                bank("0003", "기업은행", "other"),
+                bank("0003", "기업은행", "2"),
                 bank("0023", "SC은행", "1"),
-                bank("0031", "대구은행", credentialsAttribute)
+                bank("0031", "대구은행", "3")
         ));
         when(port.existsActiveByGroupCodeAndCode("BANK", "0003")).thenReturn(true);
         when(port.existsActiveByGroupCodeAndCode("BANK", "0031")).thenReturn(true);
         when(port.findActiveByGroupCodeAndCode("BANK", "0031"))
-                .thenReturn(java.util.Optional.of(bank("0031", "대구은행", credentialsAttribute)));
+                .thenReturn(java.util.Optional.of(bank("0031", "대구은행", "3")));
         when(port.findActiveByGroupCodeAndCode("BANK", "0003"))
-                .thenReturn(java.util.Optional.of(bank("0003", "기업은행", "other")));
+                .thenReturn(java.util.Optional.of(bank("0003", "기업은행", "2")));
         BankCatalog catalog = new BankCatalog(port);
 
         assertThat(catalog.getBanks()).extracting(BankCatalogResult::organization).containsExactly("0003", "0031");
