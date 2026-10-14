@@ -40,7 +40,8 @@ import static org.assertj.core.api.Assertions.*;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused",
         "howmuch.settlement.notification-outbox.enabled=false",
-        "howmuch.settlement.automatic-reminder.enabled=false"
+        "howmuch.settlement.automatic-reminder.enabled=false",
+        "howmuch.observability.management.allowed-cidr=172.30.0.0/16"
 })
 @ActiveProfiles({"local", "observability-test"})
 @Import(ObservabilityHttpIntegrationTest.FailureProbe.class)
@@ -110,7 +111,7 @@ class ObservabilityHttpIntegrationTest {
     @Autowired private ApplicationContext applicationContext;
 
     @Test
-    void readiness_dependencyStatus_private() throws Exception {
+    void readiness_dependencyStatus_loopbackAllowedOutsideScrapeCidr() throws Exception {
         assertThat(get(managementPort, "/actuator/health/readiness").statusCode()).isEqualTo(200);
         assertThat(get(port, "/actuator/health/readiness").statusCode()).isBetween(400, 499);
         try {
