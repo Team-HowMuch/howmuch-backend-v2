@@ -66,13 +66,6 @@ howmuch:
     kms-key-id: ${CERTIFICATE_KMS_KEY_ID:}
     local-wrapping-key: ${CERTIFICATE_LOCAL_WRAPPING_KEY:}
     confirmation-key: ${CERTIFICATE_CONFIRMATION_KEY:}
-    institutions:
-      # Woori certificate registration requires account credentials (user-confirmed).
-      - code: "0020"
-        registration-account-required: true
-      # Account listing uses the credentials required by BANK metadata (V40).
-      - code: "0031"
-        account-list-account-required: true
   messaging:
     kafka:
       enabled: ${KAFKA_ENABLED:false}

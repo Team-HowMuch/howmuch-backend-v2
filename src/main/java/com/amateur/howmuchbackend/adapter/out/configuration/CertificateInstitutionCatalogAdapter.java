@@ -35,8 +35,6 @@ public class CertificateInstitutionCatalogAdapter implements CertificateInstitut
                                     bank.code(),
                                     bank.name(),
                                     true,
-                                    rule != null && rule.registrationAccountRequired(),
-                                    rule != null && rule.accountListAccountRequired(),
                                     rule != null && rule.birthDateRequired(),
                                     rule == null ? null : rule.reference(),
                                     BankAuthenticationLevel.fromAttribute(bank.attr3()).value());
