@@ -196,7 +196,7 @@ Swagger와 `SETTLEMENT_NOT_SUSPENDABLE` 문구를 “입금 확인 또는 입금
 
 사용자의 PR 게시 요청에 따라 `fix(settlement): 중단 전 입금을 재조회하고 미납 여부 확인`으로 구현·회귀 테스트·완료 문서를 함께 커밋한다. 기존 CODEF 조회 재사용과 transaction 경계 및 재개 호환이 하나의 동작 변경을 구성한다.
 
-PR 522 리뷰 후속 변경은 후보 범위 제한, 회귀 테스트, 이 완료 계획 갱신을 하나의 `fix(settlement): 입금 후보를 현재 정산으로 제한` 커밋 경계로 묶는다. 현재 작업에서는 커밋하지 않으며 최종 검토 후 게시 담당자가 처리한다.
+PR 522 리뷰 후속 변경은 후보 범위 제한, 회귀 테스트, 이 완료 계획 갱신을 하나의 `fix(settlement): 중단 대상 정산으로 입금 조회 후보 제한` 커밋 경계로 묶는다. 최종 검토 후 `707f1da0`으로 커밋하고 PR #522 브랜치에 푸시했다.
 
 ## 8. 검증
 
@@ -244,7 +244,7 @@ git status --short --untracked-files=all
 | 날짜 | 완료 | 다음 작업 | 위험 |
 |---|---|---|---|
 | 2026-10-14 | 기존 흐름을 재사용한 suspend refresh, REQUESTED 후보 조회, 안전한 ITEM Share 재개 초기화 구현; Settlement 786개·JavaScript 35개·최종 focused 24개 통과, `compileJava`/`bootJar` 통과 | 완료 | 별도 동시 interleaving test는 없고, 은행 반영 지연은 보수적 fail-closed와 문서화로 한정 |
-| 2026-10-14 | PR 522 리뷰에서 발견한 일반 reconciliation 후보 오염을 수정; 대상 정산 ID로 REQUESTED 후보를 제한하고 로컬 전체 Java 1,812개 및 JavaScript 35개 통과 | root 최종 검토 및 게시 | 스키마·migration 변경 없음 |
+| 2026-10-14 | PR 522 리뷰에서 발견한 일반 reconciliation 후보 오염을 수정; 대상 정산 ID로 REQUESTED 후보를 제한하고 로컬 전체 Java 1,812개 및 JavaScript 35개 통과 | 최종 검토 및 PR #522 반영 완료 | 스키마·migration 변경 없음 |
 
 ## 10. 결정 로그
 
