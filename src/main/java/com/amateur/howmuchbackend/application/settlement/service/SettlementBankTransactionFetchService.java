@@ -7,8 +7,12 @@ import com.amateur.howmuchbackend.application.account.service.AccountCredentialP
 import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
 import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementBankLookupBudgetPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementTransferReconciliationPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.Clock;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -26,6 +30,8 @@ public class SettlementBankTransactionFetchService {
     private final BankTransactionPort bankTransactionPort;
     private final BankCatalog bankCatalog;
     private final AccountCredentialProtectionService credentialProtection;
+    private final SettlementBankLookupBudgetPort budget;
+    private final Clock clock;
 
     /** Caller releases all database locks before invoking this external conversation. */
     public List<Transaction> fetch(
@@ -43,6 +49,18 @@ public class SettlementBankTransactionFetchService {
             ExternalConnection connection, long accountId, String organization, String accountNumber,
             LocalDateTime from, LocalDateTime until, Runnable beforeEachPeriod
     ) {
+        return fetchWithBudget(connection, accountId, organization, accountNumber, from, until, beforeEachPeriod, false);
+    }
+
+    public List<Transaction> fetchAutomatically(ExternalConnection connection, long accountId,
+            String organization, String accountNumber, LocalDateTime from, LocalDateTime until,
+            Runnable beforeEachPeriod) {
+        return fetchWithBudget(connection, accountId, organization, accountNumber, from, until, beforeEachPeriod, true);
+    }
+
+    private List<Transaction> fetchWithBudget(ExternalConnection connection, long accountId,
+            String organization, String accountNumber, LocalDateTime from, LocalDateTime until,
+            Runnable beforeEachPeriod, boolean automatic) {
         LocalDate startDate = seoulDate(from);
         LocalDate endDate = seoulDate(until);
         if (startDate.isAfter(endDate)) {
@@ -65,6 +83,9 @@ public class SettlementBankTransactionFetchService {
                     ? endDate
                     : month.atEndOfMonth();
             beforeEachPeriod.run();
+            budget.reserve(connection.userId(), automatic, LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC),
+                    SettlementTransferReconciliationPolicy.DAILY_LOOKUPS,
+                    SettlementTransferReconciliationPolicy.DAILY_AUTOMATIC_LOOKUPS);
             bankTransactionPort.fetch(
                     connection.connectedId(),
                     organization,

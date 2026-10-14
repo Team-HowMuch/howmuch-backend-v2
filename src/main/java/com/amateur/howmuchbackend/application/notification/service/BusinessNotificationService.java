@@ -7,6 +7,7 @@ import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.domain.group.GroupInvitation;
 import com.amateur.howmuchbackend.domain.notification.*;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -33,7 +34,9 @@ public class BusinessNotificationService {
                                             long remainingAmount, LocalDateTime now) {
         record(settlement.creatorId(), settlement.id(), NotificationType.SETTLEMENT_DEPOSIT_CONFIRMED,
                 settlement.allocationType(), payerName, "입금이 확인되었어요",
-                settlement.title() + "에 " + payerName + "님이 입금했어요. 남은 금액은 " + remainingAmount + "원이에요.",
+                settlement.title() + "에 " + payerName + "님이 입금했어요. "
+                        + (settlement.status() == SettlementStatus.REQUESTED
+                                ? "현재 확정된 몫의 남은 금액은 " : "남은 금액은 ") + remainingAmount + "원이에요.",
                 "DEPOSIT_CONFIRMED:" + depositId, NotificationTargetType.SETTLEMENT_DETAIL,
                 settlement.id().toString(), now);
     }

@@ -44,6 +44,10 @@ import java.math.BigDecimal;
 import java.time.ZoneOffset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Clock;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositReconciliationJobStorePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementBankLookupBudgetPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementTransferReconciliationPolicy;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -118,13 +122,18 @@ class SettlementDepositServiceTest {
                 saveSettlementPort,
                 new SettlementDepositMatchingPolicy(),
                 reader,
-                notifications
+                notifications,
+                mock(SettlementDepositReconciliationJobStorePort.class),
+                new SettlementTransferReconciliationPolicy(),
+                Clock.systemUTC()
         );
         SettlementBankTransactionFetchService transactionFetchService =
                 new SettlementBankTransactionFetchService(
                         bankTransactionPort,
                         bankCatalog,
-                        credentialProtection
+                        credentialProtection,
+                        mock(SettlementBankLookupBudgetPort.class),
+                        Clock.systemUTC()
                 );
         service = new SettlementDepositService(
                 currentActorPort,
@@ -442,7 +451,9 @@ class SettlementDepositServiceTest {
         var writer = mock(SettlementDepositWriter.class);
         var queryService = new SettlementDepositService(currentActorPort, loadSettlementPort, loadSnapshotPort,
                 connectionStorePort,
-                new SettlementBankTransactionFetchService(bankTransactionPort, bankCatalog, credentialProtection),
+                new SettlementBankTransactionFetchService(bankTransactionPort, bankCatalog, credentialProtection,
+                        mock(SettlementBankLookupBudgetPort.class),
+                        Clock.systemUTC()),
                 writer, mock(SettlementDepositReader.class));
         try (var clock = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
             clock.when(() -> LocalDateTime.now(ZoneOffset.UTC)).thenReturn(now);
