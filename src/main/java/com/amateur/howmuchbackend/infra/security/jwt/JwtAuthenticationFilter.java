@@ -39,11 +39,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             authTokenPort.parsePayload(token)
-                    .filter(payload -> payload.isType(JwtTokenType.ACCESS))
+                    .filter(payload -> payload.isType(JwtTokenType.ACCESS)
+                            || (payload.isType(JwtTokenType.WIDGET) && isWidgetRequest(request)))
                     .ifPresent(this::authenticateCurrentSession);
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isWidgetRequest(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return ("GET".equals(request.getMethod())
+                && "/api/v2/settlements/widget-summary".equals(path))
+                || ("POST".equals(request.getMethod())
+                && "/api/v2/settlements/widget-summary/refresh".equals(path));
     }
 
     private void authenticateCurrentSession(JwtPayload payload) {

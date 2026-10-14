@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.adapter.out.security;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentAuthSessionPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import com.amateur.howmuchbackend.infra.security.jwt.JwtPrincipal;
@@ -13,7 +14,15 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 @Component
-public class SpringSecurityAdapter implements CurrentActorPort {
+public class SpringSecurityAdapter implements CurrentActorPort, CurrentAuthSessionPort {
+
+    @Override
+    public AuthenticatedSession getCurrentSession() {
+        getCurrentActor();
+        JwtPrincipal principal = (JwtPrincipal) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+        return new AuthenticatedSession(principal.userId(), principal.sessionId());
+    }
 
     @Override
     public CurrentActor getCurrentActor() {
