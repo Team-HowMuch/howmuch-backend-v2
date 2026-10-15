@@ -123,9 +123,10 @@ public class SettlementCategoryClassificationWorker implements ProcessSettlement
                 claim.settlementId(), claim.attemptCount(), code, next.isPresent());
     }
 
-    // 처리가 선점 시간보다 길어져 다른 폴링이 작업을 회수한 경우. 회수한 쪽이 이어서 처리한다.
+    // 처리가 선점 시간보다 길어져 다른 폴링이 작업을 회수했거나(회수한 쪽이 이어서 처리한다),
+    // 처리 중에 정산이 삭제돼 저장소가 작업을 지운 경우.
     private void leaseLost(SettlementCategoryJob claim) {
-        log.info("Settlement category result skipped because the lease ended: settlementId={}, attempt={}",
+        log.info("Settlement category result skipped (lease ended or settlement deleted): settlementId={}, attempt={}",
                 claim.settlementId(), claim.attemptCount());
     }
 

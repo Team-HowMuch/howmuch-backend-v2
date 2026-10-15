@@ -89,6 +89,9 @@ public class SettlementCategoryJdbcAdapter implements SettlementCategoryJobStore
     @Transactional
     public boolean classify(SettlementCategoryJob claim, String categoryCode, SettlementCategorySource source,
             LocalDateTime now) {
+        if (discardIfSettlementDeleted(claim, now)) {
+            return false;
+        }
         return jdbc.update("""
                 UPDATE settlement_categories SET
                     status = 'CLASSIFIED', category_code = ?, source = ?, classified_at = GREATEST(created_at, ?),
@@ -113,6 +116,9 @@ public class SettlementCategoryJdbcAdapter implements SettlementCategoryJobStore
     @Override
     @Transactional
     public boolean giveUp(SettlementCategoryJob claim, SettlementCategoryFailureCode failureCode, LocalDateTime now) {
+        if (discardIfSettlementDeleted(claim, now)) {
+            return false;
+        }
         return jdbc.update("""
                 UPDATE settlement_categories SET
                     status = 'CLASSIFIED', category_code = ?, source = ?, classified_at = GREATEST(created_at, ?),
@@ -128,6 +134,22 @@ public class SettlementCategoryJdbcAdapter implements SettlementCategoryJobStore
     public boolean discard(SettlementCategoryJob claim, LocalDateTime now) {
         return jdbc.update("DELETE FROM settlement_categories WHERE " + OWNED_CLAIM,
                 claim.settlementId(), claim.leaseToken(), now) == 1;
+    }
+
+    /**
+     * 끝 상태로 저장하기 직전에 정산이 아직 살아 있는지 본다. 처리(특히 LLM 호출) 중에 정산이 삭제되면
+     * 결과를 남기지 않고 작업을 지운다. 정산 행을 공유 잠금으로 읽어, 확인과 저장 사이에 삭제가 끼어들지 못하게 한다.
+     */
+    private boolean discardIfSettlementDeleted(SettlementCategoryJob claim, LocalDateTime now) {
+        Boolean deleted = jdbc.query(
+                "SELECT deleted_at IS NOT NULL AS deleted FROM settlements WHERE id = ? FOR SHARE",
+                rows -> rows.next() ? rows.getBoolean("deleted") : null, claim.settlementId());
+        if (Boolean.FALSE.equals(deleted)) {
+            return false;
+        }
+        jdbc.update("DELETE FROM settlement_categories WHERE " + OWNED_CLAIM,
+                claim.settlementId(), claim.leaseToken(), now);
+        return true;
     }
 
     private SettlementCategoryJob map(ResultSet row, int index) throws SQLException {

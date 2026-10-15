@@ -13,6 +13,7 @@ import java.util.UUID;
  *
  * <p>정산당 작업은 하나다. 작업을 만드는 메서드는 이미 있으면 아무것도 하지 않는다.
  * 결과를 저장하는 메서드는 선점이 아직 유효할 때만 반영하고, 반영했는지를 돌려준다.
+ * 끝 상태(분류 완료·포기)로 저장할 때 정산이 이미 삭제됐으면 결과 대신 작업을 지우고 false를 돌려준다.
  */
 public interface SettlementCategoryJobStorePort {
     void schedule(UUID settlementId, LocalDateTime now);
