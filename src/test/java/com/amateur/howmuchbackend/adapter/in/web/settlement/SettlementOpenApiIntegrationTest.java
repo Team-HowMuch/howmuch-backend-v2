@@ -143,6 +143,46 @@ class SettlementOpenApiIntegrationTest {
         );
     }
 
+    @Test
+    @DisplayName("내 카테고리를 nullable로, 카테고리 목록 API를 인증 없이 공개한다")
+    void settlementCategoryApi_documented() throws Exception {
+        byte[] content = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        JsonNode document = objectMapper.readTree(new String(content, StandardCharsets.UTF_8));
+
+        for (String schemaName : List.of("SettlementListItemWebResponse", "SettlementDetailWebResponse")) {
+            assertRequired(document, schemaName, "myCategory");
+            assertNullableReference(document, schemaName, "myCategory", "SettlementMyCategoryWebResponse");
+        }
+        assertRequired(document, "SettlementMyCategoryWebResponse", "code", "name", "icon");
+        assertRequired(document, "SettlementCategoryWebResponse", "code", "name", "description", "icon");
+        assertNullable(document, "SettlementCategoryWebResponse", "description");
+        assertThat(document.path("paths").path("/api/v2/settlement-categories").path("get").isMissingNode())
+                .isFalse();
+    }
+
+    /**
+     * 참조 타입 속성이 실제로 null을 허용하는지 본다. OAS 3.0이면 nullable: true, 3.1이면 참조와 null 타입이
+     * oneOf/anyOf의 서로 다른 갈래여야 한다. $ref 옆에 type: null만 붙은 형태는 "참조이면서 null"이라 null을 허용하지 않는다.
+     */
+    private void assertNullableReference(JsonNode document, String schemaName, String propertyName, String target) {
+        JsonNode property = schema(document, schemaName).path("properties").path(propertyName);
+        JsonNode nullableNode = property.path("nullable");
+        boolean nullable = nullableNode.isBoolean() && nullableNode.booleanValue()
+                && property.toString().contains("#/components/schemas/" + target + "\"");
+        for (String keyword : List.of("oneOf", "anyOf")) {
+            boolean reference = false;
+            boolean nullType = false;
+            for (JsonNode branch : property.path(keyword)) {
+                reference |= branch.path("$ref").toString().endsWith("/" + target + "\"");
+                nullType |= branch.path("type").toString().contains("null");
+            }
+            nullable |= reference && nullType;
+        }
+        assertThat(nullable).as("%s.%s nullable reference schema: %s", schemaName, propertyName, property).isTrue();
+    }
+
     private void assertRequired(JsonNode document, String schemaName, String... propertyNames) {
         JsonNode required = schema(document, schemaName).path("required");
         List<String> requiredNames = new ArrayList<>();

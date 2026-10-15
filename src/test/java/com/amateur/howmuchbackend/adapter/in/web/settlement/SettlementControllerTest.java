@@ -26,6 +26,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementContactCandidateResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementCategoryResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
@@ -972,6 +973,49 @@ class SettlementControllerTest {
         mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.endedAt").value("2026-09-02T12:30:00"));
+    }
+
+    @Test
+    @DisplayName("목록과 상세에 내 카테고리를 코드·표시명·아이콘으로 내리고, 없으면 null로 내린다")
+    void myCategory_listAndDetail() throws Exception {
+        SettlementCategoryResult cafe = new SettlementCategoryResult("CAFE_SNACK", "카페·간식", "커피", "cafe-snack");
+        UUID uncategorizedId = UUID.fromString("0b7a9f1e-1d2c-4e3f-8a9b-0c1d2e3f4a5b");
+        when(getSettlementsUseCase.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                .thenReturn(List.of(
+                        new SettlementListItemResult(SETTLEMENT_ID, SettlementStatus.AWAITING_DEPOSIT, CREATED_AT,
+                                null, null, 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null,
+                                List.of(), cafe),
+                        new SettlementListItemResult(uncategorizedId, SettlementStatus.AWAITING_DEPOSIT, CREATED_AT,
+                                null, null, 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null,
+                                List.of())));
+
+        mockMvc.perform(get("/api/v2/settlements"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].myCategory.code").value("CAFE_SNACK"))
+                .andExpect(jsonPath("$.data[0].myCategory.name").value("카페·간식"))
+                .andExpect(jsonPath("$.data[0].myCategory.icon").value("cafe-snack"))
+                .andExpect(jsonPath("$.data[0].myCategory.description").doesNotExist())
+                .andExpect(jsonPath("$.data[1]").value(org.hamcrest.Matchers.hasEntry(
+                        org.hamcrest.Matchers.is("myCategory"), org.hamcrest.Matchers.nullValue())));
+
+        SettlementDetailResult base = detailResult();
+        when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(new SettlementDetailResult(
+                base.settlementId(), base.title(), base.totalAmount(), base.allocationType(), base.status(),
+                base.createdAt(), base.endedAt(), base.viewerRole(), base.creatorName(), base.bankName(),
+                base.accountNumber(), base.institutionIconUrl(), base.paymentInfo(), base.paymentSummary(),
+                base.reminderNextAvailableAt(), base.participants(), base.items(), cafe));
+
+        mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.myCategory.code").value("CAFE_SNACK"))
+                .andExpect(jsonPath("$.data.myCategory.icon").value("cafe-snack"));
+
+        when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(base);
+        mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.hasEntry(
+                        org.hamcrest.Matchers.is("myCategory"), org.hamcrest.Matchers.nullValue())));
     }
 
     private SettlementDetailResult detailResult() {
