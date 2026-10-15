@@ -28,6 +28,7 @@ import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementDutchPayAllocation;
 import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpenseSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
@@ -148,6 +149,39 @@ class SettlementRequestServiceTest {
         assertThat(notification.getValue().type()).isEqualTo(NotificationType.SETTLEMENT_REQUEST);
         assertThat(notification.getValue().message()).isEqualTo("최수아님이 정산을 요청했어요");
 
+    }
+
+    @Test
+    @DisplayName("영수증·결제 내역 지출이 있으면 분류 대기 작업을 함께 저장한다")
+    void settlementRequest_receiptExpense_schedulesCategoryJob() {
+        arrangeCommon(SettlementAllocationType.DUTCH_PAY);
+        when(loadSettlementExpensePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                new SettlementExpense(UUID.randomUUID(), SETTLEMENT_ID, SettlementExpenseSource.RECEIPT_OCR,
+                        "receipt-1", null, "스타벅스 강남점", 10_000, 0, CREATED_AT, CREATED_AT)));
+        when(allocationStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                allocation(CREATOR_PARTICIPANT_ID, 4_000),
+                allocation(PAYER_PARTICIPANT_ID, 6_000)
+        ));
+
+        service.request(SETTLEMENT_ID);
+
+        verify(categoryJobStorePort).schedule(eq(SETTLEMENT_ID), any());
+        verify(categoryJobStorePort, never()).saveUncategorized(any(), any());
+    }
+
+    @Test
+    @DisplayName("직접 입력 지출만 있으면 분류 근거가 없어 바로 미분류로 저장한다")
+    void settlementRequest_manualOnly_savesUncategorized() {
+        arrangeCommon(SettlementAllocationType.DUTCH_PAY);
+        when(allocationStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                allocation(CREATOR_PARTICIPANT_ID, 4_000),
+                allocation(PAYER_PARTICIPANT_ID, 6_000)
+        ));
+
+        service.request(SETTLEMENT_ID);
+
+        verify(categoryJobStorePort).saveUncategorized(eq(SETTLEMENT_ID), any());
+        verify(categoryJobStorePort, never()).schedule(any(), any());
     }
 
     @Test
