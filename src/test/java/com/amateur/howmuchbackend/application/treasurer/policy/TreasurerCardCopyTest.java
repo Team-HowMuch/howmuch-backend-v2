@@ -49,6 +49,23 @@ class TreasurerCardCopyTest {
     }
 
     @Test
+    void sendCard_oneDayAfterRequest_attention() {
+        Instant now = Instant.parse("2026-08-26T00:00:00Z");
+
+        assertThat(copy.item(send(LocalDateTime.of(2026, 8, 25, 0, 0)), now).marker())
+                .isEqualTo(TreasurerCardMarker.ATTENTION);
+        assertThat(copy.item(send(LocalDateTime.of(2026, 8, 25, 0, 0, 1)), now).marker())
+                .isEqualTo(TreasurerCardMarker.NONE);
+    }
+
+    private static PersonalSettlement send(LocalDateTime requestedAt) {
+        return new PersonalSettlement(
+                UUID.randomUUID(), "여행", SettlementDirection.SEND, SettlementStatus.REQUESTED,
+                requestedAt, 200L, "빵장"
+        );
+    }
+
+    @Test
     void sendExpense_completed_notUnpaid() {
         Instant now = Instant.parse("2026-08-26T00:00:00Z");
         PersonalSettlement completed = new PersonalSettlement(
