@@ -151,7 +151,8 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 - treasurer native query 영속성 통합 테스트
 - `./gradlew compileJava test` (관련 테스트)
 - #553 GPT-6 Luna 전환(2026-10-15, develop `470c73a` 기준): `compose.test.yml`(PostgreSQL 18 · Redis 8) + `scripts/test.sh test --tests '*Treasurer*' --tests '*OpenAiChatRequestTest'`로 22개 클래스 169건 실행, 실패 0, 건너뜀 1(실제 키가 필요한 로컬 평가 `TreasurerGuideLiveEvaluation`, 저장소에 포함하지 않음). 신규 `OpenAiChatRequestTest` 4건, `TreasurerLlmPropertiesTest` 4건(빈 `reasoning-effort`가 비활성으로 바인딩되는지 포함).
-- 아직 확인하지 않은 것: 실제 `gpt-6-luna` 호출. `response_format: json_object`와 `system` 역할을 Luna가 받는지는 키를 받은 뒤 로컬 평가 30문항으로 확인한다.
+- 실제 `gpt-6-luna` 호출(2026-10-15, 로컬 평가 30문항, 추론 강도 `low`): 안내 LLM 호출 22회 모두 응답했고 거절(400)·검사 탈락은 0건이다. `response_format: json_object`와 `system` 역할을 그대로 받는다. 응답 시간 평균 2.5초, 최대 4.5초로 읽기 타임아웃(20초) 안이다. 기대 경로 일치 28/30이며, 사용법 질문 21/22가 문서 근거 안내로, "비트코인 송금은 어떻게 해?"는 범위 밖으로 답했다.
+- 남은 2건은 LLM이 아니라 규칙 분류 문제로 이번 범위 밖이다. "진행 중인 정산이 있으면 회원 탈퇴 돼?"는 `SETTLEMENT_STATUS`로 분류돼 안내 LLM을 부르지 않고, "아직 안 낸 거 있어?"는 서비스 어휘가 없어 무관 질문으로 판정된다. 별도 이슈로 다룬다.
 
 ## 8. Commit boundaries
 
