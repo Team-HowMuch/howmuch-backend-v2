@@ -29,13 +29,13 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 같은 정산을 생성자와 참여자가 실제 HTTP로 조회할 때 각자의 내 카테고리가 보이는지 확인한다. */
+/** 같은 정산을 생성자와 참여자가 실제 HTTP로 조회·수정할 때 각자의 내 카테고리가 보이는지 확인한다. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused",
         "howmuch.settlement.notification-outbox.enabled=false",
         "howmuch.settlement.automatic-reminder.enabled=false"
 })
-@DisplayName("정산 목록·상세의 내 카테고리 HTTP")
+@DisplayName("정산 목록·상세의 내 카테고리와 수정 HTTP")
 class SettlementMyCategoryHttpIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 15, 3, 0);
 
@@ -106,6 +106,95 @@ class SettlementMyCategoryHttpIntegrationTest {
         assertThat(item(memberList, classified).path("myCategory").path("code").stringValue()).isEqualTo("FOOD");
         assertThat(data(get("/api/v2/settlements/" + classified, memberToken))
                 .path("myCategory").path("code").stringValue()).isEqualTo("FOOD");
+    }
+
+    @Test
+    @DisplayName("참여자가 바꾼 값은 그 참여자의 목록·상세에만 보이고, 생성자도 따로 바꿀 수 있으며 미분류로 되돌릴 수 있다")
+    void changeMyCategory_perMember() throws Exception {
+        UUID settlementId = fixtures.settlement(creatorId, SettlementStatus.AWAITING_DEPOSIT,
+                SettlementAllocationType.DUTCH_PAY);
+        fixtures.participant(settlementId, creatorId);
+        fixtures.share(settlementId, fixtures.participant(settlementId, memberId), 10_000);
+        fixtures.share(settlementId, fixtures.participant(settlementId, otherMemberId), 10_000);
+        jdbc.update("""
+                INSERT INTO settlement_categories (settlement_id, status, category_code, source, classified_at,
+                    created_at, updated_at)
+                VALUES (?, 'CLASSIFIED', 'CAFE_SNACK', 'RULE', ?, ?, ?)
+                """, settlementId, NOW, NOW, NOW);
+        String creatorToken = accessToken(creatorId);
+        String memberToken = accessToken(memberId);
+        String otherMemberToken = accessToken(otherMemberId);
+
+        JsonNode changed = data(putMyCategory(settlementId, memberToken, "FOOD"));
+        assertThat(changed.path("code").stringValue()).isEqualTo("FOOD");
+        assertThat(changed.path("name").stringValue()).isEqualTo("식비");
+        assertThat(changed.path("icon").stringValue()).isEqualTo("food");
+        assertThat(data(putMyCategory(settlementId, memberToken, "FOOD")).path("code").stringValue())
+                .isEqualTo("FOOD");
+        assertThat(item(data(get("/api/v2/settlements?tab=PAY", memberToken)), settlementId)
+                .path("myCategory").path("code").stringValue()).isEqualTo("FOOD");
+        assertThat(data(get("/api/v2/settlements/" + settlementId, memberToken))
+                .path("myCategory").path("code").stringValue()).isEqualTo("FOOD");
+        assertThat(data(get("/api/v2/settlements/" + settlementId, otherMemberToken))
+                .path("myCategory").path("code").stringValue()).isEqualTo("CAFE_SNACK");
+        assertThat(item(data(get("/api/v2/settlements?tab=RECEIVE", creatorToken)), settlementId)
+                .path("myCategory").path("code").stringValue()).isEqualTo("CAFE_SNACK");
+
+        assertThat(data(putMyCategory(settlementId, creatorToken, "LIVING")).path("code").stringValue())
+                .isEqualTo("LIVING");
+        assertThat(data(putMyCategory(settlementId, otherMemberToken, "UNCATEGORIZED")).path("code").stringValue())
+                .isEqualTo("UNCATEGORIZED");
+        assertThat(item(data(get("/api/v2/settlements?tab=RECEIVE", creatorToken)), settlementId)
+                .path("myCategory").path("code").stringValue()).isEqualTo("LIVING");
+        assertThat(data(get("/api/v2/settlements/" + settlementId, memberToken))
+                .path("myCategory").path("code").stringValue()).isEqualTo("FOOD");
+        assertThat(data(get("/api/v2/settlements/" + settlementId, otherMemberToken))
+                .path("myCategory").path("code").stringValue()).isEqualTo("UNCATEGORIZED");
+    }
+
+    @Test
+    @DisplayName("관계없는 회원은 403, 목록에 없는 코드는 400, 없거나 삭제된 정산은 404, 토큰이 없으면 401이다")
+    void changeMyCategory_rejections() throws Exception {
+        Long outsiderId = fixtures.user();
+        UUID settlementId = fixtures.settlement(creatorId, SettlementStatus.DRAFT, SettlementAllocationType.DUTCH_PAY);
+        fixtures.participant(settlementId, creatorId);
+        UUID deletedId = fixtures.settlement(creatorId, SettlementStatus.DRAFT, SettlementAllocationType.DUTCH_PAY);
+        fixtures.markDeleted(deletedId);
+        String creatorToken = accessToken(creatorId);
+        String outsiderToken = accessToken(outsiderId);
+        try {
+            assertError(putMyCategory(settlementId, outsiderToken, "FOOD"), 403, "SETTLEMENT_ACCESS_DENIED");
+            assertError(putMyCategory(settlementId, creatorToken, "TRANSFER"), 400, "INVALID_SETTLEMENT_CATEGORY");
+            assertError(putMyCategory(settlementId, creatorToken, "food"), 400, "INVALID_SETTLEMENT_CATEGORY");
+            assertError(putMyCategory(deletedId, creatorToken, "FOOD"), 404, "SETTLEMENT_NOT_FOUND");
+            assertError(putMyCategory(UUID.randomUUID(), creatorToken, "FOOD"), 404, "SETTLEMENT_NOT_FOUND");
+            assertThat(putMyCategory(settlementId, null, "FOOD").statusCode()).isEqualTo(401);
+            assertThat(jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM settlement_user_categories WHERE settlement_id IN (?, ?)",
+                    Integer.class, settlementId, deletedId)).isZero();
+
+            assertThat(data(putMyCategory(settlementId, creatorToken, "FOOD")).path("code").stringValue())
+                    .isEqualTo("FOOD");
+        } finally {
+            sessions.deleteByUserId(outsiderId);
+        }
+    }
+
+    private void assertError(HttpResponse<String> response, int status, String code) {
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(status);
+        assertThat(json.readTree(response.body()).path("error").path("code").stringValue()).isEqualTo(code);
+    }
+
+    private HttpResponse<String> putMyCategory(UUID settlementId, String token, String code) throws Exception {
+        var request = HttpRequest.newBuilder(
+                        URI.create("http://127.0.0.1:" + port + "/api/v2/settlements/" + settlementId + "/my-category"))
+                .timeout(Duration.ofSeconds(15))
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString("{\"categoryCode\":\"" + code + "\"}"));
+        if (token != null) {
+            request.header("Authorization", "Bearer " + token);
+        }
+        return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private JsonNode item(JsonNode list, UUID settlementId) {

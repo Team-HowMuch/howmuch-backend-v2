@@ -160,6 +160,14 @@ class SettlementOpenApiIntegrationTest {
         assertNullable(document, "SettlementCategoryWebResponse", "description");
         assertThat(document.path("paths").path("/api/v2/settlement-categories").path("get").isMissingNode())
                 .isFalse();
+
+        JsonNode change = document.path("paths").path("/api/v2/settlements/{settlementId}/my-category").path("put");
+        assertThat(change.isMissingNode()).isFalse();
+        assertThat(change.path("security").toString()).contains("bearerAuth");
+        assertThat(change.path("requestBody").toString()).contains("ChangeMySettlementCategoryWebRequest");
+        assertThat(change.path("responses").path("200").toString()).contains("SettlementMyCategoryWebResponse");
+        assertThat(change.path("responses").propertyNames()).contains("400", "401", "403", "404");
+        assertRequired(document, "ChangeMySettlementCategoryWebRequest", "categoryCode");
     }
 
     /**
