@@ -1,6 +1,6 @@
 # Feature Plan: 정산 카테고리
 
-- Status: In progress (#555 저장 구조·#556 자동 분류·#557 표시 머지, #558 내 카테고리 수정 진행 중)
+- Status: Completed (#555 저장 구조·#556 자동 분류·#557 표시 머지, #558 내 카테고리 수정 구현·검증. 앱 화면 확인은 개발 서버 배포 후)
 - Last updated: 2026-10-15
 - Related issue: [#555](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/555) 저장 구조, [#556](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/556) 자동 분류, [#557](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/557) 표시, [#558](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/558) 내 카테고리 수정
 - Related ADR: N/A
@@ -19,10 +19,10 @@
 ### Success criteria
 
 - [ ] 앱이 정산용 카테고리 18개(표시명, 세부 예시, 아이콘 키)를 서버에서 받아 표시한다
-- [ ] 정산을 요청하면 요청과 별도로 카테고리가 정해진다(규칙 → AI → 미분류)
-- [ ] 정산 목록·상세에 조회하는 회원 기준 "내 카테고리"가 보인다
-- [ ] 회원이 내 카테고리를 바꿔도 다른 참여자의 카테고리는 그대로다
-- [ ] LLM 미설정·장애에서도 정산 흐름은 실패하지 않는다
+- [x] 정산을 요청하면 요청과 별도로 카테고리가 정해진다(규칙 → AI → 미분류)
+- [x] 정산 목록·상세에 조회하는 회원 기준 "내 카테고리"가 보인다
+- [x] 회원이 내 카테고리를 바꿔도 다른 참여자의 카테고리는 그대로다
+- [x] LLM 미설정·장애에서도 정산 흐름은 실패하지 않는다
 
 ### Out of scope
 
@@ -212,6 +212,7 @@ Authentication: 회원
 - `SettlementListItemResult`, `SettlementDetailResult`에 `myCategory`를 추가하고 기존 인자 수의 생성자를 남긴다(기존 호출·테스트 유지)
 - 정산 삭제 시 카테고리 행은 FK로 함께 지워진다
 - 내 카테고리 수정은 `settlement_user_categories`에 (정산, 회원) 기준 upsert만 한다. 정산·분류 작업 행은 건드리지 않고 마이그레이션도 없다(#558)
+- 수정은 정산 행을 잠그지 않는다. 접근 확인 직후 정산이 삭제되거나 참여자가 빠지면 그 요청은 저장될 수 있지만, 삭제된·접근할 수 없는 정산의 값은 어떤 조회에도 나오지 않아 그대로 둔다(#558)
 
 ## 7. Implementation plan
 
@@ -248,7 +249,7 @@ Authentication: 회원
 ```bash
 docker compose -f compose.test.yml up -d
 DOCKER_HOST=unix://$HOME/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_RYUK_DISABLED=true \
-DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test REDIS_HOST=127.0.0.1 REDIS_PORT=16379 bash scripts/test.sh test --tests '*SettlementCategory*' --tests '*SettlementRequestServiceTest' --tests '*SettlementListServiceTest' --tests '*SettlementDetailServiceTest' --tests '*SettlementControllerTest' --tests '*SettlementOpenApiIntegrationTest' --tests '*SettlementUserCategory*' --tests '*MySettlementCategory*'
+DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test REDIS_HOST=127.0.0.1 REDIS_PORT=16379 bash scripts/test.sh test --tests '*SettlementCategory*' --tests '*SettlementRequestServiceTest' --tests '*SettlementListServiceTest' --tests '*SettlementDetailServiceTest' --tests '*SettlementControllerTest' --tests '*SettlementOpenApiIntegrationTest' --tests '*SettlementUserCategory*' --tests '*MySettlementCategory*' --tests '*SettlementMyCategory*'
 ```
 
 ### Completion criteria
@@ -269,11 +270,11 @@ DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test D
 - [x] 목록·상세의 `myCategory`가 수정값 → 자동 분류 값 → null 순서로 정해진다
 - [x] 같은 정산을 다른 회원이 조회하면 각자의 카테고리가 보인다
 - [x] OpenAPI 문서에 `myCategory`가 nullable로 표시된다
-- [ ] 생성자와 참여자가 각자 바꾼 값이 서로의 `myCategory`에 영향을 주지 않는다
-- [ ] 정산과 관계없는 회원은 수정할 수 없다(403), 없는·삭제된 정산은 404
-- [ ] 확장용·없는 코드는 400, `UNCATEGORIZED`는 저장된다
-- [ ] 같은 값을 다시 보내도 결과가 같다
-- [ ] 수정 후 정산 목록·상세에 바꾼 값이 보인다
+- [x] 생성자와 참여자가 각자 바꾼 값이 서로의 `myCategory`에 영향을 주지 않는다
+- [x] 정산과 관계없는 회원은 수정할 수 없다(403), 없는·삭제된 정산은 404
+- [x] 확장용·없는 코드는 400, `UNCATEGORIZED`는 저장된다
+- [x] 같은 값을 다시 보내도 결과가 같다
+- [x] 수정 후 정산 목록·상세에 바꾼 값이 보인다
 
 ### Results
 
@@ -316,3 +317,20 @@ DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test D
   - `SettlementMyCategoryHttpIntegrationTest`: 생성자 상세는 받는 계좌 스냅샷을 복호화하는데 테스트용 가짜 계좌라 404였다(카테고리와 무관). 상세 확인은 참여자 두 명(바꾼 회원 `FOOD`, 안 바꾼 회원 `CAFE_SNACK`)으로 바꿨다.
 - 고친 뒤 관련 18개 클래스 180건 실행, 실패 0: `SettlementOpenApiIntegrationTest` 3, `GroupOpenApiIntegrationTest` 1, `SettlementMyCategoryHttpIntegrationTest` 1, `SettlementCategoryApiIntegrationTest` 1, `SettlementUserCategoryJdbcAdapterIntegrationTest` 1, `SettlementCategoryCatalogTest` 1, `MySettlementCategoryReaderTest` 3, `SettlementControllerTest` 39, `SettlementListServiceTest` 23, `SettlementDetailServiceTest` 29, `SettlementRequestServiceTest` 6, #556 분류·스키마 테스트 72.
 - 독립 리뷰: P1 없음. 반영: OpenAPI nullable 참조 검증을 엄격하게(위 수정으로 이어짐), 정산 ID를 배열 바인드 하나로(`= ANY(?)`), 실제 HTTP로 회원별 카테고리 확인. 남김: 공통 코드의 아이콘 키(`attr1`)를 비우면 필수 필드 `icon`이 비어 나간다(시드는 모두 채워져 있음).
+
+#### #558 내 카테고리 수정
+
+2026-10-15, 로컬(macOS, compose.test.yml PostgreSQL · Redis + Testcontainers). XML에서 클래스별로 확인한 숫자다.
+
+| 테스트 | 건수 | 확인한 것 |
+|---|---|---|
+| `MySettlementCategoryServiceTest` | 7 | 생성자는 참여자 목록 없이 저장, 연결된 참여자의 `UNCATEGORIZED` 저장, 관계없는 회원은 코드가 틀려도 403(카테고리 목록·저장 호출 없음), 없는 정산 404, 확장용(`TRANSFER`)·없는 코드·소문자(`food`) 400, 저장 시각 UTC |
+| `SettlementUserCategoryJdbcAdapterIntegrationTest` | 3 | 처음 저장 → 덮어쓰기(생성 시각 유지, 수정 시각 갱신), 같은 값 재전송, 다른 회원 행 그대로, 조회 Port가 새 값을 읽음, 시계가 뒤로 가도 `created_at <= updated_at` 유지(기존 1건 포함) |
+| `SettlementMyCategoryControllerTest` | 7 | 응답 `{code, name, icon}`(설명 없음), 코드 누락·빈 값·공백·51자, 형식이 틀린 정산 ID, 깨진 JSON은 서비스 호출 없이 `INVALID_ARGUMENT`, `INVALID_SETTLEMENT_CATEGORY` 400 |
+| `SettlementMyCategoryHttpIntegrationTest` | 3 | 실제 HTTP: 참여자 수정값이 그 참여자의 목록·상세에만 보이고 다른 참여자·생성자는 자동 분류 값, 생성자도 따로 수정, 미분류로 되돌리기, 같은 값 재전송. 관계없는 회원 403, `TRANSFER`·`food` 400, 삭제된·없는 정산 404, 토큰 없음 401, 거절된 요청은 행을 남기지 않음, 초안 정산도 수정 가능(기존 1건 포함) |
+| `SettlementOpenApiIntegrationTest` | 3 | PUT 경로, `bearerAuth`, 요청·응답 스키마, 400·401·403·404 응답, `categoryCode` 필수(기존 2건 포함) |
+
+- 전체 `scripts/test.sh test`: 2107건, 실패 0, 건너뜀 1(로컬 평가 전용 `TreasurerGuideLiveEvaluation`). JavaScript 테스트 포함 종료 코드 0.
+- 처음 관련 테스트를 돌릴 때 `SettlementCategoryMigrationTest`가 Testcontainers Docker 소켓을 찾지 못해 실패했다(환경 문제). 위 Commands의 `DOCKER_HOST` 등을 넣고 다시 돌려 1/1 통과했고, 전체 실행도 같은 설정으로 했다.
+- 독립 리뷰(작업을 보지 않은 별도 에이전트): P1 없음. 반영: 어댑터 클래스 주석, OpenAPI 400 설명에 형식이 틀린 정산 ID·JSON 포함, 해당 컨트롤러 테스트 추가(전체 실행 뒤 반영했으므로 바뀐 4개 클래스 16건을 다시 돌려 통과). 남김: 접근 확인 직후 정산 삭제·참여자 제외와 겹치는 요청은 저장될 수 있으나 보이지 않으므로 그대로 둔다(위 Impact surface), 접근 규칙이 정산 상세와 중복된다(위 Design decisions).
+- 실제 앱의 카테고리 선택 시트 호출은 개발 서버 배포 뒤에 확인한다.
