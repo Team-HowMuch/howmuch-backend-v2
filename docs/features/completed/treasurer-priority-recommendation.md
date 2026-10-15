@@ -114,7 +114,7 @@ UseCase: GetTreasurerRecommendationsUseCase (기존) — 순서·이유 문장 �
 ### Web API
 
 ```text
-POST /api/v2/treasurer/ask
+POST /api/v2/treasurer/questions
   intent: 새 값 PRIORITY_SETTLEMENTS, view LIST, 카드는 우선순위 순서
   answer: 서버 문구(LLM 미사용). 순서·경과 시간을 LLM이 바꾸지 못하게 한다
 GET /api/v2/treasurer/recommendations
@@ -137,7 +137,7 @@ GET /api/v2/treasurer/recommendations
 ## 6. Impact surface
 
 - `GET /api/v2/treasurer/recommendations`: `priority` 값이 바뀐다(`SEND_STALE` → `SEND_OVERDUE` 등). 앱이 이 값을 쓰면 함께 바꿔야 한다
-- `POST /api/v2/treasurer/ask`: 새 의도 값, 보낼·받을 목록 카드 순서, 보낼 카드 주의 표시 기준
+- `POST /api/v2/treasurer/questions`: 새 의도 값, 보낼·받을 목록 카드 순서, 보낼 카드 주의 표시 기준
 - 기존 질문 분류는 우선순위 표현이 없으면 그대로다
 
 ## 7. Implementation plan
@@ -188,3 +188,11 @@ DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test D
   - 정산 목록 API(`findAllForUser`)가 이미 쓰는 `COALESCE(link.created_at, settlement.created_at)`와 같은 기준이다. 새 컬럼·마이그레이션은 필요 없다.
   - 검증: `TreasurerSettlementPersistenceIntegrationTest`에 정산 생성 2일 뒤 링크를 만들면 요청 시각이 링크 시각이고, 링크가 없는 정산은 그대로 생성 시각인지 확인하는 테스트를 넣었다. 쿼리를 되돌리면 이 테스트가 실패하는 것을 확인했다.
   - 전체 `bash scripts/test.sh test`: 2133건, 실패 0, 오류 0, 건너뜀 1(로컬 전용 LLM 평가)
+
+### 요청부터 안내까지 HTTP 검증(2026-10-15)
+
+- `TreasurerRequestFlowHttpIntegrationTest`: 실제 HTTP로 품목 정산을 만들고 `POST /api/v2/settlements/{id}/request`로 요청한 뒤 정산 생성 시각을 3일 앞당긴다.
+  - 요청 직후: 참여자의 "뭐부터 처리해?" 답변은 `PRIORITY_SETTLEMENTS`, `period` null, 보낼 카드 `marker` `NONE`, 경과 시간 안내 없음. 추천 API는 참여자 `SEND_OPEN`, 생성자 `RECEIVE_OPEN`
+  - 정산 링크 생성 시각을 25시간 앞당긴 뒤: 카드 `ATTENTION`, 답변 끝 "25시간 이상 지난 정산이에요. 빨리 정산해 주세요.", 추천 API는 `SEND_OVERDUE`, `RECEIVE_OVERDUE`
+  - 총무 조회를 생성 시각 기준으로 되돌리면 요청 직후 카드가 `ATTENTION`이 되어 실패하는 것을 확인했다.
+- 계획 문서의 질의 API 경로를 실제 경로 `POST /api/v2/treasurer/questions`로 고쳤다.
