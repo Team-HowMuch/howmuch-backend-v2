@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -48,6 +49,11 @@ public class TreasurerLlmAdapter implements GenerateTreasurerAnswerPort {
         try {
             String generated = properties.usesOpenAi() ? completeOpenAi(draft) : completeGemini(draft);
             return Optional.ofNullable(TreasurerLlmResponseParser.sanitize(generated));
+        } catch (RestClientResponseException exception) {
+            log.warn("Treasurer LLM call failed. status={} error={}",
+                    exception.getStatusCode().value(),
+                    TreasurerLlmResponseParser.errorSummary(exception.getResponseBodyAsString()));
+            return Optional.empty();
         } catch (Exception exception) {
             log.warn("Treasurer LLM call failed. {}", exception.getClass().getSimpleName());
             return Optional.empty();

@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -74,6 +75,11 @@ public class TreasurerGuideLlmAdapter implements GenerateTreasurerGuidePort {
                     ? completeOpenAi(systemPrompt, question)
                     : completeGemini(systemPrompt, question);
             return parse(content);
+        } catch (RestClientResponseException exception) {
+            log.warn("Treasurer guide LLM call failed. status={} error={}",
+                    exception.getStatusCode().value(),
+                    TreasurerLlmResponseParser.errorSummary(exception.getResponseBodyAsString()));
+            return Optional.empty();
         } catch (Exception exception) {
             log.warn("Treasurer guide LLM call failed. {}", exception.getClass().getSimpleName());
             return Optional.empty();
