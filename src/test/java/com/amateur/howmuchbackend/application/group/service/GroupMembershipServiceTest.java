@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.port.in.group.command.JoinGroupCom
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.group.GroupInviteLinkPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
+import com.amateur.howmuchbackend.application.port.out.group.GroupInvitationStorePort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.group.SaveGroupMemberPort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
@@ -51,6 +52,7 @@ class GroupMembershipServiceTest {
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 20, 6, 0);
     private static final LocalDateTime LEFT_AT = LocalDateTime.of(2026, 8, 21, 6, 0);
 
+    @Mock private GroupInvitationStorePort invitations;
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadGroupPort loadGroupPort;
     @Mock private LoadGroupMemberPort loadGroupMemberPort;
@@ -74,7 +76,8 @@ class GroupMembershipServiceTest {
                 new GroupInviteCodePolicy(),
                 new PublicIdPolicy(),
                 groupAccessService,
-                new GroupResultAssembler(groupInviteLinkPort)
+                new GroupResultAssembler(groupInviteLinkPort),
+                invitations
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(MEMBER_ID));
     }

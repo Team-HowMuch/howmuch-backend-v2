@@ -60,6 +60,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
     private final SettlementReminderCooldownReader cooldownReader;
     private final BankCatalog bankCatalog;
     private final SettlementItemAllocationPolicy itemAllocationPolicy;
+    private final MySettlementCategoryReader myCategoryReader;
 
     @Override
     @Transactional(readOnly = true)
@@ -212,7 +213,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 ),
                 visiblePayments,
                 items.stream().map(com.amateur.howmuchbackend.application.port.in.settlement.result
-                        .SettlementItemResult::from).toList()
+                        .SettlementItemResult::from).toList(),
+                myCategoryReader.read(actorId, List.of(settlementId)).get(settlementId)
         );
     }
 
@@ -343,10 +345,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 .filter(payment -> payment.expectedAmount() != null)
                 .mapToLong(SettlementDetailResult.ParticipantPayment::expectedAmount)
                 .reduce(0L, Math::addExact);
-        long expectedAmount = settlement.allocationType()
-                == SettlementAllocationType.ITEM_ALLOCATION
-                && (settlement.status() == SettlementStatus.REQUESTED
-                        || settlement.status() == SettlementStatus.SUSPENDED)
+        long expectedAmount = itemAllocationPolicy.usesRequestedReceivable(
+                settlement.allocationType(), settlement.status())
                 ? requestedItemExpectedAmount(settlement, creatorParticipant, receiptDiscount, deliveryFee)
                 : shareExpectedAmount;
         long confirmedAmount = payments.stream()
@@ -389,14 +389,13 @@ public class SettlementDetailService implements GetSettlementUseCase {
         if (creatorParticipant == null) {
             return settlement.totalAmount();
         }
-        long creatorAmount = itemAllocationPolicy.calculatePersonalAmount(
+        return itemAllocationPolicy.calculateRequestedReceivableAmount(
+                settlement.totalAmount(),
                 loadSettlementItemPort.findAllBySettlementId(settlement.id()),
                 itemAllocationStorePort.findAllSelections(settlement.id()),
                 creatorParticipant.id(),
                 receiptDiscount,
-                deliveryFee,
-                false
+                deliveryFee
         );
-        return Math.subtractExact(settlement.totalAmount(), creatorAmount);
     }
 }

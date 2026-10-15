@@ -1,0 +1,9 @@
+{
+  "scope": "QR decoded from the currently running real certificate app",
+  "httpStatus": 201,
+  "errorCode": null,
+  "status": "RESERVED",
+  "confirmationCodeHasSixDigits": true,
+  "realSessionAndClaimMatchDatabase": true,
+  "pcConfirmationMatchesApi": true
+}

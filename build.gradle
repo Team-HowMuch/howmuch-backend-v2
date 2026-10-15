@@ -30,6 +30,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+    implementation 'org.springframework.boot:spring-boot-starter-kafka'
     implementation 'net.ttddyy.observation:datasource-micrometer-spring-boot:2.2.1'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'com.solapi:sdk:1.1.0'
@@ -52,12 +53,52 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-kafka-test'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.5'
+    testImplementation 'org.testcontainers:testcontainers-kafka:2.0.5'
+    testImplementation 'com.networknt:json-schema-validator:3.0.6'
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+def verifyMigrationVersions = tasks.register('verifyMigrationVersions') {
+    def migrations = fileTree('src/main/resources/db/migration') { include 'V*.sql' }
+    inputs.files(migrations)
+    doLast {
+        def versions = migrations.files.groupBy { migration ->
+            def match = migration.name =~ /^V([0-9]+(?:[._][0-9]+)*)__.+\.sql$/
+            if (!match.matches()) {
+                throw new GradleException("Invalid migration filename: ${migration.name}")
+            }
+            def parts = match[0][1].replace('_', '.').tokenize('.')
+                    .collect { new BigInteger(it).toString() }
+            while (parts.size() > 1 && parts.last() == '0') {
+                parts.remove(parts.size() - 1)
+            }
+            parts.join('.')
+        }
+        def duplicates = versions.findAll { version, files -> files.size() > 1 }
+        if (!duplicates.isEmpty()) {
+            throw new GradleException('Duplicate Flyway migration versions: ' +
+                    duplicates.collect { version, files ->
+                        "${version}: ${files*.name.sort().join(', ')}"
+                    }.join('; '))
+        }
+    }
+}
+
+tasks.named('processResources') {
+    dependsOn verifyMigrationVersions
+    // ProcessResources copies files but does not remove renamed/deleted resources.
+    // Regenerate only this task's output so no-clean test/bootRun cannot load stale SQL.
+    doFirst {
+        delete destinationDir
+    }
+}
+
 tasks.named('test') {
+    dependsOn verifyMigrationVersions
     useJUnitPlatform()
     systemProperty 'management.server.port', '0'
     // Each cached integration context owns a connection pool; release old contexts

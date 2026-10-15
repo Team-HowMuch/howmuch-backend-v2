@@ -9,6 +9,17 @@ class TreasurerLlmResponseParserTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void errorSummary_compactsAndTruncates() {
+        assertThat(TreasurerLlmResponseParser.errorSummary(null)).isEmpty();
+        assertThat(TreasurerLlmResponseParser.errorSummary("{\n  \"error\": {\"param\": \"temperature\"}\n}"))
+                .isEqualTo("{ \"error\": {\"param\": \"temperature\"} }");
+        String longBody = "x".repeat(TreasurerLlmResponseParser.MAX_ERROR_BODY_LENGTH + 50);
+        assertThat(TreasurerLlmResponseParser.errorSummary(longBody))
+                .hasSize(TreasurerLlmResponseParser.MAX_ERROR_BODY_LENGTH + 3)
+                .endsWith("...");
+    }
+
+    @Test
     void openAiResponse_messageContent_parsed() throws Exception {
         String content = TreasurerLlmResponseParser.openAiContent(objectMapper.readTree("""
                 {"choices":[{"message":{"content":"보낼 정산이 1건 있어요."}}]}

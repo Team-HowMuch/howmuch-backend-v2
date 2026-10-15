@@ -1,0 +1,48 @@
+{
+  "localRuntimeChecks": [
+    {
+      "path": "/api/v2/accounts/connections",
+      "authenticated": true,
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "path": "/api/v2/accounts/connections",
+      "authenticated": false,
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "path": "/api/v2/accounts/connections/7/accounts?organization=0020",
+      "authenticated": false,
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "path": "/api/v2/accounts/connections/7/accounts?organization=0020",
+      "authenticated": true,
+      "status": 404,
+      "expected": 404,
+      "passed": true
+    },
+    {
+      "path": "/api/v2/accounts/connections/0/accounts?organization=0020",
+      "authenticated": true,
+      "status": 400,
+      "expected": 400,
+      "passed": true
+    },
+    {
+      "path": "/api/v2/accounts/connections/7/accounts?organization=bank",
+      "authenticated": true,
+      "status": 400,
+      "expected": 400,
+      "passed": true
+    }
+  ],
+  "swaggerBearerAuth": true,
+  "realCertificateAccountQueryVerified": false
+}

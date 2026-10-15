@@ -48,6 +48,7 @@ class UserAccountDeletionExecutorTest {
     @Mock private UserPushTargetStorePort pushTargetStorePort;
     @Mock private ExternalConnectionStorePort externalConnectionStorePort;
     @Mock private ProfileImageStoragePort imageStoragePort;
+    @Mock private com.amateur.howmuchbackend.application.port.out.recap.DeleteOwnRecapsPort deleteOwnRecapsPort;
     @Mock private PasswordEncoder passwordEncoder;
 
     @Test
@@ -70,6 +71,7 @@ class UserAccountDeletionExecutorTest {
         assertThat(userCaptor.getValue().active()).isFalse();
         assertThat(userCaptor.getValue().phoneNumber()).isNotEqualTo(user.phoneNumber());
         assertThat(userCaptor.getValue().pinHash()).isEqualTo("new-pin-hash");
+        verify(deleteOwnRecapsPort).deleteOwnedRecaps(user.id(), NOW);
         verify(pushTargetStorePort).clear(user.id(), NOW);
         verify(externalConnectionStorePort).clearCredentialsByUserId(user.id());
         verify(authSessionPort).deleteByUserId(user.id());
@@ -95,6 +97,7 @@ class UserAccountDeletionExecutorTest {
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(UserStatusCode.USER_DELETION_BLOCKED_BY_SETTLEMENT));
         verify(saveUserPort, never()).update(org.mockito.ArgumentMatchers.any());
+        verify(deleteOwnRecapsPort, never()).deleteOwnedRecaps(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         verify(externalConnectionStorePort, never()).clearCredentialsByUserId(user.id());
         verify(authSessionPort, never()).deleteByUserId(user.id());
     }
@@ -121,7 +124,7 @@ class UserAccountDeletionExecutorTest {
     private UserAccountDeletionExecutor executor() {
         return new UserAccountDeletionExecutor(saveUserPort, loadGroupPort, loadGroupMemberPort,
                 saveGroupMemberPort, settlementStatePort, authSessionPort, pushTargetStorePort,
-                externalConnectionStorePort, imageStoragePort, passwordEncoder, new ConservativeUserDeletionPolicy());
+                externalConnectionStorePort, imageStoragePort, deleteOwnRecapsPort, passwordEncoder, new ConservativeUserDeletionPolicy());
     }
 
     private Group group() {

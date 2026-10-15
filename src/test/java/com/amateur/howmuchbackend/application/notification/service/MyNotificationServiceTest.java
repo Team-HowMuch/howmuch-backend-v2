@@ -53,6 +53,18 @@ class MyNotificationServiceTest {
         when(load.countUnread(2L)).thenReturn(4L);
         assertThat(service.countUnread().count()).isEqualTo(4);
     }
+    @Test void genericNotification_exposesTypedTargetWithoutSettlementAllocation() {
+        var notification = new UserNotification(UUID.randomUUID(), 2L, null, NotificationType.MONTHLY_RECAP,
+                null, "HowMuch", "월간 리캡", "지난달 내역", "recap-key", null, now,
+                new NotificationTarget(NotificationTargetType.MONTHLY_RECAP, "2026-09"));
+        when(load.findPage(2L, null, null, 21)).thenReturn(List.of(notification));
+        var result = service.get(new GetMyNotificationsCommand(null, null)).items().getFirst();
+        assertThat(result.allocationType()).isNull();
+        assertThat(result.settlementId()).isNull();
+        assertThat(result.action().type()).isEqualTo("MONTHLY_RECAP");
+        assertThat(result.action().targetId()).isEqualTo("2026-09");
+        assertThat(result.action().enabled()).isTrue();
+    }
     @Test void notification_read_usesFirstReadTimestamp() {
         UUID id=UUID.randomUUID();
         when(read.markRead(id,2L,now)).thenReturn(Optional.of(now.minusHours(1)));

@@ -9,6 +9,10 @@ import java.util.UUID;
 
 public interface SettlementItemOptionJpaRepository
         extends JpaRepository<SettlementItemOptionJpaEntity, UUID> {
+    List<SettlementItemOptionJpaEntity> findBySettlementIdInOrderByItemIdAscDisplayOrderAsc(
+            Collection<UUID> settlementIds
+    );
+
     List<SettlementItemOptionJpaEntity> findBySettlementIdAndItemIdInOrderByItemIdAscDisplayOrderAsc(
             UUID settlementId, Collection<UUID> itemIds
     );

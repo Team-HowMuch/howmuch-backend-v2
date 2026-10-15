@@ -1,0 +1,27 @@
+# Per-node reference for private dev or HA production. Supply a reviewed TLS config directory.
+# Production: deploy three controller nodes and three broker nodes in separate failure domains.
+name: howmuch-kafka-private-${KAFKA_NODE_LABEL:?provide a unique node label}
+services:
+  kafka-node:
+    image: apache/kafka:4.2.2
+    restart: unless-stopped
+    ports:
+      - "${KAFKA_NODE_PRIVATE_IP:?provide a private interface address}:9092:9092"
+      - "${KAFKA_NODE_PRIVATE_IP:?provide a private interface address}:9093:9093"
+    environment:
+      KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID:?provide the persistent cluster ID}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if [ ! -f /var/lib/kafka/data/meta.properties ]; then
+          /opt/kafka/bin/kafka-storage.sh format --cluster-id "$$KAFKA_CLUSTER_ID" --config /etc/kafka/private/server.properties
+        fi
+        exec /opt/kafka/bin/kafka-server-start.sh /etc/kafka/private/server.properties
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - ${KAFKA_NODE_CONFIG_DIR:?provide a reviewed private configuration directory}:/etc/kafka/private:ro
+      - ${KAFKA_NODE_SECRET_DIR:?provide a private secrets directory}:/run/secrets/kafka:ro
+      - ./provision-topics.sh:/workspace/provision-topics.sh:ro
+      - ./topics.tsv:/workspace/topics.tsv:ro
+volumes:
+  kafka-data:

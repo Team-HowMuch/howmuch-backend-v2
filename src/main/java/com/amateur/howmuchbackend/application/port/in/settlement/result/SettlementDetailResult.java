@@ -24,8 +24,23 @@ public record SettlementDetailResult(
         PaymentSummary paymentSummary,
         LocalDateTime reminderNextAvailableAt,
         List<ParticipantPayment> participants,
-        List<SettlementItemResult> items
+        List<SettlementItemResult> items,
+        SettlementCategoryResult myCategory
 ) {
+    public SettlementDetailResult(
+            UUID settlementId, String title, long totalAmount,
+            SettlementAllocationType allocationType, SettlementStatus status,
+            LocalDateTime createdAt, LocalDateTime endedAt, ViewerRole viewerRole, String creatorName,
+            String bankName, String accountNumber, String institutionIconUrl,
+            PaymentInfo paymentInfo, PaymentSummary paymentSummary,
+            LocalDateTime reminderNextAvailableAt, List<ParticipantPayment> participants,
+            List<SettlementItemResult> items
+    ) {
+        this(settlementId, title, totalAmount, allocationType, status, createdAt, endedAt, viewerRole,
+                creatorName, bankName, accountNumber, institutionIconUrl, paymentInfo, paymentSummary,
+                reminderNextAvailableAt, participants, items, null);
+    }
+
     public SettlementDetailResult(
             UUID settlementId, String title, long totalAmount,
             SettlementAllocationType allocationType, SettlementStatus status,
@@ -36,7 +51,7 @@ public record SettlementDetailResult(
     ) {
         this(settlementId, title, totalAmount, allocationType, status, createdAt,
                 null, viewerRole, creatorName, bankName, accountNumber, institutionIconUrl,
-                paymentInfo, paymentSummary, reminderNextAvailableAt, participants, List.of());
+                paymentInfo, paymentSummary, reminderNextAvailableAt, participants, List.of(), null);
     }
 
     public enum ViewerRole {

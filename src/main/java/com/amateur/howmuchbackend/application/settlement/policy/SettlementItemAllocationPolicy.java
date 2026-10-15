@@ -1,11 +1,13 @@
 package com.amateur.howmuchbackend.application.settlement.policy;
 
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItem;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemAllocationFraction;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemSelection;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
+import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.springframework.stereotype.Component;
 
@@ -123,6 +125,39 @@ public class SettlementItemAllocationPolicy {
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_EXPENSE_TOTAL, exception);
         }
+    }
+
+    /**
+     * 받을 금액을 share 합계가 아니라 {@link #calculateRequestedReceivableAmount}로 구해야 하는 정산인지.
+     *
+     * <p>품목 정산은 몫이 모두 정해지기 전({@code REQUESTED}, {@code SUSPENDED})에 share가 비었거나 일부만 있다.
+     * 정산 상세, 정산 목록, AI 비서가 이 한 조건을 같이 써서 받을 금액이 화면마다 갈라지지 않게 한다.
+     */
+    public boolean usesRequestedReceivable(SettlementAllocationType allocationType, SettlementStatus status) {
+        return allocationType == SettlementAllocationType.ITEM_ALLOCATION
+                && (status == SettlementStatus.REQUESTED || status == SettlementStatus.SUSPENDED);
+    }
+
+    /**
+     * 품목 선택이 끝나기 전({@code REQUESTED}, {@code SUSPENDED}) 생성자가 받을 금액.
+     *
+     * <p>이 단계의 share는 이미 제출한 참여자 것만 있거나(할인이 있으면 전원이 제출할 때까지 없다)
+     * 아직 하나도 없어 share 합계로는 구할 수 없다. 영수증 총액에서 생성자 본인이 고른 몫을 뺀다.
+     * 정산 상세의 예상 금액, 정산 목록, AI 비서가 같은 값을 쓰도록 이 한 곳에서 계산한다.
+     * 생성자가 참여자에 없는 정산은 뺄 몫이 없으므로 호출자가 총액을 그대로 쓴다.
+     */
+    public long calculateRequestedReceivableAmount(
+            long totalAmount,
+            List<SettlementItem> items,
+            List<SettlementItemSelection> selections,
+            UUID creatorParticipantId,
+            long receiptDiscount,
+            long deliveryFee
+    ) {
+        return Math.subtractExact(
+                totalAmount,
+                calculatePersonalAmount(items, selections, creatorParticipantId, receiptDiscount, deliveryFee, false)
+        );
     }
 
     private long calculateBaseAmount(

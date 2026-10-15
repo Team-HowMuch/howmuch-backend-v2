@@ -19,11 +19,20 @@ public interface SettlementDepositStorePort {
             Collection<String> externalTransactionKeys
     );
 
-    List<PayableDepositCandidate> findUnfinishedPayableCandidatesByReceivingAccount(
+    /**
+     * Loads all AWAITING_DEPOSIT candidates and only the target settlement when it is REQUESTED.
+     */
+    List<PayableDepositCandidate> findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+            UUID targetSettlementId,
             Long creatorId,
             Long sourceAccountId,
             String organization,
             String accountNumber
+    );
+
+    /** Widget refresh considers every REQUESTED settlement on the account to reject ambiguous matches. */
+    List<PayableDepositCandidate> findWidgetPayableCandidatesByReceivingAccount(
+            Long creatorId, Long sourceAccountId, String organization, String accountNumber
     );
 
     void saveAll(List<SettlementDeposit> deposits);

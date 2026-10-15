@@ -16,6 +16,8 @@ public interface SettlementDepositDocs {
             description = "생성자가 수금 계좌의 최신 CODEF 수입 거래를 조회해 참여자 Share와 안전하게 대조합니다. "
                     + "입금자명은 유니코드·대소문자·공백 정규화 후 이름 전체가 거래 설명에 문자·숫자 경계로 포함되면 허용하며, "
                     + "이름 내부 공백과 공백으로 구분된 마지막 '입금'도 허용합니다. "
+                    + "새 입금은 생성자에게 정산명·입금자·남은 금액을 알리고 전체 완료는 모두 받았어요 알림으로 구분합니다. "
+                    + "정산 은행 조회는 서비스 공유·사용자 KST 일일 예산을 사용하며 총 100회, 자동 80회로 제한합니다. "
                     + "다른 이름의 부분 일치, 모호하거나 초과한 거래는 자동 반영하지 않으며 모든 납부 대상 Share가 확인되면 정산을 완료합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
@@ -42,12 +44,16 @@ public interface SettlementDepositDocs {
                     description = "SETTLEMENT_DEPOSIT_RECONCILIATION_NOT_AVAILABLE - 대조 불가 상태"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "429",
+                    description = "TOO_MANY_REQUEST - 정산 은행 조회의 일일 예산 소진"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "502",
                     description = "CODEF_UNMAPPED_ERROR 또는 CODEF_RESPONSE_INVALID - CODEF 응답 오류"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "503",
-                    description = "CODEF_UPSTREAM_UNAVAILABLE - CODEF 조회 실패"
+                    description = "CODEF_UPSTREAM_UNAVAILABLE - CODEF 조회 실패 또는 TEMPORARILY_UNAVAILABLE - 호출 예산 저장소 장애"
             )
     })
     ApiResponse<SettlementDepositSummaryWebResponse> reconcile(UUID settlementId);

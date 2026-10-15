@@ -13,7 +13,7 @@ import java.util.UUID;
         "settlementId", "title", "totalAmount", "allocationType", "status", "createdAt", "endedAt",
         "viewerRole", "creatorName", "bankName", "accountNumber", "institutionIconUrl",
         "paymentInfo", "paymentSummary",
-        "reminderNextAvailableAt", "participants", "items"
+        "reminderNextAvailableAt", "participants", "items", "myCategory"
 })
 public record SettlementDetailWebResponse(
         UUID settlementId,
@@ -43,7 +43,10 @@ public record SettlementDetailWebResponse(
         )
         LocalDateTime reminderNextAvailableAt,
         List<ParticipantPayment> participants,
-        List<SettlementItemWebResponse> items
+        List<SettlementItemWebResponse> items,
+        @Schema(nullable = true, description = "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. "
+                + "정산 요청 전, 분류 전, 기능 배포 전에 요청된 정산은 null이다. 미분류면 code가 UNCATEGORIZED다.")
+        SettlementMyCategoryWebResponse myCategory
 ) {
     public static SettlementDetailWebResponse from(SettlementDetailResult result) {
         return new SettlementDetailWebResponse(
@@ -67,7 +70,8 @@ public record SettlementDetailWebResponse(
                                 result.settlementId(), result.viewerRole(), payment
                         ))
                         .toList(),
-                result.items().stream().map(SettlementItemWebResponse::from).toList()
+                result.items().stream().map(SettlementItemWebResponse::from).toList(),
+                SettlementMyCategoryWebResponse.from(result.myCategory())
         );
     }
 

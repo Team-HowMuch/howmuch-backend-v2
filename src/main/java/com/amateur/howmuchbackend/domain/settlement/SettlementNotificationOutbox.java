@@ -32,7 +32,8 @@ public record SettlementNotificationOutbox(
 
     public SettlementNotificationOutbox {
         Objects.requireNonNull(id, "알림 Outbox ID는 필수입니다.");
-        Objects.requireNonNull(settlementId, "정산 ID는 필수입니다.");
+        if (settlementId == null && notificationId == null)
+            throw new IllegalArgumentException("정산 또는 사용자 알림 식별자가 필요합니다.");
         Objects.requireNonNull(recipientUserId, "알림 수신자 ID는 필수입니다.");
         Objects.requireNonNull(status, "알림 Outbox 상태는 필수입니다.");
         validateState(

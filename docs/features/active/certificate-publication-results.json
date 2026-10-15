@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-11",
+  "backendFullRegression": {
+    "suites": 223,
+    "tests": 1667,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "backendJavaScript": {
+    "tests": 35,
+    "failures": 0
+  },
+  "schema": "V46 and V47 supplied locally; published as separate migration PRs",
+  "electron": {
+    "unitTests": 26,
+    "failures": 0,
+    "macOsSmoke": "passed",
+    "productionAuditVulnerabilities": 0
+  },
+  "connectorCleanBuild": "passed",
+  "liveBank": "Woori QR approval -> BOUND -> encrypted user connection -> 2 account candidates; Kafka verified",
+  "mobileScreen": "pending",
+  "windowsNativeAcceptance": "pending",
+  "devProdDeployment": "not performed"
+}

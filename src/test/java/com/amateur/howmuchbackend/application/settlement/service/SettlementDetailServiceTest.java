@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementCategoryResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
@@ -41,6 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -82,6 +84,7 @@ class SettlementDetailServiceTest {
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementReminderCooldownReader cooldownReader;
     @Mock private BankCatalog bankCatalog;
+    @Mock private MySettlementCategoryReader myCategoryReader;
 
     private SettlementDetailService service;
     private SettlementItemAllocationPolicy itemAllocationPolicy;
@@ -102,7 +105,8 @@ class SettlementDetailServiceTest {
                 loadUserPort,
                 cooldownReader,
                 bankCatalog,
-                itemAllocationPolicy
+                itemAllocationPolicy,
+                myCategoryReader
         );
     }
 
@@ -139,6 +143,19 @@ class SettlementDetailServiceTest {
                         SettlementDetailResult.PaymentStatus.PAID
                 )
         );
+    }
+
+    @Test
+    @DisplayName("조회하는 회원 기준 내 카테고리를 함께 반환하고, 없으면 null이다")
+    void settlementDetail_myCategoryForViewer() {
+        givenSettlement(PAYER_ID);
+        SettlementCategoryResult food = new SettlementCategoryResult("FOOD", "식비", "식당", "food");
+        when(myCategoryReader.read(PAYER_ID, List.of(SETTLEMENT_ID))).thenReturn(Map.of(SETTLEMENT_ID, food));
+
+        assertThat(service.get(SETTLEMENT_ID).myCategory()).isEqualTo(food);
+
+        when(myCategoryReader.read(PAYER_ID, List.of(SETTLEMENT_ID))).thenReturn(Map.of());
+        assertThat(service.get(SETTLEMENT_ID).myCategory()).isNull();
     }
 
     @Test

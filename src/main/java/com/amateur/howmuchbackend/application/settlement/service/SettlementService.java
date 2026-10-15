@@ -11,18 +11,18 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateS
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementDeletionPolicy;
-import com.amateur.howmuchbackend.application.settlement.policy.SettlementSuspensionPolicy;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
+import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
@@ -32,9 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -49,13 +47,15 @@ public class SettlementService implements
     private final SaveSettlementPort saveSettlementPort;
     private final DeleteSettlementPort deleteSettlementPort;
     private final LoadSettlementSharePort loadSettlementSharePort;
-    private final LoadSettlementParticipantPort loadSettlementParticipantPort;
     private final SaveSettlementParticipantPort saveSettlementParticipantPort;
     private final SettlementItemAllocationStorePort settlementItemAllocationStorePort;
     private final SettlementDeletionPolicy settlementDeletionPolicy;
-    private final SettlementSuspensionPolicy settlementSuspensionPolicy;
     private final LoadUserPort loadUserPort;
     private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
+    private final SettlementDutchPayResumer dutchPayResumer;
+    private final SettlementSuspensionService suspensionService;
+    private final SettlementRevisionGuard revisionGuard;
+    private final DeleteSettlementSharePort deleteSettlementSharePort;
 
     @Override
     @Transactional
@@ -113,25 +113,8 @@ public class SettlementService implements
     }
 
     @Override
-    @Transactional
     public SettlementResult suspend(UUID settlementId) {
-        CurrentActor actor = currentActorPort.getCurrentActor();
-        Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        Settlement suspended = settlement.suspendManually(now);
-        var submissions = settlementItemAllocationStorePort.findAllSubmissions(settlementId);
-        Set<UUID> creatorParticipantIds = submissions.isEmpty()
-                ? Set.of()
-                : loadSettlementParticipantPort.findAllBySettlementId(settlementId).stream()
-                        .filter(participant -> participant.isLinkedTo(settlement.creatorId()))
-                        .map(SettlementParticipant::id)
-                        .collect(Collectors.toSet());
-        boolean hasNonCreatorSubmissions = submissions.stream()
-                .anyMatch(submission -> !creatorParticipantIds.contains(submission.participantId()));
-        settlementSuspensionPolicy.validate(
-                hasNonCreatorSubmissions
-        );
-        return SettlementResult.from(saveSettlementPort.update(suspended));
+        return suspensionService.suspend(settlementId);
     }
 
     @Override
@@ -141,6 +124,12 @@ public class SettlementService implements
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId, actor.userId());
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         Settlement resumed = settlement.resume(now);
+        if (settlement.allocationType() == SettlementAllocationType.DUTCH_PAY) {
+            resumed = dutchPayResumer.resume(resumed, now);
+        } else if (settlement.allocationType() == SettlementAllocationType.ITEM_ALLOCATION) {
+            revisionGuard.ensureUnpaid(settlementId);
+            deleteSettlementSharePort.deleteAllBySettlementId(settlementId);
+        }
         settlementItemAllocationStorePort.deleteAllSubmissions(settlementId);
         return SettlementResult.from(saveSettlementPort.update(resumed));
     }

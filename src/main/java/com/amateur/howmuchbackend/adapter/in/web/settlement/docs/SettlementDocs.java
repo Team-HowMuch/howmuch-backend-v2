@@ -64,6 +64,8 @@ public interface SettlementDocs {
                     + "참여자별 submitted는 품목 선택 제출 기록 여부를 나타냅니다. "
                     + "paymentInfo.deliveryFee는 전체 순 배달비, 참여자의 deliveryFeeShare는 품목 비율 배달비 몫입니다. "
                     + "전체 할인·배달비가 있으면 배분 확정 전 expectedAmount는 null이며 NOT_READY입니다. "
+                    + "myCategory는 조회하는 회원 기준 카테고리이며 회원이 고른 값, 없으면 자동 분류 값입니다. "
+                    + "분류 전이면 null입니다. "
                     + "내부 사용자 ID, 연락처와 계좌번호는 노출하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
@@ -99,7 +101,8 @@ public interface SettlementDocs {
                     + "completedAt은 기존 호환 필드로 완료 정산에만 값을 제공합니다. "
                     + "yearMonth(yyyy-MM)는 Asia/Seoul 기준 완료 월이며 COMPLETED 정산에만 적용되고 생략하면 전체 기간입니다. "
                     + "기존 상태·그룹 조건과 함께 적용하므로 월별 완료 정산은 status=COMPLETED 또는 ALL로 조회하세요. "
-                    + "status 생략 시 IN_PROGRESS가 유지되어 yearMonth와 함께 지정하면 빈 목록입니다.",
+                    + "status 생략 시 IN_PROGRESS가 유지되어 yearMonth와 함께 지정하면 빈 목록입니다. "
+                    + "myCategory는 조회하는 회원 기준 카테고리(회원이 고른 값, 없으면 자동 분류 값)이며 분류 전이면 null입니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -164,12 +167,15 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 수동 중단",
-            description = "현재 로그인한 생성자가 REQUESTED 상태의 정산을 SUSPENDED 상태로 중단합니다. "
-                    + "생성자 외 참여자가 품목 선택을 제출한 경우 중단할 수 없습니다. "
-                    + "생성자 본인만 제출했거나 제출 전 품목 선택만 저장한 경우에는 중단할 수 있습니다. "
+            description = "현재 로그인한 생성자가 REQUESTED 또는 AWAITING_DEPOSIT 상태의 정산을 SUSPENDED 상태로 중단합니다. "
+                    + "다른 참여자의 Share 또는 제출 기록이 있으면 CODEF 거래내역을 다시 조회해 입금 여부를 확인합니다. "
+                    + "부분·완납 입금이 확인되거나 미귀속 양수 입금이 있으면 중단할 수 없습니다. "
+                    + "중단 전에 은행 앱에서 시작한 송금은 취소되지 않을 수 있습니다. "
                     + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
                     + "허용되지 않은 상태면 INVALID_SETTLEMENT_STATUS_TRANSITION, "
-                    + "생성자 외 참여자의 제출이 있으면 SETTLEMENT_NOT_SUSPENDABLE을 반환합니다.",
+                    + "입금이 확인되었거나 귀속이 불명확하면 SETTLEMENT_NOT_SUSPENDABLE을 반환합니다. "
+                    + "재조회 중 상태·계좌·참여 Share 또는 제출 기록이 변경되면 CONCURRENT_UPDATE를 반환합니다. "
+                    + "CODEF 조회 실패와 추가 인증은 해당 조회 오류를 반환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -193,14 +199,15 @@ public interface SettlementDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
                     description = "INVALID_SETTLEMENT_STATUS_TRANSITION - 허용되지 않은 상태 변경, "
-                            + "SETTLEMENT_NOT_SUSPENDABLE - 생성자 외 참여자의 품목 선택 제출 기록 존재"
+                            + "SETTLEMENT_NOT_SUSPENDABLE - 입금 확인 또는 입금 귀속 불명확, "
+                            + "CONCURRENT_UPDATE - 재조회 중 상태·계좌·참여 Share 또는 제출 기록 변경"
             )
     })
     ApiResponse<SettlementWebResponse> suspendSettlement(UUID settlementId);
 
     @Operation(
             summary = "정산 재개",
-            description = "현재 로그인한 생성자가 SUSPENDED 상태의 정산을 REQUESTED 상태로 재개합니다. "
+            description = "현재 로그인한 생성자가 SUSPENDED 정산을 재개합니다. 품목 정산은 REQUESTED가 됩니다. 더치페이는 입금 기록이 없고 지출·전원 배분 합계가 정산 총액과 같을 때 Share를 다시 확정해 AWAITING_DEPOSIT으로 전환합니다. "
                     + "재개 시 참여자 제출 완료 표시는 초기화하고 기존 품목 선택은 유지합니다. "
                     + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
                     + "허용되지 않은 상태면 INVALID_SETTLEMENT_STATUS_TRANSITION을 반환합니다.",
@@ -226,7 +233,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION - 허용되지 않은 상태 변경"
+                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION, SETTLEMENT_REVISION_PAYMENT_EXISTS, SETTLEMENT_EXPENSE_TOTAL_MISMATCH, SETTLEMENT_SHARE_TOTAL_MISMATCH, SETTLEMENT_SHARE_AMOUNT_REQUIRED, SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE"
             )
     })
     ApiResponse<SettlementWebResponse> resumeSettlement(UUID settlementId);
@@ -571,7 +578,9 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 참여자 이름 수정",
-            description = "현재 로그인한 생성자가 DRAFT 정산의 참여자를 이 정산에서 부를 이름으로 바꿉니다. "
+            description = "현재 로그인한 생성자가 DRAFT·SUSPENDED 정산의 참여자를 이 정산에서 부를 이름으로 바꿉니다. "
+                    + "SUSPENDED에서는 확정 입금이 없을 때만 수정할 수 있으며 수정 후에도 중단 상태를 유지합니다. "
+                    + "재개 API를 호출해야 정산이 다시 진행됩니다. "
                     + "연락처에 없어 자동 생성된 참여자를 구분하기 위한 기능이며, "
                     + "가입 회원 참여자에게 적용해도 해당 회원의 계정 이름은 바뀌지 않습니다. "
                     + "정산 생성자 자신의 이름은 바꿀 수 없습니다.",
@@ -601,7 +610,8 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED"
+                    description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED "
+                            + "또는 SETTLEMENT_REVISION_PAYMENT_EXISTS"
             )
     })
     ApiResponse<SettlementParticipantWebResponse> renameSettlementParticipant(

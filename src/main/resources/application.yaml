@@ -10,6 +10,30 @@ spring:
       max-request-size: 6MB
   profiles:
     default: local
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.block.ms: ${KAFKA_MAX_BLOCK_MS:3000}
+        request.timeout.ms: ${KAFKA_REQUEST_TIMEOUT_MS:3000}
+        delivery.timeout.ms: ${KAFKA_DELIVERY_TIMEOUT_MS:8000}
+        max.request.size: 262144
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      max-poll-records: 1
+      properties:
+        allow.auto.create.topics: false
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+    admin:
+      auto-create: false
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -36,6 +60,26 @@ spring:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=60s
 howmuch:
+  certificate:
+    enabled: ${CERTIFICATE_ENABLED:false}
+    detailed-errors-enabled: ${CERTIFICATE_DETAILED_ERRORS_ENABLED:false}
+    kms-key-id: ${CERTIFICATE_KMS_KEY_ID:}
+    local-wrapping-key: ${CERTIFICATE_LOCAL_WRAPPING_KEY:}
+    confirmation-key: ${CERTIFICATE_CONFIRMATION_KEY:}
+  messaging:
+    kafka:
+      enabled: ${KAFKA_ENABLED:false}
+      publish-timeout: ${KAFKA_PUBLISH_TIMEOUT:5s}
+      processing-retry-interval: ${KAFKA_PROCESSING_RETRY_INTERVAL:1s}
+      concurrency: ${KAFKA_CONCURRENCY:1}
+      notification-delivery-topic: notification.delivery.v1
+      notification-delivery-dlt-topic: notification.delivery.v1.dlt
+      notification-delivery-group: howmuch-notification-delivery-v1
+      notification-consumer-enabled: ${NOTIFICATION_KAFKA_CONSUMER_ENABLED:false}
+      recap-published-topic: recap.published.v1
+      recap-published-dlt-topic: recap.published.v1.dlt
+      recap-published-group: howmuch-recap-notification-v1
+      recap-consumer-enabled: ${RECAP_KAFKA_CONSUMER_ENABLED:false}
   analytics:
     amplitude:
       api-key: ${AMPLITUDE_API_KEY:}
@@ -57,6 +101,16 @@ howmuch:
       ttl: ${SETTLEMENT_LINK_TTL:720h}
     participant-context:
       ttl: ${SETTLEMENT_PARTICIPANT_CONTEXT_TTL:30m}
+    bank-lookup-budget:
+      namespace: ${SETTLEMENT_BANK_LOOKUP_BUDGET_NAMESPACE:default}
+    transfer-reconciliation:
+      enabled: ${SETTLEMENT_TRANSFER_RECONCILIATION_ENABLED:true}
+      poll-interval: ${SETTLEMENT_TRANSFER_RECONCILIATION_POLL_INTERVAL:5s}
+      batch-size: ${SETTLEMENT_TRANSFER_RECONCILIATION_BATCH_SIZE:10}
+    category-classification:
+      enabled: ${SETTLEMENT_CATEGORY_CLASSIFICATION_ENABLED:true}
+      poll-interval: ${SETTLEMENT_CATEGORY_CLASSIFICATION_POLL_INTERVAL:5s}
+      batch-size: ${SETTLEMENT_CATEGORY_CLASSIFICATION_BATCH_SIZE:10}
     automatic-reminder:
       enabled: ${SETTLEMENT_AUTOMATIC_REMINDER_ENABLED:false}
       poll-interval: ${SETTLEMENT_AUTOMATIC_REMINDER_POLL_INTERVAL:1m}
@@ -73,10 +127,17 @@ howmuch:
       path: ${RECEIPT_OCR_PATH:/ocr/receipt}
       connect-timeout: ${RECEIPT_OCR_CONNECT_TIMEOUT:3s}
       read-timeout: ${RECEIPT_OCR_READ_TIMEOUT:20s}
+  recap:
+    generation:
+      enabled: ${RECAP_GENERATION_ENABLED:false}
+      poll-interval: 30s
+    image:
+      storage-dir: ${RECAP_IMAGE_STORAGE_DIR:./uploads/recap-images}
   profile:
     image:
       storage-dir: ${PROFILE_IMAGE_STORAGE_DIR:./uploads/profile-images}
   notification:
+    delivery-mode: ${NOTIFICATION_DELIVERY_MODE:DIRECT}
     firebase:
       enabled: ${FIREBASE_ENABLED:false}
     apns:
@@ -122,8 +183,9 @@ howmuch:
       read-timeout: ${TREASURER_LLM_READ_TIMEOUT:20s}
       openai:
         api-key: ${OPENAI_API_KEY:}
-        model: ${OPENAI_MODEL:gpt-4o-mini}
+        model: ${OPENAI_MODEL:gpt-6-luna}
         base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+        reasoning-effort: ${OPENAI_REASONING_EFFORT:low}
       gemini:
         api-key: ${GEMINI_API_KEY:}
         model: ${GEMINI_MODEL:gemini-flash-latest}

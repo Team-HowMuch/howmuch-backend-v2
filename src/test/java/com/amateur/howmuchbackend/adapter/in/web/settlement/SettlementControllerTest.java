@@ -26,6 +26,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementParticipantCandidateResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementContactCandidateResult;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementCategoryResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDetailResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
@@ -256,6 +257,7 @@ class SettlementControllerTest {
                 2,
                 0,
                 null,
+                400L,
                 null,
                 List.of(new SettlementListItemResult.GroupSummary(
                         10L,
@@ -277,6 +279,7 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
                         org.hamcrest.Matchers.equalTo("completedAt"), org.hamcrest.Matchers.nullValue())))
                 .andExpect(jsonPath("$.data[0].totalAmount").value(600))
+                .andExpect(jsonPath("$.data[0].receivableAmount").value(400))
                 .andExpect(jsonPath("$.data[0].participantCount").value(3))
                 .andExpect(jsonPath("$.data[0].payableParticipantCount").value(2))
                 .andExpect(jsonPath("$.data[0].completedParticipantCount").value(0))
@@ -294,7 +297,7 @@ class SettlementControllerTest {
                 SettlementListTab.PAY, SettlementListStatusFilter.COMPLETED, 10L, month)))
                 .thenReturn(List.of(new SettlementListItemResult(
                         SETTLEMENT_ID, SettlementStatus.COMPLETED, CREATED_AT, completedAt, completedAt,
-                        null, SettlementAllocationType.DUTCH_PAY, null, null, null, 600L,
+                        null, SettlementAllocationType.DUTCH_PAY, null, null, null, 600L, null,
                         "요청자", List.of())));
         mockMvc.perform(get("/api/v2/settlements")
                         .queryParam("tab", "PAY").queryParam("status", "COMPLETED")
@@ -311,7 +314,7 @@ class SettlementControllerTest {
                 SettlementListTab.RECEIVE, SettlementListStatusFilter.SUSPENDED, null, null)))
                 .thenReturn(List.of(new SettlementListItemResult(
                         SETTLEMENT_ID, SettlementStatus.SUSPENDED, CREATED_AT, suspendedAt, null,
-                        null, null, null, null, null, null, null, List.of())));
+                        null, null, null, null, null, null, null, null, List.of())));
 
         mockMvc.perform(get("/api/v2/settlements").queryParam("status", "SUSPENDED"))
                 .andExpect(status().isOk())
@@ -970,6 +973,49 @@ class SettlementControllerTest {
         mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.endedAt").value("2026-09-02T12:30:00"));
+    }
+
+    @Test
+    @DisplayName("목록과 상세에 내 카테고리를 코드·표시명·아이콘으로 내리고, 없으면 null로 내린다")
+    void myCategory_listAndDetail() throws Exception {
+        SettlementCategoryResult cafe = new SettlementCategoryResult("CAFE_SNACK", "카페·간식", "커피", "cafe-snack");
+        UUID uncategorizedId = UUID.fromString("0b7a9f1e-1d2c-4e3f-8a9b-0c1d2e3f4a5b");
+        when(getSettlementsUseCase.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                .thenReturn(List.of(
+                        new SettlementListItemResult(SETTLEMENT_ID, SettlementStatus.AWAITING_DEPOSIT, CREATED_AT,
+                                null, null, 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null,
+                                List.of(), cafe),
+                        new SettlementListItemResult(uncategorizedId, SettlementStatus.AWAITING_DEPOSIT, CREATED_AT,
+                                null, null, 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null,
+                                List.of())));
+
+        mockMvc.perform(get("/api/v2/settlements"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].myCategory.code").value("CAFE_SNACK"))
+                .andExpect(jsonPath("$.data[0].myCategory.name").value("카페·간식"))
+                .andExpect(jsonPath("$.data[0].myCategory.icon").value("cafe-snack"))
+                .andExpect(jsonPath("$.data[0].myCategory.description").doesNotExist())
+                .andExpect(jsonPath("$.data[1]").value(org.hamcrest.Matchers.hasEntry(
+                        org.hamcrest.Matchers.is("myCategory"), org.hamcrest.Matchers.nullValue())));
+
+        SettlementDetailResult base = detailResult();
+        when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(new SettlementDetailResult(
+                base.settlementId(), base.title(), base.totalAmount(), base.allocationType(), base.status(),
+                base.createdAt(), base.endedAt(), base.viewerRole(), base.creatorName(), base.bankName(),
+                base.accountNumber(), base.institutionIconUrl(), base.paymentInfo(), base.paymentSummary(),
+                base.reminderNextAvailableAt(), base.participants(), base.items(), cafe));
+
+        mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.myCategory.code").value("CAFE_SNACK"))
+                .andExpect(jsonPath("$.data.myCategory.icon").value("cafe-snack"));
+
+        when(getSettlementUseCase.get(SETTLEMENT_ID)).thenReturn(base);
+        mockMvc.perform(get("/api/v2/settlements/{settlementId}", SETTLEMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.hasEntry(
+                        org.hamcrest.Matchers.is("myCategory"), org.hamcrest.Matchers.nullValue())));
     }
 
     private SettlementDetailResult detailResult() {

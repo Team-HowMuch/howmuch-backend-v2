@@ -28,8 +28,8 @@ class SettlementOpenApiIntegrationTest {
     @Autowired private ObjectMapper objectMapper;
 
     @Test
-    @DisplayName("수동 중단의 생성자 외 참여자 제출 검사와 409 오류를 공개한다")
-    void settlementApi_suspendSubmissionConflict_documented() throws Exception {
+    @DisplayName("수동 중단의 입금 재조회와 409 오류를 공개한다")
+    void settlementApi_suspendDepositRefresh_documented() throws Exception {
         byte[] content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsByteArray();
@@ -38,9 +38,11 @@ class SettlementOpenApiIntegrationTest {
                 .path("/api/v2/settlements/{settlementId}/suspend").path("post");
 
         assertThat(operation.path("description").stringValue())
-                .contains("생성자 외 참여자", "생성자 본인만 제출했거나", "제출 전 품목 선택만 저장한 경우");
+                .contains("REQUESTED 또는 AWAITING_DEPOSIT", "CODEF 거래내역을 다시 조회",
+                        "미귀속 양수 입금", "은행 앱에서 시작한 송금은 취소되지 않을 수 있습니다");
         assertThat(operation.path("responses").path("409").path("description").stringValue())
-                .contains("SETTLEMENT_NOT_SUSPENDABLE", "INVALID_SETTLEMENT_STATUS_TRANSITION");
+                .contains("SETTLEMENT_NOT_SUSPENDABLE", "INVALID_SETTLEMENT_STATUS_TRANSITION",
+                        "CONCURRENT_UPDATE");
     }
 
     @Test
@@ -57,7 +59,7 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementListItemWebResponse",
                 "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
-                "completedParticipantCount", "amountToPay", "requesterName", "groups"
+                "completedParticipantCount", "amountToPay", "receivableAmount", "requesterName", "groups"
         );
         assertRequired(
                 document,
@@ -100,7 +102,8 @@ class SettlementOpenApiIntegrationTest {
         assertNullable(
                 document,
                 "SettlementListItemWebResponse",
-                "endedAt", "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay", "requesterName"
+                "endedAt", "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay",
+                "receivableAmount", "requesterName"
         );
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "endedAt");
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "completedAt");
@@ -138,6 +141,46 @@ class SettlementOpenApiIntegrationTest {
                 "SettlementBulkReminderWebResponse",
                 "nextAvailableAt"
         );
+    }
+
+    @Test
+    @DisplayName("내 카테고리를 nullable로, 카테고리 목록 API를 인증 없이 공개한다")
+    void settlementCategoryApi_documented() throws Exception {
+        byte[] content = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        JsonNode document = objectMapper.readTree(new String(content, StandardCharsets.UTF_8));
+
+        for (String schemaName : List.of("SettlementListItemWebResponse", "SettlementDetailWebResponse")) {
+            assertRequired(document, schemaName, "myCategory");
+            assertNullableReference(document, schemaName, "myCategory", "SettlementMyCategoryWebResponse");
+        }
+        assertRequired(document, "SettlementMyCategoryWebResponse", "code", "name", "icon");
+        assertRequired(document, "SettlementCategoryWebResponse", "code", "name", "description", "icon");
+        assertNullable(document, "SettlementCategoryWebResponse", "description");
+        assertThat(document.path("paths").path("/api/v2/settlement-categories").path("get").isMissingNode())
+                .isFalse();
+    }
+
+    /**
+     * 참조 타입 속성이 실제로 null을 허용하는지 본다. OAS 3.0이면 nullable: true, 3.1이면 참조와 null 타입이
+     * oneOf/anyOf의 서로 다른 갈래여야 한다. $ref 옆에 type: null만 붙은 형태는 "참조이면서 null"이라 null을 허용하지 않는다.
+     */
+    private void assertNullableReference(JsonNode document, String schemaName, String propertyName, String target) {
+        JsonNode property = schema(document, schemaName).path("properties").path(propertyName);
+        JsonNode nullableNode = property.path("nullable");
+        boolean nullable = nullableNode.isBoolean() && nullableNode.booleanValue()
+                && property.toString().contains("#/components/schemas/" + target + "\"");
+        for (String keyword : List.of("oneOf", "anyOf")) {
+            boolean reference = false;
+            boolean nullType = false;
+            for (JsonNode branch : property.path(keyword)) {
+                reference |= branch.path("$ref").toString().endsWith("/" + target + "\"");
+                nullType |= branch.path("type").toString().contains("null");
+            }
+            nullable |= reference && nullType;
+        }
+        assertThat(nullable).as("%s.%s nullable reference schema: %s", schemaName, propertyName, property).isTrue();
     }
 
     private void assertRequired(JsonNode document, String schemaName, String... propertyNames) {

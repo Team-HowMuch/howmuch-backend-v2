@@ -31,7 +31,7 @@ public class SettlementNotificationOutboxJpaEntity extends BaseTimeJpaEntity {
     @Column(name = "notification_id", updatable = false)
     private UUID notificationId;
 
-    @Column(name = "settlement_id", nullable = false, updatable = false)
+    @Column(name = "settlement_id", updatable = false)
     private UUID settlementId;
 
     @Column(name = "recipient_user_id", nullable = false, updatable = false)
@@ -57,6 +57,23 @@ public class SettlementNotificationOutboxJpaEntity extends BaseTimeJpaEntity {
     @Column(name = "last_failure_code", length = 40)
     private SettlementNotificationFailureCode lastFailureCode;
 
+    @Column(name = "delivery_generation", nullable = false)
+    private long deliveryGeneration;
+    @Column(name = "delivery_message_id", nullable = false)
+    private UUID deliveryMessageId = UUID.randomUUID();
+    @Column(name = "publication_status", nullable = false, length = 20)
+    private String publicationStatus = "PENDING";
+    @Column(name = "publication_attempt_count", nullable = false)
+    private int publicationAttemptCount;
+    @Column(name = "next_publication_at")
+    private LocalDateTime nextPublicationAt;
+    @Column(name = "publication_lease_token")
+    private UUID publicationLeaseToken;
+    @Column(name = "publication_lease_until")
+    private LocalDateTime publicationLeaseUntil;
+    @Column(name = "published_at")
+    private LocalDateTime publishedAt;
+
     public SettlementNotificationOutboxJpaEntity(SettlementNotificationOutbox event) {
         id = event.id();
         notificationId = event.notificationId();
@@ -68,7 +85,7 @@ public class SettlementNotificationOutboxJpaEntity extends BaseTimeJpaEntity {
     public void apply(SettlementNotificationOutbox event) {
         if (!Objects.equals(notificationId, event.notificationId())
                 || !id.equals(event.id())
-                || !settlementId.equals(event.settlementId())
+                || !Objects.equals(settlementId, event.settlementId())
                 || !recipientUserId.equals(event.recipientUserId())) {
             throw new IllegalArgumentException("알림 Outbox 식별자는 변경할 수 없습니다.");
         }
@@ -78,5 +95,16 @@ public class SettlementNotificationOutboxJpaEntity extends BaseTimeJpaEntity {
         processingStartedAt = event.processingStartedAt();
         completedAt = event.completedAt();
         lastFailureCode = event.lastFailureCode();
+    }
+
+    public void resetPublicationForRetry(LocalDateTime nextAt) {
+        deliveryGeneration++;
+        deliveryMessageId = UUID.randomUUID();
+        publicationStatus = "PENDING";
+        publicationAttemptCount = 0;
+        nextPublicationAt = nextAt;
+        publicationLeaseToken = null;
+        publicationLeaseUntil = null;
+        publishedAt = null;
     }
 }

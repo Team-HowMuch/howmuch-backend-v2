@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.ExternalConnectionPersistenceAdapter;
 import com.amateur.howmuchbackend.infra.codef.config.CodefConfigurationFingerprint;
+import com.amateur.howmuchbackend.support.SettlementDepositTestCleanup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -106,7 +107,10 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        jdbcTemplate.update("DELETE FROM settlement_deposits WHERE source_account_id = ?", accountId);
+        if (SettlementDepositTestCleanup.preserveAccount(jdbcTemplate, accountId)) {
+            return;
+        }
+        SettlementDepositTestCleanup.deleteDepositsForAccountWhenMutable(jdbcTemplate, accountId);
         jdbcTemplate.update("DELETE FROM settlement_payments WHERE payer_account_id = ?", accountId);
         jdbcTemplate.update("""
                 DELETE FROM settlement_expenses
@@ -272,12 +276,12 @@ class AccountTransactionPersistenceIntegrationTest {
     @Test
     @DisplayName("입금·납부 거래로 연결된 정산을 함께 조회하고 작성 중 정산은 제외한다")
     void settlements_depositOrPaymentLinked_loadedWithoutDrafts() {
-        String incomeKey = "d".repeat(64);
+        String incomeKey = "a" + UUID.randomUUID().toString().replace("-", "").repeat(2).substring(0, 63);
         String expenseKey = "e".repeat(64);
         String draftKey = "f".repeat(64);
-        UUID receivedSettlementId = UUID.fromString("13000000-0000-4000-8000-000000002001");
-        UUID paidSettlementId = UUID.fromString("13000000-0000-4000-8000-000000002002");
-        UUID draftSettlementId = UUID.fromString("13000000-0000-4000-8000-000000002003");
+        UUID receivedSettlementId = UUID.randomUUID();
+        UUID paidSettlementId = UUID.randomUUID();
+        UUID draftSettlementId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.of(2026, 8, 22, 0, 0);
         adapter.saveAllIgnoringDuplicates(List.of(
                 transaction(incomeKey, AccountTransactionType.INCOME, "6000", now),

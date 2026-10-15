@@ -116,6 +116,9 @@ class SettlementParticipantServiceTest {
     @Mock
     private SettlementAllocationDraftInvalidator allocationDraftInvalidator;
 
+    @Mock
+    private SettlementRevisionGuard revisionGuard;
+
     private SettlementParticipantService settlementParticipantService;
     private IdentityPolicy identityPolicy;
 
@@ -148,7 +151,8 @@ class SettlementParticipantServiceTest {
                 new SettlementParticipantModificationPolicy(),
                 new SettlementContactMatchQuotaPolicy(),
                 saveSettlementPort,
-                allocationDraftInvalidator
+                allocationDraftInvalidator,
+                revisionGuard
         );
         lenient().when(allocationDraftInvalidator.invalidate(any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));

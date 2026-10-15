@@ -6,7 +6,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @EnableConfigurationProperties({
         SettlementLinkProperties.class,
-        SettlementParticipantContextProperties.class
+        SettlementParticipantContextProperties.class,
+        SettlementBankLookupBudgetProperties.class
 })
 public class SettlementLinkConfig {
 }

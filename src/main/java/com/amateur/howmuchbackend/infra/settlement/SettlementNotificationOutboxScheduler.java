@@ -8,16 +8,18 @@ import io.micrometer.observation.ObservationRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
 @Slf4j
 @RequiredArgsConstructor
+@ConditionalOnExpression("${howmuch.settlement.notification-outbox.enabled:true}")
 @ConditionalOnProperty(
-        prefix = "howmuch.settlement.notification-outbox",
-        name = "enabled",
-        havingValue = "true",
+        prefix = "howmuch.notification",
+        name = "delivery-mode",
+        havingValue = "DIRECT",
         matchIfMissing = true
 )
 public class SettlementNotificationOutboxScheduler {
@@ -45,6 +47,7 @@ public class SettlementNotificationOutboxScheduler {
             record("retried", result.retried());
             record("failed", result.failed());
             record("ownership_lost", result.ownershipLost());
+            record("deferred", result.deferred());
             if (result.recovered() > 0 || result.claimed() > 0) {
                 log.info(
                         "Processed settlement notification Outbox batch. "

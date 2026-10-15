@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.account.service.AccountCredentialProtectionService;
+import com.amateur.howmuchbackend.application.notification.service.BusinessNotificationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
@@ -43,6 +44,10 @@ import java.math.BigDecimal;
 import java.time.ZoneOffset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Clock;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDepositReconciliationJobStorePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementBankLookupBudgetPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementTransferReconciliationPolicy;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -51,10 +56,13 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -77,6 +85,7 @@ class SettlementDepositServiceTest {
     private static final UUID OTHER_SHARE_ID = UUID.fromString("14bdff25-6157-4fac-bbf5-cb4605704aae");
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 8, 20, 0, 0);
 
+    @Mock private BusinessNotificationService notifications;
     @Mock private CurrentActorPort currentActorPort;
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private SaveSettlementPort saveSettlementPort;
@@ -112,20 +121,30 @@ class SettlementDepositServiceTest {
                 depositStorePort,
                 saveSettlementPort,
                 new SettlementDepositMatchingPolicy(),
-                reader
+                reader,
+                notifications,
+                mock(SettlementDepositReconciliationJobStorePort.class),
+                new SettlementTransferReconciliationPolicy(),
+                Clock.systemUTC()
         );
+        SettlementBankTransactionFetchService transactionFetchService =
+                new SettlementBankTransactionFetchService(
+                        bankTransactionPort,
+                        bankCatalog,
+                        credentialProtection,
+                        mock(SettlementBankLookupBudgetPort.class),
+                        Clock.systemUTC()
+                );
         service = new SettlementDepositService(
                 currentActorPort,
                 loadSettlementPort,
                 loadSnapshotPort,
                 connectionStorePort,
-                bankTransactionPort,
-                bankCatalog,
-                credentialProtection,
+                transactionFetchService,
                 writer,
                 reader
         );
-        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        lenient().when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
     }
 
     @Test
@@ -144,6 +163,8 @@ class SettlementDepositServiceTest {
         assertThat(result.confirmedAmount()).isEqualTo(6_000);
         assertThat(result.participantCount()).isOne();
         assertThat(result.completedParticipantCount()).isOne();
+        verify(notifications, never()).settlementDepositConfirmed(any(), any(), anyString(), anyLong(), any());
+        verify(notifications).settlementCompleted(any(Settlement.class), anyList(), any(LocalDateTime.class));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<SettlementDeposit>> captor = ArgumentCaptor.forClass(List.class);
@@ -175,7 +196,8 @@ class SettlementDepositServiceTest {
         accountUpdateOrder.verify(saveTransactionPort).saveAllIgnoringDuplicates(anyList());
         InOrder duplicateGuardOrder = inOrder(depositStorePort);
         duplicateGuardOrder.verify(depositStorePort)
-                .findUnfinishedPayableCandidatesByReceivingAccount(
+                .findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                        SETTLEMENT_ID,
                         CREATOR_ID,
                         7L,
                         "0020",
@@ -241,7 +263,8 @@ class SettlementDepositServiceTest {
     void settlementDeposit_ambiguousTransaction_notMatched() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("6000"));
-        when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
+        when(depositStorePort.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                SETTLEMENT_ID,
                 CREATOR_ID,
                 7L,
                 "0020",
@@ -265,8 +288,8 @@ class SettlementDepositServiceTest {
     void settlementDeposit_substringName_notConfirmed() {
         arrangeSettlement(SettlementStatus.AWAITING_DEPOSIT);
         arrangeFetchedTransaction(transaction("6000"));
-        when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
-                CREATOR_ID, 7L, "0020", "1002123456789"
+        when(depositStorePort.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                SETTLEMENT_ID, CREATOR_ID, 7L, "0020", "1002123456789"
         )).thenReturn(List.of(new SettlementDepositStorePort.PayableDepositCandidate(
                 SETTLEMENT_ID, PAYER_SHARE_ID, "선영", 6_000, CREATED_AT
         )));
@@ -427,7 +450,10 @@ class SettlementDepositServiceTest {
                 .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
         var writer = mock(SettlementDepositWriter.class);
         var queryService = new SettlementDepositService(currentActorPort, loadSettlementPort, loadSnapshotPort,
-                connectionStorePort, bankTransactionPort, bankCatalog, credentialProtection,
+                connectionStorePort,
+                new SettlementBankTransactionFetchService(bankTransactionPort, bankCatalog, credentialProtection,
+                        mock(SettlementBankLookupBudgetPort.class),
+                        Clock.systemUTC()),
                 writer, mock(SettlementDepositReader.class));
         try (var clock = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
             clock.when(() -> LocalDateTime.now(ZoneOffset.UTC)).thenReturn(now);
@@ -467,6 +493,38 @@ class SettlementDepositServiceTest {
         verify(saveSettlementPort, times(1)).update(any(Settlement.class));
     }
 
+    @Test
+    @DisplayName("REQUESTED 중단 재조회는 현재 정산 ID를 후보 범위로 전달한다")
+    void suspensionRefresh_requestedSettlement_scopesPayableCandidatesToTarget() {
+        arrangeSettlement(SettlementStatus.REQUESTED);
+        when(connectionStorePort.findActiveByUserId(CREATOR_ID))
+                .thenReturn(Optional.of(new ExternalConnection(3L, CREATOR_ID, "CID-1")));
+        when(bankTransactionPort.fetch(
+                eq("CID-1"),
+                eq("0020"),
+                eq("1002123456789"),
+                any(LocalDate.class),
+                any(LocalDate.class),
+                eq(null)
+        )).thenReturn(List.of());
+
+        service.refreshForSuspension(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                snapshot(),
+                SettlementStatus.REQUESTED,
+                CREATED_AT.plusHours(2)
+        );
+
+        verify(depositStorePort).findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                SETTLEMENT_ID,
+                CREATOR_ID,
+                7L,
+                "0020",
+                "1002123456789"
+        );
+    }
+
     private void arrangeSettlement(SettlementStatus status) {
         when(loadSettlementPort.findById(SETTLEMENT_ID))
                 .thenReturn(Optional.of(settlement(status)));
@@ -488,7 +546,8 @@ class SettlementDepositServiceTest {
         when(loadTransactionPort.findIncomeByAccountIdBetween(eq(7L), eq(CREATED_AT), any()))
                 .thenReturn(List.of(), List.of(savedTransaction));
         when(depositStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
-        when(depositStorePort.findUnfinishedPayableCandidatesByReceivingAccount(
+        when(depositStorePort.findUnfinishedPayableCandidatesForSettlementByReceivingAccount(
+                SETTLEMENT_ID,
                 CREATOR_ID,
                 7L,
                 "0020",

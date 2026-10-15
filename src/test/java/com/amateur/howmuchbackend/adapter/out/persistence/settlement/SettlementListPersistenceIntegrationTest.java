@@ -20,6 +20,7 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
+import com.amateur.howmuchbackend.support.SettlementDepositTestCleanup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,30 +75,42 @@ class SettlementListPersistenceIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private RequestedItemReceivableFactsPersistenceAdapter requestedItemReceivableFactsAdapter;
+
     private Long creatorId;
     private Long payerId;
     private Long otherUserId;
     private Long connectionId;
     private Long accountId;
+    private Long creatorConnectionId;
+    private Long receiveAccountId;
     private UUID receiveSettlementId;
     private LocalDateTime receiveCreatedAt;
     private UUID receiveCreatorParticipantId;
     private UUID receivePayerParticipantId;
     private UUID paySettlementId;
     private UUID payPayerParticipantId;
+    private final List<UUID> fixtureSettlementIds = new ArrayList<>();
+    private final List<Long> fixtureGroupIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
-        cleanupFixtures();
+        fixtureSettlementIds.clear();
+        fixtureGroupIds.clear();
         String uniqueKey = UUID.randomUUID().toString().replace("-", "");
         creatorId = insertUser("list-creator-" + uniqueKey, "받는 사람");
         payerId = insertUser("list-payer-" + uniqueKey, "낼 사람");
         otherUserId = insertUser("list-other-" + uniqueKey, "다른 사람");
         connectionId = insertConnection(otherUserId, uniqueKey);
         accountId = insertAccount(otherUserId, connectionId, uniqueKey);
+        creatorConnectionId = insertConnection(creatorId, uniqueKey + "-receive");
+        receiveAccountId = insertAccount(creatorId, creatorConnectionId, uniqueKey + "-receive");
 
         receiveSettlementId = UUID.randomUUID();
         paySettlementId = UUID.randomUUID();
+        fixtureSettlementIds.add(receiveSettlementId);
+        fixtureSettlementIds.add(paySettlementId);
         SettlementJpaEntity receiveSettlement = new SettlementJpaEntity(new Settlement(
                 receiveSettlementId,
                 creatorId,
@@ -255,6 +270,7 @@ class SettlementListPersistenceIntegrationTest {
     @DisplayName("작성하다 만 초안은 목록에 나오지 않는다")
     void settlementList_draft_excluded() {
         UUID draftId = UUID.randomUUID();
+        fixtureSettlementIds.add(draftId);
         settlementJpaRepository.saveAndFlush(new SettlementJpaEntity(new Settlement(
                 draftId,
                 creatorId,
@@ -631,74 +647,163 @@ class SettlementListPersistenceIntegrationTest {
         );
     }
 
+    @Test
+    @DisplayName("RECEIVE는 생성자 본인 Share를 뺀 Share 합계를 함께 조회하고 PAY는 비운다")
+    void receiveSettlement_receivableShareAmount_excludesCreatorShare() {
+        insertReceiveRequest(600L);
+        settlementShareJpaRepository.saveAndFlush(new SettlementShareJpaEntity(
+                UUID.randomUUID(),
+                receiveSettlementId,
+                receiveCreatorParticipantId,
+                100L,
+                CREATED_AT
+        ));
+
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null))
+                .singleElement()
+                .extracting(SettlementListReadModel::receivableShareAmount)
+                .isEqualTo(600L);
+        assertThat(settlementPersistenceAdapter.findAll(
+                payerId, SettlementListTab.PAY, SettlementListStatusFilter.IN_PROGRESS, null, null))
+                .singleElement()
+                .extracting(SettlementListReadModel::receivableShareAmount)
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("선택 대기 품목 정산의 목록 받을 금액은 영수증 총액에서 생성자가 고른 몫을 뺀다")
+    void receiveSettlement_requestedItemAllocation_receivableAmountExcludesCreatorPick() {
+        givenRequestedReceiptCreatorPickedCola();
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+
+        var result = settlementListService.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null));
+
+        assertThat(result).singleElement().satisfies(item -> {
+            assertThat(item.totalAmount()).isEqualTo(12_000L);
+            assertThat(item.receivableAmount()).isEqualTo(10_000L);
+            assertThat(item.amountToPay()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("받을 금액 계산 재료를 정산 ID 목록으로 한 번에 불러오고 없는 정산은 뺀다")
+    void requestedItemReceivableFacts_loadedForSettlementIds() {
+        givenRequestedReceiptCreatorPickedCola();
+        UUID missingId = UUID.randomUUID();
+
+        var facts = requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of(
+                receiveSettlementId, missingId, paySettlementId, receiveSettlementId));
+
+        assertThat(facts).extracting(fact -> fact.settlementId())
+                .containsExactly(receiveSettlementId, paySettlementId);
+        assertThat(facts.get(0)).satisfies(receipt -> {
+            assertThat(receipt.totalAmount()).isEqualTo(12_000L);
+            assertThat(receipt.creatorParticipantId()).isEqualTo(receiveCreatorParticipantId);
+            assertThat(receipt.items()).extracting(item -> item.name()).containsExactly("피자", "콜라");
+            assertThat(receipt.selections()).singleElement()
+                    .satisfies(selection -> assertThat(selection.participantId()).isEqualTo(receiveCreatorParticipantId));
+            assertThat(receipt.expenses()).singleElement()
+                    .satisfies(expense -> assertThat(expense.amount()).isEqualTo(12_000L));
+        });
+        assertThat(facts.get(1)).satisfies(dutchPay -> {
+            assertThat(dutchPay.creatorParticipantId()).isNotNull();
+            assertThat(dutchPay.items()).isEmpty();
+            assertThat(dutchPay.selections()).isEmpty();
+        });
+    }
+
+    @Test
+    @DisplayName("삭제된 정산의 계산 재료는 불러오지 않는다")
+    void requestedItemReceivableFacts_deletedSettlement_excluded() {
+        givenRequestedReceiptCreatorPickedCola();
+        jdbcTemplate.update("UPDATE settlements SET deleted_at = ? WHERE id = ?",
+                CREATED_AT.plusDays(1), receiveSettlementId);
+
+        assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of(receiveSettlementId)))
+                .isEmpty();
+        assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("저장된 행이 도메인 규칙과 맞지 않는 정산은 계산 재료에서 빼고 목록은 Share 합계로 대체한다")
+    void requestedItemReceivable_brokenRow_skippedWithoutFailingList() {
+        givenRequestedReceiptCreatorPickedCola();
+        // 영수증이 아닌 지출에는 할인이 있을 수 없다. DB는 막지 않지만 도메인 변환에서 거부된다.
+        jdbcTemplate.update("""
+                INSERT INTO settlement_expenses (
+                    id, settlement_id, source, description, amount, discount,
+                    display_order, created_at, updated_at
+                ) VALUES (?, ?, 'MANUAL', '깨진 지출', 1000, 100, 1, ?, ?)
+                """, UUID.randomUUID(), receiveSettlementId, CREATED_AT, CREATED_AT);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+
+        assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(
+                java.util.List.of(receiveSettlementId, paySettlementId)))
+                .extracting(fact -> fact.settlementId())
+                .containsExactly(paySettlementId);
+        assertThat(settlementListService.get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                .singleElement()
+                .satisfies(item -> assertThat(item.receivableAmount()).isZero());
+    }
+
+    /** 총액 12,000원 영수증(피자 10,000원, 콜라 2,000원)에서 생성자가 콜라를 골랐고 참여자는 아직 고르지 않았다. */
+    private void givenRequestedReceiptCreatorPickedCola() {
+        jdbcTemplate.update("""
+                UPDATE settlements
+                   SET status = 'REQUESTED', allocation_type = 'ITEM_ALLOCATION', total_amount = 12000
+                 WHERE id = ?
+                """, receiveSettlementId);
+        UUID expenseId = UUID.randomUUID();
+        UUID pizzaId = UUID.randomUUID();
+        UUID colaId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO settlement_expenses (
+                    id, settlement_id, source, description, amount,
+                    display_order, created_at, updated_at
+                ) VALUES (?, ?, 'MANUAL', '영수증', 12000, 0, ?, ?)
+                """, expenseId, receiveSettlementId, CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_items (
+                    id, settlement_id, expense_id, name, quantity, amount,
+                    display_order, created_at, updated_at
+                ) VALUES (?, ?, ?, '피자', 1, 10000, 0, ?, ?), (?, ?, ?, '콜라', 1, 2000, 1, ?, ?)
+                """, pizzaId, receiveSettlementId, expenseId, CREATED_AT, CREATED_AT,
+                colaId, receiveSettlementId, expenseId, CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_item_selections (
+                    id, settlement_id, item_id, participant_id, fraction,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'ONE', ?, ?)
+                """, UUID.randomUUID(), receiveSettlementId, colaId, receiveCreatorParticipantId,
+                CREATED_AT, CREATED_AT);
+    }
+
     private void cleanupFixtures() {
-        jdbcTemplate.update("""
-                DELETE FROM settlement_payments
-                 WHERE settlement_id IN (
-                     SELECT id FROM settlements
-                      WHERE creator_id IN (
-                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                      )
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM settlement_deposits
-                 WHERE settlement_id IN (
-                     SELECT id FROM settlements
-                      WHERE creator_id IN (
-                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                      )
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM account_transactions
-                 WHERE account_id IN (
-                     SELECT id FROM account_records
-                      WHERE user_id IN (
-                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                      )
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM settlements
-                 WHERE creator_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM group_members
-                 WHERE group_id IN (
-                     SELECT id FROM groups
-                      WHERE creator_id IN (
-                          SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                      )
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM groups
-                 WHERE creator_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM accounts
-                 WHERE user_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM account_records
-                 WHERE user_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM external_connections
-                 WHERE user_id IN (
-                     SELECT id FROM users WHERE identity_key LIKE 'list-%'
-                 )
-                """);
-        jdbcTemplate.update("DELETE FROM users WHERE identity_key LIKE 'list-%'");
+        if (fixtureSettlementIds.stream().anyMatch(id ->
+                SettlementDepositTestCleanup.preserveSettlement(jdbcTemplate, id))) {
+            return;
+        }
+        fixtureSettlementIds.forEach(id -> SettlementDepositTestCleanup.deleteDepositsWhenMutable(jdbcTemplate, id));
+        fixtureSettlementIds.forEach(id -> jdbcTemplate.update(
+                "DELETE FROM settlement_payments WHERE settlement_id = ?", id));
+        fixtureSettlementIds.forEach(id -> jdbcTemplate.update("DELETE FROM settlements WHERE id = ?", id));
+        fixtureGroupIds.forEach(id -> jdbcTemplate.update("DELETE FROM group_members WHERE group_id = ?", id));
+        fixtureGroupIds.forEach(id -> jdbcTemplate.update("DELETE FROM groups WHERE id = ?", id));
+        if (accountId != null) {
+            jdbcTemplate.update("DELETE FROM account_transactions WHERE account_id = ?", accountId);
+        }
+        if (receiveAccountId != null) {
+            jdbcTemplate.update("DELETE FROM account_transactions WHERE account_id = ?", receiveAccountId);
+        }
+        if (creatorId != null && payerId != null && otherUserId != null) {
+            jdbcTemplate.update("DELETE FROM accounts WHERE user_id IN (?, ?, ?)", creatorId, payerId, otherUserId);
+            jdbcTemplate.update("DELETE FROM account_records WHERE user_id IN (?, ?, ?)", creatorId, payerId, otherUserId);
+            jdbcTemplate.update("DELETE FROM external_connections WHERE user_id IN (?, ?, ?)", creatorId, payerId, otherUserId);
+            jdbcTemplate.update("DELETE FROM users WHERE id IN (?, ?, ?)", creatorId, payerId, otherUserId);
+        }
     }
 
     private RequestFixture insertReceiveRequest(long shareAmount) {
@@ -707,7 +812,7 @@ class SettlementListPersistenceIntegrationTest {
                     settlement_id, source_account_id, organization,
                     account_number_ciphertext, account_holder, created_at
                 ) VALUES (?, ?, '0020', 'test-snapshot', '받는 사람', ?)
-                """, receiveSettlementId, accountId, CREATED_AT);
+                """, receiveSettlementId, receiveAccountId, CREATED_AT);
         UUID shareId = UUID.randomUUID();
         settlementShareJpaRepository.saveAndFlush(new SettlementShareJpaEntity(
                 shareId,
@@ -737,7 +842,7 @@ class SettlementListPersistenceIntegrationTest {
                         RETURNING id
                         """,
                 Long.class,
-                accountId,
+                receiveAccountId,
                 randomExternalKey(),
                 amount,
                 CREATED_AT.plusHours(3),
@@ -753,7 +858,7 @@ class SettlementListPersistenceIntegrationTest {
                 UUID.randomUUID(),
                 receiveSettlementId,
                 shareId,
-                accountId,
+                receiveAccountId,
                 transactionId,
                 CREATED_AT.plusHours(3)
         );
@@ -764,7 +869,7 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     private Long insertGroup(String name, Long ownerId) {
-        return jdbcTemplate.queryForObject("""
+        Long groupId = jdbcTemplate.queryForObject("""
                         INSERT INTO groups (
                             name, owner_id, invite_code, status, creator_id,
                             created_at, updated_at
@@ -780,6 +885,8 @@ class SettlementListPersistenceIntegrationTest {
                 CREATED_AT,
                 CREATED_AT
         );
+        fixtureGroupIds.add(groupId);
+        return groupId;
     }
 
     private void insertGroupMember(Long groupId, Long userId, String status) {

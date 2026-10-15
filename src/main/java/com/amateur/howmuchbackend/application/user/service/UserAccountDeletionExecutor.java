@@ -40,6 +40,7 @@ public class UserAccountDeletionExecutor {
     private final UserPushTargetStorePort userPushTargetStorePort;
     private final ExternalConnectionStorePort externalConnectionStorePort;
     private final ProfileImageStoragePort profileImageStoragePort;
+    private final com.amateur.howmuchbackend.application.port.out.recap.DeleteOwnRecapsPort deleteOwnRecapsPort;
     private final PasswordEncoder passwordEncoder;
     private final UserDeletionPolicy userDeletionPolicy;
 
@@ -64,6 +65,7 @@ public class UserAccountDeletionExecutor {
                 passwordEncoder.encode(UUID.randomUUID().toString()),
                 now
         ));
+        deleteOwnRecapsPort.deleteOwnedRecaps(user.id(), now);
         userPushTargetStorePort.clear(user.id(), now);
         externalConnectionStorePort.clearCredentialsByUserId(user.id());
         schedulePostCommitCleanup(user.id(), previousAvatarFileName);

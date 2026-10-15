@@ -164,7 +164,7 @@ public class SettlementReceiptExpenseWriter {
         );
     }
 
-    private List<SettlementItem> toItems(
+    static List<SettlementItem> toItems(
             UUID settlementId,
             UUID expenseId,
             List<ExtractReceiptItemsPort.ReceiptItem> extractedItems,

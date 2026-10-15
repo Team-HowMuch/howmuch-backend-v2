@@ -10,6 +10,7 @@ import com.amateur.howmuchbackend.domain.notification.UserNotification;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.support.SettlementDepositTestCleanup;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -95,11 +96,15 @@ class NotificationInboxIntegrationTest {
     void cleanUp() {
         reset(outbox);
         redis.delete("settlement:reminder:" + settlement + ":" + participant);
-        jdbc.update("DELETE FROM settlement_deposits WHERE settlement_id=?", settlement);
-        jdbc.update("DELETE FROM settlements WHERE id=?", settlement);
-        jdbc.update("DELETE FROM account_transactions WHERE account_id=?", account);
-        jdbc.update("DELETE FROM account_records WHERE id=?", account);
-        jdbc.update("DELETE FROM users WHERE id IN (?,?)", creator, recipient);
+        jdbc.update("DELETE FROM settlement_notification_outbox WHERE recipient_user_id IN (?,?)", creator, recipient);
+        jdbc.update("DELETE FROM user_notifications WHERE recipient_user_id IN (?,?)", creator, recipient);
+        if (!SettlementDepositTestCleanup.preserveSettlement(jdbc, settlement)) {
+            SettlementDepositTestCleanup.deleteDepositsWhenMutable(jdbc, settlement);
+            jdbc.update("DELETE FROM settlements WHERE id=?", settlement);
+            jdbc.update("DELETE FROM account_transactions WHERE account_id=?", account);
+            jdbc.update("DELETE FROM account_records WHERE id=?", account);
+            jdbc.update("DELETE FROM users WHERE id IN (?,?)", creator, recipient);
+        }
     }
 
     @Test
@@ -360,7 +365,7 @@ class NotificationInboxIntegrationTest {
         Long transaction = jdbc.queryForObject("""
                 INSERT INTO account_transactions(account_id,external_transaction_key,transaction_type,amount,transacted_at)
                 VALUES (?,?,'INCOME',1,?) RETURNING id
-                """, Long.class, account, "a".repeat(64), NOW);
+                """, Long.class, account, UUID.randomUUID().toString().replace("-", "").repeat(2), NOW);
         jdbc.update("INSERT INTO settlement_deposits(id,settlement_id,share_id,source_account_id,account_transaction_id,matched_at) VALUES (?,?,?,?,?,?)",
                 UUID.randomUUID(), settlement, share, account, transaction, NOW);
         assertThat(due()).isEmpty();
