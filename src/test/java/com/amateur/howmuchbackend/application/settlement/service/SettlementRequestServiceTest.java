@@ -12,12 +12,14 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementRequestPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementCategoryJobStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDutchPayAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
 import com.amateur.howmuchbackend.application.notification.service.NotificationRecorder;
 import com.amateur.howmuchbackend.domain.notification.UserNotification;
 import com.amateur.howmuchbackend.domain.notification.NotificationType;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementCategoryClassificationPolicy;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementRequestPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
@@ -82,6 +84,7 @@ class SettlementRequestServiceTest {
     @Mock private SaveSettlementRequestPort saveSettlementRequestPort;
     @Mock private LockGroupMemberRosterPort lockGroupMemberRosterPort;
     @Mock private NotificationRecorder notificationRecorder;
+    @Mock private SettlementCategoryJobStorePort categoryJobStorePort;
 
     private SettlementRequestService service;
 
@@ -101,7 +104,9 @@ class SettlementRequestServiceTest {
                 linkTokenPort,
                 saveSettlementRequestPort,
                 lockGroupMemberRosterPort,
-                notificationRecorder
+                notificationRecorder,
+                categoryJobStorePort,
+                new SettlementCategoryClassificationPolicy()
         );
     }
 

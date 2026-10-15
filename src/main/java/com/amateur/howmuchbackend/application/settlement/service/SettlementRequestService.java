@@ -13,11 +13,13 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementRequestPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementCategoryJobStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementDutchPayAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
 import com.amateur.howmuchbackend.application.notification.service.NotificationRecorder;
 import com.amateur.howmuchbackend.application.notification.service.NotificationMessages;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementCategoryClassificationPolicy;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementRequestPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
@@ -25,6 +27,7 @@ import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
+import com.amateur.howmuchbackend.domain.settlement.SettlementExpense;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
@@ -62,6 +65,8 @@ public class SettlementRequestService implements RequestSettlementUseCase {
     private final SaveSettlementRequestPort saveSettlementRequestPort;
     private final LockGroupMemberRosterPort lockGroupMemberRosterPort;
     private final NotificationRecorder notificationRecorder;
+    private final SettlementCategoryJobStorePort categoryJobStorePort;
+    private final SettlementCategoryClassificationPolicy categoryPolicy;
 
     @Override
     @Transactional
@@ -77,10 +82,11 @@ public class SettlementRequestService implements RequestSettlementUseCase {
         User creator = loadUserPort.findById(actor.userId())
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
 
+        List<SettlementExpense> expenses = loadSettlementExpensePort.findAllBySettlementId(settlement.id());
         List<SettlementShare> shares = requestPolicy.prepareShares(
                 settlement,
                 participants,
-                loadSettlementExpensePort.findAllBySettlementId(settlement.id()),
+                expenses,
                 settlement.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
                         ? loadSettlementItemPort.findAllBySettlementId(settlement.id())
                         : List.of(),
@@ -111,6 +117,11 @@ public class SettlementRequestService implements RequestSettlementUseCase {
 
         Settlement saved = saveSettlementPort.update(finalized);
         saveSettlementRequestPort.save(snapshot, shares, link, issuedToken.rawToken());
+        if (categoryPolicy.classifiable(expenses)) {
+            categoryJobStorePort.schedule(saved.id(), now);
+        } else {
+            categoryJobStorePort.saveUncategorized(saved.id(), now);
+        }
         createParticipationNotifications(
                 saved.id(),
                 saved.creatorId(),
