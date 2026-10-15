@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -149,11 +150,14 @@ public class InquiryParser {
     }
 
     private InquiryIntent intentOf(String compact, boolean[] wordStarts) {
-        if (containsAny(compact, UNPAID_TO_ME)) {
-            return InquiryIntent.RECEIVE_SETTLEMENTS;
-        }
-        int sendAt = intentIndex(compact, wordStarts, SEND_STRONG, SEND_WEAK, SETTLEMENT_CONTEXT);
+        // "아직 송금 안 한 사람"의 "송금"은 보낼 정산이 아니다. 그 구간을 지운 문장으로 보낼 방향을 찾는다.
+        int unpaidAt = earliestIndex(compact, UNPAID_TO_ME);
+        String sendScope = unpaidAt < 0 ? compact : blankOut(compact, UNPAID_TO_ME);
+        int sendAt = intentIndex(sendScope, wordStarts, SEND_STRONG, SEND_WEAK, SETTLEMENT_CONTEXT);
         int receiveAt = intentIndex(compact, wordStarts, RECEIVE_STRONG, RECEIVE_WEAK, SETTLEMENT_CONTEXT);
+        if (unpaidAt >= 0) {
+            receiveAt = receiveAt < 0 ? unpaidAt : Math.min(receiveAt, unpaidAt);
+        }
         // 한쪽 방향만 물으면 그 방향 목록이 우선순위 순으로 나간다. 방향이 없거나 둘 다면 전체 우선순위다.
         // 마감·지출·진행 상태·영수증을 직접 말하면 그 의도가 이긴다. "지출 정리해줘"는 지출 요약이다.
         if ((sendAt < 0) == (receiveAt < 0)
@@ -163,6 +167,9 @@ public class InquiryParser {
                 && !containsAny(compact, STATUS_STRONG)
                 && !containsAny(compact, GUIDE_KEYWORDS)) {
             return InquiryIntent.PRIORITY_SETTLEMENTS;
+        }
+        if (unpaidAt >= 0) {
+            return InquiryIntent.RECEIVE_SETTLEMENTS;
         }
         if (containsAny(compact, DUE_KEYWORDS) && sendAt < 0 && receiveAt < 0) {
             return InquiryIntent.DUE_SETTLEMENTS;
@@ -191,6 +198,20 @@ public class InquiryParser {
             return InquiryIntent.SETTLEMENT_STATUS;
         }
         return InquiryIntent.UNKNOWN;
+    }
+
+    /** 길이를 유지한 채 표현 구간을 지운다. 어절 시작 위치 배열을 그대로 쓰기 위해서다. */
+    private String blankOut(String compact, List<String> phrases) {
+        char[] chars = compact.toCharArray();
+        for (String phrase : phrases) {
+            String needle = compactPhrase(phrase);
+            int from = compact.indexOf(needle);
+            while (from >= 0) {
+                Arrays.fill(chars, from, from + needle.length(), '#');
+                from = compact.indexOf(needle, from + 1);
+            }
+        }
+        return new String(chars);
     }
 
     private boolean asksPriority(String compact, boolean[] wordStarts) {
