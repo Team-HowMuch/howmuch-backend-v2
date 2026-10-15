@@ -7,8 +7,22 @@ import java.util.regex.Pattern;
 
 final class TreasurerLlmResponseParser {
     private static final Pattern FENCE = Pattern.compile("(?i)```(?:json|markdown|text)?");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    static final int MAX_ERROR_BODY_LENGTH = 200;
 
     private TreasurerLlmResponseParser() {
+    }
+
+    /**
+     * 실패 응답 본문을 로그에 남길 만큼만 줄인다. 거절 사유(지원하지 않는 파라미터 등)를 보려는 용도이며,
+     * 요청에 담은 질문은 응답 오류 본문에 들어가지 않는다.
+     */
+    static String errorSummary(String body) {
+        if (!StringUtils.hasText(body)) {
+            return "";
+        }
+        String compact = WHITESPACE.matcher(body).replaceAll(" ").strip();
+        return compact.length() <= MAX_ERROR_BODY_LENGTH ? compact : compact.substring(0, MAX_ERROR_BODY_LENGTH) + "...";
     }
 
     static String openAiContent(JsonNode response) {
