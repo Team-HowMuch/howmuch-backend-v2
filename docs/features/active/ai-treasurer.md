@@ -1,7 +1,7 @@
 # Feature Plan: AI 총무 (개인 정산 비서)
 
 - Status: Implemented (initial scope)
-- Last updated: 2026-10-14 (서비스 안내)
+- Last updated: 2026-10-15 (OpenAI 모델 GPT-6 Luna 전환, #553)
 - Related issue: [#187](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/187), F-GRO-004
 - Related ADR: N/A
 
@@ -111,7 +111,9 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 - 의도 분류는 키워드 (`InquiryParser`). 금액·건수는 서버가 계산한다.
 - 의도 키워드는 강함과 약함으로 나뉜다. `남았`·`들어와`처럼 일상어로도 쓰이는 약한 표현은 정산·모임·돈 같은 맥락 단어가 질문에 함께 있을 때만 의도로 본다.
 - 세부 의도 분류에 실패하면 `InquiryScopePolicy`가 서비스 관련성을 다시 판정한다. 무관이면 범위를 안내한다. 관련이면 서비스 안내 문서로 답하고, 안내가 실패하면 되묻는다. 상세는 `treasurer-question-scope.md`(#317), `treasurer-service-guide.md` 참고.
-- `answer` 문장만 OpenAI(`gpt-4o-mini`) 또는 Gemini(`gemini-flash-latest`)가 생성한다. `TREASURER_LLM_PROVIDER=none` 이거나 키/호출 실패면 템플릿 문장을 쓴다.
+- `answer` 문장만 OpenAI(`gpt-6-luna`) 또는 Gemini(`gemini-flash-latest`)가 생성한다. `TREASURER_LLM_PROVIDER=none` 이거나 키/호출 실패면 템플릿 문장을 쓴다.
+- OpenAI 기본 모델은 추론 모델 `gpt-6-luna`다(#553). 추론 모델은 `temperature`를 받지 않으므로 두 OpenAI 요청(조회 답변 문장, 서비스 안내) 모두 `temperature`를 보내지 않고 `reasoning_effort`를 보낸다. 값은 `OPENAI_REASONING_EFFORT`이며 설정하지 않으면 `low`, 빈 값으로 두면 요청에서 뺀다. 추론 모델이 아닌 모델(`OPENAI_MODEL`)로 바꿀 때는 `OPENAI_REASONING_EFFORT=`로 비워야 한다. 비우지 않으면 OpenAI가 400으로 거절하고 템플릿 문장으로 되돌아간다. 추론 강도를 올리면 응답이 길어지므로 `TREASURER_LLM_READ_TIMEOUT`(기본 20초)도 함께 늘린다.
+- OpenAI·Gemini가 요청을 거절하면 상태 코드와 오류 본문 앞 200자를 경고 로그(`Treasurer LLM call failed` / `Treasurer guide LLM call failed`)에 남긴다. 질문 원문은 남기지 않는다.
 - 기존 `LoadSettlementListPort`는 title이 없어 treasurer 전용 조회를 둔다. 목록 HTTP 계약은 변경하지 않는다.
 - 내부 시각은 UTC 저장값을 쓰되, `이번 달`은 Asia/Seoul 달력이다.
 - 받을 금액은 생성자 본인 share를 제외한 금액이다.
@@ -148,6 +150,8 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 - LLM 응답 파서·어댑터 단위 테스트
 - treasurer native query 영속성 통합 테스트
 - `./gradlew compileJava test` (관련 테스트)
+- #553 GPT-6 Luna 전환(2026-10-15, develop `470c73a` 기준): `compose.test.yml`(PostgreSQL 18 · Redis 8) + `scripts/test.sh test --tests '*Treasurer*' --tests '*OpenAiChatRequestTest'`로 22개 클래스 169건 실행, 실패 0, 건너뜀 1(실제 키가 필요한 로컬 평가 `TreasurerGuideLiveEvaluation`, 저장소에 포함하지 않음). 신규 `OpenAiChatRequestTest` 4건, `TreasurerLlmPropertiesTest` 4건(빈 `reasoning-effort`가 비활성으로 바인딩되는지 포함).
+- 아직 확인하지 않은 것: 실제 `gpt-6-luna` 호출. `response_format: json_object`와 `system` 역할을 Luna가 받는지는 키를 받은 뒤 로컬 평가 30문항으로 확인한다.
 
 ## 8. Commit boundaries
 
