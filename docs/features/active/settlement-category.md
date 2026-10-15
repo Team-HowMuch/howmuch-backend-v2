@@ -1,6 +1,6 @@
 # Feature Plan: 정산 카테고리
 
-- Status: In progress (#555 저장 구조 머지, #556 자동 분류 진행 중)
+- Status: In progress (#555 저장 구조·#556 자동 분류 머지, #557 표시 진행 중)
 - Last updated: 2026-10-15
 - Related issue: [#555](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/555) 저장 구조, [#556](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/556) 자동 분류, [#557](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/557) 표시, [#558](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/558) 내 카테고리 수정
 - Related ADR: N/A
@@ -127,7 +127,8 @@ Result: SettlementCategoryResult (myCategory)
 | `SettlementCategoryJobStorePort` | 작업 생성(대기·즉시 미분류), 선점, 만료 회수, 결과·재시도·포기·삭제 저장 | 정산 요청, 분류 처리 | `SettlementCategoryJdbcAdapter` (#556) |
 | `LoadSettlementCategoryRulePort` | 사용 중인 규칙 | 분류 처리 | `SettlementCategoryRuleJdbcAdapter` (#556) |
 | `ClassifySettlementCategoryPort` | 가게 이름·거래명·품목명 → 후보 중 하나 또는 모름 | 분류 처리 | `SettlementCategoryLlmAdapter` (#556) |
-| 내 카테고리 조회·저장 Port | 회원별 수정값 | 목록·상세·수정 | 영속 어댑터 (#557, #558) |
+| `LoadMySettlementCategoryPort` | 정산 여러 건의 내 카테고리 코드(회원 수정값 → 분류 완료 기본값)를 한 번에 | 목록·상세 | `SettlementUserCategoryJdbcAdapter` (#557) |
+| 내 카테고리 저장 Port | 회원별 수정값 저장 | 수정 | 영속 어댑터 (#558) |
 
 Port 이름은 능력 기준(ADR 0003)으로 정했다. 작업 Port는 입금 대조 작업 Port(`SettlementDepositReconciliationJobStorePort`)처럼 생성과 선점을 한 Port에 둔다. AI 분류 Port 뒤에 모델을 두므로, 다른 모델로 바꿀 때 Application 코드는 그대로다.
 
@@ -147,10 +148,15 @@ Port 이름은 능력 기준(ADR 0003)으로 정했다. 작업 Port는 입금 �
 
 ```text
 GET /api/v2/settlement-categories (#557)
-Response: [{ code, name, description, icon }] 정산용 18개, sort_order 순
+Response: [{ code, name, description, icon }] 정산용 18개(미분류 포함), sort_order 순. description은 null일 수 있다
+Authentication: 없음(은행 목록 GET /api/v3/banks와 같이 공개, 2026-10-15 결정)
 
 GET /api/v2/settlements, GET /api/v2/settlements/{id} (#557)
 Response: 기존 응답 + myCategory: { code, name, icon } | null
+  - 회원이 고른 값 → 분류가 끝난 기본 값 → null(요청 전·분류 전·배포 전 정산)
+  - 미분류는 code UNCATEGORIZED. 코드가 정산용 카테고리 목록에 없으면(공통 코드에서 내린 경우) null
+  - 목록은 정산 수와 관계없이 쿼리 1번(정산 ID IN 조회), 상세는 1건 조회
+  - 비회원 정산 링크 응답에는 넣지 않는다
 
 PUT /api/v2/settlements/{settlementId}/my-category (#558)
 Request: { categoryCode }
@@ -194,7 +200,8 @@ Authentication: 회원
 - 분류 대기 중이나 처리 중에 정산이 삭제(소프트 삭제)되면 작업 행을 지운다. 끝 상태 저장 직전 정산 행을 `FOR SHARE`로 읽으므로 그동안 정산 삭제는 잠깐 기다린다(#556)
 - 새 스케줄러 스레드 1개(`settlement-category-classification-`)
 - 정산 목록·상세 응답에 nullable 필드 추가(#557). 기존 필드 변경 없음
-- 새 엔드포인트 2개(#557, #558)
+- 새 엔드포인트 2개(#557, #558). 카테고리 목록 API는 `SecurityConfig`에 GET 공개 한 줄을 추가한다(#557)
+- `SettlementListItemResult`, `SettlementDetailResult`에 `myCategory`를 추가하고 기존 인자 수의 생성자를 남긴다(기존 호출·테스트 유지)
 - 정산 삭제 시 카테고리 행은 FK로 함께 지워진다
 
 ## 7. Implementation plan
@@ -203,6 +210,13 @@ Authentication: 회원
 2. #556 자동 분류: 작업 생성, 분류 Policy, 규칙·AI 어댑터, 스케줄러
 3. #557 카테고리 목록 API, 목록·상세 `myCategory`
 4. #558 내 카테고리 수정 API
+
+### Expected commit boundaries (#557)
+
+- `docs(settlement)`: Feature Plan 갱신
+- `feat(settlement)`: 카테고리 목록 API, 내 카테고리 조회 Port·어댑터, 목록·상세 `myCategory`, 공개 경로
+- `test(settlement)`: 카탈로그·조회·서비스·컨트롤러·OpenAPI 테스트
+- `docs(settlement)`: 검증 결과
 
 ### Expected commit boundaries (#556)
 
@@ -218,7 +232,7 @@ Authentication: 회원
 ```bash
 docker compose -f compose.test.yml up -d
 DOCKER_HOST=unix://$HOME/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_RYUK_DISABLED=true \
-DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test REDIS_HOST=127.0.0.1 REDIS_PORT=16379 bash scripts/test.sh test --tests '*SettlementCategory*' --tests '*SettlementRequestServiceTest'
+DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test REDIS_HOST=127.0.0.1 REDIS_PORT=16379 bash scripts/test.sh test --tests '*SettlementCategory*' --tests '*SettlementRequestServiceTest' --tests '*SettlementListServiceTest' --tests '*SettlementDetailServiceTest' --tests '*SettlementControllerTest' --tests '*SettlementOpenApiIntegrationTest' --tests '*SettlementUserCategory*' --tests '*MySettlementCategory*'
 ```
 
 ### Completion criteria
@@ -235,6 +249,10 @@ DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test D
 - [x] 여러 워커가 동시에 선점해도 한 작업은 한 번만 가져간다
 - [x] LLM 미설정·거절·잘못된 응답에서 정산 흐름이 실패하지 않는다
 - [x] 늦게 끝난 처리는 다른 워커가 회수한 작업의 결과를 덮어쓰지 않는다
+- [ ] 카테고리 목록 API가 정산용 18개를 순서대로 주고, 확장용 5개는 주지 않는다. 로그인 없이 호출된다
+- [ ] 목록·상세의 `myCategory`가 수정값 → 자동 분류 값 → null 순서로 정해진다
+- [ ] 같은 정산을 다른 회원이 조회하면 각자의 카테고리가 보인다
+- [ ] OpenAPI 문서에 `myCategory`가 nullable로 표시된다
 
 ### Results
 
