@@ -231,6 +231,44 @@ class SettlementCategoryJdbcAdapterIntegrationTest {
     }
 
     @Test
+    @DisplayName("처리 중에 정산이 삭제되면 결과를 남기지 않고 작업을 지운다")
+    void deletedDuringProcessing_discardsInsteadOfFinishing() {
+        UUID classified = settlement();
+        jobs.schedule(classified, NOW);
+        var claim = jobs.claimDue(NOW, NOW.plusMinutes(2)).orElseThrow();
+        jdbc.update("UPDATE settlements SET deleted_at = ? WHERE id = ?", NOW.plusSeconds(30), classified);
+
+        assertThat(jobs.classify(claim, "FOOD", SettlementCategorySource.AI, NOW.plusMinutes(1))).isFalse();
+        assertThat(count(classified)).isZero();
+
+        UUID givenUp = settlement();
+        jobs.schedule(givenUp, NOW);
+        LocalDateTime at = NOW;
+        SettlementCategoryJob last = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            last = jobs.claimDue(at, at.plusMinutes(2)).orElseThrow();
+            if (attempt < 3) {
+                jobs.retry(last, at, SettlementCategoryFailureCode.PROVIDER_ERROR, at);
+            }
+        }
+        jdbc.update("UPDATE settlements SET deleted_at = ? WHERE id = ?", at, givenUp);
+
+        assertThat(jobs.giveUp(last, SettlementCategoryFailureCode.PROVIDER_ERROR, at)).isFalse();
+        assertThat(count(givenUp)).isZero();
+    }
+
+    @Test
+    @DisplayName("살아 있는 정산이면 삭제 확인 뒤 그대로 결과를 저장한다")
+    void liveSettlement_finishesNormally() {
+        UUID id = settlement();
+        jobs.schedule(id, NOW);
+        var claim = jobs.claimDue(NOW, NOW.plusMinutes(2)).orElseThrow();
+
+        assertThat(jobs.classify(claim, "FOOD", SettlementCategorySource.RULE, NOW.plusMinutes(1))).isTrue();
+        assertThat(row(id)).containsEntry("status", "CLASSIFIED").containsEntry("source", "RULE");
+    }
+
+    @Test
     @DisplayName("사용 중인 분류 규칙을 읽는다")
     void rules_loadActive() {
         assertThat(rules.findActive()).extracting(SettlementCategoryRule::keyword)
@@ -246,6 +284,11 @@ class SettlementCategoryJdbcAdapterIntegrationTest {
                 """, id, userId, NOW, NOW);
         settlements.add(id);
         return id;
+    }
+
+    private int count(UUID id) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM settlement_categories WHERE settlement_id = ?",
+                Integer.class, id);
     }
 
     private Map<String, Object> row(UUID id) {
