@@ -73,6 +73,8 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v3/banks")
                                         .permitAll()
+                                        .requestMatchers(HttpMethod.GET, "/api/v2/settlement-categories")
+                                        .permitAll()
                                         .requestMatchers(
                                                 org.springframework.http.HttpMethod.POST,
                                                 "/api/v2/certificate-pairings",

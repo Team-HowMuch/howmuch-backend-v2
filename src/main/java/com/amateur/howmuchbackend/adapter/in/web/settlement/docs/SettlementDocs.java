@@ -64,6 +64,8 @@ public interface SettlementDocs {
                     + "참여자별 submitted는 품목 선택 제출 기록 여부를 나타냅니다. "
                     + "paymentInfo.deliveryFee는 전체 순 배달비, 참여자의 deliveryFeeShare는 품목 비율 배달비 몫입니다. "
                     + "전체 할인·배달비가 있으면 배분 확정 전 expectedAmount는 null이며 NOT_READY입니다. "
+                    + "myCategory는 조회하는 회원 기준 카테고리이며 회원이 고른 값, 없으면 자동 분류 값입니다. "
+                    + "분류 전이면 null입니다. "
                     + "내부 사용자 ID, 연락처와 계좌번호는 노출하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
@@ -99,7 +101,8 @@ public interface SettlementDocs {
                     + "completedAt은 기존 호환 필드로 완료 정산에만 값을 제공합니다. "
                     + "yearMonth(yyyy-MM)는 Asia/Seoul 기준 완료 월이며 COMPLETED 정산에만 적용되고 생략하면 전체 기간입니다. "
                     + "기존 상태·그룹 조건과 함께 적용하므로 월별 완료 정산은 status=COMPLETED 또는 ALL로 조회하세요. "
-                    + "status 생략 시 IN_PROGRESS가 유지되어 yearMonth와 함께 지정하면 빈 목록입니다.",
+                    + "status 생략 시 IN_PROGRESS가 유지되어 yearMonth와 함께 지정하면 빈 목록입니다. "
+                    + "myCategory는 조회하는 회원 기준 카테고리(회원이 고른 값, 없으면 자동 분류 값)이며 분류 전이면 null입니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({

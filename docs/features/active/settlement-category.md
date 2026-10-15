@@ -1,6 +1,6 @@
 # Feature Plan: 정산 카테고리
 
-- Status: In progress (#555 저장 구조 머지, #556 자동 분류 진행 중)
+- Status: In progress (#555 저장 구조·#556 자동 분류 머지, #557 표시 진행 중)
 - Last updated: 2026-10-15
 - Related issue: [#555](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/555) 저장 구조, [#556](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/556) 자동 분류, [#557](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/557) 표시, [#558](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/558) 내 카테고리 수정
 - Related ADR: N/A
@@ -127,7 +127,8 @@ Result: SettlementCategoryResult (myCategory)
 | `SettlementCategoryJobStorePort` | 작업 생성(대기·즉시 미분류), 선점, 만료 회수, 결과·재시도·포기·삭제 저장 | 정산 요청, 분류 처리 | `SettlementCategoryJdbcAdapter` (#556) |
 | `LoadSettlementCategoryRulePort` | 사용 중인 규칙 | 분류 처리 | `SettlementCategoryRuleJdbcAdapter` (#556) |
 | `ClassifySettlementCategoryPort` | 가게 이름·거래명·품목명 → 후보 중 하나 또는 모름 | 분류 처리 | `SettlementCategoryLlmAdapter` (#556) |
-| 내 카테고리 조회·저장 Port | 회원별 수정값 | 목록·상세·수정 | 영속 어댑터 (#557, #558) |
+| `LoadMySettlementCategoryPort` | 정산 여러 건의 내 카테고리 코드(회원 수정값 → 분류 완료 기본값)를 한 번에 | 목록·상세 | `SettlementUserCategoryJdbcAdapter` (#557) |
+| 내 카테고리 저장 Port | 회원별 수정값 저장 | 수정 | 영속 어댑터 (#558) |
 
 Port 이름은 능력 기준(ADR 0003)으로 정했다. 작업 Port는 입금 대조 작업 Port(`SettlementDepositReconciliationJobStorePort`)처럼 생성과 선점을 한 Port에 둔다. AI 분류 Port 뒤에 모델을 두므로, 다른 모델로 바꿀 때 Application 코드는 그대로다.
 
@@ -147,10 +148,15 @@ Port 이름은 능력 기준(ADR 0003)으로 정했다. 작업 Port는 입금 �
 
 ```text
 GET /api/v2/settlement-categories (#557)
-Response: [{ code, name, description, icon }] 정산용 18개, sort_order 순
+Response: [{ code, name, description, icon }] 정산용 18개(미분류 포함), sort_order 순. description은 null일 수 있다
+Authentication: 없음(은행 목록 GET /api/v3/banks와 같이 공개, 2026-10-15 결정)
 
 GET /api/v2/settlements, GET /api/v2/settlements/{id} (#557)
 Response: 기존 응답 + myCategory: { code, name, icon } | null
+  - 회원이 고른 값 → 분류가 끝난 기본 값 → null(요청 전·분류 전·배포 전 정산)
+  - 미분류는 code UNCATEGORIZED. 코드가 정산용 카테고리 목록에 없으면(공통 코드에서 내린 경우) null
+  - 목록은 정산 수와 관계없이 쿼리 1번(정산 ID IN 조회), 상세는 1건 조회
+  - 비회원 정산 링크 응답에는 넣지 않는다
 
 PUT /api/v2/settlements/{settlementId}/my-category (#558)
 Request: { categoryCode }
@@ -194,7 +200,9 @@ Authentication: 회원
 - 분류 대기 중이나 처리 중에 정산이 삭제(소프트 삭제)되면 작업 행을 지운다. 끝 상태 저장 직전 정산 행을 `FOR SHARE`로 읽으므로 그동안 정산 삭제는 잠깐 기다린다(#556)
 - 새 스케줄러 스레드 1개(`settlement-category-classification-`)
 - 정산 목록·상세 응답에 nullable 필드 추가(#557). 기존 필드 변경 없음
-- 새 엔드포인트 2개(#557, #558)
+- 새 엔드포인트 2개(#557, #558). 카테고리 목록 API는 `SecurityConfig`에 GET 공개 한 줄을 추가한다(#557)
+- `SwaggerConfig`에 OpenAPI 후처리(`nullableReferenceCustomizer`)를 추가한다. `@Schema(nullable = true)` 객체 속성이 OAS 3.1에서 `$ref` 옆 `type: null`(null 불허)로 나오는 것을 `anyOf: [참조, null]`로 바꾼다. 현재 해당 속성은 `myCategory` 두 곳뿐이다(#557)
+- `SettlementListItemResult`, `SettlementDetailResult`에 `myCategory`를 추가하고 기존 인자 수의 생성자를 남긴다(기존 호출·테스트 유지)
 - 정산 삭제 시 카테고리 행은 FK로 함께 지워진다
 
 ## 7. Implementation plan
@@ -203,6 +211,13 @@ Authentication: 회원
 2. #556 자동 분류: 작업 생성, 분류 Policy, 규칙·AI 어댑터, 스케줄러
 3. #557 카테고리 목록 API, 목록·상세 `myCategory`
 4. #558 내 카테고리 수정 API
+
+### Expected commit boundaries (#557)
+
+- `docs(settlement)`: Feature Plan 갱신
+- `feat(settlement)`: 카테고리 목록 API, 내 카테고리 조회 Port·어댑터, 목록·상세 `myCategory`, 공개 경로
+- `test(settlement)`: 카탈로그·조회·서비스·컨트롤러·OpenAPI 테스트
+- `docs(settlement)`: 검증 결과
 
 ### Expected commit boundaries (#556)
 
@@ -218,7 +233,7 @@ Authentication: 회원
 ```bash
 docker compose -f compose.test.yml up -d
 DOCKER_HOST=unix://$HOME/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_RYUK_DISABLED=true \
-DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test REDIS_HOST=127.0.0.1 REDIS_PORT=16379 bash scripts/test.sh test --tests '*SettlementCategory*' --tests '*SettlementRequestServiceTest'
+DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test DB_PASSWORD=howmuch_test REDIS_HOST=127.0.0.1 REDIS_PORT=16379 bash scripts/test.sh test --tests '*SettlementCategory*' --tests '*SettlementRequestServiceTest' --tests '*SettlementListServiceTest' --tests '*SettlementDetailServiceTest' --tests '*SettlementControllerTest' --tests '*SettlementOpenApiIntegrationTest' --tests '*SettlementUserCategory*' --tests '*MySettlementCategory*'
 ```
 
 ### Completion criteria
@@ -235,6 +250,10 @@ DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test D
 - [x] 여러 워커가 동시에 선점해도 한 작업은 한 번만 가져간다
 - [x] LLM 미설정·거절·잘못된 응답에서 정산 흐름이 실패하지 않는다
 - [x] 늦게 끝난 처리는 다른 워커가 회수한 작업의 결과를 덮어쓰지 않는다
+- [x] 카테고리 목록 API가 정산용 18개를 순서대로 주고, 확장용 5개는 주지 않는다. 로그인 없이 호출된다
+- [x] 목록·상세의 `myCategory`가 수정값 → 자동 분류 값 → null 순서로 정해진다
+- [x] 같은 정산을 다른 회원이 조회하면 각자의 카테고리가 보인다
+- [x] OpenAPI 문서에 `myCategory`가 nullable로 표시된다
 
 ### Results
 
@@ -267,3 +286,13 @@ DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test D
 - 독립 리뷰(작업을 보지 않은 별도 에이전트): P1 없음. 반영: 켜진 설정 컨텍스트 테스트, 유니코드 공백·제어 문자 처리, 글자 단위 자르기, 응답 봉투 파싱 실패를 잘못된 응답으로 분류, 후보 코드 형식 필터, 선점 상실 로그, 과거 시각 테스트 행 정리. 반영하지 않음: 401·400 같은 재시도해도 소용없는 4xx도 3번 시도한다(키 설정 오류는 서버 로그로 드러남). 결제 내역 거래명에 이체 상대 이름이 들어갈 수 있다는 점은 위 External API에 적었다.
 - 실제 Luna 호출과 앱 화면 확인은 개발 서버 배포 뒤에 한다.
 - PR #560 Codex 리뷰 반영: LLM 응답을 기다리는 사이 정산이 소프트 삭제되면 분류 완료로 남아 지워지지 않던 문제. 분류 완료·포기 저장 직전에 정산 행을 공유 잠금으로 읽고, 삭제됐으면 작업을 지운다. 재시도로 돌리는 경우는 다음 폴링에서 삭제를 보고 지우므로 그대로 둔다.
+
+#### #557 카테고리 목록 API와 내 카테고리
+
+2026-10-15, 로컬(macOS, compose.test.yml). XML에서 클래스별로 확인한 숫자다.
+
+- 전체 `scripts/test.sh test`(2090건): 처음 실행에서 새 테스트 2건만 실패, 기존 테스트는 모두 통과.
+  - `SettlementOpenApiIntegrationTest`: `myCategory`가 `{"type":"null","$ref":...}`로 생성돼 null을 허용하지 않는 스키마였다. `SwaggerConfig` 후처리로 `anyOf: [참조, null]`로 고쳤다.
+  - `SettlementMyCategoryHttpIntegrationTest`: 생성자 상세는 받는 계좌 스냅샷을 복호화하는데 테스트용 가짜 계좌라 404였다(카테고리와 무관). 상세 확인은 참여자 두 명(바꾼 회원 `FOOD`, 안 바꾼 회원 `CAFE_SNACK`)으로 바꿨다.
+- 고친 뒤 관련 18개 클래스 180건 실행, 실패 0: `SettlementOpenApiIntegrationTest` 3, `GroupOpenApiIntegrationTest` 1, `SettlementMyCategoryHttpIntegrationTest` 1, `SettlementCategoryApiIntegrationTest` 1, `SettlementUserCategoryJdbcAdapterIntegrationTest` 1, `SettlementCategoryCatalogTest` 1, `MySettlementCategoryReaderTest` 3, `SettlementControllerTest` 39, `SettlementListServiceTest` 23, `SettlementDetailServiceTest` 29, `SettlementRequestServiceTest` 6, #556 분류·스키마 테스트 72.
+- 독립 리뷰: P1 없음. 반영: OpenAPI nullable 참조 검증을 엄격하게(위 수정으로 이어짐), 정산 ID를 배열 바인드 하나로(`= ANY(?)`), 실제 HTTP로 회원별 카테고리 확인. 남김: 공통 코드의 아이콘 키(`attr1`)를 비우면 필수 필드 `icon`이 비어 나간다(시드는 모두 채워져 있음).

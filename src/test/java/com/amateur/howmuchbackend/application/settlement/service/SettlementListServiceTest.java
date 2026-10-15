@@ -9,6 +9,7 @@ import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSettlementsCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementCategoryResult;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementListItemResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadRequestedItemReceivableFactsPort;
@@ -26,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -48,13 +50,41 @@ class SettlementListServiceTest {
     @Mock
     private LoadRequestedItemReceivableFactsPort loadRequestedItemReceivableFactsPort;
 
+    @Mock
+    private MySettlementCategoryReader myCategoryReader;
+
     private SettlementListService service() {
         return new SettlementListService(
                 currentActorPort,
                 loadSettlementListPort,
                 new RequestedItemReceivableCalculator(
-                        loadRequestedItemReceivableFactsPort, new SettlementItemAllocationPolicy())
+                        loadRequestedItemReceivableFactsPort, new SettlementItemAllocationPolicy()),
+                myCategoryReader
         );
+    }
+
+    @Test
+    @DisplayName("목록 전체의 내 카테고리를 한 번에 읽어 항목마다 붙이고, 없는 항목은 null이다")
+    void settlementList_myCategoriesReadOnceForAllItems() {
+        SettlementListService service = service();
+        UUID other = UUID.fromString("5d1b0d4f-8f0b-4a51-9a52-7c9c8f9d0e11");
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.PAY, SettlementListStatusFilter.IN_PROGRESS,
+                null, null)).thenReturn(List.of(readModel(SETTLEMENT_ID), readModel(other)));
+        SettlementCategoryResult cafe = new SettlementCategoryResult("CAFE_SNACK", "카페·간식", null, "cafe-snack");
+        when(myCategoryReader.read(USER_ID, List.of(SETTLEMENT_ID, other))).thenReturn(Map.of(SETTLEMENT_ID, cafe));
+
+        var result = service.get(new GetSettlementsCommand(
+                SettlementListTab.PAY, SettlementListStatusFilter.IN_PROGRESS, null, null));
+
+        assertThat(result).extracting(SettlementListItemResult::myCategory).containsExactly(cafe, null);
+        verify(myCategoryReader).read(USER_ID, List.of(SETTLEMENT_ID, other));
+    }
+
+    private static SettlementListReadModel readModel(UUID settlementId) {
+        return new SettlementListReadModel(settlementId, SettlementStatus.AWAITING_DEPOSIT,
+                LocalDateTime.of(2026, 8, 13, 0, 0), null, null, 600L, SettlementAllocationType.DUTCH_PAY,
+                3, 2, 0, 300L, null, "요청자", List.of());
     }
 
     @Test
