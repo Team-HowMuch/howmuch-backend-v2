@@ -334,3 +334,4 @@ DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test D
 - 처음 관련 테스트를 돌릴 때 `SettlementCategoryMigrationTest`가 Testcontainers Docker 소켓을 찾지 못해 실패했다(환경 문제). 위 Commands의 `DOCKER_HOST` 등을 넣고 다시 돌려 1/1 통과했고, 전체 실행도 같은 설정으로 했다.
 - 독립 리뷰(작업을 보지 않은 별도 에이전트): P1 없음. 반영: 어댑터 클래스 주석, OpenAPI 400 설명에 형식이 틀린 정산 ID·JSON 포함, 해당 컨트롤러 테스트 추가(전체 실행 뒤 반영했으므로 바뀐 4개 클래스 16건을 다시 돌려 통과). 남김: 접근 확인 직후 정산 삭제·참여자 제외와 겹치는 요청은 저장될 수 있으나 보이지 않으므로 그대로 둔다(위 Impact surface), 접근 규칙이 정산 상세와 중복된다(위 Design decisions).
 - 실제 앱의 카테고리 선택 시트 호출은 개발 서버 배포 뒤에 확인한다.
+- PR #563 Codex 리뷰 반영: 공통 코드 관리 화면은 코드 형식을 제한하지 않아, 관리자가 `Food`·`CAFE-SNACK`처럼 저장 형식(`^[A-Z][A-Z_]{0,49}$`)이 아닌 정산용 코드를 넣으면 수정 API가 DB 제약 위반으로 500을 냈다. 카테고리 카탈로그가 저장할 수 없는 형식의 코드를 빼도록 했다. 목록 API에 나오지 않고, 수정 API는 `INVALID_SETTLEMENT_CATEGORY` 400이다(분류 Policy는 원래 같은 형식으로 후보를 거른다). `SettlementCategoryCatalogTest` 2건(형식 경계: 소문자, 숫자, 하이픈, 공백, 밑줄 시작, 50자·51자) 추가 후 카테고리 관련 17개 클래스 152건 실패 0.
