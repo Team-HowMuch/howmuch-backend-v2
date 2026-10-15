@@ -16,7 +16,8 @@ public final class NotificationMessages {
     }
     public static UserNotification reminder(UUID settlementId, Long recipient, SettlementAllocationType allocation,
             String requester, String key, String message, LocalDateTime now) {
+        String title = key.startsWith("AUTO_REMINDER:") ? "정산 리마인드" : "정산 독촉";
         return new UserNotification(UUID.randomUUID(), recipient, settlementId, NotificationType.SETTLEMENT_REMINDER,
-                allocation == null ? SettlementAllocationType.DUTCH_PAY : allocation, requester, "정산 리마인드", message, key, null, now);
+                allocation == null ? SettlementAllocationType.DUTCH_PAY : allocation, requester, title, message, key, null, now);
     }
 }
