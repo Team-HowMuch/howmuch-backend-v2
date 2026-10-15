@@ -33,6 +33,11 @@ public record TreasurerAnswerResult(
                 savedAnswerId, intent, period, scope, view, answer, footer, items, summary, actions, prompts);
     }
 
+    public TreasurerAnswerResult withAnswer(String newAnswer) {
+        return new TreasurerAnswerResult(
+                answerId, intent, period, scope, view, newAnswer, footer, items, summary, actions, prompts);
+    }
+
     public record Item(
             UUID settlementId,
             String requestedDate,

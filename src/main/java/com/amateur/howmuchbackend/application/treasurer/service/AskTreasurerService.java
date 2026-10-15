@@ -25,6 +25,7 @@ import com.amateur.howmuchbackend.domain.treasurer.SavedTreasurerAnswer;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerGeneratedBy;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerActionType;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerView;
+import com.amateur.howmuchbackend.domain.treasurer.TreasurerRecommendation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -157,29 +158,40 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         String scope = scopeLabel(period, titleHint, parsed.titleHint());
 
         return switch (parsed.intent()) {
-            case SEND_SETTLEMENTS -> answerList(
-                    question,
-                    parsed.intent(),
-                    period,
-                    scope,
-                    filtered.stream().filter(PersonalSettlement::isSend).filter(PersonalSettlement::isOutstanding).toList(),
-                    "보낼 정산",
-                    true,
-                    now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.SEND_LIST, "보낼 정산 확인하기"),
-                    titleDropped
-            );
+            case SEND_SETTLEMENTS -> {
+                List<TreasurerRecommendation> ordered = TreasurerRecommendation.prioritize(
+                        filtered.stream().filter(PersonalSettlement::isSend).toList(), now);
+                yield withUrgentSendNotice(answerList(
+                        question,
+                        parsed.intent(),
+                        period,
+                        scope,
+                        settlementsOf(ordered),
+                        "보낼 정산",
+                        true,
+                        now,
+                        new TreasurerAnswerResult.Action(TreasurerAnswerActionType.SEND_LIST, "보낼 정산 확인하기"),
+                        titleDropped
+                ), ordered);
+            }
             case RECEIVE_SETTLEMENTS -> answerList(
                     question,
                     parsed.intent(),
                     period,
                     scope,
-                    filtered.stream().filter(PersonalSettlement::isReceive).filter(PersonalSettlement::isOutstanding).toList(),
+                    settlementsOf(TreasurerRecommendation.prioritize(
+                            filtered.stream().filter(PersonalSettlement::isReceive).toList(), now)),
                     "받을 정산",
                     true,
                     now,
                     new TreasurerAnswerResult.Action(TreasurerAnswerActionType.RECEIVE_LIST, "받을 정산 확인하기"),
                     titleDropped
+            );
+            case PRIORITY_SETTLEMENTS -> answerPriority(
+                    parsedPeriod,
+                    parsedPeriod == null ? mine : filtered,
+                    parsedPeriod == null ? priorityScopeLabel(titleHint, parsed.titleHint()) : scope,
+                    now
             );
             case DUE_SETTLEMENTS -> answerList(
                     question,
@@ -338,6 +350,69 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 ),
                 phrased.generatedBy()
         );
+    }
+
+    /**
+     * 먼저 처리할 정산을 추천 API와 같은 순서로 보여준다.
+     *
+     * <p>순서와 경과 시간이 답의 핵심이라 LLM 문장을 쓰지 않는다. LLM이 순서를 바꾸거나 시간을 빼면
+     * 가장 급한 정산을 놓친다.
+     */
+    private Answered answerPriority(
+            InquiryPeriod period,
+            List<PersonalSettlement> candidates,
+            String scope,
+            Instant now
+    ) {
+        List<TreasurerRecommendation> ordered = TreasurerRecommendation.prioritize(candidates, now);
+        List<PersonalSettlement> items = settlementsOf(ordered);
+        String answer = ordered.isEmpty()
+                ? "%s 먼저 처리할 정산은 없어요.".formatted(scope)
+                : "%s 먼저 처리할 정산은 %d건이에요. 가장 먼저 확인할 정산은 %s.%s".formatted(
+                        scope, ordered.size(), quotedCopula(ordered.getFirst().settlement().title()),
+                        ordered.getFirst().isUrgentSend() ? " " + ordered.getFirst().reason() : "");
+        return new Answered(
+                new TreasurerAnswerResult(
+                        null,
+                        InquiryIntent.PRIORITY_SETTLEMENTS,
+                        period,
+                        scope,
+                        TreasurerAnswerView.LIST,
+                        answer,
+                        items.isEmpty() ? null : listFooter(items.size()),
+                        items.stream().limit(CARD_LIMIT).map(item -> toItem(treasurerCardCopy.item(item, now))).toList(),
+                        null,
+                        List.of(new TreasurerAnswerResult.Action(
+                                TreasurerAnswerActionType.STATUS_LIST, "정산 상태 확인하기")),
+                        List.of()
+                ),
+                TreasurerAnswerGeneratedBy.SERVER
+        );
+    }
+
+    /** 맨 위가 기한을 넘긴 보낼 정산이면 경과 시간과 함께 빨리 정산하라고 덧붙인다. */
+    private Answered withUrgentSendNotice(Answered answered, List<TreasurerRecommendation> ordered) {
+        if (ordered.isEmpty() || !ordered.getFirst().isUrgentSend()) {
+            return answered;
+        }
+        TreasurerRecommendation top = ordered.getFirst();
+        String notice = " 가장 먼저 보낼 정산은 %s. %s".formatted(quotedCopula(top.settlement().title()), top.reason());
+        return new Answered(
+                answered.result().withAnswer(answered.result().answer() + notice),
+                answered.generatedBy()
+        );
+    }
+
+    /** 제목 끝 글자에 받침이 있으면 "이에요", 없으면 "예요"를 붙인다. 한글이 아니면 "이에요"로 둔다. */
+    private static String quotedCopula(String title) {
+        String trimmed = title == null ? "" : title.strip();
+        char last = trimmed.isEmpty() ? ' ' : trimmed.charAt(trimmed.length() - 1);
+        boolean noFinalConsonant = last >= '가' && last <= '힣' && (last - '가') % 28 == 0;
+        return "'%s'%s".formatted(title, noFinalConsonant ? "예요" : "이에요");
+    }
+
+    private List<PersonalSettlement> settlementsOf(List<TreasurerRecommendation> ordered) {
+        return ordered.stream().map(TreasurerRecommendation::settlement).toList();
     }
 
     private Answered answerStatus(
@@ -528,6 +603,11 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         return YearMonth.from(targetDate).equals(target);
     }
 
+    /** 기간을 말하지 않은 우선순위 질문은 지난달에 밀린 정산도 놓치지 않도록 전체에서 찾는다. */
+    private String priorityScopeLabel(String appliedTitleHint, String parsedTitleHint) {
+        return titleScope("끝나지 않은 정산 전체를 기준으로 조회했어요.", appliedTitleHint, parsedTitleHint);
+    }
+
     /**
      * 질문에서 뽑은 제목이 사용자의 정산 중 하나라도 맞을 때만 필터로 쓴다.
      *
@@ -543,6 +623,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             case THIS_WEEK -> "이번 주 기준으로 조회했어요.";
             case THIS_MONTH -> "이번 달 기준으로 조회했어요.";
         };
+        return titleScope(periodLabel, appliedTitleHint, parsedTitleHint);
+    }
+
+    private String titleScope(String periodLabel, String appliedTitleHint, String parsedTitleHint) {
         if (appliedTitleHint != null) {
             return periodLabel + " '%s' 기준으로 좁혀서 조회했어요.".formatted(appliedTitleHint);
         }

@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -77,6 +78,19 @@ public class InquiryParser {
             "안끝났", "안끝난", "남았", "남은", "처리해야", "처리할", "처리하지"
     );
 
+    /** 무엇부터 할지 묻는 표현. 단독으로도 뜻이 분명하다 */
+    private static final List<String> PRIORITY_STRONG = List.of(
+            "뭐부터", "무엇부터", "뭘먼저", "뭐먼저", "무엇을먼저", "무엇먼저", "어떤거부터", "어떤것부터",
+            "어떤걸먼저", "어느거부터", "어느것부터", "우선순위"
+    );
+    /**
+     * 먼저·추천·정리·급함 표현. 정산 맥락이 있어야 인정한다.
+     * "몇 시부터 보내?", "회원가입 먼저 해야 해?", "영화 추천해줘"는 우선순위 질문이 아니다.
+     */
+    private static final List<String> PRIORITY_WEAK = List.of(
+            "먼저처리", "먼저해야", "먼저보내", "정산부터", "돈부터", "추천", "정리", "급한", "급해", "밀린"
+    );
+
     private static final List<String> DUE_KEYWORDS = List.of("마감해야 할 정산", "마감할 정산", "마감해야", "마감할", "마감");
     private static final List<String> GUIDE_KEYWORDS = List.of("ocr", "영수증");
     private static final List<String> FILLER_KEYWORDS = List.of("알려줘", "어떻게해", "어떻게", "누구야", "있어");
@@ -117,7 +131,7 @@ public class InquiryParser {
         InquiryPeriod period = periodOf(compact);
         InquiryIntent intent = intentOf(compact, wordStarts);
         String titleHint = usesTitleFilter(intent)
-                ? titleHint(spaceless, compact, wordStarts)
+                ? titleHint(spaceless, compact, wordStarts, intent)
                 : null;
         return new ParsedInquiry(intent, period, titleHint);
     }
@@ -136,11 +150,27 @@ public class InquiryParser {
     }
 
     private InquiryIntent intentOf(String compact, boolean[] wordStarts) {
-        if (containsAny(compact, UNPAID_TO_ME)) {
+        // "아직 송금 안 한 사람"의 "송금"은 보낼 정산이 아니다. 그 구간을 지운 문장으로 보낼 방향을 찾는다.
+        int unpaidAt = earliestIndex(compact, UNPAID_TO_ME);
+        String sendScope = unpaidAt < 0 ? compact : blankOut(compact, UNPAID_TO_ME);
+        int sendAt = intentIndex(sendScope, wordStarts, SEND_STRONG, SEND_WEAK, SETTLEMENT_CONTEXT);
+        int receiveAt = intentIndex(compact, wordStarts, RECEIVE_STRONG, RECEIVE_WEAK, SETTLEMENT_CONTEXT);
+        if (unpaidAt >= 0) {
+            receiveAt = receiveAt < 0 ? unpaidAt : Math.min(receiveAt, unpaidAt);
+        }
+        // 한쪽 방향만 물으면 그 방향 목록이 우선순위 순으로 나간다. 방향이 없거나 둘 다면 전체 우선순위다.
+        // 마감·지출·진행 상태·영수증을 직접 말하면 그 의도가 이긴다. "지출 정리해줘"는 지출 요약이다.
+        if ((sendAt < 0) == (receiveAt < 0)
+                && asksPriority(compact, wordStarts)
+                && !containsAny(compact, DUE_KEYWORDS)
+                && !containsAny(compact, EXPENSE_STRONG)
+                && !containsAny(compact, STATUS_STRONG)
+                && !containsAny(compact, GUIDE_KEYWORDS)) {
+            return InquiryIntent.PRIORITY_SETTLEMENTS;
+        }
+        if (unpaidAt >= 0) {
             return InquiryIntent.RECEIVE_SETTLEMENTS;
         }
-        int sendAt = intentIndex(compact, wordStarts, SEND_STRONG, SEND_WEAK, SETTLEMENT_CONTEXT);
-        int receiveAt = intentIndex(compact, wordStarts, RECEIVE_STRONG, RECEIVE_WEAK, SETTLEMENT_CONTEXT);
         if (containsAny(compact, DUE_KEYWORDS) && sendAt < 0 && receiveAt < 0) {
             return InquiryIntent.DUE_SETTLEMENTS;
         }
@@ -168,6 +198,25 @@ public class InquiryParser {
             return InquiryIntent.SETTLEMENT_STATUS;
         }
         return InquiryIntent.UNKNOWN;
+    }
+
+    /** 길이를 유지한 채 표현 구간을 지운다. 어절 시작 위치 배열을 그대로 쓰기 위해서다. */
+    private String blankOut(String compact, List<String> phrases) {
+        char[] chars = compact.toCharArray();
+        for (String phrase : phrases) {
+            String needle = compactPhrase(phrase);
+            int from = compact.indexOf(needle);
+            while (from >= 0) {
+                Arrays.fill(chars, from, from + needle.length(), '#');
+                from = compact.indexOf(needle, from + 1);
+            }
+        }
+        return new String(chars);
+    }
+
+    private boolean asksPriority(String compact, boolean[] wordStarts) {
+        return containsAny(compact, PRIORITY_STRONG)
+                || hasContext(compact, wordStarts, SETTLEMENT_CONTEXT) && containsAny(compact, PRIORITY_WEAK);
     }
 
     /**
@@ -218,11 +267,11 @@ public class InquiryParser {
         return rest.isEmpty() || CONTEXT_SUFFIXES.contains(rest);
     }
 
-    private String titleHint(String spaceless, String compact, boolean[] wordStarts) {
+    private String titleHint(String spaceless, String compact, boolean[] wordStarts, InquiryIntent intent) {
         if (spaceless.length() != compact.length()) {
             return null;
         }
-        boolean[] grammar = grammarMask(compact);
+        boolean[] grammar = grammarMask(compact, intent);
         Matcher matcher = TITLE_SUFFIX.matcher(compact);
         while (matcher.find()) {
             String candidate = titleAt(spaceless, compact, grammar, wordStarts, matcher.start(), matcher.end());
@@ -296,9 +345,9 @@ public class InquiryParser {
     }
 
     /** 문법 어휘가 차지한 문자 위치를 표시한다. 제목 후보는 이 구간을 넘지 못한다. */
-    private boolean[] grammarMask(String compact) {
+    private boolean[] grammarMask(String compact, InquiryIntent intent) {
         boolean[] mask = new boolean[compact.length()];
-        for (String phrase : grammarPhrases()) {
+        for (String phrase : grammarPhrases(intent)) {
             String needle = compactPhrase(phrase);
             if (needle.isEmpty()) {
                 continue;
@@ -314,8 +363,11 @@ public class InquiryParser {
         return mask;
     }
 
-    /** 맥락 단어(정산·모임 등)는 제목의 일부이므로 문법에 넣지 않는다. */
-    private List<String> grammarPhrases() {
+    /**
+     * 맥락 단어(정산·모임 등)는 제목의 일부이므로 문법에 넣지 않는다.
+     * 우선순위 표현은 우선순위 질문에서만 문법으로 본다. 다른 의도에서 "정리모임" 같은 제목을 지우지 않는다.
+     */
+    private List<String> grammarPhrases(InquiryIntent intent) {
         List<String> phrases = new ArrayList<>();
         phrases.addAll(PERIOD_THIS_WEEK);
         phrases.addAll(PERIOD_THIS_MONTH);
@@ -331,6 +383,10 @@ public class InquiryParser {
         phrases.addAll(STATUS_STRONG);
         phrases.addAll(STATUS_WEAK);
         phrases.addAll(DUE_KEYWORDS);
+        if (intent == InquiryIntent.PRIORITY_SETTLEMENTS) {
+            phrases.addAll(PRIORITY_STRONG);
+            phrases.addAll(PRIORITY_WEAK);
+        }
         phrases.addAll(GUIDE_KEYWORDS);
         phrases.addAll(FILLER_KEYWORDS);
         return phrases;
@@ -363,7 +419,8 @@ public class InquiryParser {
                 || intent == InquiryIntent.RECEIVE_SETTLEMENTS
                 || intent == InquiryIntent.SETTLEMENT_STATUS
                 || intent == InquiryIntent.EXPENSE_SUMMARY
-                || intent == InquiryIntent.DUE_SETTLEMENTS;
+                || intent == InquiryIntent.DUE_SETTLEMENTS
+                || intent == InquiryIntent.PRIORITY_SETTLEMENTS;
     }
 
     private String compactPhrase(String phrase) {

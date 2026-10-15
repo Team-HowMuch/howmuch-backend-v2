@@ -4,6 +4,8 @@ import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
 import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class InquiryParserTest {
@@ -67,6 +69,81 @@ class InquiryParserTest {
 
         assertThat(parsed.intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
         assertThat(parsed.titleHint()).isEqualTo("여행모임");
+    }
+
+    @Test
+    void priorityQuestion_withoutOrBothDirections_classifiedPriority() {
+        for (String question : List.of(
+                "뭐부터 처리해?",
+                "먼저 처리할 정산 추천해줘",
+                "무엇부터 해야 할까?",
+                "뭘 먼저 하면 돼?",
+                "어떤 정산부터 처리해야 해?",
+                "정산 우선순위 알려줘",
+                "급한 정산 알려줘",
+                "밀린 정산 정리해줘",
+                "돈부터 보내야 하는 거 뭐야? 받을 것도 있어",
+                "보낼 정산과 받을 정산 정리해줘",
+                "받을 돈이랑 보낼 돈 중에 뭐부터 해?",
+                "이번 달 정산 뭐부터 하면 돼?",
+                "나한테 아직 송금 안 한 사람하고 내가 보낼 돈 중 뭐부터 처리해?",
+                "안 낸 사람이랑 내가 보낼 돈 중에 뭐부터 해?"
+        )) {
+            assertThat(parser.parse(question).intent()).as(question).isEqualTo(InquiryIntent.PRIORITY_SETTLEMENTS);
+        }
+        assertThat(parser.parse("이번 달 정산 뭐부터 하면 돼?").period()).isEqualTo(InquiryPeriod.THIS_MONTH);
+        assertThat(parser.parse("뭐부터 처리해?").period()).isNull();
+    }
+
+    @Test
+    void priorityQuestion_oneDirection_keepsDirectionIntent() {
+        assertThat(parser.parse("보낼 정산 뭐부터 보내?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(parser.parse("받을 정산 정리해줘").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("나한테 아직 송금 안 한 사람 먼저 알려줘").intent())
+                .isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("아직 송금 안 한 사람 중 뭐부터 연락해?").intent())
+                .isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("아직 송금 안 한 사람이랑 보낼 돈 알려줘").intent())
+                .isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+    }
+
+    @Test
+    void priorityWeakWord_withoutSettlementContext_notPriority() {
+        assertThat(parser.parse("영화 추천해줘").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("방 정리 좀 도와줘").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("나 지금 급해").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("처리해야 할 정산 알려줘").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
+        assertThat(parser.parse("보낼 정산이랑 받을 정산은 각각 얼마야?").intent())
+                .isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(parser.parse("자동 리마인드는 몇 시부터 보내?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("회원가입 먼저 해야 해?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("계좌 먼저 등록해야 해?").intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(parser.parse("받을 사람한테 보낼 돈 먼저 알려줘").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+    }
+
+    @Test
+    void priorityWeakWord_withExplicitIntent_keepsExplicitIntent() {
+        assertThat(parser.parse("이번 달 모임 지출 정리해줘").intent()).isEqualTo(InquiryIntent.EXPENSE_SUMMARY);
+        assertThat(parser.parse("정산 진행 상황 정리해줘").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
+        assertThat(parser.parse("급한 정산 있어?").intent()).isEqualTo(InquiryIntent.SETTLEMENT_STATUS);
+        assertThat(parser.parse("이번 주 마감할 정산 정리해줘").intent()).isEqualTo(InquiryIntent.DUE_SETTLEMENTS);
+        assertThat(parser.parse("영수증 정산 어떻게 정리해?").intent()).isEqualTo(InquiryIntent.GUIDE);
+    }
+
+    @Test
+    void priorityWords_notGrammarForOtherIntents() {
+        InquiryParser.ParsedInquiry parsed = parser.parse("정리모임에서 보낼 돈 알려줘");
+
+        assertThat(parsed.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(parsed.titleHint()).isEqualTo("정리모임");
+    }
+
+    @Test
+    void priorityQuestion_titleHintExtracted() {
+        InquiryParser.ParsedInquiry parsed = parser.parse("제주 여행 정산 중에 뭐부터 해?");
+
+        assertThat(parsed.intent()).isEqualTo(InquiryIntent.PRIORITY_SETTLEMENTS);
+        assertThat(parsed.titleHint()).isEqualTo("제주여행정산");
     }
 
     @Test
