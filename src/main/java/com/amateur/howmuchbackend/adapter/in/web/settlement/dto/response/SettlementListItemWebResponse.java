@@ -12,7 +12,7 @@ import java.util.UUID;
 @Schema(requiredProperties = {
         "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
         "payableParticipantCount", "completedParticipantCount", "amountToPay", "receivableAmount",
-        "requesterName", "groups"
+        "requesterName", "groups", "myCategory"
 })
 public record SettlementListItemWebResponse(
         UUID settlementId,
@@ -56,7 +56,10 @@ public record SettlementListItemWebResponse(
         Long receivableAmount,
         @Schema(nullable = true)
         String requesterName,
-        List<GroupSummary> groups
+        List<GroupSummary> groups,
+        @Schema(nullable = true, description = "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. "
+                + "정산 요청 전, 분류 전, 기능 배포 전에 요청된 정산은 null이다. 미분류면 code가 UNCATEGORIZED다.")
+        SettlementMyCategoryWebResponse myCategory
 ) {
     public static SettlementListItemWebResponse from(SettlementListItemResult result) {
         return new SettlementListItemWebResponse(
@@ -75,7 +78,8 @@ public record SettlementListItemWebResponse(
                 result.requesterName(),
                 result.groups().stream()
                         .map(GroupSummary::from)
-                        .toList()
+                        .toList(),
+                SettlementMyCategoryWebResponse.from(result.myCategory())
         );
     }
 

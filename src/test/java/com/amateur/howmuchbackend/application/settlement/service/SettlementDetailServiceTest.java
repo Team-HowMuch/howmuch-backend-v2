@@ -82,6 +82,7 @@ class SettlementDetailServiceTest {
     @Mock private LoadUserPort loadUserPort;
     @Mock private SettlementReminderCooldownReader cooldownReader;
     @Mock private BankCatalog bankCatalog;
+    @Mock private MySettlementCategoryReader myCategoryReader;
 
     private SettlementDetailService service;
     private SettlementItemAllocationPolicy itemAllocationPolicy;
@@ -102,7 +103,8 @@ class SettlementDetailServiceTest {
                 loadUserPort,
                 cooldownReader,
                 bankCatalog,
-                itemAllocationPolicy
+                itemAllocationPolicy,
+                myCategoryReader
         );
     }
 

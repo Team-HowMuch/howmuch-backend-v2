@@ -60,6 +60,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
     private final SettlementReminderCooldownReader cooldownReader;
     private final BankCatalog bankCatalog;
     private final SettlementItemAllocationPolicy itemAllocationPolicy;
+    private final MySettlementCategoryReader myCategoryReader;
 
     @Override
     @Transactional(readOnly = true)
@@ -212,7 +213,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 ),
                 visiblePayments,
                 items.stream().map(com.amateur.howmuchbackend.application.port.in.settlement.result
-                        .SettlementItemResult::from).toList()
+                        .SettlementItemResult::from).toList(),
+                myCategoryReader.read(actorId, List.of(settlementId)).get(settlementId)
         );
     }
 

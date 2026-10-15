@@ -7,6 +7,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementCategoryResult;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class SettlementListService implements GetSettlementsUseCase {
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementListPort loadSettlementListPort;
     private final RequestedItemReceivableCalculator requestedItemReceivableCalculator;
+    private final MySettlementCategoryReader myCategoryReader;
 
     @Override
     public List<SettlementListItemResult> get(GetSettlementsCommand command) {
@@ -36,6 +38,8 @@ public class SettlementListService implements GetSettlementsUseCase {
                         .map(SettlementListReadModel::settlementId)
                         .toList())
                 : Map.of();
+        Map<UUID, SettlementCategoryResult> myCategories = myCategoryReader.read(
+                userId, items.stream().map(SettlementListReadModel::settlementId).toList());
         return items.stream()
                 .map(item -> new SettlementListItemResult(
                         item.settlementId(),
@@ -57,7 +61,8 @@ public class SettlementListService implements GetSettlementsUseCase {
                                         group.groupName(),
                                         group.imageVersion()
                                 ))
-                                .toList()
+                                .toList(),
+                        myCategories.get(item.settlementId())
                 ))
                 .toList();
     }

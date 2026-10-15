@@ -48,12 +48,16 @@ class SettlementListServiceTest {
     @Mock
     private LoadRequestedItemReceivableFactsPort loadRequestedItemReceivableFactsPort;
 
+    @Mock
+    private MySettlementCategoryReader myCategoryReader;
+
     private SettlementListService service() {
         return new SettlementListService(
                 currentActorPort,
                 loadSettlementListPort,
                 new RequestedItemReceivableCalculator(
-                        loadRequestedItemReceivableFactsPort, new SettlementItemAllocationPolicy())
+                        loadRequestedItemReceivableFactsPort, new SettlementItemAllocationPolicy()),
+                myCategoryReader
         );
     }
 
