@@ -85,7 +85,9 @@ class InquiryParserTest {
                 "돈부터 보내야 하는 거 뭐야? 받을 것도 있어",
                 "보낼 정산과 받을 정산 정리해줘",
                 "받을 돈이랑 보낼 돈 중에 뭐부터 해?",
-                "이번 달 정산 뭐부터 하면 돼?"
+                "이번 달 정산 뭐부터 하면 돼?",
+                "나한테 아직 송금 안 한 사람하고 내가 보낼 돈 중 뭐부터 처리해?",
+                "안 낸 사람이랑 내가 보낼 돈 중에 뭐부터 해?"
         )) {
             assertThat(parser.parse(question).intent()).as(question).isEqualTo(InquiryIntent.PRIORITY_SETTLEMENTS);
         }
@@ -98,6 +100,10 @@ class InquiryParserTest {
         assertThat(parser.parse("보낼 정산 뭐부터 보내?").intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
         assertThat(parser.parse("받을 정산 정리해줘").intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
         assertThat(parser.parse("나한테 아직 송금 안 한 사람 먼저 알려줘").intent())
+                .isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("아직 송금 안 한 사람 중 뭐부터 연락해?").intent())
+                .isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(parser.parse("아직 송금 안 한 사람이랑 보낼 돈 알려줘").intent())
                 .isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
     }
 
