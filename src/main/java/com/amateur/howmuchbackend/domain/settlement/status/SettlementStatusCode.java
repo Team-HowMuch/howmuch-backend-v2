@@ -40,6 +40,7 @@ public enum SettlementStatusCode implements StatusCode {
     INVALID_SETTLEMENT_SHARE_AMOUNT("정산 Share 금액은 1원 이상이어야 합니다.", 400),
     INVALID_DUTCH_PAY_AMOUNT("더치페이 참여자 금액은 0원 이상이어야 합니다.", 400),
     INVALID_DUTCH_PAY_ALLOCATION_REQUEST("더치페이 배분 요청에는 참여자 전원의 금액이 한 번씩 필요합니다.", 400),
+    INVALID_SETTLEMENT_CATEGORY("정산 카테고리 목록에 있는 코드만 고를 수 있습니다.", 400),
     SETTLEMENT_NOT_FOUND("정산을 찾을 수 없습니다.", 404),
     SETTLEMENT_EXPENSE_NOT_FOUND("정산 지출을 찾을 수 없습니다.", 404),
     SETTLEMENT_ITEM_NOT_FOUND("정산 품목을 찾을 수 없습니다.", 404),
