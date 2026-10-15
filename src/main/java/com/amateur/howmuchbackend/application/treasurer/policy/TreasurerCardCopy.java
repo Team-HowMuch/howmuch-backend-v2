@@ -81,7 +81,7 @@ public class TreasurerCardCopy {
                     "%s 요청 - 미납".formatted(requester),
                     SettlementDirection.SEND,
                     settlement.amountOrZero(),
-                    settlement.isStale(now) ? TreasurerCardMarker.ATTENTION : TreasurerCardMarker.NONE,
+                    settlement.isOverdue(now) ? TreasurerCardMarker.ATTENTION : TreasurerCardMarker.NONE,
                     settlement.allocationType(),
                     settlement.status()
             );
