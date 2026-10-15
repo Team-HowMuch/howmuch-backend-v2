@@ -1,6 +1,6 @@
 # Feature Plan: 정산 카테고리
 
-- Status: In progress (#555 저장 구조·#556 자동 분류 머지, #557 표시 진행 중)
+- Status: In progress (#555 저장 구조·#556 자동 분류·#557 표시 머지, #558 내 카테고리 수정 진행 중)
 - Last updated: 2026-10-15
 - Related issue: [#555](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/555) 저장 구조, [#556](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/556) 자동 분류, [#557](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/557) 표시, [#558](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/558) 내 카테고리 수정
 - Related ADR: N/A
@@ -100,6 +100,8 @@
 - 분류 전(`PENDING`·`PROCESSING`·`RETRY`)이면 `myCategory`는 `null`이다. 배포 전에 요청된 정산도 `null`이다.
 - 분류가 끝나기 전에 회원이 수정하면 수정값이 우선한다.
 - 짧은 영문 키워드(예: `CU`)는 단어 단위로만 맞춘다(`CUBE`에는 맞지 않음).
+- 내 카테고리는 정산 상태(초안·중단 포함)와 관계없이 바꿀 수 있다. 같은 값을 다시 보내도 결과는 같다(#558).
+- 내 카테고리로 `UNCATEGORIZED`(미분류)도 고를 수 있다. 정산용 18개에 들어 있기 때문이다(#558).
 - 여러 서버가 동시에 폴링해도 선점으로 한 작업을 한 번만 처리한다.
 
 ## 4. Contracts
@@ -115,8 +117,8 @@ Command: limit (1~100, 한 번 폴링에서 처리할 작업 수)
 Result: 처리한 작업 수
 
 UseCase: ChangeMySettlementCategoryUseCase (#558)
-Command: settlementId, categoryCode
-Result: SettlementCategoryResult (myCategory)
+Input: settlementId(경로) + ChangeMySettlementCategoryCommand(categoryCode)
+Result: SettlementCategoryResult (저장된 myCategory)
 ```
 
 ### Output Ports
@@ -128,7 +130,7 @@ Result: SettlementCategoryResult (myCategory)
 | `LoadSettlementCategoryRulePort` | 사용 중인 규칙 | 분류 처리 | `SettlementCategoryRuleJdbcAdapter` (#556) |
 | `ClassifySettlementCategoryPort` | 가게 이름·거래명·품목명 → 후보 중 하나 또는 모름 | 분류 처리 | `SettlementCategoryLlmAdapter` (#556) |
 | `LoadMySettlementCategoryPort` | 정산 여러 건의 내 카테고리 코드(회원 수정값 → 분류 완료 기본값)를 한 번에 | 목록·상세 | `SettlementUserCategoryJdbcAdapter` (#557) |
-| 내 카테고리 저장 Port | 회원별 수정값 저장 | 수정 | 영속 어댑터 (#558) |
+| `SaveMySettlementCategoryPort` | (정산, 회원) 수정값 저장. 있으면 덮어쓴다 | 내 카테고리 수정 | `SettlementUserCategoryJdbcAdapter` (#558) |
 
 Port 이름은 능력 기준(ADR 0003)으로 정했다. 작업 Port는 입금 대조 작업 Port(`SettlementDepositReconciliationJobStorePort`)처럼 생성과 선점을 한 Port에 둔다. AI 분류 Port 뒤에 모델을 두므로, 다른 모델로 바꿀 때 Application 코드는 그대로다.
 
@@ -159,10 +161,13 @@ Response: 기존 응답 + myCategory: { code, name, icon } | null
   - 비회원 정산 링크 응답에는 넣지 않는다
 
 PUT /api/v2/settlements/{settlementId}/my-category (#558)
-Request: { categoryCode }
+Request: { categoryCode } (필수, 50자 이하)
 Response: { code, name, icon }
-Errors: 400 정산용이 아닌 코드, 403 정산과 관계없는 회원, 404 없는·삭제된 정산
+Errors: 400 INVALID_ARGUMENT(빈 값·50자 초과), 400 INVALID_SETTLEMENT_CATEGORY(정산용이 아닌 코드),
+        403 SETTLEMENT_ACCESS_DENIED(정산과 관계없는 회원), 404 SETTLEMENT_NOT_FOUND(없는·삭제된 정산)
 Authentication: 회원
+  - 수정할 수 있는 사람은 정산 상세와 같다: 생성자 또는 회원으로 연결된 참여자
+  - 확인 순서: 정산 존재(404) → 접근(403) → 코드(400). 관계없는 회원은 코드와 관계없이 403이다
 ```
 
 ### Persistence and external integrations
@@ -186,6 +191,8 @@ Authentication: 회원
 - 카테고리 목록은 공통 코드로 관리한다. 명세가 "서버 공통 코드로 관리, 앱에 고정하지 않음"을 요구하고, 은행 목록이 같은 선례다.
 - 아이콘은 아이콘 키(`food`, `cafe-snack` 등)로 내려주고 앱이 아이콘 이미지에 연결한다(2026-10-15 결정).
 - 기본 카테고리와 내 카테고리를 분리한다. 한 사람의 수정이 다른 참여자의 리캡을 바꾸지 않게 하기 위해서다.
+- 내 카테고리로 `UNCATEGORIZED`를 고를 수 있다(2026-10-15 결정). 카테고리 목록 API가 주는 18개를 그대로 선택지로 쓰면 되고, 잘못 고른 값을 미분류로 되돌릴 수 있다.
+- 접근 규칙은 정산 상세와 같지만 공유 Policy로 빼지 않는다. 생성자 확인과 연결된 참여자 확인 두 줄이라, 상세 서비스를 고치는 리팩터링은 이 이슈 범위에 넣지 않는다.
 
 ### Technology and patterns
 
@@ -204,6 +211,7 @@ Authentication: 회원
 - `SwaggerConfig`에 OpenAPI 후처리(`nullableReferenceCustomizer`)를 추가한다. `@Schema(nullable = true)` 객체 속성이 OAS 3.1에서 `$ref` 옆 `type: null`(null 불허)로 나오는 것을 `anyOf: [참조, null]`로 바꾼다. 현재 해당 속성은 `myCategory` 두 곳뿐이다(#557)
 - `SettlementListItemResult`, `SettlementDetailResult`에 `myCategory`를 추가하고 기존 인자 수의 생성자를 남긴다(기존 호출·테스트 유지)
 - 정산 삭제 시 카테고리 행은 FK로 함께 지워진다
+- 내 카테고리 수정은 `settlement_user_categories`에 (정산, 회원) 기준 upsert만 한다. 정산·분류 작업 행은 건드리지 않고 마이그레이션도 없다(#558)
 
 ## 7. Implementation plan
 
@@ -211,6 +219,13 @@ Authentication: 회원
 2. #556 자동 분류: 작업 생성, 분류 Policy, 규칙·AI 어댑터, 스케줄러
 3. #557 카테고리 목록 API, 목록·상세 `myCategory`
 4. #558 내 카테고리 수정 API
+
+### Expected commit boundaries (#558)
+
+- `docs(settlement)`: Feature Plan 갱신
+- `feat(settlement)`: 내 카테고리 수정 UseCase·서비스, 저장 Port와 upsert, PUT API·문서, 카테고리 상태 코드
+- `test(settlement)`: 서비스·저장소·컨트롤러·HTTP·OpenAPI 테스트
+- `docs(settlement)`: 검증 결과, Feature Plan을 `completed`로 이동
 
 ### Expected commit boundaries (#557)
 
@@ -254,6 +269,11 @@ DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test D
 - [x] 목록·상세의 `myCategory`가 수정값 → 자동 분류 값 → null 순서로 정해진다
 - [x] 같은 정산을 다른 회원이 조회하면 각자의 카테고리가 보인다
 - [x] OpenAPI 문서에 `myCategory`가 nullable로 표시된다
+- [ ] 생성자와 참여자가 각자 바꾼 값이 서로의 `myCategory`에 영향을 주지 않는다
+- [ ] 정산과 관계없는 회원은 수정할 수 없다(403), 없는·삭제된 정산은 404
+- [ ] 확장용·없는 코드는 400, `UNCATEGORIZED`는 저장된다
+- [ ] 같은 값을 다시 보내도 결과가 같다
+- [ ] 수정 후 정산 목록·상세에 바꾼 값이 보인다
 
 ### Results
 
