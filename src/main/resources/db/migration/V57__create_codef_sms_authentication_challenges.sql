@@ -168,11 +168,35 @@ CREATE INDEX idx_codef_auth_certificate ON codef_authentication_challenges (cert
     WHERE certificate_command_id IS NOT NULL;
 
 CREATE FUNCTION guard_codef_authentication_challenge() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+    certificate_owner BIGINT;
+    certificate_deadline TIMESTAMP(6) WITHOUT TIME ZONE;
 BEGIN
     IF TG_OP = 'INSERT' THEN
         IF NEW.status <> 'WAITING_INPUT' OR NEW.attempt_count <> 0 OR NEW.lease_generation <> 0
             OR NEW.provider_request_started_at IS NOT NULL OR NEW.cancel_requested_at IS NOT NULL THEN
             RAISE EXCEPTION 'CODEF authentication must start awaiting user input' USING ERRCODE = '23514';
+        END IF;
+        IF NEW.operation_type = 'CERTIFICATE_REGISTER' THEN
+            -- Match the session-first order used by existing pairing owner checks.
+            PERFORM 1 FROM certificate_registration_sessions WHERE id = NEW.operation_id FOR UPDATE;
+            -- Lock the authoritative pairing against concurrent failed-session relinking.
+            -- Its paired owner and the challenge identity cannot change after acceptance.
+            SELECT paired_user_id INTO certificate_owner FROM certificate_pc_pairings
+                WHERE registration_session_id = NEW.operation_id FOR SHARE;
+            IF NOT FOUND OR certificate_owner IS DISTINCT FROM NEW.user_id THEN
+                RAISE EXCEPTION 'CODEF certificate authentication must belong to the paired user' USING ERRCODE = '23514';
+            END IF;
+            SELECT deadline_at INTO certificate_deadline FROM certificate_provider_command_inbox
+                WHERE message_id = NEW.certificate_command_id AND session_id = NEW.operation_id
+                    AND organization_code = NEW.organization_code AND command_type = 'REGISTER' FOR SHARE;
+            IF NOT FOUND OR certificate_deadline IS NULL THEN
+                RAISE EXCEPTION 'CODEF certificate authentication requires its original REGISTER command'
+                    USING ERRCODE = '23503', CONSTRAINT = 'fk_codef_auth_certificate_command';
+            END IF;
+            IF NEW.expires_at > certificate_deadline THEN
+                RAISE EXCEPTION 'CODEF certificate authentication cannot outlive its command deadline' USING ERRCODE = '23514';
+            END IF;
         END IF;
         RETURN NEW;
     END IF;
