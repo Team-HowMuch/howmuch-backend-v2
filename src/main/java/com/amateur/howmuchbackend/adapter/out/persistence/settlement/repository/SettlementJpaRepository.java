@@ -173,7 +173,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.id AS settlementId,
                 settlement.title AS title,
                 settlement.status AS status,
-                settlement.created_at AS requestedAt,
+                COALESCE(link.created_at, settlement.created_at) AS requestedAt,
                 creator.name AS requesterName,
                 settlement.allocation_type AS allocationType,
                 MAX(CASE
@@ -211,6 +211,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 ) paid
                 ON paid.settlement_id = settlement.id
                AND paid.share_id = share.id
+              LEFT JOIN settlement_links link
+                ON link.settlement_id = settlement.id
              WHERE settlement.deleted_at IS NULL
                AND (
                     (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
@@ -225,9 +227,9 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                         )
                     )
                 )
-             GROUP BY settlement.id, settlement.title, settlement.status, settlement.created_at,
+             GROUP BY settlement.id, settlement.title, settlement.status, settlement.created_at, link.created_at,
                       settlement.allocation_type, creator.name
-             ORDER BY settlement.created_at DESC, settlement.id DESC
+             ORDER BY COALESCE(link.created_at, settlement.created_at) DESC, settlement.id DESC
             """, nativeQuery = true)
     List<TreasurerSettlementProjection> findAllForTreasurer(
             @Param("userId") Long userId,
