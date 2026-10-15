@@ -57,6 +57,17 @@ class TreasurerGuideLlmAdapterTest {
     }
 
     @Test
+    @DisplayName("OpenAI가 요청을 거절하면 예외 대신 비어 있다")
+    void rejectedRequest_returnsEmpty() {
+        when(restClient.post()).thenThrow(org.springframework.web.client.HttpClientErrorException.create(
+                org.springframework.http.HttpStatus.BAD_REQUEST, "Bad Request", null,
+                "{\"error\":{\"param\":\"temperature\"}}".getBytes(java.nio.charset.StandardCharsets.UTF_8), null));
+        TreasurerGuideLlmAdapter adapter = adapter("openai", "test-key");
+
+        assertThat(adapter.generate("송금은 어떻게 해?", KNOWLEDGE)).isEmpty();
+    }
+
+    @Test
     @DisplayName("JSON 응답을 읽고 근거 ID의 대괄호와 코드 울타리를 걷어 낸다")
     void parse_guideJson() {
         TreasurerGuideLlmAdapter adapter = adapter("openai", "test-key");
@@ -95,6 +106,19 @@ class TreasurerGuideLlmAdapterTest {
         assertThat(adapter.parse("[]")).isEmpty();
         assertThat(adapter.parse(" ")).isEmpty();
         assertThat(adapter.parse("송금은 토스로 하면 돼요.")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("OpenAI 요청은 JSON 응답 형식을 지정하고 temperature 없이 추론 강도를 보낸다")
+    void openAiBody_jsonFormatWithoutTemperature() {
+        TreasurerGuideLlmAdapter adapter = adapter("openai", "test-key");
+
+        var body = adapter.openAiBody("규칙", "송금은 어떻게 해?");
+
+        assertThat(body).containsOnlyKeys("model", "reasoning_effort", "messages", "response_format");
+        assertThat(body).containsEntry("model", "gpt-6-luna")
+                .containsEntry("reasoning_effort", "low")
+                .containsEntry("response_format", java.util.Map.of("type", "json_object"));
     }
 
     @Test

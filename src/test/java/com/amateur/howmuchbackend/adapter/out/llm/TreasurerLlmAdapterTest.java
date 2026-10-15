@@ -56,6 +56,33 @@ class TreasurerLlmAdapterTest {
         assertThat(adapter.generate(null)).isEmpty();
     }
 
+    @Test
+    void treasurerLlm_rejectedRequest_returnsEmpty() {
+        TreasurerLlmProperties properties = new TreasurerLlmProperties(
+                "openai",
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(20),
+                new TreasurerLlmProperties.OpenAi("test-key", "gpt-6-luna", "https://api.openai.com/v1", "low"),
+                new TreasurerLlmProperties.Gemini("", "gemini-flash-latest", "https://generativelanguage.googleapis.com")
+        );
+        org.mockito.Mockito.when(restClient.post()).thenThrow(org.springframework.web.client.HttpClientErrorException.create(
+                org.springframework.http.HttpStatus.UNAUTHORIZED, "Unauthorized", null, new byte[0], null));
+        TreasurerLlmAdapter adapter = new TreasurerLlmAdapter(restClient, properties, new ObjectMapper());
+
+        assertThat(adapter.generate(draft())).isEmpty();
+    }
+
+    @Test
+    void treasurerLlm_openAiBody_withoutTemperatureOrResponseFormat() {
+        TreasurerLlmAdapter adapter = adapter("openai");
+
+        var body = adapter.openAiBody(draft());
+
+        assertThat(body).containsOnlyKeys("model", "reasoning_effort", "messages");
+        assertThat(body).containsEntry("model", "gpt-6-luna").containsEntry("reasoning_effort", "low");
+        assertThat(body.get("messages").toString()).contains("이번 달 보낼 정산은 얼마야?");
+    }
+
     private TreasurerLlmAdapter adapter(String provider) {
         TreasurerLlmProperties properties = new TreasurerLlmProperties(
                 provider,
