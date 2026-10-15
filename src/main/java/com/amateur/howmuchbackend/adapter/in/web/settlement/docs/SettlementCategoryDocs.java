@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
 
-@Tag(name = "정산 카테고리", description = "정산 카테고리 목록 API")
+@Tag(name = "정산 카테고리", description = "정산 카테고리 목록과 내 카테고리 API")
 public interface SettlementCategoryDocs {
     @Operation(
             summary = "정산 카테고리 목록 조회",

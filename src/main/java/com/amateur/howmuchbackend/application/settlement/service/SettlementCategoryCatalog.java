@@ -16,7 +16,7 @@ import java.util.Map;
 
 /**
  * 정산 카테고리 목록(STL-008-002). 은행 목록({@code BankCatalog})처럼 공통 코드에서 읽는다.
- * 정산 사용 여부({@code attr2})가 Y인 활성 코드만, {@code sort_order} 순서로 낸다.
+ * 정산 사용 여부({@code attr2})가 Y이고 정산 카테고리로 저장할 수 있는 형식인 활성 코드만, {@code sort_order} 순서로 낸다.
  */
 @Service
 @RequiredArgsConstructor
@@ -29,6 +29,7 @@ public class SettlementCategoryCatalog implements GetSettlementCategoriesUseCase
         return loadCommonCodePort.findActiveByGroupCode(SettlementCategory.GROUP_CODE).stream()
                 .filter(CommonCode::active)
                 .filter(code -> SettlementCategory.SETTLEMENT_USE.equals(code.attr2()))
+                .filter(code -> SettlementCategory.isStorableCode(code.code()))
                 .sorted(Comparator.comparingInt(CommonCode::sortOrder))
                 .map(code -> new SettlementCategoryResult(code.code(), code.name(), code.description(), code.attr1()))
                 .toList();
