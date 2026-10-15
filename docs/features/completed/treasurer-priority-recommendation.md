@@ -179,3 +179,12 @@ DB_URL=jdbc:postgresql://127.0.0.1:15432/howmuch_test DB_USERNAME=howmuch_test D
   - LLM 문장에 서버 안내가 붙은 답변은 `generatedBy=LLM`으로 저장된다.
   - 오래 멈춘 중단 정산은 "중단된 정산이에요."만 보여준다(계획대로).
 - 앱 영향: 추천 API `priority` 값이 `SEND_STALE`/`RECEIVE_STALE`에서 `SEND_OVERDUE`/`SEND_OPEN`/`RECEIVE_OVERDUE`/`RECEIVE_OPEN`으로 바뀐다. 앱이 이 값을 쓰는지 확인해야 한다.
+
+### PR #565 리뷰 후속(2026-10-15)
+
+- P2(#565에서 반영): "아직 송금 안 한 사람"·"안 낸 사람" 표현이 보낼 방향과 함께 있는 우선순위 질문이 받을 목록으로만 답하던 문제를 고쳤다. 이 표현은 받을 방향으로 세고, 그 안의 "송금"은 보낼 방향으로 세지 않는다.
+- P1(후속 PR): 총무 조회가 정산 생성 시각(`settlements.created_at`)을 요청 시각으로 써서, 초안으로 오래 둔 뒤 요청한 정산이 요청 직후부터 기한 초과로 보였다.
+  - 정산 요청 때만 만들어지고 정산마다 하나인 정산 링크(`settlement_links`, `UNIQUE(settlement_id)`, 재발급해도 `created_at` 유지)의 생성 시각을 요청 시각으로 쓴다. 링크가 없으면(초안·이전 데이터) 생성 시각을 쓴다.
+  - 정산 목록 API(`findAllForUser`)가 이미 쓰는 `COALESCE(link.created_at, settlement.created_at)`와 같은 기준이다. 새 컬럼·마이그레이션은 필요 없다.
+  - 검증: `TreasurerSettlementPersistenceIntegrationTest`에 정산 생성 2일 뒤 링크를 만들면 요청 시각이 링크 시각이고, 링크가 없는 정산은 그대로 생성 시각인지 확인하는 테스트를 넣었다. 쿼리를 되돌리면 이 테스트가 실패하는 것을 확인했다.
+  - 전체 `bash scripts/test.sh test`: 2133건, 실패 0, 오류 0, 건너뜀 1(로컬 전용 LLM 평가)
