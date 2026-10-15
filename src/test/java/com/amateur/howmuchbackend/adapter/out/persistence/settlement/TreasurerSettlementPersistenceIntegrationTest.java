@@ -169,6 +169,45 @@ class TreasurerSettlementPersistenceIntegrationTest {
                 });
     }
 
+    @Test
+    @DisplayName("요청 시각은 정산 생성 시각이 아니라 요청 때 만든 정산 링크 시각이고, 링크가 없으면 생성 시각이다")
+    void requestedAt_settlementLinkCreatedAt_used() {
+        LocalDateTime createdAt = requestedAtOf(payerId, paySettlementId);
+        LocalDateTime otherCreatedAt = requestedAtOf(creatorId, receiveSettlementId);
+
+        insertSettlementLinkAfterCreation(paySettlementId, 2);
+
+        assertThat(requestedAtOf(payerId, paySettlementId)).isEqualTo(createdAt.plusDays(2));
+        assertThat(requestedAtOf(creatorId, paySettlementId)).isEqualTo(createdAt.plusDays(2));
+        assertThat(requestedAtOf(creatorId, receiveSettlementId)).isEqualTo(otherCreatedAt);
+    }
+
+    private LocalDateTime requestedAtOf(Long userId, UUID settlementId) {
+        return treasurerSettlementPersistenceAdapter.findAll(userId).stream()
+                .filter(item -> item.settlementId().equals(settlementId))
+                .findFirst()
+                .orElseThrow()
+                .requestedAt();
+    }
+
+    private void insertSettlementLinkAfterCreation(UUID settlementId, int days) {
+        jdbcTemplate.update("""
+                INSERT INTO settlement_links (
+                    id, settlement_id, token_hash, status, expires_at, created_at, updated_at
+                )
+                SELECT ?, settlement.id, ?, 'ACTIVE',
+                       settlement.created_at + make_interval(days => ? + 7),
+                       settlement.created_at + make_interval(days => ?),
+                       settlement.created_at + make_interval(days => ?)
+                  FROM settlements settlement
+                 WHERE settlement.id = ?
+                """,
+                UUID.randomUUID(),
+                UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", ""),
+                days, days, days,
+                settlementId);
+    }
+
     private Long insertUser(String identityKey, String name) {
         String rolePrefix = identityKey.contains("creator") ? "c" : "p";
         String uniqueSuffix = identityKey.substring(identityKey.lastIndexOf('-') + 1);
