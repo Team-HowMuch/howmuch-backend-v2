@@ -34,7 +34,7 @@ class TreasurerLlmAdapterTest {
                 "openai",
                 Duration.ofSeconds(5),
                 Duration.ofSeconds(20),
-                new TreasurerLlmProperties.OpenAi("test-key", "gpt-4o-mini", "https://api.openai.com/v1"),
+                new TreasurerLlmProperties.OpenAi("test-key", "gpt-6-luna", "https://api.openai.com/v1", "low"),
                 new TreasurerLlmProperties.Gemini("", "gemini-flash-latest", "https://generativelanguage.googleapis.com")
         );
         TreasurerLlmAdapter adapter = new TreasurerLlmAdapter(restClient, properties, new ObjectMapper());
@@ -61,7 +61,7 @@ class TreasurerLlmAdapterTest {
                 provider,
                 Duration.ofSeconds(5),
                 Duration.ofSeconds(20),
-                new TreasurerLlmProperties.OpenAi("", "gpt-4o-mini", "https://api.openai.com/v1"),
+                new TreasurerLlmProperties.OpenAi("", "gpt-6-luna", "https://api.openai.com/v1", "low"),
                 new TreasurerLlmProperties.Gemini("", "gemini-flash-latest", "https://generativelanguage.googleapis.com")
         );
         return new TreasurerLlmAdapter(restClient, properties, new ObjectMapper());

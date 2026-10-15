@@ -54,15 +54,12 @@ public class TreasurerLlmAdapter implements GenerateTreasurerAnswerPort {
         }
     }
 
+    Map<String, Object> openAiBody(TreasurerAnswerDraft draft) {
+        return OpenAiChatRequest.body(properties.openai(), SYSTEM_PROMPT, userPrompt(draft));
+    }
+
     private String completeOpenAi(TreasurerAnswerDraft draft) throws JacksonException {
-        Map<String, Object> body = Map.of(
-                "model", properties.openai().model(),
-                "temperature", 0.3,
-                "messages", List.of(
-                        Map.of("role", "system", "content", SYSTEM_PROMPT),
-                        Map.of("role", "user", "content", userPrompt(draft))
-                )
-        );
+        Map<String, Object> body = openAiBody(draft);
         String raw = restClient.post()
                 .uri(properties.openai().baseUrl() + "/chat/completions")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.openai().apiKey())

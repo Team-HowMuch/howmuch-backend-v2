@@ -112,16 +112,14 @@ public class TreasurerGuideLlmAdapter implements GenerateTreasurerGuidePort {
         ));
     }
 
+    Map<String, Object> openAiBody(String systemPrompt, String question) {
+        Map<String, Object> body = OpenAiChatRequest.body(properties.openai(), systemPrompt, question);
+        body.put("response_format", Map.of("type", "json_object"));
+        return body;
+    }
+
     private String completeOpenAi(String systemPrompt, String question) {
-        Map<String, Object> body = Map.of(
-                "model", properties.openai().model(),
-                "temperature", 0.2,
-                "response_format", Map.of("type", "json_object"),
-                "messages", List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", question)
-                )
-        );
+        Map<String, Object> body = openAiBody(systemPrompt, question);
         String raw = restClient.post()
                 .uri(properties.openai().baseUrl() + "/chat/completions")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.openai().apiKey())

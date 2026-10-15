@@ -110,7 +110,7 @@ class TreasurerGuideLlmAdapterTest {
                 provider,
                 Duration.ofSeconds(5),
                 Duration.ofSeconds(20),
-                new TreasurerLlmProperties.OpenAi(apiKey, "gpt-4o-mini", "https://api.openai.com/v1"),
+                new TreasurerLlmProperties.OpenAi(apiKey, "gpt-6-luna", "https://api.openai.com/v1", "low"),
                 new TreasurerLlmProperties.Gemini("", "gemini-flash-latest", "https://generativelanguage.googleapis.com")
         );
         return new TreasurerGuideLlmAdapter(restClient, properties, new ObjectMapper());
