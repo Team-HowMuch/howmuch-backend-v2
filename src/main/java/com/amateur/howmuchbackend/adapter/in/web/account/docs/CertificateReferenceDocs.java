@@ -29,8 +29,9 @@ public interface CertificateReferenceDocs {
             summary = "공동인증서 참조 금융기관 연결 작업 접수",
             description =
                     "기존 connectedId에 다른 기관을 비동기로 추가합니다. 사용자 승인 후 호출하며 Idempotency-Key(UUID)가 필수입니다."
-                        + " HTTP 202는 접수이고 성공이 아닙니다. 같은 키/같은 입력은 같은 작업, 다른 입력/다른 미완료 인증 작업은 409입니다."
-                        + " level 3은 계좌 자격정보가 필요합니다. PC 앱이나 인증서 파일을 다시 보내지 않습니다.")
+                        + " 처리 용량이 차면 접수하지 않고 CERTIFICATE_REFERENCE_BUSY(503)를 반환하며 같은 키로 재시도할 수"
+                        + " 있습니다. HTTP 202는 접수이고 성공이 아닙니다. 같은 키/같은 입력은 같은 작업, 다른 입력/다른 미완료 인증 작업은"
+                        + " 409입니다. level 3은 계좌 자격정보가 필요합니다. PC 앱이나 인증서 파일을 다시 보내지 않습니다.")
     ApiResponse<CertificateReferenceOperationWebResponse> start(
             @Positive long connectionId,
             UUID idempotencyKey,

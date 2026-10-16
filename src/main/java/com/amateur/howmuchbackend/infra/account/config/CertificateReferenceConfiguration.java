@@ -87,7 +87,7 @@ AND attname IN ('authentication_method','authentication_method_confirmed_at') AN
                             Boolean.class)))
                 throw new IllegalArgumentException(
                         "Apply institution authentication metadata SQL before enabling reference"
-                            + " connections");
+                                + " connections");
         };
     }
 
@@ -121,8 +121,8 @@ AND attname IN ('authentication_method','authentication_method_confirmed_at') AN
             prefix = "howmuch.certificate-reference",
             name = "enabled",
             havingValue = "true")
-    ThreadPoolTaskScheduler referenceExecutionScheduler() {
-        return scheduler("certificate-reference-execution-", 1);
+    ThreadPoolTaskScheduler referenceExecutionScheduler(CertificateReferenceProperties properties) {
+        return scheduler("certificate-reference-execution-", properties.workerConcurrency());
     }
 
     @Bean("certificateReferenceRelayScheduler")

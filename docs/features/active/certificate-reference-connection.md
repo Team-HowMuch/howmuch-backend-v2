@@ -1,6 +1,6 @@
 # Feature Plan: 기존 공동인증서 참조 금융기관 연결 API
 
-- Status: PR 게시 준비 · 정식 Flyway 마이그레이션 포함
+- Status: PR #570 리뷰 반영 · dev/prod 사전 설정
 - Last updated: 2026-10-17
 - 범위: 모바일 앱이 호출할 Backend API, 비동기 참조 연결 worker, CODEF Mock, 검토용 DB 변경안
 - 사용자 결정: 화면 구현 제외. DB 변경은 나중에 검토한 후 API 변경과 함께 PR 작성.
@@ -398,3 +398,22 @@ REFERENCE_TEST_DB_URL=jdbc:postgresql://127.0.0.1:18432/reference_test \
 - V58을 Flyway로 적용한 PostgreSQL 기반 선별 Backend 테스트 90개: 실패 0, skip 0. `compileJava`/`compileTestJava` 성공.
 - 로컬 Docker daemon이 6초 안에 응답하지 않아 기존 Docker 의존 전체 테스트는 이번 로컬 실행에서 수행하지 않았다. 원격 PR CI에서 전체 테스트 결과를 확인한다.
 - CODEF Mock 별도 이슈: Team-HowMuch/codef-mock-server#11, 브랜치 `feat/11-account-reference-add`.
+
+## 11. PR #570 리뷰: 제한된 병렬 실행과 접수 역압
+
+단일 @Scheduled 작업은 pool 크기만 늘려도 같은 작업을 동시에 실행하지 않는다. CODEF 한 요청이 4분 이상 걸리면 뒤 요청이 실행 예산 없이 만료될 수 있다는 P1 지적을 반영한다.
+
+- `worker-concurrency`(기본 4, 허용 1~16)개 독립 fixed-delay 실행 루프를 등록한다. 별도 relay/recovery 스케줄러는 유지한다.
+- 같은 DB의 QUEUED/RUNNING 및 lease가 유효한 UNKNOWN 확인 작업을 합쳐 concurrency 이하로 제한한다. DB advisory transaction lock으로 동시 접수/선점의 수량 검사를 직렬화한다.
+- 용량이 차면 작업/Outbox를 만들지 않고 `CERTIFICATE_REFERENCE_BUSY`(503)로 거절한다. 같은 멱등 키로 재시도할 수 있다. 이미 접수된 같은 키의 재요청은 용량과 관계없이 기존 결과를 반환한다.
+- 새 QUEUED 작업을 UNKNOWN 재확인보다 먼저 선점하고 UNKNOWN은 빈 용량에서만 실행한다. 이미 접수한 신규 작업의 실행 자리를 복구 작업이 차지하지 않게 한다.
+- 이 값은 현재 DB 전체의 보수적 접수 한도도 결정하므로 같은 환경의 모든 인스턴스에 같은 값을 쓴다. 새 SQL 변경은 없다.
+- 검증: 두 worker의 실제 동시 진입, 동시 접수 상한/실패 시 Outbox 없음, UNKNOWN 선점과 접수의 경쟁, 기존 멱등/장애 복구 회귀.
+
+
+### 리뷰 수정 검증
+
+- 관련 Backend 테스트 95개 통과(실패/오류/skip 0), `compileJava`/`compileTestJava` 성공.
+- 변경 후 전체 local Spring Boot 서버에서 JWT/Redis/JPA/Kafka/CODEF Mock 기반 후보 조회 → 202 → 같은 키 재요청 → CONNECTED → 기존 계좌 조회 1개 및 대상 CERTIFICATE 저장을 다시 검증했다.
+- 테스트용 PostgreSQL/Redis/Kafka/Mock과 합성 데이터만 사용했다. 실제 CODEF 인증·송금은 실행하지 않았다.
+- 리뷰 수정 커밋 경계: `fix(account): 인증서 참조 작업 병렬 실행과 접수 용량 제한`. 토픽 목록/운영 기록은 별도 `docs(kafka)` 커밋으로 분리한다.

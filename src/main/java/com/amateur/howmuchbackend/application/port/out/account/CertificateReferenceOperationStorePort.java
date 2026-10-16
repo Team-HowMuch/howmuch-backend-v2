@@ -14,7 +14,7 @@ public interface CertificateReferenceOperationStorePort {
 
     Optional<CertificateReferenceOperation> findActive(long userId);
 
-    void create(CertificateReferenceOperation operation, CertificateEnvelope envelope);
+    boolean create(CertificateReferenceOperation operation, CertificateEnvelope envelope);
 
     boolean receive(UUID messageId, UUID operationId, String hash, LocalDateTime now);
 

@@ -61,6 +61,7 @@ spring:
       spec: maximumSize=1000,expireAfterWrite=60s
 howmuch:
   certificate-reference:
+    worker-concurrency: ${CERTIFICATE_REFERENCE_WORKER_CONCURRENCY:4}
     enabled: ${CERTIFICATE_REFERENCE_ENABLED:false}
     command-topic: ${CERTIFICATE_REFERENCE_COMMAND_TOPIC:finance.certificate-reference.command.v1}
     command-dlt-topic: ${CERTIFICATE_REFERENCE_COMMAND_DLT_TOPIC:finance.certificate-reference.command.v1.dlt}

@@ -78,6 +78,15 @@ class CertificateReferenceConfigurationTest {
                             assertThat(factory.getContainerProperties().getAckMode())
                                     .isEqualTo(ContainerProperties.AckMode.RECORD);
                             assertThat(factory.getContainerProperties().isSyncCommits()).isTrue();
+                            assertThat(
+                                            context.getBean(
+                                                            "certificateReferenceExecutionScheduler",
+                                                            org.springframework.scheduling
+                                                                    .concurrent
+                                                                    .ThreadPoolTaskScheduler.class)
+                                                    .getScheduledThreadPoolExecutor()
+                                                    .getCorePoolSize())
+                                    .isEqualTo(4);
                             assertThat(factory.getConsumerFactory().getConfigurationProperties())
                                     .containsEntry("enable.auto.commit", false)
                                     .containsEntry("allow.auto.create.topics", false);

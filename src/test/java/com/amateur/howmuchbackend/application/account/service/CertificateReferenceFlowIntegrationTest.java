@@ -227,7 +227,12 @@ account_credentials_local_ciphertext,created_at,updated_at) VALUES(?,?,'CONNECTE
                         new CertificateProperties(
                                 true, "", key, key, List.of(), null, null, null, null, null, null),
                         new StaticListableBeanFactory().getBeanProvider(KmsClient.class));
-        store = new CertificateReferenceJdbcAdapter(jdbc);
+        store =
+                transactional(
+                        new CertificateReferenceJdbcAdapter(
+                                jdbc,
+                                new CertificateReferenceProperties(
+                                        true, TOPIC, TOPIC + ".dlt", null, 4)));
         authentication =
                 new com.amateur.howmuchbackend.adapter.out.persistence.external
                         .InstitutionAuthenticationJdbcAdapter(jdbc, clock);
@@ -309,7 +314,7 @@ account_credentials_local_ciphertext,created_at,updated_at) VALUES(?,?,'CONNECTE
                 new CertificateReferenceKafkaPublisher(
                         new AcknowledgedKafkaSender(template, Duration.ofSeconds(10)),
                         JSON,
-                        new CertificateReferenceProperties(true, TOPIC, TOPIC + ".dlt", null));
+                        new CertificateReferenceProperties(true, TOPIC, TOPIC + ".dlt", null, 4));
         worker =
                 new CertificateReferenceWorkerService(
                         store,
@@ -856,6 +861,98 @@ account_credentials_local_ciphertext,created_at,updated_at) VALUES(?,?,'CONNECTE
                                     + " column_name='authentication_method'",
                                 Integer.class))
                 .isEqualTo(1);
+    }
+
+    CertificateReferenceOperation reservation() {
+        String unique = UUID.randomUUID().toString();
+        long owner =
+                jdbc.queryForObject(
+                        "INSERT INTO"
+                            + " users(identity_key,name,public_id,phone_number,pin_hash,phone_verified,role,active,created_at,updated_at)"
+                            + " VALUES(?,'용량 테스트',?,?,'unused',true,'USER',true,?,?) RETURNING id",
+                        Long.class,
+                        unique,
+                        "r_" + unique.replace("-", "").substring(0, 10),
+                        unique.substring(0, 20),
+                        now(),
+                        now());
+        long cid =
+                jdbc.queryForObject(
+                        "INSERT INTO"
+                            + " external_connections(user_id,connected_id_ciphertext,configuration_fingerprint,active,created_at,updated_at)"
+                            + " VALUES(?,'synthetic','fixture',true,?,?) RETURNING id",
+                        Long.class,
+                        owner,
+                        now(),
+                        now());
+        return new CertificateReferenceOperation(
+                UUID.randomUUID(),
+                owner,
+                cid,
+                "0020",
+                "0088",
+                UUID.randomUUID(),
+                "a".repeat(64),
+                "b".repeat(64),
+                CertificateReferenceStatus.QUEUED,
+                false,
+                null,
+                now(),
+                now().plusMinutes(10),
+                null,
+                null);
+    }
+
+    boolean reserve(CertificateReferenceOperation op) {
+        return store.create(
+                op,
+                protection.sealReference(
+                        op, new CertificateReferenceSecret("provider-fixture", null, null, null)));
+    }
+
+    @Test
+    void concurrentAdmissionCannotExceedExecutionCapacityOrLeaveAnOutboxForRejectedWork()
+            throws Exception {
+        var operations = new ArrayList<CertificateReferenceOperation>();
+        for (int i = 0; i < 8; i++) operations.add(reservation());
+        try (var pool = Executors.newFixedThreadPool(8)) {
+            var results = new ArrayList<java.util.concurrent.Future<Boolean>>();
+            for (var op : operations) results.add(pool.submit(() -> reserve(op)));
+            int admitted = 0;
+            for (var result : results) if (result.get(10, TimeUnit.SECONDS)) admitted++;
+            assertThat(admitted).isEqualTo(4);
+        }
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM certificate_reference_operations",
+                                Integer.class))
+                .isEqualTo(4);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM certificate_reference_command_outbox",
+                                Integer.class))
+                .isEqualTo(4);
+    }
+
+    @Test
+    void newWorkGetsPriorityAndUnknownReconciliationOnlyConsumesFreeCapacity() {
+        UUID unknown = accept();
+        deliver(unknown);
+        var first = store.claim(now()).orElseThrow();
+        assertThat(tx.start(first)).isTrue();
+        tx.finish(first, CertificateReferenceStatus.UNKNOWN, "CERTIFICATE_REFERENCE_UNCERTAIN");
+        clock.advance(Duration.ofSeconds(31));
+        var queued = reservation();
+        assertThat(reserve(queued)).isTrue();
+        assertThat(store.receive(queued.id(), queued.id(), "a".repeat(64), now())).isTrue();
+        var next = store.claim(now()).orElseThrow();
+        assertThat(next.operation().id()).isEqualTo(queued.id());
+        var reconciliation = store.claim(now()).orElseThrow();
+        assertThat(reconciliation.operation().id()).isEqualTo(unknown);
+        assertThat(reserve(reservation())).isTrue();
+        assertThat(reserve(reservation())).isTrue();
+        assertThat(reserve(reservation()))
+                .isFalse(); // Running + leased UNKNOWN both consume a place.
     }
 
     static final class MutableClock extends Clock {

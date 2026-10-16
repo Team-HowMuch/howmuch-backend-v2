@@ -4,8 +4,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("howmuch.certificate-reference")
 public record CertificateReferenceProperties(
-        boolean enabled, String commandTopic, String commandDltTopic, String commandGroup) {
+        boolean enabled,
+        String commandTopic,
+        String commandDltTopic,
+        String commandGroup,
+        int workerConcurrency) {
     public CertificateReferenceProperties {
+        workerConcurrency = workerConcurrency == 0 ? 4 : workerConcurrency;
+        if (workerConcurrency < 1 || workerConcurrency > 16)
+            throw new IllegalArgumentException(
+                    "Reference worker concurrency must be between 1 and 16");
         commandTopic = name(commandTopic, "finance.certificate-reference.command.v1");
         commandDltTopic = name(commandDltTopic, "finance.certificate-reference.command.v1.dlt");
         commandGroup = name(commandGroup, "howmuch-certificate-reference-v1");

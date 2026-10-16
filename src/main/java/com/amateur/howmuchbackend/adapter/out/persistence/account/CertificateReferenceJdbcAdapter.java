@@ -4,10 +4,12 @@ import com.amateur.howmuchbackend.application.account.model.*;
 import com.amateur.howmuchbackend.application.certificate.model.CertificateEnvelope;
 import com.amateur.howmuchbackend.application.port.out.account.CertificateReferenceOperationStorePort;
 import com.amateur.howmuchbackend.domain.account.*;
+import com.amateur.howmuchbackend.infra.account.config.CertificateReferenceProperties;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.*;
 import java.time.LocalDateTime;
@@ -19,10 +21,14 @@ import java.util.*;
         name = "enabled",
         havingValue = "true")
 public class CertificateReferenceJdbcAdapter implements CertificateReferenceOperationStorePort {
+    private static final long CAPACITY_LOCK = 0x4345525452454631L;
     private final JdbcTemplate jdbc;
+    private final CertificateReferenceProperties properties;
 
-    public CertificateReferenceJdbcAdapter(JdbcTemplate jdbc) {
+    public CertificateReferenceJdbcAdapter(
+            JdbcTemplate jdbc, CertificateReferenceProperties properties) {
         this.jdbc = jdbc;
+        this.properties = properties;
     }
 
     public Optional<CertificateReferenceOperation> find(UUID id, long user) {
@@ -61,7 +67,10 @@ public class CertificateReferenceJdbcAdapter implements CertificateReferenceOper
                 .findFirst();
     }
 
-    public void create(CertificateReferenceOperation op, CertificateEnvelope secret) {
+    @Transactional
+    public boolean create(CertificateReferenceOperation op, CertificateEnvelope secret) {
+        lockCapacity();
+        if (!hasCapacity(op.createdAt())) return false;
         jdbc.update(
                 """
 INSERT INTO certificate_reference_operations(id,user_id,external_connection_id,source_organization,
@@ -93,6 +102,7 @@ VALUES(?,?,?,?)
                 op.id(),
                 op.createdAt(),
                 op.createdAt());
+        return true;
     }
 
     public boolean receive(UUID message, UUID operation, String hash, LocalDateTime now) {
@@ -126,7 +136,10 @@ VALUES(?,?,?,?) ON CONFLICT DO NOTHING
                         hash));
     }
 
+    @Transactional
     public Optional<CertificateReferenceExecution> claim(LocalDateTime now) {
+        lockCapacity();
+        boolean reconciliationCapacity = hasCapacity(now);
         return jdbc
                 .query(
                         """
@@ -134,8 +147,9 @@ WITH candidate AS (
  SELECT o.id FROM certificate_reference_operations o WHERE
   o.status IN ('QUEUED','UNKNOWN') AND o.next_attempt_at<=?
   AND (o.lease_token IS NULL OR o.lease_expires_at<=?)
+  AND (o.status='QUEUED' OR ?)
   AND EXISTS(SELECT 1 FROM certificate_reference_command_inbox i WHERE i.operation_id=o.id)
- ORDER BY o.next_attempt_at,o.id FOR UPDATE SKIP LOCKED LIMIT 1)
+ ORDER BY CASE WHEN o.status='QUEUED' THEN 0 ELSE 1 END,o.next_attempt_at,o.id FOR UPDATE SKIP LOCKED LIMIT 1)
 UPDATE certificate_reference_operations o SET
  status=CASE WHEN status='UNKNOWN' THEN 'UNKNOWN' ELSE 'RUNNING' END,
  lease_generation=lease_generation+1,lease_token=?,lease_expires_at=?,
@@ -157,6 +171,7 @@ FROM candidate c WHERE o.id=c.id RETURNING o.*
                         },
                         now,
                         now,
+                        reconciliationCapacity,
                         UUID.randomUUID(),
                         now.plusMinutes(15),
                         now,
@@ -332,6 +347,22 @@ UPDATE certificate_reference_command_outbox SET status='PENDING',lease_token=NUL
 """,
                 now,
                 now);
+    }
+
+    private void lockCapacity() {
+        jdbc.queryForObject("SELECT pg_advisory_xact_lock(?)", Object.class, CAPACITY_LOCK);
+    }
+
+    private boolean hasCapacity(LocalDateTime now) {
+        Long reserved =
+                jdbc.queryForObject(
+                        """
+SELECT count(*) FROM certificate_reference_operations
+WHERE status IN ('QUEUED','RUNNING') OR (status='UNKNOWN' AND lease_expires_at>?)
+""",
+                        Long.class,
+                        now);
+        return reserved != null && reserved < properties.workerConcurrency();
     }
 
     private CertificateReferenceOperation operation(ResultSet r, int n) throws SQLException {

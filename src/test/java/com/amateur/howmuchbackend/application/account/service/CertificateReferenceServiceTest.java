@@ -98,6 +98,7 @@ class CertificateReferenceServiceTest {
                 .thenReturn(Optional.of(new ExternalConnection(15L, 1L, "fixture")));
         when(protection.requestHash(1, c)).thenReturn("a".repeat(64));
         when(protection.connectionHash(1, "fixture")).thenReturn("b".repeat(64));
+        when(operations.create(any(), any())).thenReturn(true);
         when(protection.sealReference(any(), any()))
                 .thenReturn(new CertificateEnvelope(new byte[29], new byte[32], "local:v1"));
         var result = service.startCertificateReference(c);
@@ -208,4 +209,23 @@ class CertificateReferenceServiceTest {
         verify(operations, never()).create(any(), any());
         verifyNoInteractions(provider);
     }
+
+    @Test
+    void fullCapacityReturnsRetryableBusyInsteadOfAcceptingAnExpiringJob() {
+        activeUser();
+        var command = command(UUID.randomUUID());
+        when(connections.findActiveByIdAndUserId(15L, 1L))
+                .thenReturn(Optional.of(new ExternalConnection(15L, 1L, "fixture")));
+        when(operations.create(any(), any())).thenReturn(false);
+        assertThatThrownBy(() -> service.startCertificateReference(command))
+                .isInstanceOfSatisfying(
+                        ApplicationException.class,
+                        e ->
+                                assertThat(e.getStatusCode())
+                                        .isEqualTo(
+                                                ExternalConnectionStatusCode
+                                                        .CERTIFICATE_REFERENCE_BUSY));
+        verifyNoInteractions(provider);
+    }
+
 }

@@ -153,7 +153,8 @@ public class CertificateReferenceService
                         c.birthDate(),
                         c.accountNumber(),
                         c.accountPassword());
-        operations.create(op, protection.sealReference(op, secret));
+        if (!operations.create(op, protection.sealReference(op, secret)))
+            throw ApplicationException.of(ExternalConnectionStatusCode.CERTIFICATE_REFERENCE_BUSY);
         return result(op);
     }
 
