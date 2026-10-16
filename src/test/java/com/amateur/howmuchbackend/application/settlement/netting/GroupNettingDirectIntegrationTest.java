@@ -1356,12 +1356,34 @@ class GroupNettingDirectIntegrationTest {
     }
 
     @Test
+    void unchangedPositiveTransferCountDoesNotOfferCompression() {
+        var f = fixture(15000, 10000);
+        as(f.a());
+        suspendUseCase.suspend(f.ba());
+        long c = user("C"), d = user("D");
+        var now = LocalDateTime.now(ZoneOffset.UTC);
+        member(f.group(), c, "MEMBER", now);
+        member(f.group(), d, "MEMBER", now);
+        original(f.group(), c, d, account(c), 20000, now);
+        clearInvocations(bank);
+        var estimate = estimates.estimate(f.group());
+        assertThat(estimate.eligibleSettlementCount()).isEqualTo(2);
+        assertThat(estimate.beforeTransferCount()).isEqualTo(2);
+        assertThat(estimate.afterTransferCount()).isEqualTo(2);
+        assertThat(estimate.reducedTransferCount()).isZero();
+        assertThat(estimate.canCompress()).isFalse();
+        assertThat(estimates.estimate(f.group())).isEqualTo(estimate);
+        verifyNoInteractions(bank);
+    }
+
+    @Test
     void estimateSupportsFullOffsetAndReturnsZeroWhenNoRemainingDebts() {
         var f = fixture(10000, 10000);
         as(f.a());
         var before = estimates.estimate(f.group());
         assertThat(before.beforeTransferCount()).isEqualTo(2);
         assertThat(before.afterTransferCount()).isZero();
+        assertThat(before.reducedTransferCount()).isEqualTo(2);
         assertThat(before.canCompress()).isTrue();
         compress(f);
         var after = estimates.estimate(f.group());

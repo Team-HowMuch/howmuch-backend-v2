@@ -161,3 +161,7 @@ commit 경계:
 - PR base는 codex/feat-506-netting-member-schema다. #571 머지 후 develop으로 바꿔 최종 검증/머지한다. 기존 SQL PR과 주 작업 폴더는 수정하지 않았다. dev/prod 배포 및 실 CODEF/실 송금은 수행하지 않았다.
 
 로컬 전체 재현에는 DB_URL/DB_USERNAME/DB_PASSWORD/REDIS_HOST/REDIS_PORT를 격리 서비스로 지정하고 `bash scripts/test.sh --init-script /tmp/howmuch-netting-publish-no-docker.gradle compileJava bootJar test`를 실행했다. 외부 init script의 제외 클래스는 CertificateHttpIntegrationTest, CertificateFailureMigrationTest, CertificatePersistenceIntegrationTest, SettlementCategoryMigrationTest, KafkaNotificationFlowIntegrationTest, KafkaTransportIntegrationTest다. Docker가 준비된 CI에서는 init script 없이 기존 `bash scripts/test.sh`를 실행한다.
+
+## PR #572 리뷰 후속 보완
+
+[재시도·건수 안내 리뷰 반영](group-netting-review-fixes.md): 일시적 CODEF/호출 예산/경합 오류를 기존 3회 한도 내 RETRY로 분류하고 인증·권한·설정 오류의 즉시 종료를 유지했다. Worker/dispatcher는 같은 Application Policy를 사용한다. canCompress는 전후 건수 직접 비교로 명확히 했으며 전액 상계 허용 및 비감소 미표시를 실제 DB로 확인했다. 후속 일반 전체 회귀 Java 2,205개·JavaScript 35개 성공(기존 Docker 의존 6개 클래스는 로컬 환경상 제외). GitHub CI는 billing/spending limit으로 시작하지 못했다. SQL PR/스키마/계산기 정책/배포는 변경하지 않았다.

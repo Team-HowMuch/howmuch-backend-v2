@@ -61,7 +61,7 @@ public class GroupNettingEstimateService implements GetGroupNettingEstimateUseCa
                     counts.afterTransferCount(),
                     counts.reducedTransferCount(),
                     compression.canCompress(counts.compressionTargetCount())
-                            && counts.reducedTransferCount() > 0
+                            && counts.beforeTransferCount() > counts.afterTransferCount()
                             && !availability.isGroupReplacementPending(groupId));
         } catch (ApplicationException failure) {
             if (failure.getStatusCode() == NettingStatusCode.NETTING_ESTIMATE_BUSY)
