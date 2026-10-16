@@ -16,12 +16,16 @@ import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.netting.*;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.common.exception.StatusCode;
+import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
+import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import com.amateur.howmuchbackend.domain.group.status.GroupStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.netting.NettingStatusCode;
 import com.amateur.howmuchbackend.infra.codef.config.CodefConfigurationFingerprint;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -585,6 +589,159 @@ class GroupNettingDirectIntegrationTest {
                 status,
                 group,
                 userId);
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "CODEF_UPSTREAM_UNAVAILABLE",
+                "CODEF_RATE_LIMITED",
+                "TEMPORARILY_UNAVAILABLE"
+            })
+    void temporaryBankFailureRetriesSameRequestAndOldLeaseCannotOverwriteSuccess(String code) {
+        var f = fixture(15000, 10000);
+        as(f.b());
+        var command = new ExecuteGroupNettingCommand(UUID.randomUUID());
+        var queued = executions.execute(f.group(), command);
+        StatusCode failure =
+                code.equals("TEMPORARILY_UNAVAILABLE")
+                        ? CommonStatusCode.TEMPORARILY_UNAVAILABLE
+                        : ExternalConnectionStatusCode.valueOf(code);
+        var firstLease = new java.util.concurrent.atomic.AtomicReference<UUID>();
+        when(bank.fetch(anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(
+                        inv -> {
+                            assertThat(
+                                            TransactionSynchronizationManager
+                                                    .isActualTransactionActive())
+                                    .isFalse();
+                            if (firstLease.get() == null) {
+                                firstLease.set(
+                                        store.findById(queued.executionId())
+                                                .orElseThrow()
+                                                .leaseToken());
+                                throw ApplicationException.of(failure);
+                            }
+                            return List.of();
+                        });
+        dispatcher.dispatch();
+        var retry = executions.getExecution(f.group(), queued.executionId());
+        assertThat(retry.status()).isEqualTo("RETRY");
+        assertThat(retry.errorCode()).isEqualTo(code);
+        assertThat(executions.execute(f.group(), command)).isEqualTo(retry);
+        assertThat(store.findById(queued.executionId()).orElseThrow().leaseToken()).isNull();
+        var retryRow =
+                jdbc.queryForMap(
+                        "SELECT attempt_count,next_attempt_at,finished_at FROM"
+                            + " group_netting_executions WHERE id=?",
+                        queued.executionId());
+        assertThat(retryRow.get("attempt_count")).isEqualTo(1);
+        assertThat(retryRow.get("next_attempt_at")).isNotNull();
+        assertThat(retryRow.get("finished_at")).isNull();
+        makeRetryDue(queued.executionId());
+        dispatcher.dispatch();
+        var done = executions.getExecution(f.group(), queued.executionId());
+        assertThat(done.status()).as("error %s", done.errorCode()).isEqualTo("SUCCEEDED");
+        assertThat(done.errorCode()).isNull();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT attempt_count FROM group_netting_executions WHERE id=?",
+                                Integer.class,
+                                queued.executionId()))
+                .isEqualTo(2);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM group_settlement_nettings WHERE group_id=?",
+                                Integer.class,
+                                f.group()))
+                .isEqualTo(1);
+        assertThat(nettings.get(f.group(), done.nettingId()).transfers().getFirst().amount())
+                .isEqualTo(5000);
+        worker.failed(queued.executionId(), firstLease.get(), "NETTING_WORKER_FAILED");
+        assertThat(executions.getExecution(f.group(), queued.executionId())).isEqualTo(done);
+    }
+
+    @Test
+    void persistentProviderFailureStopsAtMaxAttemptsAndKeepsItsConcreteCode() {
+        var f = fixture(15000, 10000);
+        as(f.a());
+        var command = new ExecuteGroupNettingCommand(UUID.randomUUID());
+        var queued = executions.execute(f.group(), command);
+        when(bank.fetch(anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenThrow(
+                        ApplicationException.of(
+                                ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE));
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            dispatcher.dispatch();
+            var result = executions.getExecution(f.group(), queued.executionId());
+            assertThat(result.errorCode()).isEqualTo("CODEF_UPSTREAM_UNAVAILABLE");
+            assertThat(result.status()).isEqualTo(attempt < 3 ? "RETRY" : "FAILED");
+            assertThat(
+                            jdbc.queryForObject(
+                                    "SELECT attempt_count FROM group_netting_executions WHERE id=?",
+                                    Integer.class,
+                                    queued.executionId()))
+                    .isEqualTo(attempt);
+            if (attempt < 3) makeRetryDue(queued.executionId());
+        }
+        dispatcher.dispatch();
+        verify(bank, times(3)).fetch(anyString(), anyString(), anyString(), any(), any(), any());
+        var row =
+                jdbc.queryForMap(
+                        "SELECT next_attempt_at,finished_at FROM group_netting_executions WHERE"
+                            + " id=?",
+                        queued.executionId());
+        assertThat(row.get("next_attempt_at")).isNull();
+        assertThat(row.get("finished_at")).isNotNull();
+        assertThat(executions.execute(f.group(), command).executionId())
+                .isEqualTo(queued.executionId());
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM group_settlement_nettings WHERE group_id=?",
+                                Integer.class,
+                                f.group()))
+                .isZero();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ExternalConnectionStatusCode.class,
+            names = {
+                "BANK_CREDENTIAL_INVALID",
+                "CODEF_ADDITIONAL_AUTH_REQUIRED",
+                "CODEF_CONFIGURATION_INVALID"
+            })
+    void permanentProviderErrorsAreNotAutomaticallyRetried(ExternalConnectionStatusCode code) {
+        var f = fixture(15000, 10000);
+        as(f.a());
+        var queued =
+                executions.execute(f.group(), new ExecuteGroupNettingCommand(UUID.randomUUID()));
+        when(bank.fetch(anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenThrow(ApplicationException.of(code));
+        dispatcher.dispatch();
+        var result = executions.getExecution(f.group(), queued.executionId());
+        assertThat(result.status()).isEqualTo("FAILED");
+        assertThat(result.errorCode()).isEqualTo(code.getCode());
+        dispatcher.dispatch();
+        verify(bank, times(1)).fetch(anyString(), anyString(), anyString(), any(), any(), any());
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT attempt_count FROM group_netting_executions WHERE id=?",
+                                Integer.class,
+                                queued.executionId()))
+                .isEqualTo(1);
+    }
+
+    private void makeRetryDue(UUID executionId) {
+        var now = LocalDateTime.now(ZoneOffset.UTC);
+        assertThat(
+                        jdbc.update(
+                                "UPDATE group_netting_executions SET next_attempt_at=?,updated_at=?"
+                                    + " WHERE id=? AND status='RETRY'",
+                                now.minusSeconds(1),
+                                now,
+                                executionId))
+                .isEqualTo(1);
     }
 
     @Test

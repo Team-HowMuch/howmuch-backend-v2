@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.settlement.netting.service;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.DispatchNettingExecutionsUseCase;
 import com.amateur.howmuchbackend.application.port.out.settlement.netting.*;
+import com.amateur.howmuchbackend.application.settlement.netting.policy.NettingExecutionFailurePolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class NettingExecutionDispatcher implements DispatchNettingExecutionsUseCase {
     private final NettingExecutionStorePort executions;
     private final NettingJobLauncherPort launcher;
+    private final NettingExecutionFailurePolicy failures;
     private final UUID workerId = UUID.randomUUID();
     private final AtomicReference<NettingExecutionStorePort.Execution> running =
             new AtomicReference<>();
@@ -45,9 +47,7 @@ public class NettingExecutionDispatcher implements DispatchNettingExecutionsUseC
                 executions.finish(
                         execution.id(),
                         execution.leaseToken(),
-                        failure instanceof ApplicationException
-                                ? NettingExecutionStorePort.Status.FAILED
-                                : NettingExecutionStorePort.Status.RETRY,
+                        failures.statusFor(code),
                         null,
                         code,
                         LocalDateTime.now(ZoneOffset.UTC));

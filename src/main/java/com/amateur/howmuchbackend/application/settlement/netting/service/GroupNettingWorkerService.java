@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.settlement.netting.service;
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.ProcessNettingExecutionUseCase;
 import com.amateur.howmuchbackend.application.port.out.settlement.*;
 import com.amateur.howmuchbackend.application.port.out.settlement.netting.*;
+import com.amateur.howmuchbackend.application.settlement.netting.policy.NettingExecutionFailurePolicy;
 import com.amateur.howmuchbackend.application.settlement.service.*;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.netting.NettingStatusCode;
@@ -32,6 +33,7 @@ public class GroupNettingWorkerService implements ProcessNettingExecutionUseCase
     private final NettingObservedTransactionWriter observedWriter;
     private final GroupNettingCommitWriter commitWriter;
     private final NettedDepositCommitWriter depositWriter;
+    private final NettingExecutionFailurePolicy failures;
 
     public com.amateur.howmuchbackend.application.port.in.settlement.netting.result
                     .NettingSynchronizationResult
@@ -160,19 +162,8 @@ public class GroupNettingWorkerService implements ProcessNettingExecutionUseCase
     }
 
     public void failed(UUID id, UUID token, String code) {
-        var status =
-                Set.of(
-                                        "NETTING_INPUT_CHANGED",
-                                        "NETTING_NO_ELIGIBLE_DEBTS",
-                                        "NETTING_INSUFFICIENT_SETTLEMENTS",
-                                        "NETTING_INVALID_SOURCE",
-                                        "NETTING_ALREADY_ACTIVE")
-                                .contains(code)
-                        ? NettingExecutionStorePort.Status.STALE
-                        : code.equals("NETTING_WORKER_FAILED")
-                                ? NettingExecutionStorePort.Status.RETRY
-                                : NettingExecutionStorePort.Status.FAILED;
-        executions.finish(id, token, status, null, code, LocalDateTime.now(ZoneOffset.UTC));
+        executions.finish(
+                id, token, failures.statusFor(code), null, code, LocalDateTime.now(ZoneOffset.UTC));
     }
 
     private NettingExecutionStorePort.Execution load(UUID id, UUID token) {
