@@ -53,6 +53,7 @@ class BankAccountServiceTest {
     @Mock private BankCatalog bankCatalog;
     @Mock private AccountCredentialProtectionService credentialProtection;
     @Mock private User user;
+    @Mock private com.amateur.howmuchbackend.application.port.out.external.InstitutionAuthenticationStorePort authentication;
 
     @Test
     void requiredCredentialsMustBePresentBeforeCodefCall() {
@@ -66,7 +67,7 @@ class BankAccountServiceTest {
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(
                                 ExternalConnectionStatusCode.BANK_ACCOUNT_CREDENTIAL_REQUIRED));
-        verifyNoInteractions(bankConnectionPort, credentialProtection);
+        verifyNoInteractions(bankConnectionPort, credentialProtection,authentication);
     }
 
     @Test
@@ -90,6 +91,7 @@ class BankAccountServiceTest {
                 "local:v1:value".equals(institution.localCredentialsCiphertext())
                         && "kms:v1:value".equals(institution.kmsCredentialsCiphertext())));
         verify(bankConnectionPort).findAccounts("CID-1", "0020", null, credentials);
+        verify(authentication).recordMethod(7L,"0020",com.amateur.howmuchbackend.domain.external.BankAuthenticationMethod.ID_PASSWORD);
     }
 
     @Test
@@ -114,6 +116,7 @@ class BankAccountServiceTest {
                 List.of(candidateKey("CID-1", "0020", candidate.externalAccountKey())), null));
 
         verify(bankConnectionPort).findAccounts("CID-1", "0020", null, credentials);
+        verifyNoInteractions(authentication);
     }
 
     @Test
@@ -138,6 +141,7 @@ class BankAccountServiceTest {
         var result = service().connect(new ConnectBankCommand(organization, "yong", "password", null, null, null));
 
         verify(bankConnectionPort).update(connectedId, registration);
+        verify(authentication).recordMethod(connectionId,organization,com.amateur.howmuchbackend.domain.external.BankAuthenticationMethod.ID_PASSWORD);
         assertThat(result.candidates()).extracting(candidate -> candidate.name()).containsExactly("yong 통장");
     }
 
@@ -195,7 +199,7 @@ class BankAccountServiceTest {
         assertThatThrownBy(() -> service().getConnectionAccounts(query(7L, "0020")))
                 .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
                         .isEqualTo(ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND));
-        verifyNoInteractions(bankConnectionPort, credentialProtection);
+        verifyNoInteractions(bankConnectionPort, credentialProtection,authentication);
     }
 
     @Test
@@ -204,7 +208,7 @@ class BankAccountServiceTest {
         assertThatThrownBy(() -> service().getConnectionAccounts(query(7L, "0088")))
                 .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
                         .isEqualTo(ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID));
-        verifyNoInteractions(bankConnectionPort, credentialProtection);
+        verifyNoInteractions(bankConnectionPort, credentialProtection,authentication);
     }
 
     @Test
@@ -240,6 +244,20 @@ class BankAccountServiceTest {
         verifyNoInteractions(bankConnectionPort);
     }
 
+    @Test
+    void failedLoginCannotOverwritePreviouslyRecordedAuthenticationMethod() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(1L));
+        when(user.active()).thenReturn(true);
+        when(loadUserPort.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(connectionStorePort.findActiveByUserId(1L)).thenReturn(Optional.of(new ExternalConnection(7L,1L,"CID-1")));
+        when(bankConnectionPort.registeredOrganizations("CID-1")).thenReturn(Set.of("0020"));
+        when(bankConnectionPort.update(org.mockito.ArgumentMatchers.eq("CID-1"),any())).thenThrow(
+            ApplicationException.of(ExternalConnectionStatusCode.BANK_CREDENTIAL_INVALID));
+        assertThatThrownBy(()->service().connect(new ConnectBankCommand("0020","login","wrong",null,null,null)))
+            .isInstanceOf(ApplicationException.class);
+        verifyNoInteractions(authentication);
+    }
+
     private void ownedConnection() {
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(1L));
         when(connectionStorePort.findActiveByUserId(1L)).thenReturn(Optional.of(new ExternalConnection(7L, 1L, "CID-1")));
@@ -254,8 +272,8 @@ class BankAccountServiceTest {
 
     private BankAccountService service() {
         var registrationService = new BankConnectionRegistrationService(
-                currentActorPort, loadUserPort, connectionStorePort, saveAccountPort,
-                bankConnectionPort, bankCatalog, credentialProtection
+                currentActorPort, loadUserPort, org.mockito.Mockito.mock(FinancialConnectionMutationGuard.class), connectionStorePort, saveAccountPort,
+                bankConnectionPort, bankCatalog, credentialProtection, authentication
         );
         return new BankAccountService(
                 currentActorPort, loadUserPort, connectionStorePort, loadAccountPort,

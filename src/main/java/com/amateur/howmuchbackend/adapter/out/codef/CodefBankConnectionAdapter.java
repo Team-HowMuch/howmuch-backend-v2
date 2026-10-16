@@ -1,13 +1,20 @@
 package com.amateur.howmuchbackend.adapter.out.codef;
 
 import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
+import com.amateur.howmuchbackend.application.account.model.CertificateReferenceSecret;
+import com.amateur.howmuchbackend.application.account.model.CertificateReferenceUncertainException;
+import com.amateur.howmuchbackend.application.port.out.external.BankCertificateReferencePort;
 import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.AccountType;
+import com.amateur.howmuchbackend.domain.external.BankAuthenticationMethod;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
 import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
@@ -21,7 +28,8 @@ import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
-public class CodefBankConnectionAdapter implements BankConnectionPort {
+public class CodefBankConnectionAdapter
+        implements BankConnectionPort, BankCertificateReferencePort {
     private static final String SUCCESS = "CF-00000";
     private static final String ACCOUNT_CREATE_PATH = "/v1/account/create";
     private static final String ACCOUNT_ADD_PATH = "/v1/account/add";
@@ -49,13 +57,107 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
         }
         Set<String> organizations = new LinkedHashSet<>();
         for (JsonNode item : values(accountList)) {
-            String organization = firstText(text(item, "organizationCode"), text(item, "organization"));
+            String organization =
+                    firstText(text(item, "organizationCode"), text(item, "organization"));
             if (organization == null) {
                 throw ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
             }
             organizations.add(organization);
         }
         return Set.copyOf(organizations);
+    }
+
+    @Override
+    public List<RegisteredAccount> registeredAccounts(String connectedId) {
+        JsonNode response =
+                post(
+                        ACCOUNT_REGISTERED_LIST_PATH,
+                        "account_registered_methods",
+                        null,
+                        Map.of("connectedId", connectedId),
+                        "CF-04014");
+        if ("CF-04014".equals(text(response.path("result"), "code"))) return List.of();
+        String returned = text(data(response), "connectedId");
+        if (returned != null && !connectedId.equals(returned))
+            throw ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
+        JsonNode list = data(response).path("accountList");
+        if (!list.isArray() && !list.isObject())
+            throw ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
+        List<RegisteredAccount> accounts = new ArrayList<>();
+        for (JsonNode item : values(list)) {
+            if (!"KR".equals(text(item, "countryCode"))
+                    || !"BK".equals(text(item, "businessType"))
+                    || !"P".equals(text(item, "clientType"))) continue;
+            String organization =
+                    firstText(text(item, "organization"), text(item, "organizationCode"));
+            String mode = text(item, "loginType");
+            String code = text(item, "code");
+            if (code != null && !SUCCESS.equals(code)) continue;
+            if (organization == null || !organization.matches("[0-9]{4}"))
+                throw ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
+            var method="0".equals(mode)?BankAuthenticationMethod.CERTIFICATE:
+                    "1".equals(mode)?BankAuthenticationMethod.ID_PASSWORD:BankAuthenticationMethod.UNKNOWN;
+            accounts.add(new RegisteredAccount(organization, method));
+        }
+        return List.copyOf(accounts);
+    }
+
+    @Override
+    public void addReference(
+            String connectedId, String source, String target, CertificateReferenceSecret secret) {
+        var account = new LinkedHashMap<String, Object>();
+        account.put("countryCode", "KR");
+        account.put("businessType", "BK");
+        account.put("clientType", "P");
+        account.put("organization", target);
+        putIfPresent(account, "birthDate", secret.birthDate());
+        if (secret.accountNumber() != null) {
+            account.put("withdrawAccountNo", secret.accountNumber());
+            account.put("withdrawAccountPassword", rsaEncryptor.encrypt(secret.accountPassword()));
+        }
+        var payload =
+                Map.of(
+                        "connectedId",
+                        connectedId,
+                        "countryCode",
+                        "KR",
+                        "businessType",
+                        "BK",
+                        "clientType",
+                        "P",
+                        "organization",
+                        source,
+                        "accountList",
+                        List.of(account));
+        JsonNode response;
+        try {
+            response =
+                    post(
+                            "/v1/account/reference-add",
+                            "account_reference_add",
+                            target,
+                            payload,
+                            null,
+                            true);
+        } catch (ApplicationException failure) {
+            if (failure.getStatusCode() == ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE
+                    || failure.getStatusCode()
+                            == ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID)
+                throw new CertificateReferenceUncertainException();
+            throw failure;
+        }
+        boolean registered =
+                values(data(response).path("successList")).stream()
+                        .anyMatch(
+                                item ->
+                                        target.equals(text(item, "organization"))
+                                                && "0".equals(text(item, "loginType"))
+                                                && SUCCESS.equals(text(item, "code"))
+                                                && "KR".equals(text(item, "countryCode"))
+                                                && "BK".equals(text(item, "businessType"))
+                                                && "P".equals(text(item, "clientType")));
+        if (!registered || !connectedId.equals(text(data(response), "connectedId")))
+            throw new CertificateReferenceUncertainException();
     }
 
     @Override
@@ -142,19 +244,38 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
     }
 
     private JsonNode post(String path, String api, String organization, Object payload, String allowedCode) {
+        return post(path, api, organization, payload, allowedCode, false);
+    }
+
+    private JsonNode post(
+            String path,
+            String api,
+            String organization,
+            Object payload,
+            String allowedCode,
+            boolean once) {
         long startedAt = observability.start();
         String resultCode = null;
         Throwable failure = null;
         try {
-            JsonNode response = client.post(path, payload);
+            JsonNode response = once ? client.postOnce(path, payload) : client.post(path, payload);
+            if (once
+                    && !values(data(response).path("successList")).isEmpty()
+                    && (failure(response) != null || containsAdditionalAuth(response)))
+                throw new CertificateReferenceUncertainException();
             CodefFailure codefFailure = failure(response);
-            resultCode = codefFailure == null ? text(response.path("result"), "code") : codefFailure.code();
+            resultCode =
+                    codefFailure == null
+                            ? text(response.path("result"), "code")
+                            : codefFailure.code();
             if (allowedCode == null || !allowedCode.equals(resultCode)) {
                 ensureSuccess(response);
             }
             return response;
         } catch (CodefClient.CodefHttpException exception) {
             JsonNode response = client.decode(exception.responseBody());
+            if (once && !values(data(response).path("successList")).isEmpty())
+                throw new CertificateReferenceUncertainException();
             CodefFailure codefFailure = failure(response);
             if (codefFailure != null) {
                 resultCode = codefFailure.code();
@@ -207,20 +328,25 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
 
     private void addAccounts(Map<String, ExternalAccountCandidate> target, JsonNode source, AccountType type) {
         for (JsonNode item : values(source)) {
-            String externalKey = firstText(text(item, "resAccount"), text(item, "resAccountDisplay"));
+            String externalKey =
+                    firstText(text(item, "resAccount"), text(item, "resAccountDisplay"));
             if (!StringUtils.hasText(externalKey)) {
                 continue;
             }
             String display = firstText(text(item, "resAccountDisplay"), externalKey);
-            target.putIfAbsent(externalKey, new ExternalAccountCandidate(
+            target.putIfAbsent(
                     externalKey,
-                    type,
-                    firstText(text(item, "resAccountNickName"), text(item, "resAccountName"), "은행 계좌"),
-                    mask(display),
-                    amount(text(item, "resAccountBalance")),
-                    text(item, "resAccountCurrency"),
-                    text(item, "resAccountDeposit")
-            ));
+                    new ExternalAccountCandidate(
+                            externalKey,
+                            type,
+                            firstText(
+                                    text(item, "resAccountNickName"),
+                                    text(item, "resAccountName"),
+                                    "은행 계좌"),
+                            mask(display),
+                            amount(text(item, "resAccountBalance")),
+                            text(item, "resAccountCurrency"),
+                            text(item, "resAccountDeposit")));
         }
     }
 
@@ -279,7 +405,9 @@ public class CodefBankConnectionAdapter implements BankConnectionPort {
     private String mask(String value) {
         String digits = value.replaceAll("\\D", "");
         String normalized = digits.isEmpty() ? value.trim() : digits;
-        return normalized.length() <= 4 ? normalized : "****" + normalized.substring(normalized.length() - 4);
+        return normalized.length() <= 4
+                ? normalized
+                : "****" + normalized.substring(normalized.length() - 4);
     }
 
     private BigDecimal amount(String value) {

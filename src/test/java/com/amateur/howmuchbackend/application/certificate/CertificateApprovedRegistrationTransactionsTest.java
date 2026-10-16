@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.certificate;
 
+import com.amateur.howmuchbackend.application.account.service.FinancialConnectionMutationGuard;
+
 import static org.mockito.Mockito.*;
 
 import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
@@ -87,11 +89,12 @@ class CertificateApprovedRegistrationTransactionsTest {
             when(credentials.protect(eq(11L), eq("0004"), any()))
                     .thenReturn(new EncryptedBankAccountCredentials("replacement-local", null));
         }
+        var authentication=mock(com.amateur.howmuchbackend.application.port.out.external.InstitutionAuthenticationStorePort.class);
         var service =
                 new CertificateApprovedRegistrationTransactions(
                         sessions,
                         consents,
-                        users,
+                        users, mock(FinancialConnectionMutationGuard.class),
                         connections,
                         banks,
                         provider,
@@ -99,6 +102,7 @@ class CertificateApprovedRegistrationTransactionsTest {
                         protection,
                         jobs,
                         clock,
+                        authentication,
                         mock(
                                 com.amateur.howmuchbackend.application.port.out.certificate
                                         .CertificatePairingStorePort.class));
@@ -129,5 +133,6 @@ class CertificateApprovedRegistrationTransactionsTest {
         verify(jobs)
                 .finish(eq(execution), eq("SUCCEEDED"), isNull(), any(UUID.class), any(), eq(now));
         verify(consents).bind(eq(consent), any(UUID.class), eq(7L), eq(now));
+        verify(authentication).recordMethod(7L,"0004",com.amateur.howmuchbackend.domain.external.BankAuthenticationMethod.CERTIFICATE);
     }
 }

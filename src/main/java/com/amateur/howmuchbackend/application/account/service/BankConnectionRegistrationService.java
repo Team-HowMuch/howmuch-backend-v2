@@ -9,6 +9,8 @@ import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankConnectionPort.BankRegistration;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
+import com.amateur.howmuchbackend.application.port.out.external.InstitutionAuthenticationStorePort;
+import com.amateur.howmuchbackend.domain.external.BankAuthenticationMethod;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
@@ -17,7 +19,9 @@ import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.external.ExternalConnectionStatus;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -29,11 +33,13 @@ import java.util.Set;
 public class BankConnectionRegistrationService {
     private final CurrentActorPort currentActorPort;
     private final LoadUserPort loadUserPort;
+    private final FinancialConnectionMutationGuard mutationGuard;
     private final ExternalConnectionStorePort connectionStorePort;
     private final SaveAccountPort saveAccountPort;
     private final BankConnectionPort bankConnectionPort;
     private final BankCatalog bankCatalog;
     private final AccountCredentialProtectionService credentialProtection;
+    private final InstitutionAuthenticationStorePort authentication;
 
     @Transactional
     public RegisteredBank register(ConnectBankCommand command) {
@@ -42,6 +48,7 @@ public class BankConnectionRegistrationService {
         loadUserPort.findByIdForUpdate(userId)
                 .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
+        mutationGuard.requireAvailable(userId);
         connectionStorePort.validateStorageConfiguration();
         String birthDate = command.birthDate();
         BankAccountCredentials credentials = credentials(command);
@@ -83,6 +90,7 @@ public class BankConnectionRegistrationService {
                 }
             }
         }
+        authentication.recordMethod(connection.id(), command.organization(), BankAuthenticationMethod.ID_PASSWORD);
         return new RegisteredBank(connection, birthDate, credentials);
     }
 

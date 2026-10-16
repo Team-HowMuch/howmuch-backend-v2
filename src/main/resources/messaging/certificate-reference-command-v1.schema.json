@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "certificate-reference-command-v1.schema.json",
+  "title": "Certificate reference connect command metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "messageType", "messageId", "operationId", "occurredAt"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "messageType": {"const": "REFERENCE_CONNECT"},
+    "messageId": {"type": "string", "format": "uuid"},
+    "operationId": {"type": "string", "format": "uuid"},
+    "occurredAt": {"type": "string", "format": "date-time"}
+  }
+}

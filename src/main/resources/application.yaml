@@ -60,6 +60,11 @@ spring:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=60s
 howmuch:
+  certificate-reference:
+    enabled: ${CERTIFICATE_REFERENCE_ENABLED:false}
+    command-topic: ${CERTIFICATE_REFERENCE_COMMAND_TOPIC:finance.certificate-reference.command.v1}
+    command-dlt-topic: ${CERTIFICATE_REFERENCE_COMMAND_DLT_TOPIC:finance.certificate-reference.command.v1.dlt}
+    command-group: ${CERTIFICATE_REFERENCE_COMMAND_GROUP:howmuch-certificate-reference-v1}
   certificate:
     enabled: ${CERTIFICATE_ENABLED:false}
     detailed-errors-enabled: ${CERTIFICATE_DETAILED_ERRORS_ENABLED:false}

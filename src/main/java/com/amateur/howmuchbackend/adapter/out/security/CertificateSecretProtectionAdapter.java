@@ -2,9 +2,13 @@ package com.amateur.howmuchbackend.adapter.out.security;
 
 import static com.amateur.howmuchbackend.domain.certificate.CertificateStatusCode.CERTIFICATE_STORAGE_UNAVAILABLE;
 
+import com.amateur.howmuchbackend.application.account.model.CertificateReferenceSecret;
 import com.amateur.howmuchbackend.application.certificate.model.*;
+import com.amateur.howmuchbackend.application.port.in.account.command.StartCertificateReferenceConnectionCommand;
+import com.amateur.howmuchbackend.application.port.out.account.CertificateReferenceProtectionPort;
 import com.amateur.howmuchbackend.application.port.out.certificate.CertificateSecretProtectionPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.domain.account.CertificateReferenceOperation;
 import com.amateur.howmuchbackend.infra.certificate.config.CertificateProperties;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -23,7 +27,8 @@ import javax.crypto.*;
 
 @Component
 @ConditionalOnProperty(prefix = "howmuch.certificate", name = "enabled", havingValue = "true")
-public final class CertificateSecretProtectionAdapter implements CertificateSecretProtectionPort {
+public final class CertificateSecretProtectionAdapter
+        implements CertificateSecretProtectionPort, CertificateReferenceProtectionPort {
     private final CertificateProperties properties;
     private final ObjectProvider<KmsClient> kms;
     private final byte[] localKey;
@@ -38,7 +43,8 @@ public final class CertificateSecretProtectionAdapter implements CertificateSecr
         if (localKey != null && localKey.length != 32)
             throw new IllegalArgumentException("Certificate local wrapping key must be 256 bits");
         if (p.kmsKeyId().isBlank() && localKey == null)
-            throw new IllegalArgumentException("Certificate storage requires a local wrapping key or KMS key ID");
+            throw new IllegalArgumentException(
+                    "Certificate storage requires a local wrapping key or KMS key ID");
     }
 
     public CertificateEnvelope sealUpload(UUID s, UUID u, CertificateMaterial m) {
@@ -88,6 +94,92 @@ public final class CertificateSecretProtectionAdapter implements CertificateSecr
         } finally {
             Arrays.fill(b, (byte) 0);
         }
+    }
+
+    public CertificateEnvelope sealReference(
+            CertificateReferenceOperation operation, CertificateReferenceSecret secret) {
+        try {
+            var b = new ByteArrayOutputStream();
+            try (var out = new DataOutputStream(b)) {
+                out.writeUTF(secret.connectedId());
+                text(out, secret.birthDate());
+                text(out, secret.accountNumber());
+                text(out, secret.accountPassword());
+            }
+            return seal(referenceContext(operation), b.toByteArray());
+        } catch (IOException failure) {
+            throw unavailable();
+        }
+    }
+
+    public CertificateReferenceSecret openReference(
+            CertificateReferenceOperation operation, CertificateEnvelope envelope) {
+        byte[] b = open(referenceContext(operation), envelope);
+        try (var in = new DataInputStream(new ByteArrayInputStream(b))) {
+            var secret =
+                    new CertificateReferenceSecret(
+                            in.readUTF(), nullable(in), nullable(in), nullable(in));
+            if (in.available() != 0) throw new IOException();
+            return secret;
+        } catch (IOException failure) {
+            throw unavailable();
+        } finally {
+            Arrays.fill(b, (byte) 0);
+        }
+    }
+
+    public String requestHash(long user, StartCertificateReferenceConnectionCommand c) {
+        return referenceHash(
+                "request",
+                Long.toString(user),
+                Long.toString(c.connectionId()),
+                c.sourceOrganization(),
+                c.organization(),
+                c.birthDate(),
+                c.accountNumber(),
+                c.accountPassword());
+    }
+
+    public String connectionHash(long user, String connectedId) {
+        return referenceHash("connection", Long.toString(user), connectedId);
+    }
+
+    private String referenceHash(String purpose, String... fields) {
+        byte[] input = null;
+        try {
+            var b = new ByteArrayOutputStream();
+            try (var out = new DataOutputStream(b)) {
+                out.writeUTF("certificate-reference-" + purpose + ":v1");
+                for (String field : fields) text(out, field);
+            }
+            input = b.toByteArray();
+            var mac = Mac.getInstance("HmacSHA256");
+            byte[] key = Base64.getDecoder().decode(properties.confirmationKey());
+            try {
+                if (key.length != 32) throw unavailable();
+                mac.init(new javax.crypto.spec.SecretKeySpec(key, "HmacSHA256"));
+                return HexFormat.of().formatHex(mac.doFinal(input));
+            } finally {
+                Arrays.fill(key, (byte) 0);
+            }
+        } catch (IOException | GeneralSecurityException | IllegalArgumentException failure) {
+            throw unavailable();
+        } finally {
+            if (input != null) Arrays.fill(input, (byte) 0);
+        }
+    }
+
+    private String referenceContext(CertificateReferenceOperation op) {
+        return "certificate-reference:v1:"
+                + op.id()
+                + ":"
+                + op.userId()
+                + ":"
+                + op.connectionId()
+                + ":"
+                + op.sourceOrganization()
+                + ":"
+                + op.organization();
     }
 
     private byte[] encodeUpload(CertificateMaterial m) {

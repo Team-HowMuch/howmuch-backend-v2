@@ -10,11 +10,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
-import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.core.MicrometerConsumerListener;
 import org.springframework.kafka.support.ProducerListener;
-import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.databind.ObjectMapper;
@@ -71,19 +68,7 @@ public class KafkaMessagingConfig {
     ConcurrentKafkaListenerContainerFactory<String, String> durableKafkaListenerContainerFactory(
             KafkaProperties kafka, KafkaMessagingProperties properties, DefaultErrorHandler errorHandler,
             @Nullable MeterRegistry meters) {
-        var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
-        var consumer = kafka.buildConsumerProperties();
-        consumer.put("enable.auto.commit", false);
-        consumer.put("allow.auto.create.topics", false);
-        var consumerFactory = new DefaultKafkaConsumerFactory<String, String>(consumer);
-        if (meters != null) consumerFactory.addListener(new MicrometerConsumerListener<>(meters));
-        factory.setConsumerFactory(consumerFactory);
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
-        factory.getContainerProperties().setSyncCommits(true);
-        factory.getContainerProperties().setObservationEnabled(true);
-        factory.setConcurrency(properties.concurrency());
-        factory.setCommonErrorHandler(errorHandler);
-        return factory;
+        return DurableKafkaListenerFactories.create(kafka, properties, errorHandler, meters);
     }
 
     private void requireBootstrap(KafkaProperties kafka) {

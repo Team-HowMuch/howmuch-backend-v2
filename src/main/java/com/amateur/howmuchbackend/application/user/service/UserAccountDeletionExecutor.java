@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.user.service;
 
+import com.amateur.howmuchbackend.application.account.service.FinancialConnectionMutationGuard;
+
 import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
@@ -15,8 +17,10 @@ import com.amateur.howmuchbackend.domain.group.GroupMember;
 import com.amateur.howmuchbackend.domain.group.GroupStatus;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -32,6 +36,7 @@ import java.util.UUID;
 @Slf4j
 public class UserAccountDeletionExecutor {
     private final SaveUserPort saveUserPort;
+    private final FinancialConnectionMutationGuard mutationGuard;
     private final LoadGroupPort loadGroupPort;
     private final LoadGroupMemberPort loadGroupMemberPort;
     private final SaveGroupMemberPort saveGroupMemberPort;
@@ -45,6 +50,7 @@ public class UserAccountDeletionExecutor {
     private final UserDeletionPolicy userDeletionPolicy;
 
     void delete(User user, LocalDateTime now) {
+        mutationGuard.requireNoReference(user.id());
         List<GroupMember> activeMembers = lockActiveGroupMembers(user.id());
         UserDeletionPolicy.Decision decision = userDeletionPolicy.evaluate(new UserDeletionPolicy.Facts(
                 activeMembers.stream().anyMatch(GroupMember::isOwner),

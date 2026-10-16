@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.user.service;
 
+import com.amateur.howmuchbackend.application.account.service.FinancialConnectionMutationGuard;
+
 import com.amateur.howmuchbackend.application.port.out.auth.AuthSessionPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberPort;
@@ -122,7 +124,7 @@ class UserAccountDeletionExecutorTest {
     }
 
     private UserAccountDeletionExecutor executor() {
-        return new UserAccountDeletionExecutor(saveUserPort, loadGroupPort, loadGroupMemberPort,
+        return new UserAccountDeletionExecutor(saveUserPort, org.mockito.Mockito.mock(FinancialConnectionMutationGuard.class), loadGroupPort, loadGroupMemberPort,
                 saveGroupMemberPort, settlementStatePort, authSessionPort, pushTargetStorePort,
                 externalConnectionStorePort, imageStoragePort, deleteOwnRecapsPort, passwordEncoder, new ConservativeUserDeletionPolicy());
     }

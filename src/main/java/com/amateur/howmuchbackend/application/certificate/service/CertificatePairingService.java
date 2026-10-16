@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.certificate.service;
 
+import com.amateur.howmuchbackend.application.account.service.FinancialConnectionMutationGuard;
+
 import static com.amateur.howmuchbackend.domain.certificate.CertificateStatusCode.*;
 
 import com.amateur.howmuchbackend.application.certificate.model.*;
@@ -39,6 +41,7 @@ public class CertificatePairingService
     private final CertificateRequestLimitPort limits;
     private final CurrentActorPort actor;
     private final LoadUserPort users;
+    private final FinancialConnectionMutationGuard mutationGuard;
     private final CertificateSessionStorePort sessions;
     private final CertificateClaimStorePort claims;
     private final CreateCertificateRegistrationUseCase registrations;
@@ -100,6 +103,7 @@ public class CertificatePairingService
                                 ApplicationException.of(
                                         com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode
                                                 .USER_NOT_FOUND));
+        mutationGuard.requireNoReference(user);
         if (catalog.institutions().stream()
                 .noneMatch(i -> i.supported() && i.organization().equals(command.organization())))
             throw ApplicationException.of(CERTIFICATE_BANK_UNAVAILABLE);

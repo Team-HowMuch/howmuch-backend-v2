@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.certificate.service;
 
+import com.amateur.howmuchbackend.application.account.service.FinancialConnectionMutationGuard;
+
 import com.amateur.howmuchbackend.application.account.model.*;
 import com.amateur.howmuchbackend.application.account.service.AccountCredentialProtectionService;
 import com.amateur.howmuchbackend.application.certificate.model.*;
@@ -27,6 +29,7 @@ public class CertificateApprovedRegistrationTransactions {
     private final CertificateSessionStorePort sessions;
     private final CertificateConsentStorePort consents;
     private final LoadUserPort users;
+    private final FinancialConnectionMutationGuard mutationGuard;
     private final ExternalConnectionStorePort connections;
     private final BankConnectionPort banks;
     private final CertificateProviderAccountPort provider;
@@ -34,6 +37,7 @@ public class CertificateApprovedRegistrationTransactions {
     private final CertificateSecretProtectionPort protection;
     private final CertificateExecutionStorePort jobs;
     private final Clock clock;
+    private final InstitutionAuthenticationStorePort authentication;
     private final CertificatePairingStorePort pairings;
 
     /** Request-start was committed before this transaction; no provider mutation may be retried. */
@@ -68,6 +72,7 @@ public class CertificateApprovedRegistrationTransactions {
                                 ApplicationException.of(
                                         com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode
                                                 .USER_NOT_FOUND));
+        mutationGuard.requireNoReference(user);
         if (pairing != null && pairings.hasUnresolvedAuthentication(user, session.id())) {
             // REGISTER failures use the existing contract-conflict event code.
             jobs.finish(execution, "FAILED", "CONTRACT_CONFLICT", null, null, now);
@@ -147,6 +152,11 @@ public class CertificateApprovedRegistrationTransactions {
                 || !p.expiresAt().isAfter(now)
                 || session.connectionRef() == null)
             throw ApplicationException.of(CertificateStatusCode.CERTIFICATE_CONFLICT);
+        users.findByIdForUpdate(consent.userId())
+                .filter(User::active)
+                .orElseThrow(
+                        () -> ApplicationException.of(CertificateStatusCode.CERTIFICATE_CONFLICT));
+        mutationGuard.requireNoReference(consent.userId());
         var envelope =
                 jobs.readyConnection(session.id(), session.connectionRef())
                         .orElseThrow(
@@ -192,10 +202,9 @@ public class CertificateApprovedRegistrationTransactions {
                         "CF-00000",
                         encrypted == null ? null : encrypted.localCiphertext(),
                         encrypted == null ? null : encrypted.kmsCiphertext());
-        if (connection == null)
-            return connections.saveNew(
-                    new ExternalConnection(null, user, connectedId), institution);
-        if (!connections.hasInstitution(connection.id(), organization))
+        if (connection == null) {
+            connection = connections.saveNew(new ExternalConnection(null, user, connectedId), institution);
+        } else if (!connections.hasInstitution(connection.id(), organization))
             connections.saveInstitution(institution);
         else if (encrypted != null)
             connections.updateInstitutionCredentials(
@@ -203,6 +212,7 @@ public class CertificateApprovedRegistrationTransactions {
                     organization,
                     encrypted.localCiphertext(),
                     encrypted.kmsCiphertext());
+        authentication.recordMethod(connection.id(), organization, BankAuthenticationMethod.CERTIFICATE);
         return connection;
     }
 }

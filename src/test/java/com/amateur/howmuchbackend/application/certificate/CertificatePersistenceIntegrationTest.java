@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.certificate;
 
+import com.amateur.howmuchbackend.application.account.service.FinancialConnectionMutationGuard;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -282,7 +284,7 @@ class CertificatePersistenceIntegrationTest {
                         new CertificateApprovedRegistrationTransactions(
                                 storage,
                                 consents,
-                                users,
+                                users, mock(FinancialConnectionMutationGuard.class),
                                 connections,
                                 banks,
                                 provider,
@@ -290,6 +292,7 @@ class CertificatePersistenceIntegrationTest {
                                 protection,
                                 jobs,
                                 clock,
+                        mock(com.amateur.howmuchbackend.application.port.out.external.InstitutionAuthenticationStorePort.class),
                                 pairings));
         worker =
                 new CertificateWorkerService(
@@ -324,6 +327,7 @@ class CertificatePersistenceIntegrationTest {
                                 key -> true,
                                 actor,
                                 users,
+                                mock(FinancialConnectionMutationGuard.class),
                                 storage,
                                 claims,
                                 registration,
@@ -1760,6 +1764,7 @@ class CertificatePersistenceIntegrationTest {
                                 mock(
                                         com.amateur.howmuchbackend.application.port.out.user
                                                 .LoadUserPort.class),
+                                mock(FinancialConnectionMutationGuard.class),
                                 storage,
                                 claims,
                                 registration,

@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.domain.external.status;
 
 import com.amateur.howmuchbackend.common.exception.StatusCode;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -33,6 +34,11 @@ public enum ExternalConnectionStatusCode implements StatusCode {
     CODEF_UPSTREAM_UNAVAILABLE("외부 금융기관과 통신할 수 없습니다. 잠시 후 다시 시도해주세요.", 503),
     CODEF_UNMAPPED_ERROR("외부 금융기관에서 확인되지 않은 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", 502),
     CODEF_RESPONSE_INVALID("외부 금융기관 응답이 올바르지 않습니다. 잠시 후 다시 시도해주세요.", 502),
+    BANK_CERTIFICATE_REFERENCE_INVALID("기존 공동인증서 연결을 사용할 수 없습니다. 인증서를 새로 연결해주세요.", 409),
+    CERTIFICATE_REFERENCE_IDEMPOTENCY_CONFLICT("같은 요청 키로 다른 연결을 요청할 수 없습니다.", 409),
+    CERTIFICATE_REFERENCE_IN_PROGRESS("진행 중인 금융기관 연결을 먼저 확인해주세요.", 409),
+    CERTIFICATE_REFERENCE_NOT_FOUND("인증서 참조 연결 작업을 찾을 수 없습니다.", 404),
+    CERTIFICATE_REFERENCE_UNCERTAIN("금융기관 연결 결과를 확인 중입니다. 새 연결을 요청하지 말고 잠시 후 확인해주세요.", 409),
     BANK_CONNECTION_FAILED("은행 연결에 실패했습니다.", 422),
     BANK_NOT_SUPPORTED("지원하지 않는 은행입니다.", 400),
     EXTERNAL_CONNECTION_NOT_FOUND("사용 가능한 외부 금융 연결을 찾을 수 없습니다.", 404),
