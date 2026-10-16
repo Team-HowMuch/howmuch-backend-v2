@@ -139,3 +139,24 @@ docker compose -f ops/kafka/compose-local.yml down
 ## Certificate registration transport
 
 The catalog also provisions the four certificate command/result/DLT topics. They are owned by the API-resident certificate provider, separate from `finance.sync` and notification contracts. Follow the [certificate activation and recovery runbook](../certificate/README.md). Adding topics does not enable the certificate feature.
+
+
+## Certificate reference connection worker
+
+Provision `finance.certificate-reference.command.v1` and `finance.certificate-reference.command.v1.dlt` from [topics.tsv](topics.tsv). The command is an operation identifier only; certificate material, account passwords and `connectedId` must not enter these topics. Use the existing mTLS clients and common Kafka configuration.
+
+The current combined Backend API/worker identity needs Read, Write and Describe on the command topic, Write and Describe on its DLT, and Read/Describe on consumer group `howmuch-certificate-reference-v1`. A separately deployed worker needs the same scoped capabilities. Topic DescribeConfigs permits the provisioning CLI's read-only configuration verification; it does not grant AlterConfigs. Reuse the existing idempotent-producer cluster permission. Grant resources literally rather than a broad finance prefix.
+
+After V58 and the new application image are available on every API/worker instance, supply the following variables through the container's environment (a Compose `.env` file alone does not forward arbitrary variables):
+
+```text
+CERTIFICATE_REFERENCE_ENABLED=true
+CERTIFICATE_REFERENCE_COMMAND_TOPIC=finance.certificate-reference.command.v1
+CERTIFICATE_REFERENCE_COMMAND_DLT_TOPIC=finance.certificate-reference.command.v1.dlt
+CERTIFICATE_REFERENCE_COMMAND_GROUP=howmuch-certificate-reference-v1
+CERTIFICATE_REFERENCE_WORKER_CONCURRENCY=4
+```
+
+`WORKER_CONCURRENCY` defaults to 4 and accepts 1 through 16. Use the same value on every instance sharing one database. It bounds both independent worker loops per process and the conservative database-wide admission capacity. Full capacity returns `CERTIFICATE_REFERENCE_BUSY` (503) without creating an operation or outbox row; callers can retry with the same idempotency key. Reserved new work takes priority over UNKNOWN reconciliation.
+
+Prepare topics/ACLs and persistent configuration without restarting the old application. Apply the environment when deploying the V58-capable image; startup validates the schema. Keep the existing certificate/account encryption keys. Disabling the flag stops this worker, so do not treat it as cancellation of already submitted provider work.

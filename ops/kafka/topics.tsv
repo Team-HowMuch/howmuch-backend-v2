@@ -11,3 +11,5 @@ certificate.registration.command.v1	3	604800000	8192
 certificate.registration.result.v1	3	604800000	8192
 certificate.registration.command.v1.dlt	3	604800000	8192
 certificate.registration.result.v1.dlt	3	604800000	8192
+finance.certificate-reference.command.v1	3	604800000	8192
+finance.certificate-reference.command.v1.dlt	3	604800000	8192

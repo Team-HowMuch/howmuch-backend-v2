@@ -417,3 +417,14 @@ REFERENCE_TEST_DB_URL=jdbc:postgresql://127.0.0.1:18432/reference_test \
 - 변경 후 전체 local Spring Boot 서버에서 JWT/Redis/JPA/Kafka/CODEF Mock 기반 후보 조회 → 202 → 같은 키 재요청 → CONNECTED → 기존 계좌 조회 1개 및 대상 CERTIFICATE 저장을 다시 검증했다.
 - 테스트용 PostgreSQL/Redis/Kafka/Mock과 합성 데이터만 사용했다. 실제 CODEF 인증·송금은 실행하지 않았다.
 - 리뷰 수정 커밋 경계: `fix(account): 인증서 참조 작업 병렬 실행과 접수 용량 제한`. 토픽 목록/운영 기록은 별도 `docs(kafka)` 커밋으로 분리한다.
+
+## 12. dev/prod 사전 설정 (2026-10-17)
+
+- 기존 mTLS Kafka에 명령/DLT 토픽 각 1개 생성. 각각 3 partitions, replication 1, min ISR 1, retention 7일, max message 8 KiB. 두 환경 모두 현재 단일 broker이므로 HA 구성이라는 의미가 아니다.
+- 환경별 API/worker 인증서 principal에 새 토픽과 `howmuch-certificate-reference-v1` group의 좁은 ACL을 부여했다. 기존 암호화 키와 공통 Kafka 설정을 재사용한다.
+- 서버의 `/opt/howmuch-infra/.env` 및 `compose.yml`에 위 5개 환경변수를 전달하도록 준비했다. concurrency는 dev=2, prod=4. 기존 파일은 접근 제한 백업으로 보관한다.
+- V58/새 이미지 배포 전 단계이므로 현재 app 컨테이너는 교체·재시작하지 않는다. 저장한 enabled=true는 다음 배포 때 반영된다. 이번 작업에서 기존 dev/prod DB에 V58을 직접 적용하지 않는다.
+- prod 서버에서 현재 실행 중인 이미지는 `howmuch-backend-develop:664196919f85`, Spring profile은 `dev`였다. 이번 참조 기능 사전 설정 범위를 넘어 이미지/profile을 변경하지 않았다. 운영 배포 시 올바른 이미지/profile 확인이 필요하다.
+
+- 두 환경의 토픽 설정/partition leader/ISR/ACL을 확인했고 API principal의 mTLS 토픽 조회도 통과했다. CLI 설정 조회에는 토픽 `DescribeConfigs`를 추가했으며 `AlterConfigs`는 부여하지 않았다. 실제 운영 메시지를 발행하는 테스트는 하지 않았다.
+- 두 서버의 `docker compose config --quiet` 및 변경 전후 설정 비교를 통과했다. 새 5개 항목 외 Compose 설정과 현재 컨테이너 ID는 동일하다. 백업: dev `config-backups/certificate-reference-20261016T173115Z`, prod `config-backups/certificate-reference-20261016T173122Z`(각각 `/opt/howmuch-infra` 기준).
