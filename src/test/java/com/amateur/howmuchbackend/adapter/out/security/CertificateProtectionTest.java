@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.security;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 import com.amateur.howmuchbackend.application.certificate.model.*;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -8,10 +9,9 @@ import com.amateur.howmuchbackend.infra.certificate.config.CertificateProperties
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import static org.mockito.Mockito.*;
-import software.amazon.awssdk.services.kms.model.*;
 
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.kms.model.*;
 
 import java.util.*;
 
@@ -42,10 +42,14 @@ class CertificateProtectionTest {
         // Synthetic fixed vector from the original envelope format, generated with Node crypto.
         UUID session = UUID.fromString("00000000-0000-0000-0000-000000000001");
         UUID reference = UUID.fromString("00000000-0000-0000-0000-000000000002");
-        var envelope = new CertificateEnvelope(
-                Base64.getDecoder().decode("AgICAgICAgICAgICB9GvIDIjtI+2zLzI0M0h2+0d4mvNZJf4IA8nHw=="),
-                Base64.getDecoder().decode("AwMDAwMDAwMDAwMDmTI1JcsHPZEmNhQXrCbHGL6rnw8/BNB+rKO9/t713wOucqSQTUcp3Iyqzlt3/M9s"),
-                "local:v1");
+        var envelope =
+                new CertificateEnvelope(
+                        Base64.getDecoder()
+                                .decode("AgICAgICAgICAgICB9GvIDIjtI+2zLzI0M0h2+0d4mvNZJf4IA8nHw=="),
+                        Base64.getDecoder()
+                                .decode(
+                                        "AwMDAwMDAwMDAwMDmTI1JcsHPZEmNhQXrCbHGL6rnw8/BNB+rKO9/t713wOucqSQTUcp3Iyqzlt3/M9s"),
+                        "local:v1");
         assertThat(cipher().openConnection(session, reference, envelope))
                 .isEqualTo(new CertificateConnectionSecret("fixture", null, null, null));
     }
@@ -109,13 +113,20 @@ class CertificateProtectionTest {
     @Test
     void requiresAnExplicitValidKeyWithoutProfileRestrictions() {
         var provider = new StaticListableBeanFactory().getBeanProvider(KmsClient.class);
-        for (String invalid : List.of("", "not-base64", Base64.getEncoder().encodeToString(new byte[16]))) {
-            assertThatThrownBy(() -> new CertificateSecretProtectionAdapter(keys("", invalid), provider))
+        for (String invalid :
+                List.of("", "not-base64", Base64.getEncoder().encodeToString(new byte[16]))) {
+            assertThatThrownBy(
+                            () ->
+                                    new CertificateSecretProtectionAdapter(
+                                            keys("", invalid), provider))
                     .isInstanceOf(IllegalArgumentException.class);
         }
         assertThatCode(() -> new CertificateSecretProtectionAdapter(properties(), provider))
                 .doesNotThrowAnyException();
-        assertThatCode(() -> new CertificateSecretProtectionAdapter(keys("alias/certificate", ""), provider))
+        assertThatCode(
+                        () ->
+                                new CertificateSecretProtectionAdapter(
+                                        keys("alias/certificate", ""), provider))
                 .doesNotThrowAnyException();
     }
 
@@ -126,8 +137,10 @@ class CertificateProtectionTest {
         var localEnvelope = cipher().sealConnection(session, reference, secret);
         var client = mock(KmsClient.class);
         var factory = new StaticListableBeanFactory(Map.of("kms", client));
-        var kmsCipher = new CertificateSecretProtectionAdapter(
-                keys("alias/new", properties().localWrappingKey()), factory.getBeanProvider(KmsClient.class));
+        var kmsCipher =
+                new CertificateSecretProtectionAdapter(
+                        keys("alias/new", properties().localWrappingKey()),
+                        factory.getBeanProvider(KmsClient.class));
         assertThat(kmsCipher.openConnection(session, reference, localEnvelope)).isEqualTo(secret);
         verifyNoInteractions(client);
         when(client.encrypt(any(EncryptRequest.class))).thenAnswer(call -> {
@@ -147,7 +160,8 @@ class CertificateProtectionTest {
         assertThat(kmsCipher.openConnection(session, reference, envelope)).isEqualTo(secret);
         assertThatThrownBy(() -> cipher().openConnection(session, reference, envelope))
                 .isInstanceOf(ApplicationException.class);
-        when(client.encrypt(any(EncryptRequest.class))).thenThrow(KmsException.builder().message("denied").build());
+        when(client.encrypt(any(EncryptRequest.class)))
+                .thenThrow(KmsException.builder().message("denied").build());
         assertThatThrownBy(() -> kmsCipher.sealConnection(session, reference, secret))
                 .isInstanceOf(ApplicationException.class);
     }
@@ -182,5 +196,75 @@ class CertificateProtectionTest {
         assertThat(caps.confirmationCode(id))
                 .matches("[0-9]{6}")
                 .isEqualTo(caps.confirmationCode(id));
+    }
+
+    @Test
+    void referenceEnvelopeBindsOperationOwnerConnectionAndBothInstitutions() {
+        var cipher = cipher();
+        var id = UUID.randomUUID();
+        var op = referenceOperation(id, 42, 15, "0020", "0088");
+        var secret =
+                new com.amateur.howmuchbackend.application.account.model.CertificateReferenceSecret(
+                        "fixture-connected", "19900101", "123456", " password ");
+        var envelope = cipher.sealReference(op, secret);
+        assertThat(cipher.openReference(op, envelope)).isEqualTo(secret);
+        assertThat(envelope.payload()).isNotEqualTo(cipher.sealReference(op, secret).payload());
+        for (var other :
+                List.of(
+                        referenceOperation(UUID.randomUUID(), 42, 15, "0020", "0088"),
+                        referenceOperation(id, 43, 15, "0020", "0088"),
+                        referenceOperation(id, 42, 16, "0020", "0088"),
+                        referenceOperation(id, 42, 15, "0004", "0088"),
+                        referenceOperation(id, 42, 15, "0020", "0004")))
+            assertThatThrownBy(() -> cipher.openReference(other, envelope))
+                    .isInstanceOf(ApplicationException.class);
+        assertThatThrownBy(() -> cipher.openConnection(id, id, envelope))
+                .isInstanceOf(ApplicationException.class);
+        assertThat(secret.toString())
+                .doesNotContain("fixture-connected", "19900101", "123456", "password");
+    }
+
+    @Test
+    void referenceRequestHashUsesFramedFieldsAndOwnerAndIgnoresIdempotencyKey() {
+        var cipher = cipher();
+        var a =
+                new com.amateur.howmuchbackend.application.port.in.account.command
+                        .StartCertificateReferenceConnectionCommand(
+                        15, UUID.randomUUID(), "0020", "0088", null, "123456", " password ");
+        var b =
+                new com.amateur.howmuchbackend.application.port.in.account.command
+                        .StartCertificateReferenceConnectionCommand(
+                        15, UUID.randomUUID(), "0020", "0088", null, "123456", " password ");
+        assertThat(cipher.requestHash(42, a))
+                .matches("[0-9a-f]{64}")
+                .isEqualTo(cipher.requestHash(42, b))
+                .isNotEqualTo(cipher.requestHash(43, b))
+                .isNotEqualTo(cipher.connectionHash(42, "123456"));
+        var changed =
+                new com.amateur.howmuchbackend.application.port.in.account.command
+                        .StartCertificateReferenceConnectionCommand(
+                        15, a.idempotencyKey(), "0020", "0088", null, "123456", "password");
+        assertThat(cipher.requestHash(42, a)).isNotEqualTo(cipher.requestHash(42, changed));
+    }
+
+    private com.amateur.howmuchbackend.domain.account.CertificateReferenceOperation
+            referenceOperation(UUID id, long owner, long connection, String source, String target) {
+        var now = java.time.LocalDateTime.of(2026, 10, 16, 0, 0);
+        return new com.amateur.howmuchbackend.domain.account.CertificateReferenceOperation(
+                id,
+                owner,
+                connection,
+                source,
+                target,
+                UUID.randomUUID(),
+                "a".repeat(64),
+                "b".repeat(64),
+                com.amateur.howmuchbackend.domain.account.CertificateReferenceStatus.QUEUED,
+                false,
+                null,
+                now,
+                now.plusMinutes(10),
+                null,
+                null);
     }
 }
