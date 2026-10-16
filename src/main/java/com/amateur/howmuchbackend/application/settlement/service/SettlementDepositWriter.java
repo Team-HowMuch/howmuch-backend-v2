@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.notification.service.BusinessNotificationService;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementDepositSummaryResult;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
@@ -53,6 +54,7 @@ class SettlementDepositWriter {
     private final SettlementDepositReconciliationJobStorePort reconciliationJobs;
     private final SettlementTransferReconciliationPolicy reconciliationPolicy;
     private final Clock clock;
+    private final NettingEstimateInvalidationService estimateInvalidation;
 
     @Transactional
     public SettlementDepositSummaryResult reconcile(
@@ -233,6 +235,7 @@ class SettlementDepositWriter {
                     });
         }
         depositStorePort.saveAll(newDeposits);
+        newDeposits.stream().map(SettlementDeposit::settlementId).distinct().forEach(estimateInvalidation::settlementChanged);
         Settlement result = settlement.status() == SettlementStatus.AWAITING_DEPOSIT
                 && allCompleted(data.payableShares(), confirmedAmounts)
                 ? saveSettlementPort.update(settlement.complete(now))

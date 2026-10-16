@@ -6,15 +6,16 @@ import com.amateur.howmuchbackend.infra.codef.config.CodefProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.UUID;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 @Component
 @RequiredArgsConstructor
@@ -50,7 +51,22 @@ public class CodefSecretCipher {
     public String decryptAccountKey(Long userId, Long connectionId, String ciphertext) {
         return decrypt(
                 LEGACY_VERSION,
-                "account:" + userId + ":" + connectionId,
+                "account:" + userId + ":" + connectionId, ciphertext);
+    }
+
+    public String encryptNettingMonitoredAccount(
+            UUID nettingId, long userId, long accountId, String number) {
+        return encrypt(
+                SETTLEMENT_SNAPSHOT_VERSION,
+                "netting-monitored:" + nettingId + ":" + userId + ":" + accountId,
+                number);
+    }
+
+    public String decryptNettingMonitoredAccount(
+            UUID nettingId, long userId, long accountId, String ciphertext) {
+        return decrypt(
+                SETTLEMENT_SNAPSHOT_VERSION,
+                "netting-monitored:" + nettingId + ":" + userId + ":" + accountId,
                 ciphertext
         );
     }

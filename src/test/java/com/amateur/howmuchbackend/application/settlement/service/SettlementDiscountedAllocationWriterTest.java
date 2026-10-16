@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementSharePort;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("전체 할인·배달비 영수증의 품목 제출")
 class SettlementDiscountedAllocationWriterTest {
+    @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final UUID SETTLEMENT_ID = UUID.randomUUID();
     private static final UUID FIRST_ID = UUID.randomUUID();
     private static final UUID SECOND_ID = UUID.randomUUID();
@@ -58,7 +60,8 @@ class SettlementDiscountedAllocationWriterTest {
     void setUp() {
         writer = new SettlementItemAllocationWriter(
                 stateLoader, participantPort, allocationStore, sharePort,
-                settlementPort, new SettlementItemAllocationPolicy()
+                settlementPort, new SettlementItemAllocationPolicy(),
+                estimateInvalidation
         );
         item = SettlementItem.fromReceipt(
                 SETTLEMENT_ID, UUID.randomUUID(), "커피", 1, 1_000, 0, NOW
@@ -107,6 +110,8 @@ class SettlementDiscountedAllocationWriterTest {
         ArgumentCaptor<Settlement> settlement = ArgumentCaptor.forClass(Settlement.class);
         verify(settlementPort).update(settlement.capture());
         assertThat(settlement.getValue().status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        verify(estimateInvalidation).settlementChanged(SETTLEMENT_ID);
+
     }
 
     @Test

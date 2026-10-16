@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestPhase;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
@@ -64,6 +65,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("정산 요청 확정 Application 흐름")
 class SettlementRequestServiceTest {
+    @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final Long USER_ID = 1L;
     private static final UUID SETTLEMENT_ID = UUID.fromString("7c33b1fb-82f1-4a45-a834-a015a26b2ba6");
     private static final UUID CREATOR_PARTICIPANT_ID = UUID.fromString("bb97ee76-3a82-4ccc-b324-4a9974c8e1af");
@@ -107,7 +109,8 @@ class SettlementRequestServiceTest {
                 lockGroupMemberRosterPort,
                 notificationRecorder,
                 categoryJobStorePort,
-                new SettlementCategoryClassificationPolicy()
+                new SettlementCategoryClassificationPolicy(),
+                estimateInvalidation
         );
     }
 
@@ -148,6 +151,8 @@ class SettlementRequestServiceTest {
         assertThat(notification.getValue().recipientUserId()).isEqualTo(2L);
         assertThat(notification.getValue().type()).isEqualTo(NotificationType.SETTLEMENT_REQUEST);
         assertThat(notification.getValue().message()).isEqualTo("최수아님이 정산을 요청했어요");
+
+        verify(estimateInvalidation).settlementChanged(SETTLEMENT_ID);
 
     }
 

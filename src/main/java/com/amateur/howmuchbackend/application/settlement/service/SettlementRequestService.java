@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.RequestSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestPhase;
@@ -67,6 +68,7 @@ public class SettlementRequestService implements RequestSettlementUseCase {
     private final NotificationRecorder notificationRecorder;
     private final SettlementCategoryJobStorePort categoryJobStorePort;
     private final SettlementCategoryClassificationPolicy categoryPolicy;
+    private final NettingEstimateInvalidationService estimateInvalidation;
 
     @Override
     @Transactional
@@ -117,6 +119,7 @@ public class SettlementRequestService implements RequestSettlementUseCase {
 
         Settlement saved = saveSettlementPort.update(finalized);
         saveSettlementRequestPort.save(snapshot, shares, link, issuedToken.rawToken());
+        estimateInvalidation.settlementChanged(saved.id());
         if (categoryPolicy.classifiable(expenses)) {
             categoryJobStorePort.schedule(saved.id(), now);
         } else {

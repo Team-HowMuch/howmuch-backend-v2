@@ -12,10 +12,10 @@ import com.amateur.howmuchbackend.application.port.in.account.result.AccountDeta
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountSummaryResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountTransactionResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
+import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionRefreshStorePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
-import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionRefreshStorePort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
@@ -62,6 +62,9 @@ public class AccountQueryService
     private final BankTransactionPort bankTransactionPort;
     private final BankCatalog bankCatalog;
     private final AccountCredentialProtectionService credentialProtection;
+    private final com.amateur.howmuchbackend.application.port.out.settlement.netting
+                    .QueueNettedDepositDetectionPort
+            nettingDetection;
     private final AccountTransactionDisplayNormalizer transactionDisplayNormalizer;
     private final Clock clock;
 
@@ -236,6 +239,10 @@ public class AccountQueryService
                 ))
                 .toList();
         saveTransactionPort.saveAllIgnoringDuplicates(transactions);
+        if (!transactions.isEmpty())
+            nettingDetection.observed(
+                    activeAccount.id(),
+                    LocalDateTime.ofInstant(clock.instant(), java.time.ZoneOffset.UTC));
         AccountMonthlySummary calculated = loadTransactionPort.calculateSummary(activeAccount.id(), yearMonth);
         saveTransactionPort.saveSummaryIfAbsent(calculated);
         return loadTransactionPort.findSummary(activeAccount.id(), yearMonth).orElse(calculated);

@@ -1,14 +1,22 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementTransferInstructionResult;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementLinkPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantContextPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
-import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementTransferLinkPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -25,8 +33,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -34,13 +42,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("확정 정산 송금 안내 Application 흐름")
@@ -77,8 +78,10 @@ class SettlementTransferInstructionServiceTest {
                         loadDepositSummaryPort,
                         loadSnapshotPort,
                         List.of(transferLinkPort),
-                        bankCatalog
-                )
+                        bankCatalog,
+                                org.mockito.Mockito.mock(
+                                        com.amateur.howmuchbackend.application.port.out.settlement
+                                                .netting.NettingTransferAvailabilityPort.class))
         );
     }
 

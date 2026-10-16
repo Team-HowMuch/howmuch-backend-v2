@@ -16,7 +16,10 @@ import java.util.UUID;
 })
 public record SettlementListItemWebResponse(
         UUID settlementId,
-        SettlementStatus status,
+        @io.swagger.v3.oas.annotations.media.Schema(
+                        description =
+                                "압축 정산에 포함된 원본은 이 목록에서 제외하며 압축 상세 sources에서 조회합니다.")
+                SettlementStatus status,
         LocalDateTime requestedAt,
         @Schema(nullable = true, description = "공통 종료 시각. COMPLETED는 완료 시각, SUSPENDED는 현재 중단 시각이며 "
                 + "그 외 상태는 null입니다. UTC 기준 offset 없는 값입니다.")
@@ -49,16 +52,18 @@ public record SettlementListItemWebResponse(
                 + "생성자 몫을 포함한 정산 총액을 목록 표시값으로 반환하며 실제 개인 납부액을 뜻하지 않습니다. "
                 + "그 외 금액 미확정 상태와 RECEIVE 탭에서는 null입니다.")
         Long amountToPay,
-        @Schema(nullable = true, description = "RECEIVE 탭에서 생성자가 받을 금액. 생성자 본인 몫을 뺀 참여자 납부 총액이며 "
-                + "입금 여부와 무관하다. 정산 상세의 summary.expectedAmount와 같다. "
-                + "ITEM_ALLOCATION의 REQUESTED·SUSPENDED 상태에서는 영수증 총액에서 생성자가 고른 몫을 뺀 값이다. "
-                + "PAY 탭에서는 null입니다.")
+        @Schema(nullable = true, description =
+                                "RECEIVE 탭에서 생성자가 받을 금액. 생성자 본인 몫을 뺀 참여자 납부 총액이며 입금 여부와 무관하다. 정산"
+                                    + " 상세의 summary.expectedAmount와 같다. ITEM_ALLOCATION의"
+                                    + " REQUESTED·SUSPENDED 상태에서는 영수증 총액에서 생성자가 고른 몫을 뺀 값이다. PAY"
+                                    + " 탭에서는 null입니다.")
         Long receivableAmount,
         @Schema(nullable = true)
         String requesterName,
         List<GroupSummary> groups,
-        @Schema(nullable = true, description = "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. "
-                + "정산 요청 전, 분류 전, 기능 배포 전에 요청된 정산은 null이다. 미분류면 code가 UNCATEGORIZED다.")
+        @Schema(nullable = true, description =
+                                "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. 정산 요청 전, 분류 전, 기능 배포 전에"
+                                    + " 요청된 정산은 null이다. 미분류면 code가 UNCATEGORIZED다.")
         SettlementMyCategoryWebResponse myCategory
 ) {
     public static SettlementListItemWebResponse from(SettlementListItemResult result) {

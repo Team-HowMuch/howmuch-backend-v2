@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementResult;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
@@ -47,6 +48,7 @@ class SettlementSuspensionWriter {
     private final SettlementDepositStorePort depositStorePort;
     private final SettlementSuspensionPolicy suspensionPolicy;
     private final SaveSettlementPort saveSettlementPort;
+    private final NettingEstimateInvalidationService estimateInvalidation;
 
     @Transactional
     public SettlementResult suspend(
@@ -136,9 +138,9 @@ class SettlementSuspensionWriter {
             );
         }
 
-        return SettlementResult.from(saveSettlementPort.update(
-                settlement.suspendManually(LocalDateTime.now(ZoneOffset.UTC))
-        ));
+        var saved=saveSettlementPort.update(settlement.suspendManually(LocalDateTime.now(ZoneOffset.UTC)));
+        estimateInvalidation.settlementChanged(settlement.id());
+        return SettlementResult.from(saved);
     }
 
     private boolean sameEntities(Collection<?> left, Collection<?> right) {

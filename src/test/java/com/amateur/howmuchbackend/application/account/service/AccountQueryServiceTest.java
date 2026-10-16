@@ -1,14 +1,22 @@
 package com.amateur.howmuchbackend.application.account.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.account.policy.AccountTransactionDisplayNormalizer;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
+import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionRefreshStorePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
-import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionRefreshStorePort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
@@ -17,8 +25,8 @@ import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountMonthlySummary;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
-import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.account.AccountType;
+import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
 import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
@@ -44,14 +52,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-
 @ExtendWith(MockitoExtension.class)
 @DisplayName("계좌 조회 Application 흐름")
 class AccountQueryServiceTest {
@@ -72,6 +72,11 @@ class AccountQueryServiceTest {
     @Mock private BankCatalog bankCatalog;
     @Mock private AccountCredentialProtectionService credentialProtection;
 
+    @Mock
+    private com.amateur.howmuchbackend.application.port.out.settlement.netting
+                    .QueueNettedDepositDetectionPort
+            nettingDetection;
+
     private AccountQueryService service;
 
     @BeforeEach
@@ -79,6 +84,7 @@ class AccountQueryServiceTest {
         service = new AccountQueryService(
                 currentActorPort, loadAccountPort, loadTransactionPort, saveTransactionPort, refreshStorePort,
                 connectionStorePort, bankTransactionPort, bankCatalog, credentialProtection,
+                        nettingDetection,
                 new AccountTransactionDisplayNormalizer(), CLOCK
         );
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));

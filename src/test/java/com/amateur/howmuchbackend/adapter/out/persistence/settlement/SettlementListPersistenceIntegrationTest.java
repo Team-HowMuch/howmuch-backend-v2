@@ -576,6 +576,9 @@ class SettlementListPersistenceIntegrationTest {
     void settlementList_monthFilter_excludesUnfinishedPreservesStatus() {
         LocalDateTime completedAt = LocalDateTime.of(2026, 9, 10, 0, 0);
         for (SettlementStatus state : SettlementStatus.values()) {
+            // V53 requires immutable compression sources for this state; the real Batch flow
+            // and its list/detail projections are covered by GroupNettingDirectIntegrationTest.
+            if (state == SettlementStatus.NETTING_IN_PROGRESS) continue;
             jdbcTemplate.update("UPDATE settlements SET status = ?, updated_at = ? WHERE id = ?",
                     state.name(), completedAt, receiveSettlementId);
             var filtered = settlementPersistenceAdapter.findAll(

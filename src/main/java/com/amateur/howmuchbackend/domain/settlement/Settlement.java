@@ -254,4 +254,13 @@ public record Settlement(
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_AMOUNT);
         }
     }
+
+    public Settlement enterNetting(LocalDateTime now) {
+        return transition(
+                SettlementStatus.AWAITING_DEPOSIT, SettlementStatus.NETTING_IN_PROGRESS, now);
+    }
+
+    public Settlement completeByNetting(LocalDateTime now) {
+        return transition(SettlementStatus.NETTING_IN_PROGRESS, SettlementStatus.COMPLETED, now);
+    }
 }
