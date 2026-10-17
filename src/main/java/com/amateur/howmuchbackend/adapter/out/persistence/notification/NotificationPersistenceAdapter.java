@@ -83,7 +83,7 @@ public class NotificationPersistenceAdapter implements LoadNotificationPort, Mar
             case SETTLEMENT_PARTICIPATION, SETTLEMENT_DETAIL -> row.getSettlementId() != null;
             case GROUP_DETAIL -> accessibleGroups.contains(Long.valueOf(row.getTargetId()));
             case GROUP_INVITATION -> accessibleInvitations.contains(UUID.fromString(row.getTargetId()));
-            case MONTHLY_RECAP -> true;
+            case MONTHLY_RECAP, FINANCE_AUTHENTICATION -> true;
                     case GROUP_SETTLEMENT_NETTING ->
                             nettingTargets.visible(
                                     UUID.fromString(row.getTargetId()), row.getRecipientUserId());

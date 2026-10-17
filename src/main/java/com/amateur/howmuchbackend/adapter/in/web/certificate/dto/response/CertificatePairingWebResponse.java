@@ -16,7 +16,10 @@ public record CertificatePairingWebResponse(
         String organization,
         UUID claimId,
         String failureCode,
-        String failureMessage) {
+        String failureMessage,
+        com.amateur.howmuchbackend.adapter.in.web.external.dto.response
+                        .AdditionalAuthenticationWebResponse
+                additionalAuthentication) {
     public static CertificatePairingWebResponse from(CertificatePairingResult r) {
         return new CertificatePairingWebResponse(
                 r.id(),
@@ -29,7 +32,9 @@ public record CertificatePairingWebResponse(
                 r.organization(),
                 r.claimId(),
                 r.failureCode(),
-                r.failureMessage());
+                r.failureMessage(),
+                com.amateur.howmuchbackend.adapter.in.web.external.dto.response
+                        .AdditionalAuthenticationWebResponse.from(r.additionalAuthentication()));
     }
 
     @Override

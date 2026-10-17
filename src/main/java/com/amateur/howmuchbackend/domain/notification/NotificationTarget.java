@@ -11,7 +11,7 @@ public record NotificationTarget(NotificationTargetType type, String id) {
         try {
             id = switch (type) {
                 case SETTLEMENT_PARTICIPATION, SETTLEMENT_DETAIL, GROUP_INVITATION,
-                                GROUP_SETTLEMENT_NETTING -> {
+                                GROUP_SETTLEMENT_NETTING, FINANCE_AUTHENTICATION -> {
                     UUID value = UUID.fromString(id);
                     if (!value.toString().equalsIgnoreCase(id)) throw new IllegalArgumentException();
                     yield value.toString();

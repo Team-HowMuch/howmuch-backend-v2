@@ -163,6 +163,8 @@ howmuch:
       private-key-path: ${APNS_PRIVATE_KEY_PATH:}
       environment: ${APNS_ENVIRONMENT:dev}
   codef:
+    additional-auth:
+      enabled: ${CODEF_SMS_ADDITIONAL_AUTH_ENABLED:false}
     base-url: ${CODEF_BASE_URL:https://development.codef.io}
     oauth-url: ${CODEF_OAUTH_URL:https://oauth.codef.io/oauth/token}
     client-id: ${CODEF_CLIENT_ID:}

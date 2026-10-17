@@ -23,7 +23,10 @@ import javax.crypto.*;
 
 @Component
 @ConditionalOnProperty(prefix = "howmuch.certificate", name = "enabled", havingValue = "true")
-public final class CertificateSecretProtectionAdapter implements CertificateSecretProtectionPort {
+public final class CertificateSecretProtectionAdapter
+        implements CertificateSecretProtectionPort,
+                com.amateur.howmuchbackend.application.port.out.external
+                        .AdditionalAuthenticationProtectorPort {
     private final CertificateProperties properties;
     private final ObjectProvider<KmsClient> kms;
     private final byte[] localKey;
@@ -33,16 +36,56 @@ public final class CertificateSecretProtectionAdapter implements CertificateSecr
             CertificateProperties p, ObjectProvider<KmsClient> kms) {
         this.properties = p;
         this.kms = kms;
-        localKey = p.localWrappingKey().isBlank()
-                ? null : Base64.getDecoder().decode(p.localWrappingKey());
+        localKey =
+                p.localWrappingKey().isBlank()
+                        ? null
+                        : Base64.getDecoder().decode(p.localWrappingKey());
         if (localKey != null && localKey.length != 32)
             throw new IllegalArgumentException("Certificate local wrapping key must be 256 bits");
         if (p.kmsKeyId().isBlank() && localKey == null)
-            throw new IllegalArgumentException("Certificate storage requires a local wrapping key or KMS key ID");
+            throw new IllegalArgumentException(
+                    "Certificate storage requires a local wrapping key or KMS key ID");
     }
 
     public CertificateEnvelope sealUpload(UUID s, UUID u, CertificateMaterial m) {
         return seal(context("upload", s, u), encodeUpload(m));
+    }
+
+    public CertificateEnvelope sealAuthentication(
+            UUID id, long user, UUID operation, long generation, byte[] plaintext) {
+        return seal(authenticationContext(id, user, operation, generation), plaintext);
+    }
+
+    public byte[] openAuthentication(
+            com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationChallenge
+                    c) {
+        return open(
+                authenticationContext(c.id(), c.userId(), c.sessionId(), c.generation()),
+                c.payload());
+    }
+
+    public CertificateEnvelope sealResult(
+            com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationChallenge
+                    c,
+            byte[] plaintext) {
+        return seal(
+                "result:"
+                        + authenticationContext(c.id(), c.userId(), c.sessionId(), c.generation()),
+                plaintext);
+    }
+
+    public byte[] openResult(
+            com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationChallenge
+                    c,
+            CertificateEnvelope result) {
+        return open(
+                "result:"
+                        + authenticationContext(c.id(), c.userId(), c.sessionId(), c.generation()),
+                result);
+    }
+
+    private String authenticationContext(UUID id, long user, UUID operation, long generation) {
+        return "codef-authentication:v1:" + id + ":" + user + ":" + operation + ":" + generation;
     }
 
     public CertificateMaterial openUpload(UUID s, UUID u, CertificateEnvelope e) {

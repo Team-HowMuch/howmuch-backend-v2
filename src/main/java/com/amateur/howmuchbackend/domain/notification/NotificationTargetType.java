@@ -6,7 +6,8 @@ public enum NotificationTargetType {
     SETTLEMENT_DETAIL,
     GROUP_INVITATION,
     GROUP_DETAIL,
-    MONTHLY_RECAP;
+    MONTHLY_RECAP,
+    FINANCE_AUTHENTICATION;
 
     public boolean isSettlement() {
         return this == SETTLEMENT_PARTICIPATION || this == SETTLEMENT_DETAIL;
