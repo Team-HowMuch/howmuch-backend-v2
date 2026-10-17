@@ -93,8 +93,7 @@ class SettlementRequestServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SettlementRequestService(
-                currentActorPort,
+        SettlementRequestWriter writer = new SettlementRequestWriter(
                 loadSettlementPort,
                 saveSettlementPort,
                 loadSettlementParticipantPort,
@@ -112,6 +111,7 @@ class SettlementRequestServiceTest {
                 new SettlementCategoryClassificationPolicy(),
                 estimateInvalidation
         );
+        service = new SettlementRequestService(currentActorPort, writer);
     }
 
     @Test
