@@ -20,6 +20,13 @@ public interface SettlementCategoryJobStorePort {
 
     void saveUncategorized(UUID settlementId, LocalDateTime now);
 
+    /**
+     * 반복 정산처럼 사용자가 카테고리를 명시적으로 고른 경우 LLM 분류 없이 곧바로 끝 상태로 기록한다.
+     * {@code UNCATEGORIZED}는 {@code source=UNCATEGORIZED}, 그 밖의 명시 코드는 {@code source=RECURRING}으로
+     * 기록한다. 이미 작업이 있으면 아무것도 하지 않아 다른 개인 분류를 덮지 않는다.
+     */
+    void saveRecurring(UUID settlementId, String categoryCode, SettlementCategorySource source, LocalDateTime now);
+
     /** 만료된 선점을 먼저 회수하고, 대기 작업 하나를 선점한다. */
     Optional<SettlementCategoryJob> claimDue(LocalDateTime now, LocalDateTime leaseUntil);
 

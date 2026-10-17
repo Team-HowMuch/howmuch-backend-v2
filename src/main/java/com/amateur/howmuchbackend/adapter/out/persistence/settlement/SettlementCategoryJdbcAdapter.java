@@ -53,6 +53,18 @@ public class SettlementCategoryJdbcAdapter implements SettlementCategoryJobStore
 
     @Override
     @Transactional
+    public void saveRecurring(UUID settlementId, String categoryCode, SettlementCategorySource source,
+            LocalDateTime now) {
+        jdbc.update("""
+                INSERT INTO settlement_categories (
+                    settlement_id, status, category_code, source, classified_at, created_at, updated_at
+                ) VALUES (?, 'CLASSIFIED', ?, ?, ?, ?, ?)
+                ON CONFLICT (settlement_id) DO NOTHING
+                """, settlementId, categoryCode, source.name(), now, now, now);
+    }
+
+    @Override
+    @Transactional
     public Optional<SettlementCategoryJob> claimDue(LocalDateTime now, LocalDateTime leaseUntil) {
         // 만료된 선점은 바로 다시 가져가지 않는다. 시도가 남았으면 재시도로, 다 썼으면 미분류로 끝낸다.
         jdbc.update("""
