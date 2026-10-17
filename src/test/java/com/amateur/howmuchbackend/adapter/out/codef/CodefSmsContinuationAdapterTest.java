@@ -239,4 +239,29 @@ class CodefSmsContinuationAdapterTest {
 """));
         assertThat(adapter.resume(accepted).failureCode()).isEqualTo("CF-12800");
     }
+    @Test
+    void explicitProviderRejection_hasDedicatedFailureContract() {
+        var required = capture(response("smsAuthNo", "010-****-0000"));
+        byte[] accepted = adapter.acceptSms(adapter.prepareOperation(required.payload(),
+                new FinanceOperation("BANK_CONNECT", "0020", null, null, null, null, false)), "0123");
+        when(client.postOnce(anyString(), any())).thenReturn(
+                json.readTree("{\"result\":{\"code\":\"CF-12800\"},\"data\":{}}"));
+        assertThatThrownBy(() -> adapter.resumeOperation(accepted))
+                .isInstanceOf(com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationRejectedException.class)
+                .extracting(e -> ((com.amateur.howmuchbackend.common.exception.ApplicationException) e).getStatusCode().getCode())
+                .isEqualTo("BANK_CREDENTIAL_INVALID");
+    }
+
+    @Test
+    void transportFailure_doesNotBecomeExplicitProviderRejection() {
+        var required = capture(response("smsAuthNo", "010-****-0000"));
+        byte[] accepted = adapter.acceptSms(adapter.prepareOperation(required.payload(),
+                new FinanceOperation("BANK_CONNECT", "0020", null, null, null, null, false)), "0123");
+        var failure = com.amateur.howmuchbackend.common.exception.ApplicationException.of(
+                com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE);
+        when(client.postOnce(anyString(), any())).thenThrow(failure);
+        assertThatThrownBy(() -> adapter.resumeOperation(accepted)).isSameAs(failure)
+                .isNotInstanceOf(com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationRejectedException.class);
+    }
+
 }

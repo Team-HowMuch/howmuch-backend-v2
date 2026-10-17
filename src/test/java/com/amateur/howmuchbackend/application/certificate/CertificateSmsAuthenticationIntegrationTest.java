@@ -439,7 +439,7 @@ class CertificateSmsAuthenticationIntegrationTest {
                                 String.class,
                                 id))
                 .doesNotContain("generic-private-context");
-        assertThatThrownBy(() -> auth.assertNoPending(user, "0020"))
+        assertThatThrownBy(() -> auth.withAccountQueryAdmission(user, "0020", List::of))
                 .isInstanceOf(
                         com.amateur.howmuchbackend.application.external.model
                                 .AdditionalAuthenticationPendingException.class);
@@ -517,6 +517,249 @@ class CertificateSmsAuthenticationIntegrationTest {
         var result = auth.get(id);
         assertThat(result.pairingId()).isEqualTo(currentPair.id());
         assertThat(result.sessionId()).isEqualTo(currentSession.id());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"AUTHENTICATION", "UPLOAD", "STORAGE"})
+    void preRequestFailure_keepsSubmissionAndCiphertext_thenResumesOnce(String boundary) {
+        UUID id = waiting();
+        UUID submission = UUID.randomUUID();
+        submit(id, submission);
+        var originalPayload = authStore.find(id, false).orElseThrow().payload().payload().clone();
+        var secrets = spy(protection);
+        var uploads = spy(storage);
+        var unavailable = ApplicationException.of(
+                com.amateur.howmuchbackend.domain.certificate.CertificateStatusCode
+                        .CERTIFICATE_STORAGE_UNAVAILABLE);
+        if (boundary.equals("AUTHENTICATION")) {
+            doThrow(unavailable).doCallRealMethod().when(secrets).openAuthentication(any());
+        } else if (boundary.equals("UPLOAD")) {
+            doThrow(unavailable).doCallRealMethod().when(secrets).openUpload(any(), any(), any());
+        } else {
+            doThrow(new IllegalStateException("synthetic storage failure"))
+                    .doCallRealMethod().when(uploads).load(any(), any());
+        }
+        var recoveringWorker = new com.amateur.howmuchbackend.application.external.service
+                .AdditionalAuthenticationWorker(authTx, authStore, secrets, continuation, uploads, secrets, clock);
+
+        recoveringWorker.executeOne();
+        var retry = authStore.find(id, false).orElseThrow();
+        assertThat(retry.status()).isEqualTo("SUBMITTED");
+        assertThat(retry.submissionId()).isEqualTo(submission);
+        assertThat(retry.payload().payload()).isEqualTo(originalPayload);
+        assertThat(retry.requestStarted()).isFalse();
+        assertThat(retry.leaseToken()).isNull();
+        assertThat(jdbc.queryForObject("SELECT status FROM certificate_provider_command_inbox WHERE command_type='REGISTER'", String.class))
+                .isEqualTo("WAITING_AUTH");
+        verify(continuation, never()).resume(any());
+
+        recoveringWorker.executeOne();
+        assertThat(auth.get(id).status()).isEqualTo("SUCCEEDED");
+        verify(continuation, times(1)).resume(any());
+        verify(provider, times(1)).register(anyString(), any(), anyBoolean());
+    }
+
+    @Test
+    void providerTransportApplicationException_isUnknownWithoutReplay() {
+        UUID id = waiting();
+        submit(id, UUID.randomUUID());
+        when(continuation.resume(any())).thenThrow(ApplicationException.of(
+                com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode
+                        .CODEF_UPSTREAM_UNAVAILABLE));
+        authWorker.executeOne();
+        authWorker.executeOne();
+        assertThat(auth.get(id).status()).isEqualTo("UNKNOWN");
+        verify(continuation, times(1)).resume(any());
+    }
+
+    @Test
+    void newlyReceivedContinuation_doesNotReuseAnotherOperationChallenge() {
+        var operation = new com.amateur.howmuchbackend.application.external.model.FinanceOperation(
+                "BANK_CONNECT", "0020", null, null, null, null, false);
+        when(continuation.prepareOperation(any(), any())).thenAnswer(i -> ((byte[]) i.getArgument(0)).clone());
+        var request = new com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationRequest(
+                new byte[] {1}, null, 170, NOW.plusSeconds(170));
+        UUID original = auth.suspendOperation(user, operation, request);
+        assertThatThrownBy(() -> auth.suspendOperation(user, operation,
+                new com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationRequest(
+                        new byte[] {2}, null, 170, NOW.plusSeconds(170))))
+                .isInstanceOf(ApplicationException.class)
+                .extracting(e -> ((ApplicationException) e).getStatusCode().getCode())
+                .isEqualTo("FINANCE_AUTHENTICATION_CONFLICT");
+        assertThat(auth.list()).extracting(r -> r.challengeId()).containsExactly(original);
+        verify(continuation, times(1)).prepareOperation(any(), any());
+    }
+
+    @Test
+    void admission_concurrentSameInstitution_rejectsBeforeSecondProviderCall() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var pool = Executors.newSingleThreadExecutor();
+        when(continuation.prepareOperation(any(), any())).thenAnswer(i -> ((byte[]) i.getArgument(0)).clone());
+        try {
+            var first = pool.submit(() -> {
+                try {
+                    auth.withAccountQueryAdmission(user, "0020", () -> {
+                        calls.incrementAndGet();
+                        entered.countDown();
+                        try {
+                            if (!release.await(10, TimeUnit.SECONDS)) throw new AssertionError("Timed out waiting for contender");
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(e);
+                        }
+                        UUID id = auth.suspendOperation(user,
+                                new com.amateur.howmuchbackend.application.external.model.FinanceOperation(
+                                        "BANK_CONNECT", "0020", null, null, null, null, false),
+                                new com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationRequest(
+                                        new byte[] {1}, null, 170, NOW.plusSeconds(170)));
+                        throw new com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationPendingException(id);
+                    });
+                    throw new AssertionError("Expected SMS challenge");
+                } catch (com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationPendingException pending) {
+                    return pending.challengeId();
+                }
+            });
+            assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> auth.withAccountQueryAdmission(user, "0020", () -> {
+                calls.incrementAndGet();
+                return List.of();
+            })).isInstanceOf(ApplicationException.class)
+                    .extracting(e -> ((ApplicationException) e).getStatusCode().getCode())
+                    .isEqualTo("FINANCE_AUTHENTICATION_CONFLICT");
+            assertThat(auth.withAccountQueryAdmission(user, "0004", List::of)).isEmpty();
+            release.countDown();
+            UUID id = first.get(10, TimeUnit.SECONDS);
+            assertThat(auth.get(id).status()).isEqualTo("WAITING_INPUT");
+            assertThat(calls.get()).isEqualTo(1);
+            assertThatThrownBy(() -> auth.withAccountQueryAdmission(user, "0020", () -> {
+                calls.incrementAndGet();
+                return List.of();
+            })).isInstanceOf(com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationPendingException.class);
+            assertThat(calls.get()).isEqualTo(1);
+            auth.cancel(id);
+            assertThat(auth.withAccountQueryAdmission(user, "0020", List::of)).isEmpty();
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+            assertThat(pool.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    void admission_rolledBackRequest_releasesTransactionLock() throws Exception {
+        assertThatThrownBy(() -> auth.withAccountQueryAdmission(user, "0020", () -> {
+            throw new IllegalStateException("synthetic pre-provider failure");
+        })).isInstanceOf(IllegalStateException.class);
+        var pool = Executors.newSingleThreadExecutor();
+        try {
+            assertThat(pool.submit(() -> auth.withAccountQueryAdmission(user, "0020", List::of))
+                    .get(10, TimeUnit.SECONDS)).isEmpty();
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void preRequestRecovery_staleWorker_cannotReleaseSuccessorLease() {
+        UUID id = waiting();
+        submit(id, UUID.randomUUID());
+        var old = authTx.claim().orElseThrow();
+        authTx.fail(old, false);
+        var next = authTx.claim().orElseThrow();
+        assertThat(next.leaseGeneration()).isGreaterThan(old.leaseGeneration());
+        authTx.fail(old, false);
+        assertThat(authStore.find(id, false).orElseThrow().leaseToken()).isEqualTo(next.leaseToken());
+        assertThat(auth.get(id).status()).isEqualTo("PROCESSING");
+        authTx.fail(next, false);
+        authWorker.executeOne();
+        assertThat(auth.get(id).status()).isEqualTo("SUCCEEDED");
+        verify(continuation, times(1)).resume(any());
+    }
+
+    @Test
+    void genericPreRequestFailure_retriesSameSubmission_thenTransportLossIsUnknown() {
+        var operation = new com.amateur.howmuchbackend.application.external.model.FinanceOperation(
+                "BANK_CONNECT", "0020", null, null, null, null, false);
+        when(continuation.prepareOperation(any(), any())).thenReturn(new byte[] {1});
+        UUID id = auth.suspendOperation(user, operation,
+                new com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationRequest(
+                        new byte[] {1}, null, 170, NOW.plusSeconds(170)));
+        UUID submission = UUID.randomUUID();
+        submit(id, submission);
+        var secrets = spy(protection);
+        doThrow(ApplicationException.of(
+                com.amateur.howmuchbackend.domain.certificate.CertificateStatusCode.CERTIFICATE_STORAGE_UNAVAILABLE))
+                .doCallRealMethod().when(secrets).openAuthentication(any());
+        var recoveringWorker = new com.amateur.howmuchbackend.application.external.service
+                .AdditionalAuthenticationWorker(authTx, authStore, secrets, continuation, storage, secrets, clock);
+        recoveringWorker.executeOne();
+        assertThat(auth.get(id).status()).isEqualTo("SUBMITTED");
+        assertThat(authStore.find(id, false).orElseThrow().submissionId()).isEqualTo(submission);
+        verify(continuation, never()).resumeOperation(any());
+        when(continuation.resumeOperation(any())).thenThrow(ApplicationException.of(
+                com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE));
+        recoveringWorker.executeOne();
+        recoveringWorker.executeOne();
+        assertThat(auth.get(id).status()).isEqualTo("UNKNOWN");
+        verify(continuation, times(1)).resumeOperation(any());
+    }
+
+    @Test
+    void genericProviderRejection_finishesFailedWithoutRetry() {
+        var operation = new com.amateur.howmuchbackend.application.external.model.FinanceOperation(
+                "BANK_CONNECT", "0020", null, null, null, null, false);
+        when(continuation.prepareOperation(any(), any())).thenReturn(new byte[] {1});
+        UUID id = auth.suspendOperation(user, operation,
+                new com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationRequest(
+                        new byte[] {1}, null, 170, NOW.plusSeconds(170)));
+        submit(id, UUID.randomUUID());
+        when(continuation.resumeOperation(any())).thenThrow(
+                new com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationRejectedException(
+                        com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode.BANK_CREDENTIAL_INVALID));
+        authWorker.executeOne();
+        authWorker.executeOne();
+        assertThat(auth.get(id).status()).isEqualTo("FAILED");
+        assertThat(auth.get(id).failureCode()).isEqualTo("BANK_CREDENTIAL_INVALID");
+        assertThat(authStore.find(id, false).orElseThrow().payload()).isNull();
+        verify(continuation, times(1)).resumeOperation(any());
+    }
+
+    @Test
+    void certificateAdmission_concurrentAccountQuery_doesNotCallProvider() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var pool = Executors.newSingleThreadExecutor();
+        try {
+            var first = pool.submit(() -> auth.withAccountQueryAdmission(user, "0020", () -> {
+                entered.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) throw new AssertionError("Timed out waiting for certificate admission");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+                return List.of();
+            }));
+            assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+            currentPair = pairedDevice();
+            currentSession = pairedUpload(currentPair);
+            var command = tx.claimPublication(false).orElseThrow();
+            tx.published(command, true);
+            tx.receiveCommand(command.command(), caps.hash("sms-fixture"));
+            worker.executeOne();
+            verify(provider, never()).register(anyString(), any(), anyBoolean());
+            assertThat(auth.list()).isEmpty();
+            assertThat(jdbc.queryForObject("SELECT status FROM certificate_provider_command_inbox WHERE command_type='REGISTER'", String.class))
+                    .isEqualTo("FAILED");
+            release.countDown();
+            assertThat(first.get(10, TimeUnit.SECONDS)).isEmpty();
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+            assertThat(pool.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
     }
 
     @AfterEach

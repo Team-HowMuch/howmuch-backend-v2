@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 public interface AdditionalAuthenticationStorePort {
+    boolean tryAcquireOperationAdmission(long user, String organization);
+
     void create(
             UUID id,
             long user,

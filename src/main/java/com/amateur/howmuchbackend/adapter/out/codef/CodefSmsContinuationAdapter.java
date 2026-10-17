@@ -183,18 +183,21 @@ public class CodefSmsContinuationAdapter implements CodefAdditionalAuthenticatio
         var further = new ArrayList<JsonNode>();
         continuations(response, further);
         if (!further.isEmpty())
-            throw ApplicationException.of(
+            throw new AdditionalAuthenticationRejectedException(
                     com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode
                             .CODEF_ADDITIONAL_AUTH_REQUIRED);
         String failure =
                 response.at("/data/errorList/0/code")
                         .asText(response.at("/result/code").asText(""));
+        if (!failure.matches("CF-[0-9]{5}"))
+            throw ApplicationException.of(
+                    com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode
+                            .CODEF_RESPONSE_INVALID);
         if (!"CF-00000".equals(failure))
-            throw CodefFailureMapper.map(
+            throw new AdditionalAuthenticationRejectedException(CodefFailureMapper.status(
                     failure,
                     com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode
-                            .CODEF_UNMAPPED_ERROR,
-                    null);
+                            .CODEF_UNMAPPED_ERROR));
         return switch (operation.type()) {
             case "BANK_CONNECT" ->
                     new FinanceOperationResult(

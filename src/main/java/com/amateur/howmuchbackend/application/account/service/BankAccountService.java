@@ -228,8 +228,19 @@ public class BankAccountService
             String organization,
             String birthDate,
             BankAccountCredentials credentials) {
+        if (authentication == null)
+            return findAccountsAdmitted(connection, organization, birthDate, credentials);
+        return authentication.withAccountQueryAdmission(
+                connection.userId(), organization,
+                () -> findAccountsAdmitted(connection, organization, birthDate, credentials));
+    }
+
+    private List<ExternalAccountCandidate> findAccountsAdmitted(
+            ExternalConnection connection,
+            String organization,
+            String birthDate,
+            BankAccountCredentials credentials) {
         if (authentication != null) {
-            authentication.assertNoPending(connection.userId(), organization);
             var cached =
                     authentication.cachedAccounts(
                             connection.userId(), connection.id(), organization);

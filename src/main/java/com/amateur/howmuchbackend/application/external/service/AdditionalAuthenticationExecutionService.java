@@ -148,14 +148,22 @@ public class AdditionalAuthenticationExecutionService {
     public void fail(AdditionalAuthenticationChallenge leased, boolean uncertain) {
         var c = locked(leased.id());
         if (!current(c, leased)) return;
-        if (c.cancelRequested()) {
+        if (c.cancelRequested() || !parentActive(c)) {
             terminate(c, "CANCELLED");
             return;
         }
-        String code = uncertain ? "REGISTRATION_UNCERTAIN" : "PROVIDER_UNAVAILABLE";
-        store.finish(c, uncertain ? "UNKNOWN" : "FAILED", code, now());
+        boolean started = uncertain || c.requestStarted();
+        if (!c.expiresAt().isAfter(now())) {
+            terminate(c, started ? "UNKNOWN" : "EXPIRED");
+            return;
+        }
+        if (!started) {
+            store.requeue(c, now());
+            return;
+        }
+        store.finish(c, "UNKNOWN", "REGISTRATION_UNCERTAIN", now());
         if (c.certificate())
-            jobs.finish(c.execution(), uncertain ? "UNKNOWN" : "FAILED", code, null, null, now());
+            jobs.finish(c.execution(), "UNKNOWN", "REGISTRATION_UNCERTAIN", null, null, now());
     }
 
     @Transactional

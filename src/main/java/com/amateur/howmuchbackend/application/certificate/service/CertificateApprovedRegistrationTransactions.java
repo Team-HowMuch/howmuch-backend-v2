@@ -81,6 +81,11 @@ public class CertificateApprovedRegistrationTransactions {
             jobs.finish(execution, "FAILED", "CONTRACT_CONFLICT", null, null, now);
             return;
         }
+        if (additionalAuthentication != null
+                && !additionalAuthentication.tryAdmitInitialOperation(user, command.organization())) {
+            jobs.finish(execution, "FAILED", "CONTRACT_CONFLICT", null, null, now);
+            return;
+        }
         connections.validateStorageConfiguration();
         var connection = connections.findActiveByUserId(user).orElse(null);
         if (pairing != null)

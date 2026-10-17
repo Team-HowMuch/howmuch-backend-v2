@@ -64,10 +64,9 @@ public class AdditionalAuthenticationWorker
                                             required) {
                                 transactions.requestInput(c, required.request());
                             } catch (
-                                    com.amateur.howmuchbackend.common.exception.ApplicationException
+                                    com.amateur.howmuchbackend.application.external.model
+                                                    .AdditionalAuthenticationRejectedException
                                             rejected) {
-                                // A provider's explicit rejection is known; transport ambiguity is
-                                // not retried.
                                 transactions.reject(c, rejected.getStatusCode().getCode());
                             } catch (RuntimeException failure) {
                                 log.warn(

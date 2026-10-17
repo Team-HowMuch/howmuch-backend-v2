@@ -102,7 +102,12 @@ public class AdditionalAuthenticationService
         }
     }
 
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.MANDATORY,
+            noRollbackFor = AdditionalAuthenticationPendingException.class)
     public void assertNoPending(long user, String organization) {
+        if (!store.tryAcquireOperationAdmission(user, organization))
+            throw ApplicationException.of(FINANCE_AUTHENTICATION_CONFLICT);
         store.pending(user, organization, now())
                 .ifPresent(
                         c -> {
@@ -110,11 +115,27 @@ public class AdditionalAuthenticationService
                         });
     }
 
+    @Transactional(noRollbackFor = AdditionalAuthenticationPendingException.class)
+    public java.util.List<BankConnectionPort.ExternalAccountCandidate> withAccountQueryAdmission(
+            long user,
+            String organization,
+            java.util.function.Supplier<java.util.List<BankConnectionPort.ExternalAccountCandidate>> query) {
+        assertNoPending(user, organization);
+        return query.get();
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public boolean tryAdmitInitialOperation(long user, String organization) {
+        return store.tryAcquireOperationAdmission(user, organization)
+                && store.pending(user, organization, now()).isEmpty();
+    }
+
     @Transactional
     public UUID suspendOperation(
             long user, FinanceOperation operation, AdditionalAuthenticationRequest request) {
-        var existing = store.pending(user, operation.organization(), now());
-        if (existing.isPresent()) return existing.get().id();
+        if (!store.tryAcquireOperationAdmission(user, operation.organization())
+                || store.pending(user, operation.organization(), now()).isPresent())
+            throw ApplicationException.of(FINANCE_AUTHENTICATION_CONFLICT);
         UUID id = UUID.randomUUID(), operationId = UUID.randomUUID();
         LocalDateTime expires = now().plusSeconds(Math.min(170, request.timeoutSeconds()));
         if (request.providerExpiresAt() != null && request.providerExpiresAt().isBefore(expires))

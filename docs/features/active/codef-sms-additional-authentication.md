@@ -92,3 +92,20 @@ V57 challenge 스키마는 이미 develop에 있다. 2026-10-18 최신 develop�
 - 최신 통합본의 SMS·CODEF Adapter·계좌 서비스·알림·Bean wiring Java 19 suites/154개 및 기존 관리자 JavaScript 35개 테스트 통과. 실제 PostgreSQL의 인증서 SMS 통합 20개도 포함한다.
 - 실제 금융사/FCM/Android 검증은 이번 게시 작업에서 재실행하지 않았다. 10월 18일 인수인계에는 실제 CODEF 인증서 BOUND와 계좌·거래 조회 SMS SUCCEEDED가 기록되어 있으나 이번 테스트 결과와 구분한다.
 - 기능 flag 기본값은 false다. V60 스키마만 먼저 적용해도 금융사 요청을 시작하지 않는다. 전체 Java suite와 배포는 별도 CI/운영 검증이다.
+
+### PR #578 리뷰 수정 계획 (2026-10-18)
+
+- P1: provider 호출 전 복호화/저장소 장애는 제출·암호문을 보존하고 fencing된 lease를 반납해 재시도한다. 실제 provider 응답의 명시적 거절만 FAILED로 확정하며 호출 후 통신/저장 장애는 UNKNOWN을 유지한다.
+- P2: 같은 사용자·기관의 최초 provider 호출과 challenge 생성까지 transaction-scoped admission을 유지한다. 대기 중인 다른 요청은 외부 호출 전에 충돌로 거절한다. 이미 시작한 요청의 continuation을 기존 challenge ID로 바꾸지 않는다.
+- 기존 V57 전이와 PostgreSQL transaction advisory lock을 재사용하며 추가 migration은 필요 없다. SQL PR #577은 변경하지 않는다.
+- 검증: 실제 PostgreSQL의 선행 장애→재시도, 호출 후 ApplicationException→UNKNOWN, 동시 admission·lock 반환·별도 기관 격리, 기존 challenge 재사용 거절 및 기존 SMS/계좌/알림 회귀.
+- 커밋 경계: `fix(external): SMS 호출 전 장애 복구와 동시 요청 분리`로 기능 PR #578에 추가한다.
+
+#### 리뷰 수정 결과
+
+- 기존 코드에서 선행 복호화·upload·저장소 장애, ApplicationException 형태의 전송 실패, 기존 challenge 재사용 문제를 검증하는 5개 회귀 테스트의 실패를 재현했다.
+- 실제 provider 오류 응답만 전용 거절 계약으로 전달한다. 호출 전 장애는 같은 submission/암호문을 유지한 채 lease를 반납하고, 호출 후 통신·로컬 처리 장애는 durable request-start 사실을 기준으로 UNKNOWN으로 종료한다. 오래된 worker는 후속 lease를 변경하지 못한다.
+- 사용자·기관별 PostgreSQL transaction advisory try-lock으로 최초 CODEF 호출 전 admission을 확인한다. 계좌 목록 조회는 외부 호출과 challenge 저장까지 같은 트랜잭션을 사용하며, 인증서 최초 등록도 같은 잠금 규칙을 따른다. 잠금 경합은 외부 호출 전에 거절하고 트랜잭션 종료/rollback 시 잠금을 해제한다.
+- 이미 받은 continuation을 다른 operation의 challenge로 바꾸는 fallback을 제거했다. 해당 충돌은 FINANCE_AUTHENTICATION_CONFLICT이며 기존 challenge를 변경하지 않는다.
+- 새 회귀 13개를 포함한 Java 167개/19 suites 및 관리자 JavaScript 35개, Java/테스트 컴파일, git diff --check가 통과했다. 인증서 SMS PostgreSQL 통합 테스트는 31개다. SQL 파일과 V60 commit은 변경하지 않았다.
+- 전체 Java suite와 실제 금융사/모바일/푸시는 이번 리뷰 수정에서 실행하지 않았다. GitHub Actions 결제/지출 한도 차단은 별도 CI 제한이다.

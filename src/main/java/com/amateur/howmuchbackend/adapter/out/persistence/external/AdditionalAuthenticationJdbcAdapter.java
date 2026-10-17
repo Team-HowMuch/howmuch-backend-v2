@@ -31,6 +31,16 @@ public class AdditionalAuthenticationJdbcAdapter implements AdditionalAuthentica
             LEFT JOIN certificate_provider_command_inbox j ON j.message_id=a.certificate_command_id
             """;
 
+    public boolean tryAcquireOperationAdmission(long user, String organization) {
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager
+                .isActualTransactionActive())
+            throw new IllegalStateException("Finance operation admission requires a transaction");
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT pg_try_advisory_xact_lock(hashtextextended(?, 0))",
+                Boolean.class,
+                "finance-authentication:" + user + ":" + organization));
+    }
+
     public void create(
             UUID id,
             long user,
@@ -377,14 +387,13 @@ ORDER BY expires_at,id LIMIT 20
                 """
 UPDATE codef_authentication_challenges SET status='SUBMITTED',lease_token=NULL,processing_started_at=NULL,
  lease_expires_at=NULL,updated_at=? WHERE id=? AND status='PROCESSING' AND lease_token=?
- AND lease_generation=? AND lease_expires_at<=? AND provider_request_started_at IS NULL
+ AND lease_generation=? AND provider_request_started_at IS NULL
  AND cancel_requested_at IS NULL AND expires_at>?
 """,
                 now,
                 c.id(),
                 c.leaseToken(),
                 c.leaseGeneration(),
-                now,
                 now);
     }
 
