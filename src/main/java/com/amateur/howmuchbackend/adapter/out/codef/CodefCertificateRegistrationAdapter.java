@@ -23,6 +23,9 @@ public class CodefCertificateRegistrationAdapter implements CertificateProviderA
     private final CodefRsaEncryptor rsa;
     private final boolean detailedErrorsEnabled;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CodefSmsContinuationAdapter sms;
+
     public CodefCertificateRegistrationAdapter(
             CodefClient client, CodefRsaEncryptor rsa, CertificateProperties properties) {
         this.client = client;
@@ -66,6 +69,11 @@ public class CodefCertificateRegistrationAdapter implements CertificateProviderA
             boolean includeAccountCredentials) {
         try {
             return registerOnce(path, knownId, organization, material, includeAccountCredentials);
+        } catch (
+                com.amateur.howmuchbackend.application.external.model
+                                .AdditionalAuthenticationRequiredException
+                        required) {
+            throw required;
         } catch (RuntimeException failure) {
             logFailure(organization, failure);
             throw new CertificateProviderUncertainException();
@@ -105,6 +113,7 @@ public class CodefCertificateRegistrationAdapter implements CertificateProviderA
         payload.put("accountList", List.of(account));
         if (knownId != null) payload.put("connectedId", knownId);
         JsonNode response = client.postOnce(path, payload);
+        if (sms != null) sms.requireIfSupported(path, payload, response, organization);
         String returnedId = response.at("/data/connectedId").asText("");
         if (knownId != null && !returnedId.isBlank() && !knownId.equals(returnedId))
             throw new CertificateProviderUncertainException();
@@ -123,7 +132,7 @@ public class CodefCertificateRegistrationAdapter implements CertificateProviderA
                 || additionalAuth(response)) {
             log.warn(
                     "CODEF certificate registration response. organization={} resultCode={}"
-                        + " accountCode={} derBytes={} keyBytes={} derAllZero={} keyAllZero={}",
+                            + " accountCode={} derBytes={} keyBytes={} derAllZero={} keyAllZero={}",
                     organization,
                     safeCode(response.at("/result/code")),
                     safeCode(response.at("/data/errorList/0/code")),
@@ -190,7 +199,7 @@ public class CodefCertificateRegistrationAdapter implements CertificateProviderA
         }
         log.warn(
                 "CODEF certificate registration uncertain. organization={} httpStatus={}"
-                    + " statusCode={} providerCode={} failureType={} causeType={}",
+                        + " statusCode={} providerCode={} failureType={} causeType={}",
                 organization,
                 httpStatus,
                 statusCode,

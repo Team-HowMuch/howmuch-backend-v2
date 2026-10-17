@@ -65,6 +65,7 @@ public class MyNotificationService implements GetMyNotificationsUseCase, CountMy
             case GROUP_INVITATION -> "초대 확인하기";
             case GROUP_MEMBER_LEFT -> "그룹 확인하기";
             case MONTHLY_RECAP -> "리캡 확인하기";
+            case FINANCE_AUTH_REQUIRED -> "인증 계속하기";
                     case GROUP_NETTING_CONFIRMED,
                                     GROUP_NETTING_COMPLETED,
                                     NETTED_TRANSFER_REMINDER ->

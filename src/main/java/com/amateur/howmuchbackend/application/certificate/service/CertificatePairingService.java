@@ -45,6 +45,10 @@ public class CertificatePairingService
     private final CertificateRegistrationTransactions transactions;
     private final Clock clock;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.amateur.howmuchbackend.application.external.service.AdditionalAuthenticationService
+            additionalAuthentication;
+
     @Transactional
     public CertificatePairingResult createPairing(String remoteAddress) {
         if (!limits.acquire(capabilities.hash("pair:" + remoteAddress))
@@ -125,8 +129,9 @@ public class CertificatePairingService
                 || !p.organization().equals(command.organization()))
             throw ApplicationException.of(CERTIFICATE_CONFLICT);
         if (p.sessionId() != null) {
-            var previous = sessions.find(p.sessionId(), true)
-                    .orElseThrow(() -> ApplicationException.of(CERTIFICATE_NOT_FOUND));
+            var previous =
+                    sessions.find(p.sessionId(), true)
+                            .orElseThrow(() -> ApplicationException.of(CERTIFICATE_NOT_FOUND));
             if (!previous.status().equals("FAILED") || previous.approved())
                 throw ApplicationException.of(CERTIFICATE_CONFLICT);
         }
@@ -192,7 +197,8 @@ public class CertificatePairingService
 
     private CertificatePairing mobile(UUID id, boolean lock) {
         var p = find(id, lock);
-        if (p.userId() == null || !java.util.Objects.equals(p.userId(), actor.getCurrentActor().userId()))
+        if (p.userId() == null
+                || !java.util.Objects.equals(p.userId(), actor.getCurrentActor().userId()))
             throw ApplicationException.of(CERTIFICATE_NOT_FOUND);
         return p;
     }
@@ -249,6 +255,9 @@ public class CertificatePairingService
                 p.organization(),
                 s == null ? null : s.currentClaimId(),
                 failure == null ? null : failure.getCode(),
-                failure == null ? null : failure.getMessage());
+                failure == null ? null : failure.getMessage(),
+                additionalAuthentication == null
+                        ? null
+                        : additionalAuthentication.forSession(p.sessionId()));
     }
 }

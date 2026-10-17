@@ -13,7 +13,10 @@ public record CertificateRegistrationWebResponse(
         String pcCapability,
         String uploadCapability,
         String failureCode,
-        String failureMessage) {
+        String failureMessage,
+        com.amateur.howmuchbackend.adapter.in.web.external.dto.response
+                        .AdditionalAuthenticationWebResponse
+                additionalAuthentication) {
     public static CertificateRegistrationWebResponse from(CertificateRegistrationResult r) {
         return new CertificateRegistrationWebResponse(
                 r.id(),
@@ -23,7 +26,9 @@ public record CertificateRegistrationWebResponse(
                 r.pcCapability(),
                 r.uploadCapability(),
                 r.failureCode(),
-                r.failureMessage());
+                r.failureMessage(),
+                com.amateur.howmuchbackend.adapter.in.web.external.dto.response
+                        .AdditionalAuthenticationWebResponse.from(r.additionalAuthentication()));
     }
 
     @Override

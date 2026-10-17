@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.codef;
 
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
+import com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationRequiredException;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import org.junit.jupiter.api.DisplayName;
@@ -20,7 +21,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,6 +71,47 @@ class CodefBankTransactionAdapterTest {
                 null, ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID, null);
 
         assertThat(failure.getStatusCode()).isEqualTo(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID);
+    }
+
+    @Test
+    @DisplayName("CODEF가 반환한 SMS 추가인증은 실패 로그가 아니라 대기 단계로 기록한다")
+    void bankTransactions_smsChallenge_isNotRecordedAsProviderFailure() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var continuation =
+                new CodefSmsContinuationAdapter(
+                        client,
+                        mapper,
+                        new com.amateur.howmuchbackend.infra.certificate.config.CertificateProperties(
+                                true, "", "", "", java.util.List.of(), null, null, null, null, null, null, true));
+        var adapter = new CodefBankTransactionAdapter(client, rsaEncryptor, observability);
+        adapter.continuation(continuation);
+        when(client.post(eq("/v1/kr/bank/p/account/transaction-list"), any()))
+                .thenReturn(
+                        mapper.readTree(
+                                """
+                                {"result":{"code":"CF-03002"},"data":{"continue2Way":true,
+                                 "method":"smsAuthNo","jobIndex":1,"threadIndex":2,"jti":"synthetic-jti",
+                                 "twoWayTimestamp":1791504000000,"extraInfo":{"reqSMSAuthNo":"010-****-0000"}}}
+                                """));
+
+        assertThatThrownBy(
+                        () ->
+                                adapter.fetch(
+                                        "CID-1",
+                                        "0020",
+                                        "1002123456789",
+                                        LocalDate.of(2026, 10, 1),
+                                        LocalDate.of(2026, 10, 17),
+                                        null))
+                .isInstanceOf(AdditionalAuthenticationRequiredException.class);
+
+        verify(observability)
+                .record(
+                        eq("transaction_list"),
+                        eq("0020"),
+                        eq("CF-03002"),
+                        isNull(),
+                        anyLong());
     }
 
     @ParameterizedTest

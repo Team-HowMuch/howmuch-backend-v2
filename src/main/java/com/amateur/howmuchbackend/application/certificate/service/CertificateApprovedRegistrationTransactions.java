@@ -36,6 +36,10 @@ public class CertificateApprovedRegistrationTransactions {
     private final Clock clock;
     private final CertificatePairingStorePort pairings;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.amateur.howmuchbackend.application.external.service.AdditionalAuthenticationService
+            additionalAuthentication;
+
     /** Request-start was committed before this transaction; no provider mutation may be retried. */
     @Transactional
     public void register(
@@ -43,6 +47,10 @@ public class CertificateApprovedRegistrationTransactions {
             CertificateMaterial material,
             boolean includeAccountCredentials) {
         var command = execution.command();
+        if (additionalAuthentication != null) {
+            var initialPairing = pairings.findBySession(command.sessionId());
+            if (initialPairing.isPresent()) pairings.find(initialPairing.get().id(), true);
+        }
         var session =
                 sessions.find(command.sessionId(), true)
                         .orElseThrow(
@@ -78,26 +86,80 @@ public class CertificateApprovedRegistrationTransactions {
         if (pairing != null)
             pairings.prepare(session.id(), connection == null ? null : connection.id());
         CertificateProviderResult result;
-        if (connection == null)
-            result = provider.register(command.organization(), material, includeAccountCredentials);
-        else {
-            boolean registered =
-                    banks.registeredOrganizations(connection.connectedId())
-                            .contains(command.organization());
-            result =
-                    registered
-                            ? provider.update(
-                                    connection.connectedId(),
-                                    command.organization(),
-                                    material,
-                                    includeAccountCredentials)
-                            : provider.add(
-                                    connection.connectedId(),
-                                    command.organization(),
-                                    material,
-                                    includeAccountCredentials);
+        try {
+            if (connection == null)
+                result =
+                        provider.register(
+                                command.organization(), material, includeAccountCredentials);
+            else {
+                boolean registered =
+                        banks.registeredOrganizations(connection.connectedId())
+                                .contains(command.organization());
+                result =
+                        registered
+                                ? provider.update(
+                                        connection.connectedId(),
+                                        command.organization(),
+                                        material,
+                                        includeAccountCredentials)
+                                : provider.add(
+                                        connection.connectedId(),
+                                        command.organization(),
+                                        material,
+                                        includeAccountCredentials);
+            }
+        } catch (
+                com.amateur.howmuchbackend.application.external.model
+                                .AdditionalAuthenticationRequiredException
+                        required) {
+            if (additionalAuthentication != null
+                    && additionalAuthentication.suspend(execution, required.request())) return;
+            jobs.finish(
+                    execution,
+                    "FAILED",
+                    "ADDITIONAL_AUTH_REQUIRED",
+                    null,
+                    null,
+                    LocalDateTime.now(clock));
+            return;
         }
-        now = LocalDateTime.now(clock);
+        finishRegistration(execution, material, result, user, connection, consent, pairing == null);
+    }
+
+    @Transactional
+    public void completeAdditionalAuthentication(
+            CertificateExecution execution,
+            CertificateMaterial material,
+            CertificateProviderResult result,
+            long user) {
+        var session = sessions.find(execution.command().sessionId(), true).orElseThrow();
+        var p = pairings.findBySession(session.id()).orElseThrow();
+        var now = LocalDateTime.now(clock);
+        if (!session.status().equals("REGISTERING")
+                || !session.expiresAt().isAfter(now)
+                || p.userId() == null
+                || p.userId() != user
+                || p.cancelledAt() != null
+                || !p.expiresAt().isAfter(now))
+            throw ApplicationException.of(CertificateStatusCode.CERTIFICATE_CONFLICT);
+        users.findByIdForUpdate(user).filter(User::active).orElseThrow();
+        var connection = connections.findActiveByUserId(user).orElse(null);
+        if (!Objects.equals(p.existingConnectionId(), connection == null ? null : connection.id()))
+            throw ApplicationException.of(CertificateStatusCode.CERTIFICATE_CONFLICT);
+        finishRegistration(execution, material, result, user, connection, null, false);
+    }
+
+    private void finishRegistration(
+            CertificateExecution execution,
+            CertificateMaterial material,
+            CertificateProviderResult result,
+            long user,
+            ExternalConnection connection,
+            CertificateConsent consent,
+            boolean bindImmediately) {
+        var command = execution.command();
+        var session = sessions.find(command.sessionId(), true).orElseThrow();
+        var now = LocalDateTime.now(clock);
         if (result.connectedId() == null) {
             jobs.finish(execution, "FAILED", result.failureCode(), null, null, now);
             return;
@@ -116,7 +178,7 @@ public class CertificateApprovedRegistrationTransactions {
                                 material.birthDate()));
         // The ownership FK, job result, user connection, consent and outbox commit together.
         jobs.finish(execution, "SUCCEEDED", null, ref, envelope, now);
-        if (pairing == null) {
+        if (bindImmediately) {
             connection =
                     persist(
                             user,

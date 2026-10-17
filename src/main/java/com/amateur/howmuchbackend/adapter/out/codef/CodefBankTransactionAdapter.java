@@ -5,9 +5,12 @@ import com.amateur.howmuchbackend.application.port.out.external.BankTransactionP
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
 import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
@@ -32,6 +35,13 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
     private static final DateTimeFormatter CODEF_TIME = DateTimeFormatter.ofPattern("HHmmss");
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
+    private CodefSmsContinuationAdapter continuation;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void continuation(CodefSmsContinuationAdapter value) {
+        continuation = value;
+    }
+
     private final CodefClient client;
     private final CodefRsaEncryptor rsaEncryptor;
     private final CodefObservability observability;
@@ -43,8 +53,7 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
             String account,
             LocalDate startDate,
             LocalDate endDate,
-            BankAccountCredentials credentials
-    ) {
+            BankAccountCredentials credentials) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("connectedId", connectedId);
         payload.put("organization", organization);
@@ -59,6 +68,10 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         }
 
         JsonNode response = post(organization, payload);
+        return parseTransactions(response);
+    }
+
+    static List<BankTransaction> parseTransactions(JsonNode response) {
         List<BankTransaction> transactions = new ArrayList<>();
         for (JsonNode item : values(data(response).path("resTrHistoryList"))) {
             BankTransaction transaction = transaction(item);
@@ -76,13 +89,23 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         try {
             JsonNode response = client.post(TRANSACTION_LIST_PATH, payload);
             resultCode = text(response.path("result"), "code");
+            if (continuation != null)
+                continuation.requireIfSupported(
+                        TRANSACTION_LIST_PATH, payload, response, organization);
             ensureSuccess(response);
             return response;
+        } catch (com.amateur.howmuchbackend.application.external.model
+                        .AdditionalAuthenticationRequiredException required) {
+            // A valid provider challenge is a pending step, not a failed CODEF call.
+            throw required;
         } catch (CodefClient.CodefHttpException exception) {
             resultCode = text(client.decode(exception.responseBody()).path("result"), "code");
-            failure = !StringUtils.hasText(resultCode) && exception.status() >= 500
-                    ? ApplicationException.of(ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE, exception)
-                    : mapped(resultCode, exception);
+            failure =
+                    !StringUtils.hasText(resultCode) && exception.status() >= 500
+                            ? ApplicationException.of(
+                                    ExternalConnectionStatusCode.CODEF_UPSTREAM_UNAVAILABLE,
+                                    exception)
+                            : mapped(resultCode, exception);
             throw (ApplicationException) failure;
         } catch (RuntimeException exception) {
             failure = exception;
@@ -94,7 +117,8 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
 
     private void ensureSuccess(JsonNode response) {
         if (containsAdditionalAuth(response)) {
-            throw ApplicationException.of(ExternalConnectionStatusCode.CODEF_ADDITIONAL_AUTH_REQUIRED);
+            throw ApplicationException.of(
+                    ExternalConnectionStatusCode.CODEF_ADDITIONAL_AUTH_REQUIRED);
         }
         String code = text(response.path("result"), "code");
         if (!SUCCESS.equals(code)) {
@@ -106,17 +130,21 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         if (!StringUtils.hasText(code)) {
             return cause == null
                     ? ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID)
-                    : ApplicationException.of(ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID, cause);
+                    : ApplicationException.of(
+                            ExternalConnectionStatusCode.CODEF_RESPONSE_INVALID, cause);
         }
-        return CodefFailureMapper.map(code, ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR, cause);
+        return CodefFailureMapper.map(
+                code, ExternalConnectionStatusCode.CODEF_UNMAPPED_ERROR, cause);
     }
 
-    private BankTransaction transaction(JsonNode item) {
+    private static BankTransaction transaction(JsonNode item) {
         LocalDateTime transactedAt = transactedAt(item);
         BigDecimal out = positiveAmount(text(item, "resAccountOut"));
         BigDecimal in = positiveAmount(text(item, "resAccountIn"));
-        AccountTransactionType type = out != null ? AccountTransactionType.EXPENSE
-                : in != null ? AccountTransactionType.INCOME : null;
+        AccountTransactionType type =
+                out != null
+                        ? AccountTransactionType.EXPENSE
+                        : in != null ? AccountTransactionType.INCOME : null;
         BigDecimal transactionAmount = out != null ? out : in;
         if (transactedAt == null || type == null || transactionAmount.signum() <= 0) {
             return null;
@@ -131,18 +159,18 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
                 descriptions.first(),
                 descriptions.second(),
                 descriptions.third(),
-                descriptions.fourth()
-        );
+                descriptions.fourth());
     }
 
-    private LocalDateTime transactedAt(JsonNode item) {
+    private static LocalDateTime transactedAt(JsonNode item) {
         String date = digits(text(item, "resAccountTrDate"));
         String time = digits(text(item, "resAccountTrTime"));
         if (date == null || date.length() != 8 || time == null || time.length() != 6) {
             return null;
         }
         try {
-            return LocalDateTime.of(LocalDate.parse(date, CODEF_DATE), LocalTime.parse(time, CODEF_TIME))
+            return LocalDateTime.of(
+                            LocalDate.parse(date, CODEF_DATE), LocalTime.parse(time, CODEF_TIME))
                     .atZone(SEOUL)
                     .withZoneSameInstant(ZoneOffset.UTC)
                     .toLocalDateTime();
@@ -151,14 +179,14 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         }
     }
 
-    private DescriptionParts descriptions(JsonNode item) {
-        DescriptionParts parts = new DescriptionParts(
-                text(item, "resAccountDesc1"),
-                text(item, "resAccountDesc2"),
-                text(item, "resAccountDesc3"),
-                text(item, "resAccountDesc4"),
-                null
-        );
+    private static DescriptionParts descriptions(JsonNode item) {
+        DescriptionParts parts =
+                new DescriptionParts(
+                        text(item, "resAccountDesc1"),
+                        text(item, "resAccountDesc2"),
+                        text(item, "resAccountDesc3"),
+                        text(item, "resAccountDesc4"),
+                        null);
         if (parts.hasValue()) {
             return parts;
         }
@@ -166,12 +194,12 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         return new DescriptionParts(null, null, null, null, fallback);
     }
 
-    private BigDecimal positiveAmount(String value) {
+    private static BigDecimal positiveAmount(String value) {
         BigDecimal amount = signedAmount(value);
         return amount != null && amount.signum() > 0 ? amount : null;
     }
 
-    private BigDecimal signedAmount(String value) {
+    private static BigDecimal signedAmount(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
         }
@@ -197,12 +225,12 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         return false;
     }
 
-    private JsonNode data(JsonNode response) {
+    private static JsonNode data(JsonNode response) {
         JsonNode data = response.path("data");
         return data.isMissingNode() || data.isNull() ? response : data;
     }
 
-    private List<JsonNode> values(JsonNode node) {
+    private static List<JsonNode> values(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return List.of();
         }
@@ -214,31 +242,27 @@ public class CodefBankTransactionAdapter implements BankTransactionPort {
         return node.isObject() ? List.of(node) : List.of();
     }
 
-    private String text(JsonNode node, String field) {
+    private static String text(JsonNode node, String field) {
         String value = node == null ? null : node.path(field).asText(null);
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    private String digits(String value) {
+    private static String digits(String value) {
         return value == null ? null : value.replaceAll("\\D", "");
     }
 
     private record DescriptionParts(
-            String first,
-            String second,
-            String third,
-            String fourth,
-            String fallback
-    ) {
+            String first, String second, String third, String fourth, String fallback) {
         private boolean hasValue() {
             return first != null || second != null || third != null || fourth != null;
         }
 
         private String joined() {
-            List<String> values = java.util.stream.Stream.of(first, second, third, fourth)
-                    .filter(value -> value != null && !value.isBlank())
-                    .distinct()
-                    .toList();
+            List<String> values =
+                    java.util.stream.Stream.of(first, second, third, fourth)
+                            .filter(value -> value != null && !value.isBlank())
+                            .distinct()
+                            .toList();
             if (values.isEmpty() && fallback != null && !fallback.isBlank()) {
                 values = List.of(fallback);
             }
