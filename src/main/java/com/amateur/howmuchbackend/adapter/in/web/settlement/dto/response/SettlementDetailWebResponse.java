@@ -21,7 +21,10 @@ public record SettlementDetailWebResponse(
         long totalAmount,
         @Schema(nullable = true)
         SettlementAllocationType allocationType,
-        SettlementStatus status,
+        @io.swagger.v3.oas.annotations.media.Schema(
+                        description =
+                                "압축 정산에 포함된 원본은 NETTING_IN_PROGRESS, 최종 정산 완료 후에는 COMPLETED입니다.")
+                SettlementStatus status,
         LocalDateTime createdAt,
         @Schema(nullable = true, description = "공통 종료 시각. COMPLETED는 완료 시각, SUSPENDED는 현재 중단 시각이며 "
                 + "그 외 상태는 null입니다. UTC 기준 offset 없는 값입니다.")
@@ -44,8 +47,9 @@ public record SettlementDetailWebResponse(
         LocalDateTime reminderNextAvailableAt,
         List<ParticipantPayment> participants,
         List<SettlementItemWebResponse> items,
-        @Schema(nullable = true, description = "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. "
-                + "정산 요청 전, 분류 전, 기능 배포 전에 요청된 정산은 null이다. 미분류면 code가 UNCATEGORIZED다.")
+        @Schema(nullable = true, description =
+                                "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. 정산 요청 전, 분류 전, 기능 배포 전에"
+                                    + " 요청된 정산은 null이다. 미분류면 code가 UNCATEGORIZED다.")
         SettlementMyCategoryWebResponse myCategory
 ) {
     public static SettlementDetailWebResponse from(SettlementDetailResult result) {
@@ -78,9 +82,13 @@ public record SettlementDetailWebResponse(
     @Schema(requiredProperties = {"amount", "storeName", "paidAt", "discount", "deliveryFee"})
     public record PaymentInfo(
             long amount,
-            @Schema(nullable = true, description = "상호명. 영수증·결제내역 지출을 합쳐 한 건이고 그 지출이 영수증일 때만 채워진다. 결제내역은 상호명을 알 수 없어 null이다.")
+            @Schema(nullable = true, description =
+                                    "상호명. 영수증·결제내역 지출을 합쳐 한 건이고 그 지출이 영수증일 때만 채워진다. 결제내역은 상호명을 알 수"
+                                        + " 없어 null이다.")
             String storeName,
-            @Schema(nullable = true, description = "결제일(UTC, offset 없는 값). 영수증·결제내역 지출을 합쳐 한 건일 때만 채워지며 알 수 없으면 null이다.")
+            @Schema(nullable = true, description =
+                                    "결제일(UTC, offset 없는 값). 영수증·결제내역 지출을 합쳐 한 건일 때만 채워지며 알 수 없으면"
+                                        + " null이다.")
             LocalDateTime paidAt,
             long discount,
             @Schema(description = "영수증 전체 순 배달비 합계", minimum = "0")

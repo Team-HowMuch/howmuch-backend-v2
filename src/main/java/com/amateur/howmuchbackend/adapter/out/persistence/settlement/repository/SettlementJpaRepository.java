@@ -83,6 +83,10 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 ) payment_summary
                 ON payment_summary.settlement_id = settlement.id
              WHERE settlement.deleted_at IS NULL
+               AND NOT EXISTS (
+                    SELECT 1 FROM group_netting_sources compressed
+                     WHERE compressed.settlement_id = settlement.id
+               )
                AND (
                     (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
                     OR (
@@ -110,7 +114,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     OR (
                         :status = 'IN_PROGRESS'
                         AND settlement.status IN (
-                            'REQUESTED', 'AWAITING_DEPOSIT', 'SUSPENDED'
+                            'REQUESTED', 'AWAITING_DEPOSIT', 'SUSPENDED', 'NETTING_IN_PROGRESS'
                         )
                     )
                     OR settlement.status = :status
@@ -214,6 +218,10 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
               LEFT JOIN settlement_links link
                 ON link.settlement_id = settlement.id
              WHERE settlement.deleted_at IS NULL
+               AND NOT EXISTS (
+                    SELECT 1 FROM group_netting_sources compressed
+                     WHERE compressed.settlement_id = settlement.id
+               )
                AND (
                     (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
                     OR (
@@ -265,9 +273,32 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                                AND participant.linked_user_id = :userId
                         )
                    )
+            ) OR EXISTS (
+                SELECT 1
+                  FROM group_netting_parties party
+                  JOIN group_settlement_nettings netting ON netting.id = party.netting_id
+                 WHERE party.user_id = :userId
+                   AND (netting.status = 'ACTIVE' OR EXISTS (
+                       SELECT 1 FROM netting_deposit_reviews review
+                        WHERE review.netting_id = netting.id AND review.status = 'OPEN'
+                   ))
             )
             """, nativeQuery = true)
     boolean existsByUserIdAndStatusNotCompleted(@Param("userId") Long userId);
+
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                  FROM group_netting_monitored_accounts monitored
+                  JOIN group_settlement_nettings netting ON netting.id = monitored.netting_id
+                 WHERE monitored.account_id = :accountId
+                   AND (netting.status = 'ACTIVE' OR EXISTS (
+                       SELECT 1 FROM netting_deposit_reviews review
+                        WHERE review.netting_id = netting.id AND review.status = 'OPEN'
+                   ))
+            )
+            """, nativeQuery = true)
+    boolean existsNettingAccountDependency(@Param("accountId") Long accountId);
 
     interface SettlementListProjection {
         UUID getSettlementId();

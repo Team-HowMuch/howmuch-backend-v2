@@ -1,9 +1,8 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
-
-import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.adapter.out.persistence.common.PostgresLockTimeoutConfigurer;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.SettlementMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
@@ -173,7 +172,8 @@ public class SettlementPersistenceAdapter implements
     @Override
     public boolean existsInProgressByReceivingAccountId(Long accountId) {
         return settlementJpaRepository.existsByReceivingAccountIdAndStatusNotAndDeletedAtIsNull(
-                accountId, SettlementStatus.COMPLETED);
+                accountId, SettlementStatus.COMPLETED)
+                || settlementJpaRepository.existsNettingAccountDependency(accountId);
     }
 
     @Override

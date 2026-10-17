@@ -1,4 +1,9 @@
 spring:
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
   application:
     name: howmuch-backend-v2
   jackson:
@@ -92,6 +97,13 @@ howmuch:
     invite:
       base-url: ${GROUP_INVITE_BASE_URL:http://localhost:8080/groups/join}
   settlement:
+    netting:
+      enabled: ${SETTLEMENT_NETTING_ENABLED:false}
+      estimate-cache:
+        ttl: ${SETTLEMENT_NETTING_ESTIMATE_CACHE_TTL:30s}
+        lease: ${SETTLEMENT_NETTING_ESTIMATE_CACHE_LEASE:10s}
+      pair-reduction:
+        enabled: ${SETTLEMENT_NETTING_PAIR_REDUCTION_ENABLED:true}
     transfer-link:
       adapter: ${SETTLEMENT_TRANSFER_LINK_ADAPTER:toss}
       mock:

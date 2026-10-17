@@ -2,8 +2,8 @@ package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementTransferInstructionResult;
-import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementTransferLinkPort;
@@ -41,13 +41,15 @@ public class SettlementTransferInstructionReader {
     private final LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
     private final List<SettlementTransferLinkPort> transferLinkPorts;
     private final BankCatalog bankCatalog;
+    private final com.amateur.howmuchbackend.application.port.out.settlement.netting
+                    .NettingTransferAvailabilityPort
+            nettingAvailability;
 
     /**
-     * 품목 정산은 참여자가 제출할 때마다 그 사람 Share가 생기므로, 전원이 끝나기 전에도
-     * 이미 제출한 사람은 송금할 수 있다. 실질 조건은 상태가 아니라 내 Share의 존재다.
+     * 품목 정산은 참여자가 제출할 때마다 그 사람 Share가 생기므로, 전원이 끝나기 전에도 이미 제출한 사람은 송금할 수 있다. 실질 조건은 상태가 아니라 내
+     * Share의 존재다.
      *
-     * <p>SUSPENDED는 안 채워진 품목이 남아 생성자가 손봐야 한다는 뜻이지, 이미 정해진
-     * 내 몫이 무효라는 뜻이 아니다. 그래서 여기서도 보낼 수 있어야 한다.
+     * <p>SUSPENDED는 안 채워진 품목이 남아 생성자가 손봐야 한다는 뜻이지, 이미 정해진 내 몫이 무효라는 뜻이 아니다. 그래서 여기서도 보낼 수 있어야 한다.
      */
     private static final Set<SettlementStatus> PAYABLE_STATUSES = EnumSet.of(
             SettlementStatus.REQUESTED,
@@ -57,10 +59,20 @@ public class SettlementTransferInstructionReader {
 
     public SettlementTransferInstructionResult read(UUID settlementId, UUID participantId) {
         Settlement settlement = loadSettlementPort.findById(settlementId)
-                .filter(candidate -> PAYABLE_STATUSES.contains(candidate.status()))
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND
                 ));
+        if (nettingAvailability.isOriginalReplacementPending(settlementId))
+            throw ApplicationException.of(
+                    com.amateur.howmuchbackend.domain.settlement.netting.NettingStatusCode
+                            .NETTING_PROCESSING);
+        if (settlement.status() == SettlementStatus.NETTING_IN_PROGRESS)
+            throw ApplicationException.of(
+                    com.amateur.howmuchbackend.domain.settlement.netting.NettingStatusCode
+                            .NETTING_TRANSFER_REPLACED);
+        if (!PAYABLE_STATUSES.contains(settlement.status()))
+            throw ApplicationException.of(
+                    SettlementStatusCode.SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND);
         SettlementShare share = loadSettlementSharePort
                 .findBySettlementIdAndPayerParticipantId(settlement.id(), participantId)
                 .orElseThrow(() -> ApplicationException.of(

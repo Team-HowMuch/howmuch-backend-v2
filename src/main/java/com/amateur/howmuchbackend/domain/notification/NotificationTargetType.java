@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.domain.notification;
 
 public enum NotificationTargetType {
+    GROUP_SETTLEMENT_NETTING,
     SETTLEMENT_PARTICIPATION,
     SETTLEMENT_DETAIL,
     GROUP_INVITATION,

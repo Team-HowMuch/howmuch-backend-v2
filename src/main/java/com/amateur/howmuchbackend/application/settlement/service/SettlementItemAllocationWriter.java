@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SaveSettlementItemSelectionCommand;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
@@ -30,6 +31,7 @@ class SettlementItemAllocationWriter {
     private final SaveSettlementSharePort saveSettlementSharePort;
     private final SaveSettlementPort saveSettlementPort;
     private final SettlementItemAllocationPolicy allocationPolicy;
+    private final NettingEstimateInvalidationService estimateInvalidation;
 
     @Transactional
     public void save(
@@ -151,6 +153,7 @@ class SettlementItemAllocationWriter {
                         ? state.settlement().awaitDeposit(now)
                         : state.settlement().suspend(now)
         );
+        estimateInvalidation.settlementChanged(settlementId);
     }
 
     private void ensureSelectionEditable(

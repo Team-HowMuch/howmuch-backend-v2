@@ -2,14 +2,13 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.SettlementParticipantMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementParticipantJpaRepository;
+import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberSettlementStatePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
-import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMemberSettlementStatePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
-import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +18,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.Set;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -102,11 +101,17 @@ public class SettlementParticipantPersistenceAdapter implements
 
     @Override
     public Set<SettlementStatus> findStatuses(Long groupId, Long userId) {
-        return settlementParticipantJpaRepository.findDistinctSettlementStatusesByGroupMember(
-                SettlementParticipantSource.GROUP_MEMBER,
-                groupId,
-                userId
-        );
+        var statuses =
+                new java.util.HashSet<>(
+                        settlementParticipantJpaRepository
+                                .findDistinctSettlementStatusesByGroupMember(
+                                        com.amateur.howmuchbackend.domain.settlement
+                                                .SettlementParticipantSource.GROUP_MEMBER,
+                                        groupId,
+                                        userId));
+        if (settlementParticipantJpaRepository.existsNettingDependency(groupId, userId))
+            statuses.add(SettlementStatus.NETTING_IN_PROGRESS);
+        return java.util.Set.copyOf(statuses);
     }
 
     private RuntimeException translateConstraintViolation(DataIntegrityViolationException exception) {

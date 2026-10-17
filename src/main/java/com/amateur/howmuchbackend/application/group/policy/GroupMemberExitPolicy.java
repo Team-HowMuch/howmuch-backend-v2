@@ -14,8 +14,8 @@ public class GroupMemberExitPolicy {
     private static final Set<SettlementStatus> BLOCKED_STATUSES = Set.of(
             SettlementStatus.REQUESTED,
             SettlementStatus.AWAITING_DEPOSIT,
-            SettlementStatus.SUSPENDED
-    );
+            SettlementStatus.SUSPENDED,
+                    SettlementStatus.NETTING_IN_PROGRESS);
 
     public void validate(
             GroupMember target,

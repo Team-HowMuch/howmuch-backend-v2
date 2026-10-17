@@ -14,7 +14,10 @@ public record SettlementWebResponse(
         long totalAmount,
         SettlementAllocationType allocationType,
         Long receivingAccountId,
-        SettlementStatus status,
+        @io.swagger.v3.oas.annotations.media.Schema(
+                        description =
+                                "압축 정산에 포함된 원본은 NETTING_IN_PROGRESS, 최종 정산 완료 후에는 COMPLETED입니다.")
+                SettlementStatus status,
         LocalDateTime createdAt
 ) {
     public static SettlementWebResponse from(SettlementResult result) {

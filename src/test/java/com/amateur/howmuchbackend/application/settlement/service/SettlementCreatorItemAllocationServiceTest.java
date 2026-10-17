@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SaveSettlementItemSelectionCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -46,6 +47,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("생성자 품목 몫 선택 Application 흐름")
 class SettlementCreatorItemAllocationServiceTest {
+    @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final Long CREATOR_ID = 1L;
     private static final Long OTHER_USER_ID = 99L;
     private static final UUID SETTLEMENT_ID = UUID.randomUUID();
@@ -81,7 +83,8 @@ class SettlementCreatorItemAllocationServiceTest {
                 allocationStorePort,
                 saveSettlementSharePort,
                 saveSettlementPort,
-                policy
+                policy,
+                estimateInvalidation
         );
         SettlementItemAllocationReader reader = new SettlementItemAllocationReader(
                 stateLoader,

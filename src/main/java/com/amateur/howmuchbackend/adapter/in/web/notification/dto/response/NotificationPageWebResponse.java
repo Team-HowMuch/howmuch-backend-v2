@@ -24,7 +24,8 @@ public record NotificationPageWebResponse(
     public record Item(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"SETTLEMENT_REQUEST", "SETTLEMENT_REMINDER", "SETTLEMENT_PAYMENT_COMPLETED",
+                    allowableValues = {"GROUP_NETTING_CONFIRMED", "GROUP_NETTING_COMPLETED", "NETTED_TRANSFER_REMINDER",
+                            "SETTLEMENT_REQUEST", "SETTLEMENT_REMINDER", "SETTLEMENT_PAYMENT_COMPLETED",
                             "SETTLEMENT_COMPLETED", "SETTLEMENT_DEPOSIT_CONFIRMED", "GROUP_INVITATION",
                             "GROUP_MEMBER_LEFT", "MONTHLY_RECAP"}) String type,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
@@ -51,7 +52,7 @@ public record NotificationPageWebResponse(
     @Schema(name = "NotificationAction")
     public record Action(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"SETTLEMENT_PARTICIPATION", "SETTLEMENT_DETAIL", "GROUP_INVITATION",
+                    allowableValues = {"GROUP_SETTLEMENT_NETTING", "SETTLEMENT_PARTICIPATION", "SETTLEMENT_DETAIL", "GROUP_INVITATION",
                             "GROUP_DETAIL", "MONTHLY_RECAP"}) String type,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String label,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,

@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateSettlementCommand;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.UpdateSettlementDraftCommand;
@@ -56,6 +57,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("정산 Application 흐름")
 class SettlementServiceTest {
+    @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final Long CREATOR_ID = 1L;
     private static final Long OTHER_USER_ID = 2L;
     private static final UUID SETTLEMENT_ID = UUID.fromString("44c9323d-6a65-4a93-aeaa-ef8f24341c8a");
@@ -111,7 +113,8 @@ class SettlementServiceTest {
                 dutchPayResumer,
                 suspensionService,
                 revisionGuard,
-                deleteSettlementSharePort
+                deleteSettlementSharePort,
+                estimateInvalidation
         );
         lenient().when(allocationDraftInvalidator.invalidate(any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -193,6 +196,8 @@ class SettlementServiceTest {
         assertThat(captor.getValue().totalAmount()).isEqualTo(20_000);
         assertThat(result.title()).isEqualTo("회식 정산");
         assertThat(result.totalAmount()).isEqualTo(20_000);
+        verify(estimateInvalidation).settlementChanged(SETTLEMENT_ID);
+
     }
 
     @Test
@@ -223,6 +228,8 @@ class SettlementServiceTest {
         verify(saveSettlementPort).update(argThat(settlement ->
                 settlement.status() == SettlementStatus.REQUESTED));
         assertThat(result.status()).isEqualTo(SettlementStatus.REQUESTED);
+        verify(estimateInvalidation).settlementChanged(SETTLEMENT_ID);
+
     }
 
     @Test
@@ -290,6 +297,8 @@ class SettlementServiceTest {
         settlementService.delete(SETTLEMENT_ID);
 
         verify(deleteSettlementPort).delete(eq(SETTLEMENT_ID), any(LocalDateTime.class));
+        verify(estimateInvalidation).settlementChanged(SETTLEMENT_ID);
+
     }
 
     @org.junit.jupiter.params.ParameterizedTest

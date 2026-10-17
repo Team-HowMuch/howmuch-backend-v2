@@ -5,5 +5,6 @@ public enum SettlementStatus {
     REQUESTED,
     AWAITING_DEPOSIT,
     SUSPENDED,
+    NETTING_IN_PROGRESS,
     COMPLETED
 }
