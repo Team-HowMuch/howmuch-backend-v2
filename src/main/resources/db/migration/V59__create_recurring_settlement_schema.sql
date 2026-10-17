@@ -90,10 +90,15 @@ CREATE TABLE recurring_settlements (
         CHECK (status IN ('ACTIVE', 'CANCELLED')),
     CONSTRAINT ck_recurring_settlements_failure_count
         CHECK (failure_count BETWEEN 0 AND 3),
+    -- failure_count counts only the automatic retry budget, so a counted failure (1..3)
+    -- must carry its metadata. Both failure fields NULL is valid only for failure_count = 0.
+    -- The second branch does not constrain failure_count, so failure_count = 0 may still
+    -- keep valid manual-failure metadata; manual attempts do not consume the budget.
     -- PostgreSQL CHECK passes on UNKNOWN, so the second branch explicitly requires a
     -- non-NULL code. Otherwise (code NULL, time set) stays UNKNOWN and is accepted.
     CONSTRAINT ck_recurring_settlements_failure CHECK (
-        (last_failure_code IS NULL AND last_failure_at IS NULL)
+        (failure_count = 0
+            AND last_failure_code IS NULL AND last_failure_at IS NULL)
         OR (last_failure_code IS NOT NULL
             AND last_failure_code IN ('RECURRING_TRANSIENT_DATABASE_FAILURE',
                 'RECURRING_UNEXPECTED_EXECUTION_FAILURE',
@@ -133,6 +138,13 @@ CREATE TABLE recurring_settlements (
 CREATE INDEX idx_recurring_settlements_due
     ON recurring_settlements (next_run_at, id)
     WHERE status = 'ACTIVE' AND failure_count < 3;
+
+-- Retry due-time scan. The original scheduled timestamp (next_run_at) stays fixed after a
+-- failure; retry_at is the eligibility clock, so seek retries directly instead of scanning
+-- the already-due next_run_at backlog. The next_run_at index above remains for fresh work.
+CREATE INDEX idx_recurring_settlements_retry_due
+    ON recurring_settlements (retry_at, next_run_at, id)
+    WHERE status = 'ACTIVE' AND failure_count < 3 AND retry_at IS NOT NULL;
 
 -- Group list page, newest first with a stable id tie-break.
 CREATE INDEX idx_recurring_settlements_group
