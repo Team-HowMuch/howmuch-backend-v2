@@ -101,8 +101,14 @@ public class RecurringSettlementWorker implements ProcessRecurringSettlementUseC
                 .selectAllocationType(SettlementAllocationType.DUTCH_PAY, now));
         List<SettlementDutchPayAllocation> amounts = new ArrayList<>();
         for (var person : value.participants()) {
-            var participant = participants.save(SettlementParticipant.groupMember(settlement.id(), value.groupId(),
-                    person.userId(), currentUsers.get(person.userId()).name(), person.displayOrder(), now));
+            // The netting reader recognizes exactly one creator party as REGISTERED_USER with no
+            // source group; every other participant must be a GROUP_MEMBER of this group.
+            var name = currentUsers.get(person.userId()).name();
+            var participant = person.userId().equals(value.creatorId())
+                    ? participants.save(SettlementParticipant.registeredUser(
+                            settlement.id(), person.userId(), name, person.displayOrder(), now))
+                    : participants.save(SettlementParticipant.groupMember(settlement.id(), value.groupId(),
+                            person.userId(), name, person.displayOrder(), now));
             amounts.add(SettlementDutchPayAllocation.create(settlement.id(), participant.id(), person.amount(), now));
         }
         for (var expense : value.expenses()) {

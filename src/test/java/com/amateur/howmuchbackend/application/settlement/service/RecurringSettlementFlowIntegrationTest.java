@@ -23,10 +23,12 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Recurrin
 import com.amateur.howmuchbackend.application.port.in.settlement.result.RecurringSettlementSummaryResult;
 import com.amateur.howmuchbackend.application.settlement.model.RecurringSettlementScope;
 import com.amateur.howmuchbackend.application.settlement.model.RecurringSettlementStatusFilter;
+import com.amateur.howmuchbackend.application.settlement.netting.service.GroupNettingInputReader;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadRecurringSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.RecurringSettlementExecutionPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.RecurringSettlementOccurrenceStorePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.netting.NettingInput;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.recurring.RecurrenceSchedule;
 import com.amateur.howmuchbackend.domain.settlement.recurring.RecurringSettlement;
@@ -79,6 +81,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -172,6 +175,7 @@ class RecurringSettlementFlowIntegrationTest {
     @Autowired LoadRecurringSettlementPort recurring;
     @Autowired RecurringSettlementOccurrenceStorePort occurrences;
     @Autowired RecurringSettlementExecutionPort executions;
+    @Autowired GroupNettingInputReader nettingInputs;
     @Autowired CodefSecretCipher cipher;
     @Autowired CodefConfigurationFingerprint fingerprint;
     @Autowired MockMvc mvc;
@@ -207,9 +211,47 @@ class RecurringSettlementFlowIntegrationTest {
                 occurrence.settlementId())).isEqualTo("AWAITING_DEPOSIT");
         assertThat(jdbc.queryForList("SELECT amount FROM settlement_shares WHERE settlement_id=? ORDER BY amount",
                 Long.class, occurrence.settlementId())).containsExactly(8_000L, 12_000L);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM settlement_participants WHERE settlement_id=?"
-                        + " AND source='GROUP_MEMBER' AND source_group_id=?", Integer.class,
-                occurrence.settlementId(), fixture.group())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("""
+                SELECT display_name FROM settlement_participants
+                WHERE settlement_id=? AND linked_user_id=? AND source='REGISTERED_USER'
+                  AND source_group_id IS NULL AND display_order=0
+                """, String.class, occurrence.settlementId(), fixture.creator()))
+                .isEqualTo(jdbc.queryForObject("SELECT name FROM users WHERE id=?", String.class,
+                        fixture.creator()));
+        assertThat(jdbc.queryForObject("""
+                SELECT display_name FROM settlement_participants
+                WHERE settlement_id=? AND linked_user_id=? AND source='GROUP_MEMBER'
+                  AND source_group_id=? AND display_order=1
+                """, String.class, occurrence.settlementId(), fixture.member(), fixture.group()))
+                .isEqualTo(jdbc.queryForObject("SELECT name FROM users WHERE id=?", String.class,
+                        fixture.member()));
+        assertThat(count("settlement_participants", "settlement_id", occurrence.settlementId()))
+                .isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT a.amount FROM settlement_dutch_pay_allocations a"
+                        + " JOIN settlement_participants p ON p.id=a.participant_id"
+                        + " WHERE p.settlement_id=? AND p.linked_user_id=?", Long.class,
+                occurrence.settlementId(), fixture.creator())).isEqualTo(12_000L);
+        assertThat(jdbc.queryForObject("SELECT a.amount FROM settlement_dutch_pay_allocations a"
+                        + " JOIN settlement_participants p ON p.id=a.participant_id"
+                        + " WHERE p.settlement_id=? AND p.linked_user_id=?", Long.class,
+                occurrence.settlementId(), fixture.member())).isEqualTo(8_000L);
+        // The netting reader accepts exactly one REGISTERED_USER creator with no source group and
+        // GROUP_MEMBER parties for this group. Reading the published settlement as an estimate
+        // proves the worker output satisfies that contract without NETTING_INVALID_SOURCE.
+        var netting = nettingInputs.readForEstimate(fixture.group());
+        assertThat(netting.sources()).extracting(NettingInput.Source::settlementId)
+                .containsExactly(occurrence.settlementId());
+        assertThat(netting.sources().getFirst().parties())
+                .extracting(NettingInput.Party::userId, NettingInput.Party::source,
+                        NettingInput.Party::sourceGroupId)
+                .containsExactlyInAnyOrder(
+                        tuple(fixture.creator(), "REGISTERED_USER", null),
+                        tuple(fixture.member(), "GROUP_MEMBER", fixture.group()));
+        assertThat(netting.debts()).singleElement().satisfies(debt -> {
+            assertThat(debt.payerId()).isEqualTo(fixture.member());
+            assertThat(debt.receiverId()).isEqualTo(fixture.creator());
+            assertThat(debt.remainingAmount()).isEqualTo(8_000L);
+        });
         assertThat(count("settlement_receiving_account_snapshots", "settlement_id", occurrence.settlementId()))
                 .isEqualTo(1);
         assertThat(count("settlement_links", "settlement_id", occurrence.settlementId())).isEqualTo(1);

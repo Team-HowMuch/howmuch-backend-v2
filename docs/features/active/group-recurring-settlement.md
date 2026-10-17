@@ -1,7 +1,7 @@
 # Feature Plan: 그룹 고정 지출 반복 정산 (후속 구현)
 
-- **Status:** 격리 워크트리(`feat/574-group-recurring-settlement`)에서 구현·검증 완료 — 이슈 #574에 연결하여 구현 PR 게시 준비
-- **Last updated:** 2026-10-17
+- **Status:** 격리 워크트리(`feat/574-group-recurring-settlement`)에서 구현·검증 완료 — 이슈 #574·구현 PR #575 게시 완료, 리뷰 반영
+- **Last updated:** 2026-10-18
 - **Source:** 기존 로컬 구현(읽기 전용 참조), 인수인계 문서, 2026-10-17 화면 흐름 대조, 후속 구현 지시
 - **기준 브랜치:** `develop` `3d386b3a` (migration-only PR #573 병합, V59 반복 정산 스키마 포함)
 - **Related ADR:** [ADR-0001 Purpose-oriented Ports](../../adr/0001-purpose-oriented-ports.md), [ADR-0003 Capability-oriented Output Ports](../../adr/0003-capability-oriented-output-ports.md)
@@ -151,6 +151,7 @@ non-identifying: trigger=AUTOMATIC|MANUAL
 | 2026-10-18 | 단계 1~5 로컬 구현 완료. 카테고리·일정 미리보기·목록 필터·홈·요약 추가, Batch 인프라 재사용 | 부모 리뷰·독립 실행 |
 | 2026-10-18 | 부모 리뷰 4건 수정(replay 순서·UNCATEGORIZED·cursor 검증·도래 조회 poison 필터) + 실제 DB/HTTP 검증 | 부모 최종 리뷰 |
 | 2026-10-18 | cursor 스캔 주기 bounded scheduled-through horizon 도입(커서 뒤 retry 굶김 방지) + 결정적 회귀 2건 | 부모 최종 리뷰 |
+| 2026-10-18 | PR #575 리뷰 4303686863 반영: 발행 참여자 source를 생성자/비생성자로 분리하고 실제 `GroupNettingInputReader` 계약 회귀 추가 | 부모 DB 통합 테스트 |
 
 ## 8-1. 로컬 검증 결과 (2026-10-18, 네이티브 PostgreSQL 18 + Redis, Docker 없음)
 
@@ -179,6 +180,18 @@ non-identifying: trigger=AUTOMATIC|MANUAL
 - **cursor 검증:** 발생 이력 cursor는 요청한 템플릿 소속이어야 하고, 목록 cursor는 그룹·상태·참여 구역 페이지에 속해야 한다. 아니면 기존 `INVALID_RECURRING_SETTLEMENT_CURSOR` 400이다(빈 200 아님).
 - **도래 조회:** fresh/retry 두 가지 모두 `last_failure_code IS NULL OR = RECURRING_TRANSIENT_DATABASE_FAILURE`로 영구/수동확인 실패 행을 제외하고, 두 partial index를 각각 사용하며 원래 `next_run_at`(scheduledFor)을 유지한다. **스캔 공정성은 전역 정렬 하나가 아니라 bounded snapshot scan으로 보장한다:** cursor가 없는 새 주기에서 `scheduledThrough = now`를 고정하고, 후보 `next_run_at<=scheduledThrough`·retry 자격 `retry_at<=now`로 읽는다. 꼬리(부분/빈 페이지)에 도달하면 cursor·horizon을 리셋하므로, 커서 뒤에서 늦게 자격을 얻은 오래된 retry도 다음 주기에 반드시 선택된다. 지속적으로 새로 도래하는 행이 페이지를 계속 채워도 horizon이 고정이라 주기가 유한하다.
 - `SettlementRequestWriter`가 즉시 요청과 반복 발행의 실제 기록 처리를 공유한다.
+
+## 8-3. PR #575 리뷰 반영 (4303686863)
+
+- **문제:** 발행 워커가 스냅샷의 모든 참여자를 `SettlementParticipant.groupMember(...)`로 저장했다. `GroupNettingInputReader.eligible`은 생성자 정확히 1명이 `source=REGISTERED_USER`·`source_group_id IS NULL`이고 나머지가 해당 그룹의 `GROUP_MEMBER`일 때만 소스를 인정한다. 따라서 반복 발행된 정산은 어떤 경우에도 `NETTING_INVALID_SOURCE`로 거절되어 그룹 넷팅 대상이 될 수 없었다.
+- **수정:** `RecurringSettlementWorker`가 `userId == creatorId`인 참여자만 `SettlementParticipant.registeredUser(...)`, 나머지는 기존처럼 `SettlementParticipant.groupMember(..., groupId, ...)`로 저장한다. 금액·표시 순서 스냅샷과 현재 사용자 이름은 그대로 유지한다.
+- **회귀:** 기존 `registration_waitsUntilFirstDate_thenCopiesAmountsAndUsesExistingRequestOutbox`가 `GROUP_MEMBER` 2건을 기대하던 단정을 다음으로 교체했다.
+  - 생성자 1명: `REGISTERED_USER`, `source_group_id IS NULL`, `display_order=0`, 이름 스냅샷 일치.
+  - 비생성자 1명: `GROUP_MEMBER`, `source_group_id=그룹 ID`, `display_order=1`, 이름 스냅샷 일치.
+  - 배분 금액 `12,000`/`8,000` 유지.
+  - 실제 `GroupNettingInputReader.readForEstimate`로 발행 정산이 소스로 조회되고 파티 구성(생성자/비생성자)과 8,000원 잔여 채무가 계약을 만족하는지 확인했다. 별도 fixture·인프라 추가는 없다.
+- **migration:** 필요 없음. 스키마·Port·API 계약은 변경하지 않았다.
+- **검증:** `./gradlew compileJava compileTestJava test --tests '*RecurringSettlement*' --tests '*RecurrenceSchedule*' --tests '*SettlementRequestServiceTest' --tests '*SettlementCategory*'` 성공. 격리된 네이티브 PostgreSQL 18·Redis에서 실제 압축 정산 조회기 호환 검증을 포함한 관련 테스트 145개 통과(실패·오류·skip 0). `git diff --check` 성공. 전체 저장소 suite·dev/prod 배포는 수행하지 않았다.
 
 ## 9. 결정 기록
 
