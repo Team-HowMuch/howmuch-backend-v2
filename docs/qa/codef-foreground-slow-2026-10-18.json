@@ -1,0 +1,515 @@
+{
+  "date": "2026-10-18",
+  "execution": "Production frontend TypeScript coordinator in Node, real local API, PostgreSQL/Redis, production CODEF HTTP adapter pointed at local mock. Not a native rendering or TTI measurement.",
+  "configuration": {
+    "delayMs": 8000,
+    "provider": "local CODEF mock",
+    "transactionAdapter": "production CodefBankTransactionAdapter",
+    "database": "isolated QA clone"
+  },
+  "normal": {
+    "conditions": {
+      "delayMs": 8000,
+      "provider": "local CODEF mock",
+      "transactionAdapter": "production CodefBankTransactionAdapter",
+      "database": "isolated QA clone"
+    },
+    "phases": [
+      "syncing",
+      "reconciling",
+      "success"
+    ],
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 148
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 122
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts",
+        "status": 200,
+        "ms": 23
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 19
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 23
+      },
+      {
+        "method": "POST",
+        "path": "/api/v2/accounts/2/transactions/sync?yearMonth=2026-10",
+        "status": 200,
+        "ms": 23
+      },
+      {
+        "method": "POST",
+        "path": "/api/v2/accounts/2/transactions/sync?yearMonth=2026-10",
+        "status": 200,
+        "ms": 8118
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 15
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 15
+      },
+      {
+        "method": "POST",
+        "path": "/api/v2/settlements/widget-summary/refresh",
+        "status": 200,
+        "ms": 229
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/settlements/a2b5ff71-551c-449f-b8dc-b4466754bad1",
+        "status": 200,
+        "ms": 52
+      }
+    ],
+    "during": {
+      "ms": 24,
+      "rows": 1,
+      "syncInProgress": true,
+      "duplicateInProgress": true,
+      "cacheRows": 1
+    },
+    "widget": {
+      "receivable": {
+        "totalAmount": 0,
+        "totalCount": 0,
+        "settlements": []
+      },
+      "payable": {
+        "totalAmount": 0,
+        "totalCount": 0,
+        "settlements": []
+      },
+      "lastReconciledAt": "2026-10-18T02:18:18.481888"
+    },
+    "mockCounts": {
+      "delayMs": 8000,
+      "httpStatus": 200,
+      "requests": 1,
+      "inFlight": 0
+    },
+    "finalStatus": "COMPLETED",
+    "finalRows": 2,
+    "assertions": "passed"
+  },
+  "failureAndRetry": {
+    "conditions": {
+      "delayMs": 8000,
+      "provider": "local CODEF mock",
+      "transactionAdapter": "production CodefBankTransactionAdapter",
+      "database": "isolated QA clone"
+    },
+    "phases": [
+      "syncing",
+      "reconciling",
+      "success"
+    ],
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 99
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 77
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts",
+        "status": 200,
+        "ms": 21
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 15
+      },
+      {
+        "method": "POST",
+        "path": "/api/v2/accounts/2/transactions/sync?yearMonth=2026-10",
+        "status": 502,
+        "ms": 8157
+      },
+      {
+        "method": "POST",
+        "path": "/api/v2/settlements/widget-summary/refresh",
+        "status": 502,
+        "ms": 8125
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/settlements/c4c2fd54-fa6e-4812-8b7d-743f9933617d",
+        "status": 200,
+        "ms": 73
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts",
+        "status": 200,
+        "ms": 20
+      },
+      {
+        "method": "POST",
+        "path": "/api/v2/accounts/2/transactions/sync?yearMonth=2026-10",
+        "status": 200,
+        "ms": 8145
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 26
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 31
+      },
+      {
+        "method": "POST",
+        "path": "/api/v2/settlements/widget-summary/refresh",
+        "status": 200,
+        "ms": 101
+      },
+      {
+        "method": "GET",
+        "path": "/api/v2/settlements/c4c2fd54-fa6e-4812-8b7d-743f9933617d",
+        "status": 200,
+        "ms": 15
+      }
+    ],
+    "failure": {
+      "phases": [
+        "syncing",
+        "reconciling",
+        "error"
+      ],
+      "status": "AWAITING_DEPOSIT",
+      "rows": 2,
+      "mockRequests": 2
+    },
+    "widget": {
+      "receivable": {
+        "totalAmount": 0,
+        "totalCount": 0,
+        "settlements": []
+      },
+      "payable": {
+        "totalAmount": 0,
+        "totalCount": 0,
+        "settlements": []
+      },
+      "lastReconciledAt": "2026-10-18T02:19:58.989992"
+    },
+    "retry": {
+      "phases": [
+        "syncing",
+        "reconciling",
+        "success"
+      ],
+      "status": "COMPLETED",
+      "mockRequests": 1
+    },
+    "assertions": "passed"
+  },
+  "checks": {
+    "frontendRegressionTests": 19,
+    "frontendTypecheck": "passed",
+    "backendFocusedJavaTests": 35,
+    "backendJavascriptTests": 35,
+    "mockPythonTests": 9,
+    "compileJavaAndBootJar": "passed"
+  },
+  "phone": "Native unlock-start and background-return QA passed on Android with CODEF transaction HTTP mock delayed by 8000ms.",
+  "remoteChanges": false,
+  "notes": [
+    "A single synthetic payment automatically completed an awaiting-deposit settlement without a user pressing settlement refresh.",
+    "Normal run includes three simulated background/active transitions and a duplicate sync POST: CODEF transaction requests remain one.",
+    "Mock HTTP 503 is mapped to backend HTTP 502. Failed runs keep stored transactions and AWAITING_DEPOSIT, not a success state.",
+    "The isolated QA cooldown was explicitly removed before immediate retry; normal production server cooldown is preserved.",
+    "On a failed sync, bulk settlement refresh can make another bank lookup when no fresh snapshot exists. Failure run made two failing CODEF calls; retry made one.",
+    "Existing native home-screen widget UI and app-group token storage are outside this integration."
+  ],
+  "nativeDevice": {
+    "initialSettlement": {
+      "before": "AWAITING_DEPOSIT",
+      "after": "COMPLETED",
+      "homeBeforeAmount": 1000,
+      "homeAfterAmount": 0,
+      "observedProgressText": "최신 거래를 확인하고 있어요…"
+    },
+    "rapidForegroundReturns": {
+      "count": 3,
+      "bankRequestsBefore": 1,
+      "bankRequestsAfter": 1
+    },
+    "foregroundAfterCooldown": {
+      "bankRequestsBefore": 1,
+      "bankRequestsAfter": 2,
+      "newSyntheticPaymentAmount": 2000,
+      "after": "COMPLETED",
+      "progressVisible": true
+    },
+    "manualDepositReconcileRequests": 0,
+    "http": [
+      {
+        "at": 1792290972.403716,
+        "method": "GET",
+        "path": "/api/v2/treasurer/summary",
+        "status": 200,
+        "ms": 84.78
+      },
+      {
+        "at": 1792290972.6858828,
+        "method": "GET",
+        "path": "/api/v2/accounts",
+        "status": 200,
+        "ms": 59.97
+      },
+      {
+        "at": 1792290981.1850471,
+        "method": "POST",
+        "path": "/api/v2/accounts/2/transactions/sync?yearMonth=2026-10",
+        "status": 200,
+        "ms": 8189.7
+      },
+      {
+        "at": 1792290981.2794502,
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 12.01
+      },
+      {
+        "at": 1792290981.2878542,
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 22.02
+      },
+      {
+        "at": 1792290981.737154,
+        "method": "POST",
+        "path": "/api/v2/settlements/widget-summary/refresh",
+        "status": 200,
+        "ms": 234.64
+      },
+      {
+        "at": 1792290981.801242,
+        "method": "GET",
+        "path": "/api/v2/treasurer/summary",
+        "status": 200,
+        "ms": 9.78
+      },
+      {
+        "at": 1792291063.36545,
+        "method": "GET",
+        "path": "/api/v2/accounts",
+        "status": 200,
+        "ms": 79.39
+      },
+      {
+        "at": 1792291071.498662,
+        "method": "POST",
+        "path": "/api/v2/accounts/2/transactions/sync?yearMonth=2026-10",
+        "status": 200,
+        "ms": 8093.46
+      },
+      {
+        "at": 1792291071.57156,
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 18.96
+      },
+      {
+        "at": 1792291071.580836,
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 28.46
+      },
+      {
+        "at": 1792291071.920529,
+        "method": "POST",
+        "path": "/api/v2/settlements/widget-summary/refresh",
+        "status": 200,
+        "ms": 110.73
+      },
+      {
+        "at": 1792291071.9741561,
+        "method": "GET",
+        "path": "/api/v2/treasurer/summary",
+        "status": 200,
+        "ms": 9.29
+      },
+      {
+        "at": 1792291072.6971579,
+        "method": "GET",
+        "path": "/api/v2/accounts",
+        "status": 200,
+        "ms": 15.35
+      },
+      {
+        "at": 1792291073.193411,
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 26.98
+      },
+      {
+        "at": 1792291073.193739,
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 27.77
+      },
+      {
+        "at": 1792291133.534379,
+        "method": "GET",
+        "path": "/api/v2/accounts",
+        "status": 200,
+        "ms": 88.74
+      },
+      {
+        "at": 1792291141.6298518,
+        "method": "POST",
+        "path": "/api/v2/accounts/2/transactions/sync?yearMonth=2026-10",
+        "status": 200,
+        "ms": 8062.5
+      },
+      {
+        "at": 1792291141.720908,
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 14.81
+      },
+      {
+        "at": 1792291141.721208,
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 15.91
+      },
+      {
+        "at": 1792291141.962322,
+        "method": "POST",
+        "path": "/api/v2/settlements/widget-summary/refresh",
+        "status": 200,
+        "ms": 13.87
+      },
+      {
+        "at": 1792291142.053308,
+        "method": "GET",
+        "path": "/api/v2/treasurer/summary",
+        "status": 200,
+        "ms": 18.2
+      },
+      {
+        "at": 1792291142.059701,
+        "method": "GET",
+        "path": "/api/v2/accounts/2?yearMonth=2026-10",
+        "status": 200,
+        "ms": 14.81
+      },
+      {
+        "at": 1792291142.0600262,
+        "method": "GET",
+        "path": "/api/v2/accounts/2/transactions?yearMonth=2026-10",
+        "status": 200,
+        "ms": 15.67
+      },
+      {
+        "at": 1792291142.0641038,
+        "method": "GET",
+        "path": "/api/v2/accounts",
+        "status": 200,
+        "ms": 11.02
+      }
+    ],
+    "evidence": "ADB UI hierarchy, local HTTP proxy durations, mock request counters, PostgreSQL settlement status",
+    "accountScreenWhileDelayed": {
+      "beforeRows": 7,
+      "duringRows": 7,
+      "afterRows": 7,
+      "progressText": "최신 거래 불러오는 중…",
+      "refreshEnabledDuring": false,
+      "progressClearedAfter": true,
+      "bankRequestsBefore": 2,
+      "bankRequestsAfter": 3
+    },
+    "completionStates": {
+      "4ca50570-cf99-4c6f-90dd-ccc3c3532779": "COMPLETED",
+      "d4b95298-424c-4b2d-9237-40477126d41d": "COMPLETED"
+    }
+  },
+  "publicationVerification": {
+    "baseCommit": "3cdceaf0",
+    "issue": 579,
+    "javaFocused": {
+      "tests": 121,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "suites": 11
+    },
+    "smsMetadataRoundTrip": "passed",
+    "javascriptTests": 35,
+    "mockPythonTests": 9,
+    "compileJavaCompileTestJavaBootJar": "passed",
+    "notes": [
+      "Published branch includes the merged SMS and recurring-settlement work. Earlier native and CODEF timing evidence was measured on the pre-integration local branch.",
+      "Opt-in SMS admission retains its existing transaction-scoped advisory lock during the initial CODEF call; default SMS-disabled calls remain outside the write transaction.",
+      "No migration changes. Full Java suite and real bank/native QA were not repeated on the publication branch."
+    ]
+  },
+  "monthlySummaryReviewVerification": {
+    "date": "2026-10-18",
+    "pullRequest": 580,
+    "database": "isolated PostgreSQL",
+    "javaTests": 33,
+    "javascriptTests": 35,
+    "failures": 0,
+    "scenarios": [
+      "persist summary then ingest new transactions invalidates summary",
+      "account detail aggregates stored rows without CODEF",
+      "freshness skip aggregates stored rows without CODEF",
+      "in-progress skip aggregates stored rows without CODEF",
+      "Seoul month boundary, expense-only total, count, last-used and coverage timestamp preserved"
+    ],
+    "expectedExpenseAmount": 15000,
+    "expectedExpenseCount": 2
+  }
+}

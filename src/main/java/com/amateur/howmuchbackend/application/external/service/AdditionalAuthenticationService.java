@@ -124,6 +124,14 @@ public class AdditionalAuthenticationService
         return query.get();
     }
 
+    @Transactional(noRollbackFor = AdditionalAuthenticationPendingException.class)
+    public java.util.List<com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort.BankTransaction>
+            withTransactionQueryAdmission(long user, String organization,
+                    java.util.function.Supplier<java.util.List<com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort.BankTransaction>> query) {
+        assertNoPending(user, organization);
+        return query.get();
+    }
+
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
     public boolean tryAdmitInitialOperation(long user, String organization) {
         return store.tryAcquireOperationAdmission(user, organization)

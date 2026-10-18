@@ -27,7 +27,7 @@ public interface SettlementWidgetDocs {
 
     @Operation(summary = "홈 위젯 전체 입금 대조", security = @SecurityRequirement(name = "bearerAuth"),
             description = "본인이 생성한 진행 정산 전체의 입금을 대조한 뒤 요약 조회와 같은 응답을 반환합니다. "
-                    + "REQUESTED에서도 이미 확정된 몫만 대조합니다. 같은 계좌는 조회를 공유합니다. "
+                    + "REQUESTED에서도 이미 확정된 몫만 대조합니다. 같은 계좌는 조회를 공유합니다. 계좌 sync가 커밋한 동일 범위의 60초 이내 snapshot은 저장 거래로 대조합니다. "
                     + "월별 은행 조회마다 서비스 공유·사용자 KST 일일 예산을 사용합니다(정산 조회 총 100회, 자동 80회). "
                     + "동시 요청·새로고침 종료 후 60초 이내 재요청은 429이며 실패에도 제한을 유지합니다. "
                     + "일부 대조가 성공한 뒤 오류가 나면 성공한 입금 반영은 유지하고 전체 성공 시각은 갱신하지 않습니다. "

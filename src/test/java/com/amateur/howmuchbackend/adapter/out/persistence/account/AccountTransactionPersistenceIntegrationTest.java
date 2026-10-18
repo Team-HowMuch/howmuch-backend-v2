@@ -1,5 +1,27 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.account;
 
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.account.policy.AccountTransactionDisplayNormalizer;
+import com.amateur.howmuchbackend.application.account.service.AccountCredentialProtectionService;
+import com.amateur.howmuchbackend.application.account.service.AccountQueryService;
+import com.amateur.howmuchbackend.application.account.service.AccountTransactionSyncService;
+import com.amateur.howmuchbackend.application.account.service.AccountTransactionSyncWriter;
+import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionCoveragePort;
+import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionRefreshStorePort;
+import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
+import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
+import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Optional;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import com.amateur.howmuchbackend.domain.account.AccountTransactionType;
 import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
@@ -35,6 +57,9 @@ class AccountTransactionPersistenceIntegrationTest {
 
     @Autowired
     private AccountTransactionPersistenceAdapter adapter;
+
+    @Autowired
+    private LoadAccountPort loadAccountPort;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -177,6 +202,63 @@ class AccountTransactionPersistenceIntegrationTest {
             assertThat(summary.expenseCount()).isZero();
             assertThat(summary.lastUsedAt()).isNull();
         });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("정산 거래 저장으로 요약이 삭제되어도 계좌 조회와 생략 sync는 DB 집계를 반환한다")
+    void ingestion_invalidatesSummary_queryAndSkippedSyncAggregateStoredTransactions(boolean fresh) {
+        adapter.saveAllIgnoringDuplicates(List.of(transaction(
+                "1".repeat(64), AccountTransactionType.EXPENSE, "12500",
+                LocalDateTime.of(2026, 8, 20, 0, 15))));
+        adapter.saveSummaryIfAbsent(adapter.calculateSummary(accountId, AUGUST));
+        assertThat(adapter.findSummary(accountId, AUGUST)).isPresent();
+
+        // 정산/압축정산 writer가 공유하는 실제 저장 경로. 서울 월 경계 거래도 포함한다.
+        LocalDateTime lastUsedAt = LocalDateTime.of(2026, 8, 21, 1, 15);
+        adapter.saveAllIgnoringDuplicates(List.of(
+                transaction("2".repeat(64), AccountTransactionType.EXPENSE, "2500",
+                        LocalDateTime.of(2026, 7, 31, 15, 30)),
+                transaction("3".repeat(64), AccountTransactionType.INCOME, "50000", lastUsedAt)));
+        assertThat(adapter.findSummary(accountId, AUGUST)).isEmpty();
+
+        CurrentActorPort actor = mock(CurrentActorPort.class);
+        when(actor.getCurrentActor()).thenReturn(new CurrentActor(userId));
+        AccountTransactionCoveragePort coverage = mock(AccountTransactionCoveragePort.class);
+        AccountTransactionRefreshStorePort refresh = mock(AccountTransactionRefreshStorePort.class);
+        BankCatalog banks = mock(BankCatalog.class);
+        Clock clock = Clock.fixed(Instant.parse("2026-09-13T03:00:00Z"), ZoneOffset.UTC);
+        LocalDateTime syncedAt = LocalDateTime.of(2026, 9, 1, 0, 0);
+        when(coverage.findCoveredAt(accountId, AUGUST)).thenReturn(Optional.of(syncedAt));
+        when(coverage.coversMonth(accountId, AUGUST)).thenReturn(true);
+        var query = new AccountQueryService(actor, loadAccountPort, adapter, coverage, refresh,
+                banks, new AccountTransactionDisplayNormalizer(), clock);
+
+        var detail = query.getAccountDetail(accountId, AUGUST);
+        assertThat(detail.monthlyExpenseAmount()).isEqualByComparingTo("15000");
+        assertThat(detail.expenseCount()).isEqualTo(2);
+        assertThat(detail.lastUsedAt()).isEqualTo(lastUsedAt);
+        assertThat(detail.synced()).isTrue();
+        assertThat(detail.lastSyncedAt()).isEqualTo(syncedAt);
+        assertThat(query.getAccountTransactions(accountId, AUGUST)).hasSize(3);
+
+        when(refresh.isFresh(accountId, AUGUST)).thenReturn(fresh);
+        BankTransactionPort bank = mock(BankTransactionPort.class);
+        ExternalConnectionStorePort connections = mock(ExternalConnectionStorePort.class);
+        AccountTransactionSyncWriter writer = mock(AccountTransactionSyncWriter.class);
+        var sync = new AccountTransactionSyncService(actor, loadAccountPort, adapter, refresh, coverage,
+                connections, bank, banks, mock(AccountCredentialProtectionService.class), writer, clock);
+        var result = sync.sync(accountId, AUGUST);
+        assertThat(result.refreshed()).isFalse();
+        assertThat(result.syncInProgress()).isEqualTo(!fresh);
+        assertThat(result.fetchedCount()).isZero();
+        assertThat(result.monthlyExpenseAmount()).isEqualByComparingTo("15000");
+        assertThat(result.expenseCount()).isEqualTo(2);
+        assertThat(result.lastUsedAt()).isEqualTo(lastUsedAt);
+        assertThat(result.syncedAt()).isEqualTo(syncedAt);
+        verifyNoInteractions(bank, connections, writer);
+        // read-only 조회는 집계 결과를 저장하거나 coverage를 변경하지 않는다.
+        assertThat(adapter.findSummary(accountId, AUGUST)).isEmpty();
     }
 
     @Test

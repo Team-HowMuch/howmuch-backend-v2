@@ -1,16 +1,18 @@
 package com.amateur.howmuchbackend.application.account.service;
 
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.account.model.AccountCandidate;
 import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.ConnectBankUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetBankConnectionAccountsUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.command.GetBankConnectionAccountsQuery;
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.command.ConnectBankCommand;
-import com.amateur.howmuchbackend.application.port.in.account.command.GetBankConnectionAccountsQuery;
 import com.amateur.howmuchbackend.application.port.in.account.command.LinkBankAccountsCommand;
 import com.amateur.howmuchbackend.application.port.in.account.result.BankConnectionResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.LinkedAccountsResult;
+import com.amateur.howmuchbackend.application.port.out.account.BankAccountCandidateCachePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -25,26 +27,30 @@ import com.amateur.howmuchbackend.domain.external.ExternalConnection;
 import com.amateur.howmuchbackend.domain.external.ExternalConnectionStatus;
 import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import com.amateur.howmuchbackend.domain.user.User;
-
 import lombok.RequiredArgsConstructor;
-
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
-public class BankAccountService
-        implements ConnectBankUseCase, LinkBankAccountsUseCase, GetBankConnectionAccountsUseCase {
+public class BankAccountService implements ConnectBankUseCase, LinkBankAccountsUseCase,
+        GetBankConnectionAccountsUseCase {
+    private static final Duration CANDIDATE_CACHE_TTL = Duration.ofSeconds(30);
+
     private final CurrentActorPort currentActorPort;
     private final LoadUserPort loadUserPort;
     private final ExternalConnectionStorePort connectionStorePort;
@@ -54,6 +60,7 @@ public class BankAccountService
     private final BankCatalog bankCatalog;
     private final AccountCredentialProtectionService credentialProtection;
     private final BankConnectionRegistrationService registrationService;
+    private final BankAccountCandidateCachePort candidateCache;
 
     private com.amateur.howmuchbackend.application.external.service.AdditionalAuthenticationService
             authentication;
@@ -71,155 +78,110 @@ public class BankAccountService
         ExternalConnection connection = registered.connection();
         Set<String> linkedKeys = loadAccountPort.findCandidateKeys(connection.id());
         String connectedId = connection.connectedId();
-        List<BankConnectionResult.Candidate> candidates =
-                findAccounts(
-                                connection,
-                                command.organization(),
-                                registered.birthDate(),
-                                registered.credentials())
-                        .stream()
-                        .map(
-                                candidate ->
-                                        toResultCandidate(
-                                                connectedId,
-                                                command.organization(),
-                                                candidate,
-                                                linkedKeys))
-                        .toList();
-        return new BankConnectionResult(
+        List<BankConnectionResult.Candidate> candidates = findAccounts(connection, command.organization(), registered.birthDate(), registered.credentials())
+                .stream()
+                .map(candidate -> toResultCandidate(connectedId, command.organization(), candidate, linkedKeys))
+                .toList();
+        cacheCandidates(
+                currentActorPort.getCurrentActor().userId(),
                 connection.id(),
                 command.organization(),
-                ExternalConnectionStatus.CONNECTED,
-                candidates);
+                candidates
+        );
+        return new BankConnectionResult(
+                connection.id(), command.organization(), ExternalConnectionStatus.CONNECTED, candidates
+        );
     }
 
     @Override
-    public BankConnectionResult getConnectionAccounts(GetBankConnectionAccountsQuery query) {
+    public BankConnectionResult getConnectionAccounts(
+            GetBankConnectionAccountsQuery query
+    ) {
         Long userId = currentActorPort.getCurrentActor().userId();
-        ExternalConnection connection =
-                connectionStorePort
-                        .findActiveByUserId(userId)
-                        .filter(owned -> owned.id().equals(query.connectionId()))
-                        .orElseThrow(
-                                () ->
-                                        ApplicationException.of(
-                                                ExternalConnectionStatusCode
-                                                        .EXTERNAL_CONNECTION_NOT_FOUND));
+        ExternalConnection connection = connectionStorePort.findActiveByUserId(userId)
+                .filter(owned -> owned.id().equals(query.connectionId()))
+                .orElseThrow(() -> ApplicationException.of(ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND));
         if (!connectionStorePort.hasInstitution(connection.id(), query.organization())) {
             throw ApplicationException.of(ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID);
         }
-        BankAccountCredentials credentials =
-                bankCatalog.requiresAccountCredentials(query.organization())
-                        ? credentialProtection.reveal(userId, connection.id(), query.organization())
-                        : null;
+        Optional<List<BankConnectionResult.Candidate>> cached =
+                cachedCandidates(userId, connection.id(), query.organization());
+        if (cached.isPresent()) {
+            return new BankConnectionResult(
+                    connection.id(), query.organization(), ExternalConnectionStatus.CONNECTED, cached.get()
+            );
+        }
+        BankAccountCredentials credentials = bankCatalog.requiresAccountCredentials(query.organization())
+                ? credentialProtection.reveal(userId, connection.id(), query.organization()) : null;
         Set<String> linkedKeys = loadAccountPort.findCandidateKeys(connection.id());
-        var candidates =
-                findAccounts(connection, query.organization(), query.birthDate(), credentials)
-                        .stream()
-                        .map(
-                                candidate ->
-                                        toResultCandidate(
-                                                connection.connectedId(),
-                                                query.organization(),
-                                                candidate,
-                                                linkedKeys))
-                        .toList();
-        return new BankConnectionResult(
-                connection.id(),
-                query.organization(),
-                ExternalConnectionStatus.CONNECTED,
-                candidates);
+        var candidates = findAccounts(connection, query.organization(), query.birthDate(), credentials).stream()
+                .map(candidate -> toResultCandidate(connection.connectedId(), query.organization(), candidate, linkedKeys))
+                .toList();
+        cacheCandidates(userId, connection.id(), query.organization(), candidates);
+        return new BankConnectionResult(connection.id(), query.organization(), ExternalConnectionStatus.CONNECTED, candidates);
     }
 
     @Override
-    @Transactional(
-            noRollbackFor =
-                    com.amateur.howmuchbackend.application.external.model
-                            .AdditionalAuthenticationPendingException.class)
+    @Transactional(noRollbackFor = com.amateur.howmuchbackend.application.external.model.AdditionalAuthenticationPendingException.class)
     public LinkedAccountsResult link(LinkBankAccountsCommand command) {
         bankCatalog.validate(command.organization());
         CurrentActor actor = currentActorPort.getCurrentActor();
         loadUserForUpdate(actor.userId());
         connectionStorePort.validateStorageConfiguration();
-        ExternalConnection connection =
-                connectionStorePort
-                        .findActiveByIdAndUserId(command.connectionId(), actor.userId())
-                        .orElseThrow(
-                                () ->
-                                        ApplicationException.of(
-                                                ExternalConnectionStatusCode
-                                                        .EXTERNAL_CONNECTION_NOT_FOUND));
+        ExternalConnection connection = connectionStorePort.findActiveByIdAndUserId(
+                        command.connectionId(), actor.userId()
+                )
+                .orElseThrow(() -> ApplicationException.of(
+                        ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND
+                ));
         if (!connectionStorePort.hasInstitution(connection.id(), command.organization())) {
             throw ApplicationException.of(ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID);
         }
-        BankAccountCredentials credentials =
-                bankCatalog.requiresAccountCredentials(command.organization())
-                        ? credentialProtection.reveal(
-                                actor.userId(), connection.id(), command.organization())
-                        : null;
+        BankAccountCredentials credentials = bankCatalog.requiresAccountCredentials(command.organization())
+                ? credentialProtection.reveal(actor.userId(), connection.id(), command.organization()) : null;
 
         Map<String, ExternalAccountCandidate> candidates = new LinkedHashMap<>();
-        for (ExternalAccountCandidate candidate :
-                findAccounts(
-                        connection, command.organization(), command.birthDate(), credentials)) {
-            candidates.put(
-                    candidateKey(
-                            connection.connectedId(),
-                            command.organization(),
-                            candidate.externalAccountKey()),
-                    candidate);
+        for (ExternalAccountCandidate candidate : findAccounts(connection, command.organization(), command.birthDate(), credentials)) {
+            candidates.put(candidateKey(connection.connectedId(), command.organization(), candidate.externalAccountKey()), candidate);
         }
 
         List<Account> selected = new ArrayList<>();
         List<Account> existingAccounts = loadAccountPort.findActiveByUserId(actor.userId());
-        Map<String, Account> existingByCandidateKey =
-                existingAccounts.stream()
-                        .collect(
-                                java.util.stream.Collectors.toMap(
-                                        Account::candidateKey, account -> account));
-        int nextDisplayOrder =
-                existingAccounts.stream().mapToInt(Account::displayOrder).max().orElse(-1) + 1;
+        Map<String, Account> existingByCandidateKey = existingAccounts.stream()
+                .collect(java.util.stream.Collectors.toMap(Account::candidateKey, account -> account));
+        int nextDisplayOrder = existingAccounts.stream().mapToInt(Account::displayOrder).max().orElse(-1) + 1;
         for (String selectedKey : command.candidateKeys().stream().distinct().toList()) {
             ExternalAccountCandidate candidate = candidates.get(selectedKey);
             if (candidate == null) {
-                throw ApplicationException.of(
-                        ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID);
+                throw ApplicationException.of(ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID);
             }
             Account existing = existingByCandidateKey.get(selectedKey);
-            selected.add(
-                    new Account(
-                            existing == null ? null : existing.id(),
-                            actor.userId(),
-                            connection.id(),
-                            command.organization(),
-                            selectedKey,
-                            candidate.externalAccountKey(),
-                            candidate.type(),
-                            candidate.name(),
-                            candidate.maskedNumber(),
-                            candidate.balance(),
-                            candidate.currency(),
-                            true,
-                            candidate.productCode(),
-                            existing == null
-                                    ? existingAccounts.isEmpty() && selected.isEmpty()
-                                    : existing.isDefault(),
-                            existing == null ? nextDisplayOrder++ : existing.displayOrder()));
+            selected.add(new Account(
+                    existing == null ? null : existing.id(),
+                    actor.userId(),
+                    connection.id(),
+                    command.organization(),
+                    selectedKey,
+                    candidate.externalAccountKey(),
+                    candidate.type(),
+                    candidate.name(),
+                    candidate.maskedNumber(),
+                    candidate.balance(),
+                    candidate.currency(),
+                    true,
+                    candidate.productCode(),
+                    existing == null ? existingAccounts.isEmpty() && selected.isEmpty() : existing.isDefault(),
+                    existing == null ? nextDisplayOrder++ : existing.displayOrder()
+            ));
         }
 
-        List<LinkedAccountsResult.LinkedAccount> linked =
-                saveAccountPort.saveAll(selected).stream()
-                        .map(
-                                account ->
-                                        new LinkedAccountsResult.LinkedAccount(
-                                                account.id(),
-                                                account.organization(),
-                                                account.type(),
-                                                account.name(),
-                                                account.maskedNumber(),
-                                                account.balance(),
-                                                account.currency()))
-                        .toList();
+        List<LinkedAccountsResult.LinkedAccount> linked = saveAccountPort.saveAll(selected).stream()
+                .map(account -> new LinkedAccountsResult.LinkedAccount(
+                        account.id(), account.organization(), account.type(), account.name(), account.maskedNumber(),
+                        account.balance(), account.currency()
+                ))
+                .toList();
+        evictCandidates(actor.userId(), connection.id(), command.organization());
         return new LinkedAccountsResult(linked);
     }
 
@@ -281,6 +243,7 @@ public class BankAccountService
                                                         .EXTERNAL_CONNECTION_NOT_FOUND));
         if (!connectionStorePort.hasInstitution(connectionId, organization))
             throw ApplicationException.of(ExternalConnectionStatusCode.ACCOUNT_CANDIDATE_INVALID);
+        evictCandidates(user, connectionId, organization);
         var linked = loadAccountPort.findCandidateKeys(connectionId);
         return new BankConnectionResult(
                 connectionId,
@@ -295,8 +258,7 @@ public class BankAccountService
     }
 
     private User loadUserForUpdate(Long userId) {
-        return loadUserPort
-                .findByIdForUpdate(userId)
+        return loadUserPort.findByIdForUpdate(userId)
                 .filter(User::active)
                 .orElseThrow(() -> ApplicationException.of(AuthStatusCode.USER_NOT_FOUND));
     }
@@ -305,9 +267,9 @@ public class BankAccountService
             String connectedId,
             String organization,
             ExternalAccountCandidate candidate,
-            Set<String> linkedKeys) {
-        String candidateKey =
-                candidateKey(connectedId, organization, candidate.externalAccountKey());
+            Set<String> linkedKeys
+    ) {
+        String candidateKey = candidateKey(connectedId, organization, candidate.externalAccountKey());
         return new BankConnectionResult.Candidate(
                 candidateKey,
                 candidate.type(),
@@ -315,23 +277,86 @@ public class BankAccountService
                 candidate.maskedNumber(),
                 candidate.balance(),
                 candidate.currency(),
-                linkedKeys.contains(candidateKey));
+                linkedKeys.contains(candidateKey)
+        );
     }
 
-    private String candidateKey(
-            String connectedId, String organization, String externalAccountKey) {
+    private String candidateKey(String connectedId, String organization, String externalAccountKey) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(connectedId.getBytes(StandardCharsets.UTF_8));
             digest.update((byte) 0);
             digest.update(organization.getBytes(StandardCharsets.UTF_8));
             digest.update((byte) 0);
-            return Base64.getUrlEncoder()
-                    .withoutPadding()
-                    .encodeToString(
-                            digest.digest(externalAccountKey.getBytes(StandardCharsets.UTF_8)));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(
+                    digest.digest(externalAccountKey.getBytes(StandardCharsets.UTF_8))
+            );
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is not available.", impossible);
+        }
+    }
+
+    private Optional<List<BankConnectionResult.Candidate>> cachedCandidates(
+            Long userId,
+            Long connectionId,
+            String organization
+    ) {
+        try {
+            return candidateCache.find(userId, connectionId, organization)
+                    .map(cached -> cached.stream()
+                            .map(candidate -> new BankConnectionResult.Candidate(
+                                    candidate.candidateKey(),
+                                    candidate.type(),
+                                    candidate.name(),
+                                    candidate.maskedNumber(),
+                                    candidate.balance(),
+                                    candidate.currency(),
+                                    candidate.alreadyLinked()
+                            ))
+                            .toList());
+        } catch (RuntimeException exception) {
+            log.warn("Failed to read bank account candidate cache. userId={} connectionId={} organization={}",
+                    userId, connectionId, organization, exception);
+            return Optional.empty();
+        }
+    }
+
+    private void cacheCandidates(
+            Long userId,
+            Long connectionId,
+            String organization,
+            List<BankConnectionResult.Candidate> candidates
+    ) {
+        try {
+            candidateCache.save(
+                    userId,
+                    connectionId,
+                    organization,
+                    candidates.stream()
+                            .map(candidate -> new AccountCandidate(
+                                    candidate.candidateKey(),
+                                    candidate.type(),
+                                    candidate.name(),
+                                    candidate.maskedNumber(),
+                                    candidate.balance(),
+                                    candidate.currency(),
+                                    candidate.alreadyLinked()
+                            ))
+                            .toList(),
+                    CANDIDATE_CACHE_TTL
+            );
+        } catch (RuntimeException exception) {
+            log.warn("Failed to cache bank account candidates. userId={} connectionId={} organization={}",
+                    userId, connectionId, organization, exception);
+        }
+    }
+
+    private void evictCandidates(Long userId, Long connectionId, String organization) {
+        try {
+            candidateCache.evict(userId, connectionId, organization);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to evict bank account candidate cache. userId={} connectionId={} organization={}",
+                    userId, connectionId, organization, exception);
         }
     }
 }

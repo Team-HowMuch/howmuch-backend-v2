@@ -16,6 +16,9 @@ public record AccountDetailResult(
         YearMonth yearMonth,
         BigDecimal monthlyExpenseAmount,
         long expenseCount,
-        LocalDateTime lastUsedAt
+        LocalDateTime lastUsedAt,
+        boolean synced,
+        LocalDateTime lastSyncedAt,
+        boolean syncInProgress
 ) {
 }

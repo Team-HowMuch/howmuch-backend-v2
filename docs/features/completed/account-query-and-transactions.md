@@ -366,3 +366,9 @@ git status --short --untracked-files=all
 - 미검증 항목:
 - 남은 위험:
 - 후속 작업:
+
+## 13. 후속 변경 (2026-10-17)
+
+- `GET /api/v2/accounts/{accountId}`와 `GET /api/v2/accounts/{accountId}/transactions`는 더 이상 CODEF를 호출하지 않는다. 저장된 거래·요약만 반환한다.
+- 최신 거래 적재는 `POST /api/v2/accounts/{accountId}/transactions/sync`로 분리했다.
+- 상세 계획: [CODEF 호출 최적화와 계좌 거래 동기화 분리](../active/codef-call-optimization.md)

@@ -71,7 +71,7 @@ public class SettlementWidgetRefreshService implements RefreshSettlementWidgetSu
                     var targets = entry.getValue();
                     var from = targets.stream().map(target -> target.snapshot().createdAt())
                             .min(LocalDateTime::compareTo).orElseThrow();
-                    var transactions = fetchService.fetch(connection, key.accountId(), key.organization(),
+                    var transactions = fetchService.fetchForWidget(connection, key.accountId(), key.organization(),
                             key.accountNumber(), from, until, () -> requireLease(userId, owner));
                     for (var target : targets) {
                         requireLease(userId, owner);

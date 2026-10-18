@@ -157,3 +157,9 @@ git status --short --untracked-files=all
 | Date | Decision | Reason | Alternative or impact |
 |---|---|---|---|
 | 2026-09-02 | 현재 월만 1분 TTL | 테스트 기간의 Mock 변경을 빠르게 반영 | 과거 월 자동 refresh와 운영 동기화는 후속 결정 |
+
+## 11. 후속 변경 (2026-10-17)
+
+- 현재 월 자동 refresh를 조회 경로에서 제거하고 `POST /api/v2/accounts/{accountId}/transactions/sync`로 이전했다.
+- 1분 Redis marker는 조회용이 아니라 명시적 동기화의 중복 억제에 사용한다.
+- 상세 계획: [CODEF 호출 최적화와 계좌 거래 동기화 분리](../active/codef-call-optimization.md)
