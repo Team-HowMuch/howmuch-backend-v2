@@ -207,6 +207,50 @@ class SettlementListPersistenceIntegrationTest {
         });
     }
 
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = SettlementStatus.class,
+            names = {"AWAITING_DEPOSIT", "COMPLETED"})
+    @DisplayName("확정 더치페이는 0원 참여 기록을 보존하고 PAY 목록과 총무·납부 인원에서 제외한다")
+    void dutchPay_zeroAmount_hiddenFromPayAndExcludedFromCounts(SettlementStatus status) {
+        var zeroParticipant = SettlementParticipant.registeredUser(
+                paySettlementId, creatorId, "0원 참여자", 2, CREATED_AT);
+        settlementParticipantJpaRepository.saveAndFlush(new SettlementParticipantJpaEntity(zeroParticipant));
+        jdbcTemplate.update("UPDATE settlements SET status = ? WHERE id = ?", status.name(), paySettlementId);
+
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null)).isEmpty();
+        assertThat(settlementPersistenceAdapter.findAll(
+                payerId, SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> assertThat(item.amountToPay()).isEqualTo(6_000));
+        assertThat(settlementPersistenceAdapter.findAll(
+                otherUserId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.participantCount()).isEqualTo(3);
+                    assertThat(item.payableParticipantCount()).isEqualTo(1);
+                });
+        assertThat(settlementJpaRepository.findAllForTreasurer(creatorId, "PAY")).isEmpty();
+        assertThat(settlementJpaRepository.findAllForTreasurer(otherUserId, "RECEIVE"))
+                .singleElement().satisfies(item -> assertThat(item.getPayerCount()).isEqualTo(1));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"DUTCH_PAY,SUSPENDED", "ITEM_ALLOCATION,REQUESTED"})
+    @DisplayName("중단 편집과 품목 선택 중 Share 부재는 PAY 목록과 실제 참여 인원을 유지한다")
+    void unconfirmedWithoutShare_keepsPayEntryAndParticipantCount(String type, String status) {
+        jdbcTemplate.update("DELETE FROM settlement_shares WHERE settlement_id = ?", paySettlementId);
+        jdbcTemplate.update("UPDATE settlements SET allocation_type = ?, status = ? WHERE id = ?",
+                type, status, paySettlementId);
+        assertThat(settlementPersistenceAdapter.findAll(
+                payerId, SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.amountToPay()).isNull();
+                });
+        assertThat(settlementPersistenceAdapter.findAll(
+                otherUserId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> assertThat(item.payableParticipantCount()).isEqualTo(1));
+        assertThat(settlementJpaRepository.findAllForTreasurer(payerId, "PAY")).hasSize(1);
+    }
+
     @Test
     @DisplayName("삭제된 정산은 생성자와 참여자의 목록에서 모두 제외한다")
     void settlementList_softDeleted_hiddenFromBothTabs() {
@@ -412,9 +456,7 @@ class SettlementListPersistenceIntegrationTest {
             "ITEM_ALLOCATION, AWAITING_DEPOSIT, null",
             "ITEM_ALLOCATION, COMPLETED, null",
             "DUTCH_PAY, REQUESTED, null",
-            "DUTCH_PAY, SUSPENDED, null",
-            "DUTCH_PAY, AWAITING_DEPOSIT, null",
-            "DUTCH_PAY, COMPLETED, null"
+            "DUTCH_PAY, SUSPENDED, null"
     }, nullValues = "null")
     @DisplayName("본인 Share가 없는 품목 정산은 선택 대기·중단 상태에서만 총액을 표시한다")
     void paySettlement_missingShare_totalFallbackOnlyWhileItemAmountUnconfirmed(

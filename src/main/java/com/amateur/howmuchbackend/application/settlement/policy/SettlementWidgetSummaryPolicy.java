@@ -31,7 +31,7 @@ public class SettlementWidgetSummaryPolicy {
                 boolean unconfirmed = first.status() == SettlementStatus.REQUESTED
                         && first.allocationType() == SettlementAllocationType.ITEM_ALLOCATION;
                 for (var row : rows) {
-                    if (row.participantId() == null) continue;
+                    if (row.participantId() == null || isZeroAmountDutchPay(row)) continue;
                     if (row.shareAmount() != null) {
                         long balance = remaining(row);
                         remaining = Math.addExact(remaining, balance);
@@ -46,6 +46,7 @@ public class SettlementWidgetSummaryPolicy {
                 }
                 receivable.add(new ReceivableSettlement(first.settlementId(), first.title(), remaining, unpaid, unconfirmed));
             } else {
+                if (isZeroAmountDutchPay(first)) continue;
                 Long remaining = null;
                 if (first.shareAmount() != null) {
                     remaining = remaining(first);
@@ -64,6 +65,12 @@ public class SettlementWidgetSummaryPolicy {
                 new PayableSummary(payable.stream().filter(row -> row.remainingAmount() != null)
                         .mapToLong(PayableSettlement::remainingAmount).reduce(0L, Math::addExact),
                         payable.size(), List.copyOf(payable)), lastReconciledAt);
+    }
+
+    private boolean isZeroAmountDutchPay(SettlementWidgetReadModel row) {
+        return row.allocationType() == SettlementAllocationType.DUTCH_PAY
+                && row.status() == SettlementStatus.AWAITING_DEPOSIT
+                && row.shareAmount() == null;
     }
 
     private long remaining(SettlementWidgetReadModel row) {

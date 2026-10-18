@@ -39,6 +39,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -140,6 +141,7 @@ public class SettlementRequestWriter {
                 saved.id(),
                 saved.creatorId(),
                 participants,
+                shares,
                 now, creator.name(), saved.allocationType()
         );
         return new SettlementRequestResult(
@@ -157,9 +159,15 @@ public class SettlementRequestWriter {
             UUID settlementId,
             Long creatorId,
             List<SettlementParticipant> participants,
+            List<SettlementShare> shares,
             LocalDateTime now, String requesterName, SettlementAllocationType allocationType
     ) {
+        Set<UUID> payerIds = shares.stream()
+                .map(SettlementShare::payerParticipantId)
+                .collect(Collectors.toSet());
         List<Long> targetUserIds = participants.stream()
+                .filter(participant -> allocationType != SettlementAllocationType.DUTCH_PAY
+                        || payerIds.contains(participant.id()))
                 .map(SettlementParticipant::linkedUserId)
                 .filter(Objects::nonNull)
                 .filter(userId -> !userId.equals(creatorId))

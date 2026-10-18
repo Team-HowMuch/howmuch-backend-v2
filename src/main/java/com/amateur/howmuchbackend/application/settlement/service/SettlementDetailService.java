@@ -150,7 +150,8 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         settlement.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
                                 ? itemAllocationPolicy.calculateDeliveryFeeShare(items, selections,
                                         participant.id(), deliveryFee, !receiptAdjustmentPending) : 0,
-                        receiptAdjustmentPending
+                        receiptAdjustmentPending,
+                        isFinalizedDutchPay(settlement)
                 ))
                 .toList();
         UUID viewerParticipantId = viewerRole == SettlementDetailResult.ViewerRole.PARTICIPANT
@@ -296,16 +297,18 @@ public class SettlementDetailService implements GetSettlementUseCase {
             boolean submitted,
             long discountShare,
             long deliveryFeeShare,
-            boolean receiptAdjustmentPending
+            boolean receiptAdjustmentPending,
+            boolean finalizedDutchPay
     ) {
         if (share == null) {
+            boolean noPaymentRequired = finalizedDutchPay || (submitted && !receiptAdjustmentPending);
             return new SettlementDetailResult.ParticipantPayment(
                     participant.id(),
                     participant.displayName(),
                     participant.linkedUserId() != null,
-                    submitted && !receiptAdjustmentPending ? 0L : null,
+                    noPaymentRequired ? 0L : null,
                     0,
-                    submitted && !receiptAdjustmentPending
+                    noPaymentRequired
                             ? SettlementDetailResult.PaymentStatus.PAID
                             : SettlementDetailResult.PaymentStatus.NOT_READY,
                     submitted,
@@ -356,7 +359,11 @@ public class SettlementDetailService implements GetSettlementUseCase {
                         payment.expectedAmount()
                 ))
                 .reduce(0L, Math::addExact);
-        int completedCount = Math.toIntExact(payments.stream()
+        List<SettlementDetailResult.ParticipantPayment> payablePayments = isFinalizedDutchPay(settlement)
+                ? payments.stream().filter(payment -> payment.expectedAmount() != null
+                        && payment.expectedAmount() > 0).toList()
+                : payments;
+        int completedCount = Math.toIntExact(payablePayments.stream()
                 .filter(payment -> payment.paymentStatus()
                         == SettlementDetailResult.PaymentStatus.PAID)
                 .count());
@@ -372,12 +379,18 @@ public class SettlementDetailService implements GetSettlementUseCase {
                 confirmedAmount,
                 expectedAmount - confirmedAmount,
                 progressPercent,
-                // payments는 생성자를 이미 제외한 목록이라 두 값이 같다.
-                // 목록 API의 participantCount(생성자 포함)와 이름을 맞추기 위해 둘 다 노출한다.
-                payments.size(),
-                payments.size(),
+                // 상세의 두 인원 필드는 모두 실제 납부 대상을 뜻한다.
+                payablePayments.size(),
+                payablePayments.size(),
                 completedCount
         );
+    }
+
+    private boolean isFinalizedDutchPay(Settlement settlement) {
+        return settlement.allocationType() == SettlementAllocationType.DUTCH_PAY
+                && (settlement.status() == SettlementStatus.AWAITING_DEPOSIT
+                    || settlement.status() == SettlementStatus.COMPLETED
+                    || settlement.status() == SettlementStatus.NETTING_IN_PROGRESS);
     }
 
     private long requestedItemExpectedAmount(

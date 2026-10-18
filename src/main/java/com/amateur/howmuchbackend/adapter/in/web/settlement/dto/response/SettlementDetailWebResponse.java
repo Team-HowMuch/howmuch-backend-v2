@@ -112,10 +112,11 @@ public record SettlementDetailWebResponse(
             @Schema(description = "납부 대상 인원. 상세에서는 payableParticipantCount와 같은 값이다.")
             int participantCount,
             @Schema(
-                    description = "납부 대상 인원. 돈을 받는 생성자를 제외한다. "
+                    description = "납부 대상 인원. 생성자는 제외하며, 확정된 더치페이는 0원 참여자도 제외한다. "
                             + "목록 API와 이름이 같으므로 진행률의 분모로는 이 값을 쓴다."
             )
             int payableParticipantCount,
+            @Schema(description = "납부 대상 중 입금이 완료된 인원. 확정된 더치페이의 0원 참여자는 제외한다.")
             int completedParticipantCount
     ) {
         private static PaymentSummary from(SettlementDetailResult.PaymentSummary result) {
@@ -138,9 +139,10 @@ public record SettlementDetailWebResponse(
             UUID participantId,
             String displayName,
             boolean linked,
-            @Schema(nullable = true)
+            @Schema(nullable = true, description = "확정된 개인 금액. 확정된 더치페이의 0원 참여자는 0이며, 미확정이면 null이다.")
             Long expectedAmount,
             long confirmedAmount,
+            @Schema(description = "PAID는 납부가 끝났거나 확정 금액이 0원이라 추가 납부가 없음을 뜻한다.")
             SettlementDetailResult.PaymentStatus paymentStatus,
             @Schema(description = "품목 선택 제출 기록이 있으면 true. 납부 상태 및 Share 계산 여부와 무관하다.")
             boolean submitted,

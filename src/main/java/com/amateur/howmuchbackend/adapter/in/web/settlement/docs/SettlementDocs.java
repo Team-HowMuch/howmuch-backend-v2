@@ -93,6 +93,7 @@ public interface SettlementDocs {
     @Operation(
             summary = "정산 목록 조회",
             description = "현재 로그인 사용자가 생성했거나 등록 참여자로 연결된 정산을 탭·상태별로 조회합니다. "
+                    + "확정된 더치페이의 0원 참여자는 PAY 목록에서 제외하며, RECEIVE의 전체 참여 인원에는 포함합니다. "
                     + "groups.groupImageUrl은 이미지 파일 버전 v 쿼리를 포함하며 이미지가 없으면 null입니다. "
                     + "응답의 status는 실제 정산 상태이며, 화면에서 진행중·완료 그룹으로 매핑할 수 있습니다. "
                     + "금액과 인원은 문장이 아닌 숫자 필드로 반환합니다. "
@@ -207,7 +208,7 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 재개",
-            description = "현재 로그인한 생성자가 SUSPENDED 정산을 재개합니다. 품목 정산은 REQUESTED가 됩니다. 더치페이는 입금 기록이 없고 지출·전원 배분 합계가 정산 총액과 같을 때 Share를 다시 확정해 AWAITING_DEPOSIT으로 전환합니다. "
+            description = "현재 로그인한 생성자가 SUSPENDED 정산을 재개합니다. 품목 정산은 REQUESTED가 됩니다. 더치페이는 입금 기록이 없고 지출·전원 배분 합계가 정산 총액과 같을 때 양수 배분만 Share로 다시 확정해 AWAITING_DEPOSIT으로 전환합니다. 0원 참여자는 참여 기록만 유지하고 납부 대상에서 제외합니다. "
                     + "재개 시 참여자 제출 완료 표시는 초기화하고 기존 품목 선택은 유지합니다. "
                     + "정산이 없으면 SETTLEMENT_NOT_FOUND, 다른 생성자의 정산이면 SETTLEMENT_ACCESS_DENIED, "
                     + "허용되지 않은 상태면 INVALID_SETTLEMENT_STATUS_TRANSITION을 반환합니다.",
@@ -233,7 +234,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION, SETTLEMENT_REVISION_PAYMENT_EXISTS, SETTLEMENT_EXPENSE_TOTAL_MISMATCH, SETTLEMENT_SHARE_TOTAL_MISMATCH, SETTLEMENT_SHARE_AMOUNT_REQUIRED, SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE"
+                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION, SETTLEMENT_REVISION_PAYMENT_EXISTS, SETTLEMENT_EXPENSE_TOTAL_MISMATCH, SETTLEMENT_SHARE_TOTAL_MISMATCH, SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE"
             )
     })
     ApiResponse<SettlementWebResponse> resumeSettlement(UUID settlementId);

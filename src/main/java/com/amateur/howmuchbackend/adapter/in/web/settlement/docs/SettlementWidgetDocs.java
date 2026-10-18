@@ -16,7 +16,8 @@ public interface SettlementWidgetDocs {
                     + "선택 중 품목 정산의 받을 금액은 상세와 같은 예상액이고 amountUnconfirmed=true입니다. "
                     + "낼 금액은 확인 입금을 차감한 본인 Share 잔액이며 미확정이면 null입니다. "
                     + "PAYABLE은 송금 가능, SELECTION_REQUIRED는 몫 선택 미제출, WAITING은 확정 대기 또는 납부 완료입니다. "
-                    + "0원/납부 완료 참여도 진행 정산이면 목록에 남습니다. 빈 목록의 합계와 건수는 0입니다. "
+                    + "확정된 더치페이의 0원 참여자는 payable 목록과 생성자의 미납 인원에서 제외합니다. "
+                    + "품목 정산의 0원 참여와 양수 몫 납부 완료 참여는 진행 정산이면 목록에 남습니다. 빈 목록의 합계와 건수는 0입니다. "
                     + "lastReconciledAt은 마지막 성공한 위젯 전체 대조의 조회 기준 UTC 시각이며 최초·기록 만료 시 null입니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",

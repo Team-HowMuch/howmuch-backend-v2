@@ -157,6 +157,33 @@ class SettlementRequestServiceTest {
     }
 
     @Test
+    @DisplayName("0원 생성자와 참여자는 Share 없이 남고 양수 참여자에게만 알림을 보낸다")
+    void settlementRequest_zeroAmounts_notifiesOnlyPayer() {
+        arrangeCommon(SettlementAllocationType.DUTCH_PAY);
+        UUID zeroParticipantId = UUID.randomUUID();
+        var participants = new java.util.ArrayList<>(participants());
+        participants.add(participant(zeroParticipantId, 3L, "0원 참여자", 2));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(participants);
+        when(allocationStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                allocation(CREATOR_PARTICIPANT_ID, 0), allocation(PAYER_PARTICIPANT_ID, 10_000),
+                allocation(zeroParticipantId, 0)));
+
+        assertThat(service.request(SETTLEMENT_ID).status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<SettlementShare>> shares = ArgumentCaptor.forClass(List.class);
+        verify(saveSettlementRequestPort).save(any(), shares.capture(), any(), eq(RAW_LINK_TOKEN));
+        assertThat(shares.getValue()).singleElement().satisfies(share -> {
+            assertThat(share.payerParticipantId()).isEqualTo(PAYER_PARTICIPANT_ID);
+            assertThat(share.amount()).isEqualTo(10_000);
+        });
+        verify(loadUserPort).findAllByIds(List.of(2L));
+        ArgumentCaptor<UserNotification> notification = ArgumentCaptor.forClass(UserNotification.class);
+        verify(notificationRecorder).record(notification.capture());
+        assertThat(notification.getValue().recipientUserId()).isEqualTo(2L);
+    }
+
+    @Test
     @DisplayName("영수증·결제 내역 지출이 있으면 분류 대기 작업을 함께 저장한다")
     void settlementRequest_receiptExpense_schedulesCategoryJob() {
         arrangeCommon(SettlementAllocationType.DUTCH_PAY);

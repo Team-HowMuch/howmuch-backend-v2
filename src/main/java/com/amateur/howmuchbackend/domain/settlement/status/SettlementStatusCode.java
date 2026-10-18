@@ -95,7 +95,6 @@ public enum SettlementStatusCode implements StatusCode {
     SETTLEMENT_REMINDER_DELIVERY_UNAVAILABLE("정산 독촉 알림 전송을 사용할 수 없습니다.", 503),
     SETTLEMENT_SHARE_LINK_NOT_AVAILABLE("진행 중인 정산의 활성 공유 링크만 조회할 수 있습니다.", 409),
     SETTLEMENT_REQUEST_RECEIVING_ACCOUNT_REQUIRED("정산 요청 전에 수령 계좌를 선택해야 합니다.", 409),
-    SETTLEMENT_SHARE_AMOUNT_REQUIRED("모든 정산 Share 금액은 1원 이상이어야 합니다.", 409),
     SETTLEMENT_SHARE_TOTAL_MISMATCH("정산 Share 합계가 정산 총액과 일치하지 않습니다.", 409),
     SETTLEMENT_DUTCH_PAY_ALLOCATION_NOT_FOUND("더치페이 참여자 배분을 찾을 수 없습니다.", 404),
     SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE("더치페이 참여자 배분이 완전하지 않습니다.", 409),
