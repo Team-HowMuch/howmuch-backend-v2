@@ -40,14 +40,14 @@ public record SettlementListItemWebResponse(
         Integer participantCount,
         @Schema(
                 nullable = true,
-                description = "납부 대상 인원. 참여자 중 돈을 받는 생성자를 제외한 수이며 "
+                description = "납부 대상 인원. 생성자는 제외하며, 확정된 더치페이(AWAITING_DEPOSIT·COMPLETED·NETTING_IN_PROGRESS)는 0원 참여자도 제외한다. "
                         + "정산 상세의 payableParticipantCount와 항상 같다. 진행률의 분모로 쓴다. "
-                        + "Share 생성 전(품목별 정산에서 전원 제출 전)에도 실제 인원을 반환한다."
+                        + "품목 선택 중 또는 중단 후 재배분 중에는 생성자를 제외한 실제 참여 인원을 반환한다."
         )
         Integer payableParticipantCount,
         @Schema(nullable = true, description = "납부를 마친 인원. 생성자를 제외한다.")
         Integer completedParticipantCount,
-        @Schema(nullable = true, description = "PAY 탭의 확정 개인 납부 금액. "
+        @Schema(nullable = true, description = "PAY 탭의 확정 개인 납부 금액. 확정된 더치페이의 0원 참여자는 PAY 목록에서 제외합니다. "
                 + "ITEM_ALLOCATION의 REQUESTED·SUSPENDED 상태에서 개인 금액이 미확정이면 "
                 + "생성자 몫을 포함한 정산 총액을 목록 표시값으로 반환하며 실제 개인 납부액을 뜻하지 않습니다. "
                 + "그 외 금액 미확정 상태와 RECEIVE 탭에서는 null입니다.")

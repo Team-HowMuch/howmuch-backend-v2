@@ -1,6 +1,6 @@
 # Feature Plan: 더치페이 0원 참여자 허용
 
-- Status: In progress
+- Status: Completed
 - Last updated: 2026-10-19
 - Related issue: https://github.com/Team-HowMuch/howmuch-backend-v2/issues/583
 - Related ADR: N/A — 기존 정산 경계를 유지한다.
@@ -9,11 +9,11 @@
 
 몰아주기 결과를 저장한 뒤 생성자 또는 다른 참여자의 배분이 0원이어도 정산을 요청·재개할 수 있어야 한다.
 
-- [ ] 전원 배분과 총액 일치를 검증하고 양수 배분만 Share로 확정한다.
-- [ ] 0원 참여 기록은 보존하고 정산 요청 알림·납부 진행 인원에서 제외한다.
-- [ ] 확정된 더치페이의 0원 참여자는 PAY 목록과 총무의 낼 정산에서 제외한다.
-- [ ] 참여 링크·상세에는 0원을 명시하고 송금 대상이 되지 않는다.
-- [ ] 양수 Share 입금으로 기존 완료 판정이 정상 작동한다.
+- [x] 전원 배분과 총액 일치를 검증하고 양수 배분만 Share로 확정한다.
+- [x] 0원 참여 기록은 보존하고 정산 요청 알림·납부 진행 인원에서 제외한다.
+- [x] 확정된 더치페이의 0원 참여자는 PAY 목록과 총무의 낼 정산에서 제외한다.
+- [x] 참여 링크·상세에는 0원을 명시하고 송금 대상이 되지 않는다.
+- [x] 양수 Share 입금으로 기존 완료 판정이 정상 작동한다.
 
 범위 밖: 게임 구현, 품목 정산의 배분·진행률 규칙 변경, 반복 정산의 양수 배분 규칙 변경, 입금 확인 알고리즘 변경.
 
@@ -63,10 +63,34 @@ Domain 상태/불변식, UseCase/Command/Result 구조, 새 Output Port, Infra/�
 - 폐기 가능한 로컬 PostgreSQL/Redis를 준비한 뒤 `scripts/test.sh test --tests ...`로 요청·재개·목록·상세·링크·입금 회귀를 검증한다. 애플리케이션 `.env`는 읽지 않는다.
 - 정산 Share/배분 Domain의 음수·0원 불변식 테스트를 유지한다.
 - `git diff --check`, 변경 문서의 상대 링크/경로 확인, `git status --short --untracked-files=all`.
-- 결과: 검증 후 기록한다.
+- 결과: Java 21 컴파일과 관련 Java 21개 클래스의 280개 테스트, JavaScript 35개 테스트가 모두 통과했다. 실패·건너뜀 0건이다.
+- PostgreSQL 18과 Redis를 이 작업 전용 임시 인스턴스로 실행했고 실제 Spring HTTP 서버/JWT/Redis 세션을 통과했다.
+- 새 HTTP 테스트 3개: 생성자 0원/다른 회원 전액, 생성자·다른 회원 분담+0원 회원, 생성자 전액을 각각 검증했다. 전원 배분 저장→요청→Share·알림 수신자→PAY/RECEIVE·상세·링크→송금 안내 404→입금 대사→COMPLETED/진행률 100%를 확인했다.
+- 요청/재개 단위·DB 통합, 음수 배분·0원 Share 거절, 품목 배분·배달비, 입금·송금 안내·독촉 회귀도 통과했다.
+
+재현 명령(폐기 가능한 PostgreSQL/Redis의 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`를 먼저 지정):
+
+```bash
+JAVA_HOME=$(/usr/libexec/java_home -v 21) bash scripts/test.sh compileJava test \
+  --tests '*SettlementRequestPolicyTest' --tests '*SettlementRequestServiceTest' \
+  --tests '*SettlementReceiptReplacementIntegrationTest' --tests '*SettlementDetailServiceTest' \
+  --tests '*SettlementLinkEntryServiceTest' --tests '*SettlementListPersistenceIntegrationTest' \
+  --tests '*TreasurerSettlementPersistenceIntegrationTest' --tests '*SettlementDutchPayZeroAmountHttpIntegrationTest' \
+  --tests '*SettlementDutchPayAllocationTest' --tests '*SettlementRequestDomainTest' \
+  --tests '*SettlementAllocationServiceTest' --tests '*SettlementDepositServiceTest' \
+  --tests '*SettlementDepositPersistenceIntegrationTest' --tests '*SettlementTransferInstructionServiceTest' \
+  --tests '*SettlementMemberTransferInstructionServiceTest' --tests '*SettlementReminderServiceTest' \
+  --tests '*SettlementListServiceTest' --tests '*SettlementItemAllocationPolicyTest' \
+  --tests '*SettlementRequestPersistenceIntegrationTest' --tests '*SettlementSuspensionServiceTest' \
+  --tests '*SettlementDeliveryFeeHttpIntegrationTest'
+```
 
 ## 6. 결정 및 완료 기록
 
 - 2026-10-19: 별도 allowZeroShares 옵션 없이 일반 더치페이에서 0원 허용. 참여자를 삭제하지 않고 납부 의무만 제외한다.
 - 2026-10-19: 품목 정산과 중단 편집 중 미확정 표시를 유지하기 위해 확정 상태의 더치페이에만 조회 필터를 적용한다.
-- 완료일/미검증 항목/잔여 위험: 검증 후 기록한다.
+- 완료일: 2026-10-19.
+- 미검증: 전체 저장소 테스트, 실제 CODEF 조회·FCM 수신·모바일 게임 연동·운영 배포. HTTP 검증의 외부 거래 조회는 합성 거래로 대체했다.
+- 잔여 계약: 클라이언트는 상세/링크의 0원을 미확정 null과 구분해야 한다. 상세 PAID는 0원으로 납부 의무가 없는 경우도 포함하지만 납부 완료 인원에는 포함하지 않는다.
+- 생성자만 양수인 경우 기존 동작대로 입금 확인 호출에서 COMPLETED가 된다. 자동 완료 시점을 변경하지 않았다.
+- 검증 중 발견한 기존 PAY 노출 기대값을 새 계약에 맞췄고, 새 테스트의 트랜잭션·금융 연결 fixture를 수정한 뒤 최종 280개 검증을 통과했다.

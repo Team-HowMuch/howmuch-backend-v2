@@ -96,8 +96,9 @@
 - 동시성: `loadOwnedSettlementForUpdate`의 비관적 잠금을 기존 `PATCH`와 동일하게 사용한다.
   같은 정산에 대한 동시 저장은 직렬화된다.
 - 빈 목록: 참여자 전원 포함 규칙에 걸려 거부된다. 참여자는 최소 2명이다.
-- 금액 0원: 저장은 허용한다(기존 `PATCH`의 `@PositiveOrZero`와 동일). 정산 요청 시점의
-  `SETTLEMENT_SHARE_AMOUNT_REQUIRED` 검증은 그대로 둔다.
+- 금액 0원: 저장·요청·재개를 허용한다. 총액 일치와 전원 배분은 계속 검증하며 양수 배분만
+  Share로 확정한다. 0원 참여자는 참여 기록을 유지하고 요청 알림·납부 대상에서 제외한다.
+  후속 계약은 [더치페이 0원 참여자 허용](../completed/settlement-dutch-pay-zero-amount.md)을 따른다.
 
 ## 4. Contracts
 
@@ -199,7 +200,7 @@ Authentication: bearerAuth (정산 생성자)
 2. **합계 검증** — `sum(amount) != totalAmount`면 409로 거부한다. 단건 `PATCH`는 편집 중
    불일치를 허용해야 해서 그대로 두고, 확정용인 이 API에서만 균형을 요구한다.
 3. **음수·0** — 음수는 거부(기존 Domain 불변식), 0은 허용. 정산 요청 시점의
-   `SETTLEMENT_SHARE_AMOUNT_REQUIRED`가 최종 방어선이다.
+   양수 Share 생성 및 전원 배분·합계 검증이 최종 방어선이다.
 4. **DRAFT 제한** — 기존 `PATCH`와 동일하게 `DRAFT`에서만 허용한다.
 
 ## 6. Impact surface
