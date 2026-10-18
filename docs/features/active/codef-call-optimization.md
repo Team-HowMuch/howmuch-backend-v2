@@ -327,3 +327,10 @@ git status --short --untracked-files=all
 - 후보 캐시는 기존 SMS admission/완료 결과를 유지하며 최종 연결에서 외부/인증 완료 후보를 재검증한다. 새 SMS 결과로 기존 display cache를 무효화한다.
 - 검증 계획: 계좌/coverage/위젯 관련 회귀, SMS 어댑터·실제 PostgreSQL 재개·Bean wiring, commit/rollback/자정·구형 payload 회귀, Java compile 및 패키징. 기존 실기기/실 CODEF 수치는 게시 브랜치의 새 실기기 실행 결과와 구분한다.
 - 게시 커밋 경계: 계좌 sync·재사용·SMS 호환 구현 / 회귀 및 mock 도구 / 설계·QA 기록. PR base는 develop, 제목은 `feat(account): 계좌 조회와 CODEF 동기화 분리 및 수집 재사용`.
+
+## 18. PR #580 월 요약 무효화 회귀 보완
+
+- 정산·압축정산이 공통 거래 저장 경로로 새 거래를 넣으면 해당 월 요약이 삭제된다. 요약 부재를 빈 월로 해석하지 않고 기존 `calculateSummary` DB 집계를 사용한다. GET의 read-only 경계에서 요약을 저장하거나 CODEF를 호출하지 않는다.
+- sync의 freshness/진행 중 생략 응답에도 같은 fallback을 적용한다. coverage 및 수집 시각은 집계 여부와 독립적으로 유지한다. migration 없음.
+- 검증: 실제 PostgreSQL에 요약 생성 → 새 거래 저장 → 요약 삭제 → 계좌 상세/생략 sync 집계 회귀, 빈 월 및 기존 요약 회귀. 커밋 경계는 `fix(account): 월 요약 무효화 후 저장 거래 집계 복구`.
+- 검증 결과: 격리 PostgreSQL에서 실제 요약 무효화 후 계좌 상세 및 freshness/claim 생략 경로 2개를 확인했다. 관련 Java 33개(영속 통합 9개·조회 10개·sync 14개), 기존 JavaScript 35개 통과. 지출 15,000원/2건, 마지막 거래 시각, coverage 시각 유지 및 CODEF 호출 0회를 검증했다.

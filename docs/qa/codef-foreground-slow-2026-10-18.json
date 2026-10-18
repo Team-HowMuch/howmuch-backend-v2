@@ -494,5 +494,22 @@
       "Opt-in SMS admission retains its existing transaction-scoped advisory lock during the initial CODEF call; default SMS-disabled calls remain outside the write transaction.",
       "No migration changes. Full Java suite and real bank/native QA were not repeated on the publication branch."
     ]
+  },
+  "monthlySummaryReviewVerification": {
+    "date": "2026-10-18",
+    "pullRequest": 580,
+    "database": "isolated PostgreSQL",
+    "javaTests": 33,
+    "javascriptTests": 35,
+    "failures": 0,
+    "scenarios": [
+      "persist summary then ingest new transactions invalidates summary",
+      "account detail aggregates stored rows without CODEF",
+      "freshness skip aggregates stored rows without CODEF",
+      "in-progress skip aggregates stored rows without CODEF",
+      "Seoul month boundary, expense-only total, count, last-used and coverage timestamp preserved"
+    ],
+    "expectedExpenseAmount": 15000,
+    "expectedExpenseCount": 2
   }
 }

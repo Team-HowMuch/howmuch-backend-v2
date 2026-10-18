@@ -131,6 +131,8 @@ class AccountQueryServiceTest {
                 new BankCatalogResult("0020", "우리은행", "woori.png", false)
         ));
 
+        when(loadTransactionPort.calculateSummary(account.id(), AUGUST)).thenReturn(
+                new AccountMonthlySummary(null, account.id(), AUGUST, BigDecimal.ZERO, 0, null));
         var result = service.getAccountDetail(account.id(), AUGUST);
 
         assertThat(result.synced()).isTrue();
@@ -146,6 +148,8 @@ class AccountQueryServiceTest {
         when(coveragePort.findCoveredAt(account.id(), AUGUST)).thenReturn(Optional.of(partialAt));
         when(refreshStorePort.isSyncInProgress(account.id(), AUGUST)).thenReturn(true);
         when(bankCatalog.getAllBanks()).thenReturn(List.of(new BankCatalogResult("0020", "우리은행", "woori.png", false)));
+        when(loadTransactionPort.calculateSummary(account.id(), AUGUST)).thenReturn(
+                new AccountMonthlySummary(null, account.id(), AUGUST, BigDecimal.ZERO, 0, null));
         var result = service.getAccountDetail(account.id(), AUGUST);
         assertThat(result.synced()).isFalse();
         assertThat(result.lastSyncedAt()).isEqualTo(partialAt);
@@ -153,7 +157,7 @@ class AccountQueryServiceTest {
     }
 
     @Test
-    @DisplayName("월 요약이 없으면 CODEF 없이 0원 요약을 반환한다")
+    @DisplayName("월 요약과 거래가 모두 없으면 DB 집계로 0원 요약을 반환한다")
     void accountSummary_missing_returnsEmptySummaryWithoutCodef() {
         Account account = account(1L, "0020", true, 0);
         when(loadAccountPort.findActiveByIdAndUserId(account.id(), USER_ID)).thenReturn(Optional.of(account));
@@ -162,6 +166,8 @@ class AccountQueryServiceTest {
                 new BankCatalogResult("0020", "우리은행", "woori.png", false)
         ));
 
+        when(loadTransactionPort.calculateSummary(account.id(), AUGUST)).thenReturn(
+                new AccountMonthlySummary(null, account.id(), AUGUST, BigDecimal.ZERO, 0, null));
         var result = service.getAccountDetail(account.id(), AUGUST);
 
         assertThat(result.monthlyExpenseAmount()).isEqualByComparingTo("0");

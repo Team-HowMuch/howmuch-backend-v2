@@ -23,7 +23,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -195,9 +194,7 @@ public class AccountTransactionSyncService implements SyncAccountTransactionsUse
             boolean syncInProgress
     ) {
         AccountMonthlySummary summary = loadTransactionPort.findSummary(account.id(), yearMonth)
-                .orElseGet(() -> new AccountMonthlySummary(
-                        null, account.id(), yearMonth, BigDecimal.ZERO, 0, null
-                ));
+                .orElseGet(() -> loadTransactionPort.calculateSummary(account.id(), yearMonth));
         return new AccountTransactionSyncResult(
                 account.id(),
                 yearMonth,

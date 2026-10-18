@@ -189,6 +189,8 @@ class AccountTransactionSyncServiceTest {
         when(coveragePort.findCoveredAt(ACCOUNT_ID, AUGUST)).thenReturn(Optional.of(LocalDateTime.of(2026, 8, 31, 14, 59)));
         when(coveragePort.coversMonth(ACCOUNT_ID, AUGUST)).thenReturn(false);
         when(refreshStorePort.tryClaim(eq(ACCOUNT_ID), eq(AUGUST), any())).thenReturn(Optional.empty());
+        when(loadTransactionPort.calculateSummary(ACCOUNT_ID, AUGUST)).thenReturn(
+                new AccountMonthlySummary(null, ACCOUNT_ID, AUGUST, BigDecimal.ZERO, 0, null));
         assertThat(service.sync(ACCOUNT_ID, AUGUST).syncInProgress()).isTrue();
         verify(refreshStorePort).tryClaim(eq(ACCOUNT_ID), eq(AUGUST), any());
     }

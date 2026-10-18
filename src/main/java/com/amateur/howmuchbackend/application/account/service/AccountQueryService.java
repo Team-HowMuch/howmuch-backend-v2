@@ -25,7 +25,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -161,14 +160,7 @@ public class AccountQueryService
 
     private AccountMonthlySummary summary(Long accountId, YearMonth yearMonth) {
         return loadTransactionPort.findSummary(accountId, yearMonth)
-                .orElseGet(() -> new AccountMonthlySummary(
-                        null,
-                        accountId,
-                        yearMonth,
-                        BigDecimal.ZERO,
-                        0,
-                        null
-                ));
+                .orElseGet(() -> loadTransactionPort.calculateSummary(accountId, yearMonth));
     }
 
     private void ensureTransactionSupported(Account account) {
