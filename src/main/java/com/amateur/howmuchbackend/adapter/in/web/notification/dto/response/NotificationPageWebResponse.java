@@ -27,7 +27,7 @@ public record NotificationPageWebResponse(
                     allowableValues = {"GROUP_NETTING_CONFIRMED", "GROUP_NETTING_COMPLETED", "NETTED_TRANSFER_REMINDER",
                             "SETTLEMENT_REQUEST", "SETTLEMENT_REMINDER", "SETTLEMENT_PAYMENT_COMPLETED",
                             "SETTLEMENT_COMPLETED", "SETTLEMENT_DEPOSIT_CONFIRMED", "GROUP_INVITATION",
-                            "GROUP_MEMBER_LEFT", "MONTHLY_RECAP"}) String type,
+                            "GROUP_MEMBER_LEFT", "MONTHLY_RECAP", "FINANCE_AUTH_REQUIRED"}) String type,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                     allowableValues = {"DUTCH_PAY", "ITEM_ALLOCATION"}, nullable = true) String allocationType,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
