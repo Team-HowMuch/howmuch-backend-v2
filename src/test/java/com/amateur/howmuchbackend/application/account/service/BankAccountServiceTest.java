@@ -1,11 +1,13 @@
 package com.amateur.howmuchbackend.application.account.service;
 
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+import com.amateur.howmuchbackend.application.account.model.AccountCandidate;
 import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
 import com.amateur.howmuchbackend.application.account.model.EncryptedBankAccountCredentials;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.account.command.ConnectBankCommand;
 import com.amateur.howmuchbackend.application.port.in.account.command.LinkBankAccountsCommand;
+import com.amateur.howmuchbackend.application.port.out.account.BankAccountCandidateCachePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountPort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -37,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,6 +55,7 @@ class BankAccountServiceTest {
     @Mock private BankConnectionPort bankConnectionPort;
     @Mock private BankCatalog bankCatalog;
     @Mock private AccountCredentialProtectionService credentialProtection;
+    @Mock private BankAccountCandidateCachePort candidateCache;
     @Mock private User user;
 
     @Test
@@ -90,6 +94,7 @@ class BankAccountServiceTest {
                 "local:v1:value".equals(institution.localCredentialsCiphertext())
                         && "kms:v1:value".equals(institution.kmsCredentialsCiphertext())));
         verify(bankConnectionPort).findAccounts("CID-1", "0020", null, credentials);
+        verify(candidateCache).save(eq(1L), eq(7L), eq("0020"), anyList(), any());
     }
 
     @Test
@@ -114,6 +119,7 @@ class BankAccountServiceTest {
                 List.of(candidateKey("CID-1", "0020", candidate.externalAccountKey())), null));
 
         verify(bankConnectionPort).findAccounts("CID-1", "0020", null, credentials);
+        verify(candidateCache).evict(userId, connectionId, "0020");
     }
 
     @Test
@@ -228,6 +234,24 @@ class BankAccountServiceTest {
     }
 
     @Test
+    @DisplayName("계좌 후보 캐시가 있으면 CODEF와 자격증명 조회를 건너뛴다")
+    void connectionAccounts_cacheHit_skipsCodef() {
+        ownedConnection();
+        when(connectionStorePort.hasInstitution(7L, "0020")).thenReturn(true);
+        when(candidateCache.find(1L, 7L, "0020")).thenReturn(Optional.of(List.of(
+                new AccountCandidate(
+                        "cached-key", AccountType.DEPOSIT_TRUST, "주거래 통장",
+                        "****6789", new BigDecimal("1000000"), "KRW", false)
+        )));
+
+        var result = service().getConnectionAccounts(query(7L, "0020"));
+
+        assertThat(result.candidates()).singleElement().satisfies(candidate ->
+                assertThat(candidate.candidateKey()).isEqualTo("cached-key"));
+        verifyNoInteractions(bankConnectionPort, credentialProtection, loadAccountPort);
+    }
+
+    @Test
     void missingStoredCredentialsStopBeforeCodefCall() {
         ownedConnection();
         when(connectionStorePort.hasInstitution(7L, "0020")).thenReturn(true);
@@ -259,7 +283,8 @@ class BankAccountServiceTest {
         );
         return new BankAccountService(
                 currentActorPort, loadUserPort, connectionStorePort, loadAccountPort,
-                saveAccountPort, bankConnectionPort, bankCatalog, credentialProtection, registrationService
+                saveAccountPort, bankConnectionPort, bankCatalog, credentialProtection, registrationService,
+                candidateCache
         );
     }
 

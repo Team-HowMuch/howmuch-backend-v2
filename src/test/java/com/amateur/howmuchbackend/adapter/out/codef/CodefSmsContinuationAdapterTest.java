@@ -120,7 +120,8 @@ class CodefSmsContinuationAdapterTest {
         }
 
         var operation =
-                new FinanceOperation("TRANSACTION_LIST", "0020", 1L, 1L, "202610", null, false);
+                new FinanceOperation("TRANSACTION_LIST", "0020", 1L, 1L, "2026-10", null, false,
+                        java.time.LocalDateTime.of(2026, 10, 18, 3, 0), java.time.LocalDate.of(2026, 10, 18));
         byte[] accepted =
                 adapter.acceptSms(adapter.prepareOperation(challenge.payload(), operation), "2453");
         when(client.postOnce(anyString(), any()))
@@ -130,7 +131,9 @@ class CodefSmsContinuationAdapterTest {
                                 {"result":{"code":"CF-00000"},"data":{"resTrHistoryList":[]}}
                                 """));
 
-        assertThat(adapter.resumeOperation(accepted).transactions()).isEmpty();
+        var resumed = adapter.resumeOperation(accepted);
+        assertThat(resumed.transactions()).isEmpty();
+        assertThat(resumed.operation()).isEqualTo(operation);
 
         var payload = ArgumentCaptor.forClass(Object.class);
         verify(client, times(1))

@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.account.service.AccountCredentialProtectionService;
 import com.amateur.howmuchbackend.application.notification.service.BusinessNotificationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionCoveragePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
@@ -136,6 +137,8 @@ class SettlementDepositServiceTest {
                         bankCatalog,
                         credentialProtection,
                         mock(SettlementBankLookupBudgetPort.class),
+                        mock(AccountTransactionCoveragePort.class),
+                        loadTransactionPort,
                         Clock.systemUTC()
                 );
         service = new SettlementDepositService(
@@ -460,6 +463,8 @@ class SettlementDepositServiceTest {
                 connectionStorePort,
                 new SettlementBankTransactionFetchService(bankTransactionPort, bankCatalog, credentialProtection,
                         mock(SettlementBankLookupBudgetPort.class),
+                        mock(AccountTransactionCoveragePort.class),
+                        loadTransactionPort,
                         Clock.systemUTC()),
                 writer, mock(SettlementDepositReader.class));
         try (var clock = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {

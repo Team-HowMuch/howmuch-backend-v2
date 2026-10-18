@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import server
 
@@ -46,6 +47,43 @@ class CertificateMockTest(unittest.TestCase):
         self.handler._delete_institutions({'connectedId': cid, 'accountList': [{'organization': '0020'}]})
         self.handler._registered_accounts({'connectedId': cid})
         self.assertEqual([], self.response['data']['accountList'])
+
+
+class TransactionScenarioMockTest(CertificateMockTest):
+    def setUp(self):
+        super().setUp()
+        self.handler._send_json = self.capture
+        self.old_scenario = dict(server.TRANSACTION_SCENARIO)
+
+    def tearDown(self):
+        server.TRANSACTION_SCENARIO.update(self.old_scenario)
+        super().tearDown()
+
+    def test_delay_and_requested_date_filter(self):
+        cid = self.register({'loginType': '1', 'organization': '0020', 'id': 'demo-user'})
+        self.handler._set_transaction_scenario({'delayMs': 8000, 'transactions': [
+            {'resAccountTrDate': '20261018', 'resAccountIn': '1000'},
+            {'resAccountTrDate': '20260930', 'resAccountIn': '2000'},
+            {'account': 'different', 'resAccountTrDate': '20261018', 'resAccountIn': '3000'},
+        ]})
+        with patch('server.time.sleep') as sleep:
+            self.handler._transaction_list({'connectedId': cid, 'organization': '0020',
+                'account': '1002123456789', 'startDate': '20261001', 'endDate': '20261031'})
+        sleep.assert_called_once_with(8)
+        self.assertEqual(1, len(self.response['data']['resTrHistoryList']))
+        self.assertEqual(0, server.TRANSACTION_COUNTS['inFlight'])
+
+    def test_failure_instead_of_false_empty_success(self):
+        cid = self.register({'loginType': '1', 'organization': '0020', 'id': 'demo-user'})
+        self.handler._set_transaction_scenario({'httpStatus': 503})
+        self.handler._transaction_list({'connectedId': cid, 'organization': '0020',
+            'account': '1002123456789', 'startDate': '20261001', 'endDate': '20261031'})
+        self.assertNotEqual('CF-00000', self.response['result']['code'])
+
+    def test_invalid_or_unbounded_delay_is_rejected(self):
+        for delay in [-1, 120001, '8000']:
+            with self.assertRaises(server.RequestError):
+                self.handler._set_transaction_scenario({'delayMs': delay})
 
 
 if __name__ == '__main__':
