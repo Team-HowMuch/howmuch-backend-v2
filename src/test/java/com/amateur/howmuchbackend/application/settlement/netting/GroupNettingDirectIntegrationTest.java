@@ -583,9 +583,10 @@ class GroupNettingDirectIntegrationTest {
     }
 
     private void leave(long group, long userId, String status) {
+        // 가입 시각은 JVM, 탈퇴 시각은 DB 시계에서 와서 미세한 시차로 역전될 수 있다.
         jdbc.update(
-                "UPDATE group_members SET status=?,left_at=now() AT TIME ZONE 'UTC'"
-                        + ",updated_at=now() AT TIME ZONE 'UTC' WHERE group_id=? AND user_id=?",
+                "UPDATE group_members SET status=?,left_at=GREATEST(joined_at,now() AT TIME ZONE 'UTC')"
+                        + ",updated_at=GREATEST(joined_at,now() AT TIME ZONE 'UTC') WHERE group_id=? AND user_id=?",
                 status,
                 group,
                 userId);
