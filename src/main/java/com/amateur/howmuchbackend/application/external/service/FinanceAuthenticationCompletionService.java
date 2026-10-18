@@ -21,7 +21,7 @@ import java.util.List;
 public class FinanceAuthenticationCompletionService {
     private final BankConnectionRegistrationService registrations;
     private final BankAccountService accounts;
-    private final AccountQueryService transactions;
+    private final AccountTransactionSyncService transactions;
 
     public FinanceAuthenticationCompletion complete(long user, FinanceOperationResult result) {
         var operation = result.operation();
