@@ -356,13 +356,19 @@ class SettlementReceiptReplacementIntegrationTest {
         assertThat(count("settlement_shares")).isEqualTo(1);
     }
 
-    @Test
-    void dutchPay_zeroAmount_resumeRejected() {
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"0,10000", "10000,0"})
+    void dutchPay_zeroAmount_resumeCreatesOnlyPositiveShare(long creatorAmount, long payerAmount) {
         initializeDutchPay();
-        allocationService.replace(settlementId, dutchCommand(0, 10_000));
-        assertError(() -> lifecycle.resume(settlementId), SettlementStatusCode.SETTLEMENT_SHARE_AMOUNT_REQUIRED);
-        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.SUSPENDED);
-        assertThat(count("settlement_shares")).isZero();
+        allocationService.replace(settlementId, dutchCommand(creatorAmount, payerAmount));
+        lifecycle.resume(settlementId);
+        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+        assertThat(loadShares.findAllBySettlementId(settlementId)).singleElement().satisfies(share -> {
+            assertThat(share.amount()).isEqualTo(10_000);
+            assertThat(share.payerParticipantId()).isEqualTo(
+                    creatorAmount > 0 ? creatorParticipantId : payerParticipantId);
+        });
+        assertThat(count("settlement_participants")).isEqualTo(2);
     }
 
     @Test

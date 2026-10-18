@@ -128,15 +128,12 @@ public class SettlementRequestPolicy {
                             SettlementStatusCode.SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE
                     );
                 }
-                if (allocation.amount() <= 0) {
-                    throw ApplicationException.of(
-                            SettlementStatusCode.SETTLEMENT_SHARE_AMOUNT_REQUIRED
-                    );
-                }
                 total = Math.addExact(total, allocation.amount());
-                shares.add(SettlementShare.create(
-                        settlement.id(), participant.id(), allocation.amount(), now
-                ));
+                if (allocation.amount() > 0) {
+                    shares.add(SettlementShare.create(
+                            settlement.id(), participant.id(), allocation.amount(), now
+                    ));
+                }
             }
         } catch (ArithmeticException exception) {
             throw ApplicationException.of(

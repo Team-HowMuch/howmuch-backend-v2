@@ -233,7 +233,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION, SETTLEMENT_REVISION_PAYMENT_EXISTS, SETTLEMENT_EXPENSE_TOTAL_MISMATCH, SETTLEMENT_SHARE_TOTAL_MISMATCH, SETTLEMENT_SHARE_AMOUNT_REQUIRED, SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE"
+                    description = "INVALID_SETTLEMENT_STATUS_TRANSITION, SETTLEMENT_REVISION_PAYMENT_EXISTS, SETTLEMENT_EXPENSE_TOTAL_MISMATCH, SETTLEMENT_SHARE_TOTAL_MISMATCH, SETTLEMENT_DUTCH_PAY_ALLOCATION_INCOMPLETE"
             )
     })
     ApiResponse<SettlementWebResponse> resumeSettlement(UUID settlementId);
