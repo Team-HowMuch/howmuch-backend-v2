@@ -75,3 +75,14 @@ HowMuch API 요청 예시의 금융기관 비밀번호는 Mock이 검증하거�
 ```bash
 python3 -m unittest discover -s tools/codef-mock -p 'test_server.py'
 ```
+
+
+## 거래 조회 지연·실패 QA
+
+`POST /admin/api/transaction-scenario`에 다음 설정을 보내면 transaction-list 응답에만 지연을 넣는다. OAuth/관리 API는 지연되지 않는다. 요청 계좌는 등록된 가상 연결/기관/계좌인지 검증하며 조회 날짜 밖 거래는 반환하지 않는다.
+
+```json
+{"delayMs":8000,"httpStatus":200,"resetCounts":true,"transactions":[{"resAccountTrDate":"20261018","resAccountTrTime":"110000","resAccountIn":"1000","resAccountOut":"0","resAccountDesc1":"가상 납부자","resAfterTranBalance":"1000"}]}
+```
+
+`delayMs`는 0~120000, `httpStatus`는 200/429/500/503이다. 거래마다 선택적 `account`/`organization`으로 가상 계좌를 지정할 수 있다. 생략하면 모든 등록된 가상 계좌에 적용된다. `GET /admin/api/transaction-scenario`의 `requests`/`inFlight`로 중복 수집과 지연 중 조회를 확인한다. 설정/집계는 메모리에만 보관되고 재기동하면 초기화된다. 실제 개인정보를 넣지 않는다.
