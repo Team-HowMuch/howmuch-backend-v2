@@ -70,6 +70,42 @@ class SettlementWidgetSummaryPolicyTest {
         assertThat(result.receivable().settlements().getFirst().unpaidParticipantCount()).isZero();
     }
 
+    @Test
+    void finalizedDutchPayZeroAmountDoesNotCountAsUnpaid() {
+        var result = policy.summarize(List.of(
+                row(true, false, false, 1_000L, BigInteger.valueOf(400), false),
+                row(true, false, false, null, BigInteger.ZERO, false)), Map.of(), null);
+        assertThat(result.receivable().totalAmount()).isEqualTo(600);
+        assertThat(result.receivable().settlements().getFirst().unpaidParticipantCount()).isOne();
+    }
+
+    @Test
+    void creatorOnlyDutchPayKeepsReceivableWithNoUnpaidParticipants() {
+        var result = policy.summarize(List.of(
+                row(true, false, false, null, BigInteger.ZERO, false)), Map.of(), null);
+        assertThat(result.receivable().totalCount()).isOne();
+        assertThat(result.receivable().totalAmount()).isZero();
+        assertThat(result.receivable().settlements().getFirst().unpaidParticipantCount()).isZero();
+    }
+
+    @Test
+    void finalizedDutchPayZeroAmountIsExcludedFromPayable() {
+        var result = policy.summarize(List.of(
+                row(false, false, false, null, BigInteger.ZERO, false)), Map.of(), null);
+        assertThat(result.payable().totalCount()).isZero();
+        assertThat(result.payable().totalAmount()).isZero();
+        assertThat(result.payable().settlements()).isEmpty();
+    }
+
+    @Test
+    void positiveDutchPayShareFullyPaidRemainsWaiting() {
+        var result = policy.summarize(List.of(
+                row(false, false, false, 1_000L, BigInteger.valueOf(1_000), false)), Map.of(), null);
+        assertThat(result.payable().totalCount()).isOne();
+        assertThat(result.payable().settlements().getFirst().status().name()).isEqualTo("WAITING");
+        assertThat(result.payable().settlements().getFirst().remainingAmount()).isZero();
+    }
+
     private SettlementWidgetReadModel row(boolean creator, boolean requested, boolean adjustment,
             Long share, BigInteger confirmed, boolean submitted) {
         return new SettlementWidgetReadModel(id, "검증", 10_000, creator,

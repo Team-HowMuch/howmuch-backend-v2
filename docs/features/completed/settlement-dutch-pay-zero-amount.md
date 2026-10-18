@@ -94,3 +94,13 @@ JAVA_HOME=$(/usr/libexec/java_home -v 21) bash scripts/test.sh compileJava test 
 - 잔여 계약: 클라이언트는 상세/링크의 0원을 미확정 null과 구분해야 한다. 상세 PAID는 0원으로 납부 의무가 없는 경우도 포함하지만 납부 완료 인원에는 포함하지 않는다.
 - 생성자만 양수인 경우 기존 동작대로 입금 확인 호출에서 COMPLETED가 된다. 자동 완료 시점을 변경하지 않았다.
 - 검증 중 발견한 기존 PAY 노출 기대값을 새 계약에 맞췄고, 새 테스트의 트랜잭션·금융 연결 fixture를 수정한 뒤 최종 280개 검증을 통과했다.
+
+## 7. 리뷰 후속: 홈 위젯
+
+- 리뷰 지적: 확정된 더치페이의 Share 없는 참여자가 위젯에서는 미납 인원/WAITING 납부 항목에 남는다.
+- 수정: `SettlementWidgetSummaryPolicy`에서 AWAITING_DEPOSIT 더치페이의 Share 없는 참여자는 미납 인원과 payable 목록에서 제외한다. 생성자의 receivable 항목은 0원·미납 0명으로 유지한다. 품목 선택 중 미확정/할인 조정 대기 및 양수 Share를 완납한 WAITING 표시는 유지한다.
+- Flyway migration required: No. Application 계산만 수정하며 조회 SQL·저장 구조는 변경하지 않는다.
+- 커밋 경계: `fix(settlement): 위젯에서 0원 참여자의 납부 의무 제외`.
+- 검증: 수정 전 새 회귀 4건 실패를 확인했다. 수정 후 Java 21 컴파일, 위젯 정책 10개·실제 HTTP 위젯 14개·0원 정산 HTTP 3개(총 27개), JavaScript 35개가 모두 통과했다.
+- 재현: 기존 검증 환경에서 `bash scripts/test.sh compileJava test --tests '*SettlementWidgetSummaryPolicyTest' --tests '*SettlementWidgetHttpIntegrationTest' --tests '*SettlementDutchPayZeroAmountHttpIntegrationTest'`.
+- 기존 원격 CI는 GitHub 결제 실패/사용 한도 안내로 job이 시작되지 않았다. 로컬 검증과 구분한다.
