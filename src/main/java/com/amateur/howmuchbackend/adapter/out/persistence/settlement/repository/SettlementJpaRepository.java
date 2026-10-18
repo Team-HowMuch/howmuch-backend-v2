@@ -31,8 +31,11 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 creator.name AS requesterName,
                 COUNT(DISTINCT participant.id) AS participantCount,
                 COUNT(DISTINCT CASE
-                        WHEN participant.linked_user_id IS NULL
-                             OR participant.linked_user_id <> settlement.creator_id
+                        WHEN (participant.linked_user_id IS NULL
+                              OR participant.linked_user_id <> settlement.creator_id)
+                         AND (settlement.allocation_type IS DISTINCT FROM 'DUTCH_PAY'
+                              OR settlement.status NOT IN ('AWAITING_DEPOSIT', 'COMPLETED', 'NETTING_IN_PROGRESS')
+                              OR share.id IS NOT NULL)
                         THEN participant.id
                     END) AS payableParticipantCount,
                 MAX(payment_summary.completed_participant_count) AS completedParticipantCount,
@@ -97,6 +100,13 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                               FROM settlement_participants linked_participant
                              WHERE linked_participant.settlement_id = settlement.id
                                AND linked_participant.linked_user_id = :userId
+                               AND (settlement.allocation_type IS DISTINCT FROM 'DUTCH_PAY'
+                                    OR settlement.status NOT IN ('AWAITING_DEPOSIT', 'COMPLETED', 'NETTING_IN_PROGRESS')
+                                    OR EXISTS (
+                                        SELECT 1 FROM settlement_shares linked_share
+                                         WHERE linked_share.settlement_id = settlement.id
+                                           AND linked_share.payer_participant_id = linked_participant.id
+                                    ))
                         )
                     )
                 )
@@ -189,8 +199,11 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                         THEN share.amount
                     END), 0) AS receivableAmount,
                 COUNT(DISTINCT CASE
-                        WHEN participant.linked_user_id IS NULL
-                             OR participant.linked_user_id <> settlement.creator_id
+                        WHEN (participant.linked_user_id IS NULL
+                              OR participant.linked_user_id <> settlement.creator_id)
+                         AND (settlement.allocation_type IS DISTINCT FROM 'DUTCH_PAY'
+                              OR settlement.status NOT IN ('AWAITING_DEPOSIT', 'COMPLETED', 'NETTING_IN_PROGRESS')
+                              OR share.id IS NOT NULL)
                         THEN participant.id
                     END) AS payerCount,
                 COUNT(DISTINCT CASE
@@ -232,6 +245,13 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                               FROM settlement_participants linked_participant
                              WHERE linked_participant.settlement_id = settlement.id
                                AND linked_participant.linked_user_id = :userId
+                               AND (settlement.allocation_type IS DISTINCT FROM 'DUTCH_PAY'
+                                    OR settlement.status NOT IN ('AWAITING_DEPOSIT', 'COMPLETED', 'NETTING_IN_PROGRESS')
+                                    OR EXISTS (
+                                        SELECT 1 FROM settlement_shares linked_share
+                                         WHERE linked_share.settlement_id = settlement.id
+                                           AND linked_share.payer_participant_id = linked_participant.id
+                                    ))
                         )
                     )
                 )

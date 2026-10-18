@@ -778,6 +778,43 @@ class SettlementDetailServiceTest {
         assertThat(result.participants().get(1).paymentStatus()).isEqualTo(SettlementDetailResult.PaymentStatus.PAID);
     }
 
+    @Test
+    @DisplayName("확정 더치페이의 0원 참여 기록은 남기고 납부 진행 인원에서는 제외한다")
+    void dutchPay_zeroAmount_excludedFromPaymentCounts() {
+        givenSettlement(CREATOR_ID, List.of(
+                new LoadSettlementDepositSummaryPort.ConfirmedShareAmount(PAYER_SHARE_ID, 1_400)));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                new SettlementShare(PAYER_SHARE_ID, SETTLEMENT_ID, PAYER_PARTICIPANT_ID, 1_400, NOW)));
+
+        var result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.paymentSummary()).isEqualTo(
+                new SettlementDetailResult.PaymentSummary(1_400, 1_400, 0, 100, 1, 1, 1));
+        assertThat(result.participants()).hasSize(2);
+        assertThat(result.participants().get(1).expectedAmount()).isZero();
+        assertThat(result.participants().get(1).paymentStatus()).isEqualTo(SettlementDetailResult.PaymentStatus.PAID);
+        assertThat(result.participants().get(1).submitted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("중단 더치페이의 Share 부재는 미확정 상태로 유지한다")
+    void dutchPay_suspendedWithoutShare_remainsUnconfirmed() {
+        givenSettlement(CREATOR_ID, List.of());
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(new Settlement(
+                SETTLEMENT_ID, CREATOR_ID, "중단 정산", 1_400, SettlementAllocationType.DUTCH_PAY,
+                7L, SettlementStatus.SUSPENDED, NOW, NOW)));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
+
+        var result = service.get(SETTLEMENT_ID);
+
+        assertThat(result.paymentSummary().payableParticipantCount()).isEqualTo(2);
+        assertThat(result.paymentSummary().completedParticipantCount()).isZero();
+        assertThat(result.participants()).allSatisfy(payment -> {
+            assertThat(payment.expectedAmount()).isNull();
+            assertThat(payment.paymentStatus()).isEqualTo(SettlementDetailResult.PaymentStatus.NOT_READY);
+        });
+    }
+
     private void givenSettlement(Long actorId) {
         givenSettlement(
                 actorId,

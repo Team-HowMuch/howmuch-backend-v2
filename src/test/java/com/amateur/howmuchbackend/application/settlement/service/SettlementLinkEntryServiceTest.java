@@ -110,7 +110,7 @@ class SettlementLinkEntryServiceTest {
     }
 
     @Test
-    @DisplayName("APP_DIRECT도 요청자 포함 전체 인원과 미확정 금액 null을 반환한다")
+    @DisplayName("APP_DIRECT는 0원 참여자를 전체 인원에 포함하고 금액 0을 반환한다")
     void settlementLink_appDirect_returnsParticipantsAndAmounts() {
         arrangeDutchPayAccess();
         when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
@@ -126,7 +126,7 @@ class SettlementLinkEntryServiceTest {
         assertThat(result.participantCount()).isEqualTo(2);
         assertThat(result.selectedParticipant().participantId()).isEqualTo(PAYER_PARTICIPANT_ID);
         assertThat(result.selectedParticipant().isRequester()).isFalse();
-        assertThat(result.selectedParticipant().amount()).isNull();
+        assertThat(result.selectedParticipant().amount()).isZero();
         assertThat(result.participantCandidates()).isEmpty();
         assertThat(result.participantContext()).isEqualTo(CONTEXT_ID.toString());
     }
@@ -313,6 +313,32 @@ class SettlementLinkEntryServiceTest {
 
         assertThat(result.storeName()).isNull();
         assertThat(result.paidAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("브라우저 링크에서도 0원 참여 기록을 유지한다")
+    void settlementLink_zeroAmount_remainsSelectable() {
+        arrangeDutchPayAccess();
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(shares().getFirst()));
+        when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
+
+        assertThat(service.resolve(RAW_TOKEN).participantCandidates())
+                .extracting(candidate -> candidate.amount()).containsExactly(4_000L, 0L);
+    }
+
+    @Test
+    @DisplayName("중단 후 편집으로 Share가 사라진 금액은 0원이 아닌 미확정이다")
+    void settlementLink_suspendedWithoutShare_remainsUnconfirmed() {
+        arrangeDutchPayAccess();
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(new Settlement(
+                SETTLEMENT_ID, 1L, "회식 정산", 10_000, SettlementAllocationType.DUTCH_PAY,
+                7L, SettlementStatus.SUSPENDED, CREATED_AT, CREATED_AT)));
+        when(loadSettlementSharePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of());
+        when(currentActorPort.findCurrentActor()).thenReturn(Optional.empty());
+
+        assertThat(service.resolve(RAW_TOKEN).participantCandidates())
+                .extracting(candidate -> candidate.amount()).containsOnlyNulls();
     }
 
     private void arrangeDutchPayAccess() {
