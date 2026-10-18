@@ -7,6 +7,8 @@ import com.amateur.howmuchbackend.application.port.out.settlement.*;
 import com.amateur.howmuchbackend.application.settlement.service.*;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.notification.UserNotification;
+import com.amateur.howmuchbackend.domain.notification.NotificationType;
+import com.amateur.howmuchbackend.domain.notification.NotificationTargetType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementItemSubmission;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
@@ -416,7 +418,16 @@ class NotificationInboxIntegrationTest {
         var document = json.readTree(response.getResponse().getContentAsString());
         var item = document.at("/components/schemas/NotificationItem");
         assertThat(item.get("required").toString()).contains("readAt", "action", "settlementId", "createdAt");
-        assertThat(item.at("/properties/type/enum").toString()).contains("SETTLEMENT_REQUEST", "SETTLEMENT_REMINDER");
+        var documentedTypes = new ArrayList<String>();
+        for (var type : item.at("/properties/type/enum")) documentedTypes.add(type.stringValue());
+        assertThat(documentedTypes).containsExactlyInAnyOrderElementsOf(
+                Arrays.stream(NotificationType.values()).map(Enum::name).toList());
+        var documentedActions = new ArrayList<String>();
+        for (var type : document.at("/components/schemas/NotificationAction/properties/type/enum")) {
+            documentedActions.add(type.stringValue());
+        }
+        assertThat(documentedActions).containsExactlyInAnyOrderElementsOf(
+                Arrays.stream(NotificationTargetType.values()).map(Enum::name).toList());
         assertThat(document.at("/paths/~1api~1v2~1notifications/get/security").toString()).contains("bearerAuth");
     }
 

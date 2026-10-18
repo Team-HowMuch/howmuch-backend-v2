@@ -53,7 +53,7 @@ public record NotificationPageWebResponse(
     public record Action(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                     allowableValues = {"GROUP_SETTLEMENT_NETTING", "SETTLEMENT_PARTICIPATION", "SETTLEMENT_DETAIL", "GROUP_INVITATION",
-                            "GROUP_DETAIL", "MONTHLY_RECAP"}) String type,
+                            "GROUP_DETAIL", "MONTHLY_RECAP", "FINANCE_AUTHENTICATION"}) String type,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String label,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                     description = "대상 삭제·권한 소멸·초대 만료 시 false") boolean enabled,
