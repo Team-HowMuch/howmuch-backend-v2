@@ -12,7 +12,6 @@ import com.amateur.howmuchbackend.domain.treasurer.SavedTreasurerAnswer;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerGeneratedBy;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
-import com.amateur.howmuchbackend.application.treasurer.policy.InquiryHowToPolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.TreasurerGuideCheck;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerKnowledge;
@@ -1031,25 +1030,24 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    @DisplayName("얼마와 관계없는 질문은 안내 LLM을 부르지 않는다")
-    void unrelatedQuestion_skipsGuide() {
+    @DisplayName("안내 LLM이 없으면 얼마와 관계없는 질문은 키워드 분류대로 질문 예시를 보여준다")
+    void unrelatedQuestion_guideUnavailable_returnsExamples() {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand("푸딩은 어떻게 만드나요?"));
 
         assertThat(result.answer()).contains("이렇게 물어볼 수 있어요");
-        verifyNoInteractions(generateTreasurerGuidePort);
+        verify(generateTreasurerGuidePort).generate(eq("푸딩은 어떻게 만드나요?"), eq(KNOWLEDGE));
     }
 
     @Test
-    @DisplayName("다른 낱말의 첫머리로 쓰인 돈은 관련 단어로 보지 않아 안내 LLM을 부르지 않는다")
-    void wordPrefixedMoneyTerm_skipsGuide() {
+    @DisplayName("안내 LLM이 없으면 다른 낱말의 첫머리로 쓰인 돈은 관련 단어로 보지 않는다")
+    void wordPrefixedMoneyTerm_guideUnavailable_returnsOutOfScope() {
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand("돈까스 만드는 방법 알려줘"));
 
         assertThat(result.answer()).isEqualTo(TreasurerCardCopy.UNKNOWN_ANSWER);
-        verifyNoInteractions(generateTreasurerGuidePort);
     }
 
     @Test
@@ -1128,15 +1126,15 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    @DisplayName("내 금액을 묻는 흔한 말투는 안내 LLM을 거치지 않고 바로 정산을 조회한다")
-    void dataPhrasing_skipsGuide() {
+    @DisplayName("안내 LLM이 없으면 내 금액을 묻는 흔한 말투는 키워드 분류대로 정산을 조회한다")
+    void dataPhrasing_guideUnavailable_answersFromSettlements() {
         when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
         AskTreasurerService service = service();
 
         var result = service.ask(new AskTreasurerCommand("이번 달 보낼 돈 어떻게 돼?"));
 
         assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
-        verifyNoInteractions(generateTreasurerGuidePort);
+        verify(generateTreasurerGuidePort).generate(eq("이번 달 보낼 돈 어떻게 돼?"), eq(KNOWLEDGE));
     }
 
     @Test
@@ -1425,7 +1423,6 @@ class AskTreasurerServiceTest {
                 currentActorPort,
                 saveTreasurerAnswerPort,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                new InquiryHowToPolicy(),
                 () -> KNOWLEDGE,
                 generateTreasurerGuidePort,
                 new TreasurerGuideCheck()

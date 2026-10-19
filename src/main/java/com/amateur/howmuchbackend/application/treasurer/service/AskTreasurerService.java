@@ -11,7 +11,6 @@ import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAn
 import com.amateur.howmuchbackend.application.treasurer.model.InquiryScope;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerGuideReply;
-import com.amateur.howmuchbackend.application.treasurer.policy.InquiryHowToPolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.TitleHintVerification;
@@ -59,7 +58,6 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     private final CurrentActorPort currentActorPort;
     private final SaveTreasurerAnswerPort saveTreasurerAnswerPort;
     private final Clock clock;
-    private final InquiryHowToPolicy inquiryHowToPolicy;
     private final LoadTreasurerKnowledgePort loadTreasurerKnowledgePort;
     private final GenerateTreasurerGuidePort generateTreasurerGuidePort;
     private final TreasurerGuideCheck treasurerGuideCheck;
@@ -109,40 +107,56 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         }
     }
 
+    /**
+     * 안내 LLM이 먼저 질문을 나누고, LLM 응답이 없을 때만 키워드 분류로 답한다.
+     *
+     * <p>LLM은 한 번만 부른다. 안내 답변이 검사에서 버려져 키워드 분류로 돌아갈 때도 다시 부르지 않는다.
+     */
     private Answered answerFor(AskTreasurerCommand command) {
-        InquiryParser.ParsedInquiry parsed = inquiryParser.parse(command.question());
-        if (parsed.intent() == InquiryIntent.UNKNOWN) {
-            if (inquiryScopePolicy.classify(command.question()) == InquiryScope.UNRELATED) {
-                return unmatchedAnswer(command.question());
-            }
-            Guided guided = guidedAnswer(command.question());
-            if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
-                return outOfScopeAnswer();
-            }
-            return guided.answer().orElseGet(() -> unmatchedAnswer(command.question()));
-        }
-        if (parsed.intent() == InquiryIntent.GUIDE) {
-            Guided guided = guidedAnswer(command.question());
-            if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
-                return outOfScopeAnswer();
-            }
-            return guided.answer()
-                    .orElseGet(() -> textAnswer(InquiryIntent.GUIDE, TreasurerCardCopy.OCR_ANSWER, List.of()));
-        }
-        if (inquiryHowToPolicy.asksHowTo(command.question())) {
-            // "송금은 어떻게 해?"처럼 키워드가 데이터 의도로 걸려도 사용법 질문일 수 있다.
-            // 안내가 데이터 질문이라고 돌려보내거나 실패하면 지금처럼 정산을 조회한다.
-            // "비트코인 송금은 어떻게 해?"처럼 무관하다고 하면 정산을 보여주지 않고 범위를 안내한다.
-            Guided guided = guidedAnswer(command.question());
-            if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
-                return outOfScopeAnswer();
-            }
-            if (guided.answer().isPresent()) {
-                return guided.answer().get();
-            }
-        }
-
         String question = command.question();
+        InquiryParser.ParsedInquiry parsed = inquiryParser.parse(question);
+        Guided guided = guidedAnswer(question);
+        if (guided.reply() == null) {
+            return keywordAnswer(question, parsed);
+        }
+        return switch (guided.reply().route()) {
+            case UNRELATED -> outOfScopeAnswer();
+            case GUIDE -> guided.answer().orElseGet(() -> keywordAnswer(question, parsed));
+            case DATA -> routedDataAnswer(question, parsed, guided.reply());
+        };
+    }
+
+    /** LLM 응답이 없거나 안내 답변이 버려졌을 때의 키워드 분류 답변. */
+    private Answered keywordAnswer(String question, InquiryParser.ParsedInquiry parsed) {
+        return switch (parsed.intent()) {
+            case UNKNOWN -> unmatchedAnswer(question);
+            case GUIDE -> textAnswer(InquiryIntent.GUIDE, TreasurerCardCopy.OCR_ANSWER, List.of());
+            default -> dataAnswer(question, parsed);
+        };
+    }
+
+    /**
+     * LLM이 데이터 질문이라고 한 답변.
+     *
+     * <p>LLM이 의도를 정하지 못했다고 하면 되묻는다. 의도를 비우거나 정해진 값이 아니면 키워드 분류를 쓴다.
+     * 기간과 이름도 LLM이 비우면 키워드가 뽑은 값을 쓴다.
+     */
+    private Answered routedDataAnswer(String question, InquiryParser.ParsedInquiry parsed, TreasurerGuideReply reply) {
+        if (reply.intent() == InquiryIntent.UNKNOWN) {
+            return clarifyAnswer();
+        }
+        if (reply.intent() == null) {
+            return parsed.intent() == InquiryIntent.UNKNOWN ? clarifyAnswer() : keywordAnswer(question, parsed);
+        }
+        String titleHint = titleHintVerification.fromQuestion(question, reply.titleHint());
+        return dataAnswer(question, new InquiryParser.ParsedInquiry(
+                reply.intent(),
+                reply.period() != null ? reply.period() : parsed.period(),
+                titleHint != null ? titleHint : parsed.titleHint()
+        ));
+    }
+
+    private Answered dataAnswer(String question, InquiryParser.ParsedInquiry parsed) {
         InquiryPeriod parsedPeriod = parsed.period();
         InquiryPeriod period = parsedPeriod == null ? InquiryPeriod.THIS_MONTH : parsedPeriod;
         Instant now = clock.instant();
@@ -232,6 +246,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         return textAnswer(InquiryIntent.UNKNOWN, answer, suggestionPrompts());
     }
 
+    private Answered clarifyAnswer() {
+        return textAnswer(InquiryIntent.UNKNOWN, TreasurerCardCopy.CLARIFY_ANSWER, suggestionPrompts());
+    }
+
     private Answered outOfScopeAnswer() {
         return textAnswer(InquiryIntent.UNKNOWN, TreasurerCardCopy.UNKNOWN_ANSWER, suggestionPrompts());
     }
@@ -241,10 +259,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     }
 
     /**
-     * 서비스 안내 문서를 근거로 사용법을 답한다.
+     * 서비스 안내 문서를 근거로 질문을 나누고 사용법을 답한다.
      *
      * <p>LLM이 사용법 질문이라고 답하고, 근거 ID와 금액 검사를 통과했을 때만 답변이 있다.
-     * 그 밖에는 경로만 돌려주고 호출자가 지금의 고정 안내나 정산 조회로 되돌린다.
+     * 그 밖에는 LLM 응답만 돌려주고 호출자가 경로에 따라 데이터 답변이나 키워드 분류로 간다.
      */
     private Guided guidedAnswer(String question) {
         var knowledge = loadTreasurerKnowledgePort.load();
@@ -274,7 +292,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         if (route == TreasurerGuideReply.Route.GUIDE && answer.isEmpty()) {
             log.warn("Treasurer guide answer rejected. reason={}", outcome.rejectedBecause());
         }
-        return new Guided(route, answer);
+        return new Guided(reply.get(), answer);
     }
 
     /** 후속 질문은 사용법 질문이다. 눌리면 질문 문장 그대로 다시 들어온다. */
@@ -282,8 +300,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         return new TreasurerAnswerResult.Prompt(InquiryIntent.GUIDE, question, question);
     }
 
-    /** 안내 경로의 결과. {@code route}는 LLM 응답이 없으면 비어 있다. */
-    private record Guided(TreasurerGuideReply.Route route, Optional<Answered> answer) {
+    /** 안내 LLM 호출 결과. {@code reply}는 LLM 응답이 없으면 비어 있다. */
+    private record Guided(TreasurerGuideReply reply, Optional<Answered> answer) {
     }
 
     private Answered textAnswer(
