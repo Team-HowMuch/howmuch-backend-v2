@@ -1,6 +1,6 @@
 # Feature Plan: AI 비서 질문 의도를 LLM으로 분류
 
-- Status: In progress
+- Status: In review
 - Last updated: 2026-10-19
 - Related issue: 생성 전 (#317 후속)
 - Related ADR: 없음
@@ -64,7 +64,7 @@
   - 금액·건수·목록은 LLM이 만들지 않는다.
   - LLM이 준 `titleHint`는 질문 원문(공백 제거)의 연속 부분 문자열일 때만 쓰고, 다시 `TitleHintVerification.verify()`로 사용자 정산과 대조한다.
   - LLM 응답이 없으면 지금과 결과가 같다.
-- Invalid states: LLM이 정한 의도가 `GUIDE`나 `UNKNOWN` 같은 데이터 의도 밖의 값이면 의도가 없는 것으로 본다.
+- Invalid states: LLM이 정한 의도가 `GUIDE`이거나 목록 밖의 값이면 의도가 없는 것으로 본다. `UNCLEAR`는 의도 없음이 아니라 "정할 수 없음"이라 `InquiryIntent.UNKNOWN`으로 읽고 되묻는다.
 
 ## 3. Scenarios
 
@@ -79,15 +79,17 @@
 
 - LLM 실패·키 없음·JSON 아님: 지금 흐름 그대로(키워드 → 관련성 → 되묻기/범위 안내).
 - `route=DATA` + `intent=UNCLEAR`: 되묻기.
-- `route=DATA` + 의도 없음·무효: 키워드 결과가 데이터 의도면 그걸 쓰고, 아니면 되묻기.
-- `route=GUIDE` + 검사 탈락: 지금 흐름 그대로(영수증 고정 문구, 정산 조회, 되묻기).
+- `route=DATA` + 의도 없음·무효: 키워드 결과가 `UNKNOWN`이 아니면 그 결과대로 답하고(`GUIDE`면 영수증 고정 문구), `UNKNOWN`이면 관련성 판정 없이 되묻기. LLM이 데이터 질문이라고 했으므로 범위 안내는 하지 않는다.
+- `route=GUIDE` + 검사 탈락: LLM을 다시 부르지 않고 키워드 결과대로 답한다(영수증 고정 문구, 정산 조회, 되묻기·범위 안내).
 - `route=UNRELATED`: 범위 안내.
 
 ### Boundary conditions
 
 - `PRIORITY_SETTLEMENTS`에서 기간이 없으면 "끝나지 않은 정산 전체", 다른 의도에서 기간이 없으면 이번 달. 지금 의미를 유지한다.
 - LLM이 기간이나 제목을 비우면 키워드가 뽑은 값을 쓴다.
+- LLM 기간은 키워드가 질문에서 기간 표현을 찾았을 때만 쓴다. 기간을 말하지 않은 우선순위 질문에 LLM이 기간을 채우면 지난달에 밀린 정산이 빠지기 때문이다. 둘 다 기간을 찾았는데 다르면("지난달 말고 이번 달") LLM 값을 쓴다.
 - LLM `titleHint`에 공백이 있으면 공백을 뺀 형태로 쓴다. 정산 제목 비교(`TitleHintVerification.matchesTitle`)가 공백을 뺀 제목에 대고 하기 때문이다.
+- LLM `titleHint`가 원문 확인은 통과했지만 사용자 정산과 맞지 않으면("제주 여행 모임에서"처럼 조사가 붙은 경우) 키워드가 뽑은 이름으로 다시 대조한다. 둘 다 맞지 않을 때만 "찾지 못해 전체에서 조회" 문구가 나간다.
 
 ## 4. Contracts
 
@@ -126,7 +128,7 @@ Result -> Web Response DTO: 변경 없음
 
 ```json
 {"route":"GUIDE|DATA|UNRELATED",
- "intent":"SEND_SETTLEMENTS|RECEIVE_SETTLEMENTS|SETTLEMENT_STATUS|EXPENSE_SUMMARY|DUE_SETTLEMENTS|PRIORITY_SETTLEMENTS|UNCLEAR",
+ "intent":"SEND_SETTLEMENTS|RECEIVE_SETTLEMENTS|SETTLEMENT_STATUS|EXPENSE_SUMMARY|DUE_SETTLEMENTS|PRIORITY_SETTLEMENTS|UNCLEAR|null",
  "period":"THIS_WEEK|THIS_MONTH|LAST_MONTH|null",
  "titleHint":"질문 원문에 있는 정산·모임 이름 또는 null",
  "answer":"...", "sources":[...], "followUps":[...]}
@@ -146,17 +148,18 @@ Result -> Web Response DTO: 변경 없음
   - `DATA` + 데이터 의도: 그 의도로 데이터 답변
   - `DATA` + `UNCLEAR`: 되묻기
   - `DATA` + 의도 없음·무효: 키워드 결과가 `UNKNOWN`이 아니면 지금 흐름, `UNKNOWN`이면 되묻기
-- `intent`·`period`는 정해진 값과 정확히 같을 때만 받는다. 대소문자가 다르거나 목록 밖이면 버린다.
+- `intent`·`period`는 대소문자를 무시하고 정해진 값과 같을 때만 받는다. 목록 밖이거나 문자열이 아니면 버린다. `route`도 대소문자를 무시하므로 같은 기준을 쓴다.
 - 프롬프트에는 키워드 목록이 아니라 의도별 뜻을 적는다.
 
 ### Technology and patterns
 
 - Constraint to solve: 키워드로 잡지 못한 데이터 질문을 LLM이 이미 이해하는데 서버가 버린다.
 - Selected approach: 기존 안내 LLM 호출 하나를 라우터로 넓힌다.
-- Reason for selection: 호출이 늘지 않고, 이미 받은 판정(`DATA`)을 그대로 쓴다.
+- Reason for selection: 새 LLM 호출 종류를 만들지 않고, 이미 받던 판정(`DATA`)을 그대로 쓴다.
 - Alternatives considered: 키워드 추가(끝이 없어 기각), 분류 전용 LLM 호출 추가(호출이 3번이 돼 기각).
 - Trade-offs and limits:
-  - 키워드로 바로 잡히던 데이터 질문도 LLM을 먼저 부른다. 호출이 1번(문장 다듬기)에서 2번으로 늘어 응답이 1~2초 늘고 비용이 조금 는다.
+  - 키워드로 바로 잡히던 데이터 질문도 LLM을 먼저 부른다. 호출이 1번(문장 다듬기)에서 2번으로 늘어 응답 시간과 비용이 는다. 1~2초는 정상 응답을 가정한 추정이고 실측하지 않았다.
+  - LLM 공급자가 응답하지 않으면 두 호출이 차례로 읽기 시간 제한(20초)까지 기다린다. 데이터 질문의 최악 응답 시간이 약 25초에서 약 50초로 는다.
   - 서비스와 무관한 질문도 LLM을 부른다.
   - 키워드로 잡히던 질문이라도 LLM이 `UNRELATED`나 `GUIDE`로 판정하면 그 판정을 따른다.
   - OpenAI 키는 2026-10-24까지다. 그 뒤 키가 없으면 대비 경로로만 동작해 같은 증상이 다시 나온다. Gemini 경로(`TREASURER_LLM_PROVIDER=gemini`)는 이미 있다.
@@ -202,7 +205,9 @@ Existing behavior that must remain unchanged:
 ```text
 docs(treasurer): LLM 우선 의도 분류 계획 정리
 feat(treasurer): 안내 LLM이 정한 의도로 정산 질문에 답한다
+fix(treasurer): 안내 LLM의 의도·기간 값을 대소문자 없이 읽는다
 test(treasurer): LLM 의도 분류와 키워드 대비 경로 검증
+fix(treasurer): 안내 LLM 기간·이름을 질문 기준으로 거른다
 docs(treasurer): LLM 의도 분류 검증 결과 기록
 ```
 
@@ -232,13 +237,19 @@ git status --short --untracked-files=all
 
 | Item | Result | Evidence |
 |---|---|---|
-|  | Pending |  |
+| 컴파일 | `compileJava`, `compileTestJava` 통과 | 로컬 맥 |
+| AI 비서 테스트 | `*Treasurer*`, `*Inquiry*`, `*TitleHint*` 292건 통과, 1건 건너뜀(API 키가 필요한 로컬 평가) | `build/test-results/test/TEST-*.xml` |
+| 전체 테스트 | 2433건 통과, 26건 건너뜀, 실패 0 | `bash scripts/test.sh test`, `3a65fcf7` 기준 |
+| 테스트가 실제로 잡는지 | LLM 데이터 판정을 키워드로 돌리면 5건, 기간 확인을 빼면 1건, 이름 재대조를 빼면 1건 실패를 확인하고 되돌렸다 | 로컬에서 임시 수정 |
+| 적대적 검토 | 별도 에이전트 검토. LLM이 없을 때의 회귀 없음. 기간·이름·프롬프트·로그·문서 지적을 반영했다 | 이 문서 10장 |
+| 실제 LLM 평가 | 하지 않음 | API 키는 사용자가 다룬다. `TreasurerGuideLiveEvaluation`으로 확인 필요 |
 
 ## 9. Progress log
 
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-10-19 | 계획 작성, develop `c6b293b4` 기준 줄 번호 재확인 | 구현 | 키 기한 2026-10-24 |
+| 2026-10-19 | 구현, 테스트, 적대적 검토 반영, 전체 테스트 통과 | 실제 LLM 평가, 이슈·PR | 공급자 장애 때 데이터 질문 최악 응답 약 50초(미해결) |
 
 ## 10. Decision log
 
@@ -248,6 +259,9 @@ git status --short --untracked-files=all
 | 2026-10-19 | LLM 판정이 키워드 결과와 달라도 LLM을 따른다 | 사용자 결정 | 키워드로 잡히던 질문이 LLM 오판으로 범위 안내를 받을 수 있다 |
 | 2026-10-19 | LLM `titleHint`는 공백을 빼고 원문과 비교·사용한다 | 제목 비교가 공백 없는 제목에 대고 한다 | 띄어 쓴 이름이 정산과 안 맞는 문제 방지 |
 | 2026-10-19 | LLM이 기간·제목을 비우면 키워드 값을 쓴다 | 키워드는 대비용 | LLM이 빠뜨린 "지난달" 등을 놓치지 않는다 |
+| 2026-10-19 | LLM 기간은 질문에 기간 표현이 있을 때만 쓴다 | 적대적 검토: 기간 없는 우선순위 질문에 LLM이 기간을 채우면 밀린 정산이 빠진다 | 키워드가 못 찾는 기간 표현은 LLM도 쓰지 못한다(프롬프트가 허용하는 표현은 키워드 목록과 같다) |
+| 2026-10-19 | LLM 이름이 정산과 맞지 않으면 키워드 이름으로 다시 대조한다 | 적대적 검토: 조사가 붙은 이름 때문에 LLM이 없을 때보다 나빠지는 경우 | 없음 |
+| 2026-10-19 | `InquiryHowToPolicy` 삭제 | LLM이 모든 질문을 먼저 나누면서 호출할 곳이 없어졌다 | 사용법 말투 판정은 LLM이 한다 |
 
 ## 11. Completion record
 
