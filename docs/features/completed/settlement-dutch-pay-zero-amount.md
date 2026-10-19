@@ -104,3 +104,16 @@ JAVA_HOME=$(/usr/libexec/java_home -v 21) bash scripts/test.sh compileJava test 
 - 검증: 수정 전 새 회귀 4건 실패를 확인했다. 수정 후 Java 21 컴파일, 위젯 정책 10개·실제 HTTP 위젯 14개·0원 정산 HTTP 3개(총 27개), JavaScript 35개가 모두 통과했다.
 - 재현: 기존 검증 환경에서 `bash scripts/test.sh compileJava test --tests '*SettlementWidgetSummaryPolicyTest' --tests '*SettlementWidgetHttpIntegrationTest' --tests '*SettlementDutchPayZeroAmountHttpIntegrationTest'`.
 - 기존 원격 CI는 GitHub 결제 실패/사용 한도 안내로 job이 시작되지 않았다. 로컬 검증과 구분한다.
+
+## 8. 병합 후 CI: Kafka 알림 테스트 DB 격리
+
+- 실패 실행: https://github.com/Team-HowMuch/howmuch-backend-v2/actions/runs/39178408483
+- 증상: 전체 2,426개 중 `KafkaNotificationFlowIntegrationTest` 1개가 자신의 알림 `SUCCEEDED` 대기에서 실패했다.
+- 확인한 원인: Kafka topic/group은 격리했지만 DB Outbox는 다른 테스트와 공유한다. 입금 원장 보존 fixture에 남은 알림도 `relayBatch(5)`가 먼저 선점하므로 대상 알림이 배치에 포함되지 않을 수 있다. 앞선 0원 HTTP 테스트도 입금 원장과 관련 데이터를 보존한다.
+- 수정 범위: Kafka 통합 테스트에 전용 PostgreSQL Testcontainer를 추가해 topic/group과 DB를 함께 격리한다. 운영 relay·SQL·배치 크기·대기 시간·검증 assertion은 유지한다.
+- Flyway migration required: No. 기존 마이그레이션을 전용 테스트 DB에 적용하며 스키마 변경은 없다.
+- 커밋 경계: `test(notification): Kafka 알림 통합 테스트의 DB 격리`.
+- 재현: 공유 DB의 PENDING Outbox 24개가 있는 상태에서 기존 테스트가 CI와 같은 105행 대기 실패를 보였다. relay가 다른 알림 5개를 먼저 가져간 것을 확인했다.
+- 수정 후: 전용 PostgreSQL에서 Kafka 테스트가 통과했고 공유 DB의 나머지 Outbox는 그대로 유지됐다.
+- 전체 검증: 새 로컬 PostgreSQL DB·Redis와 실제 Docker Kafka/PostgreSQL 컨테이너를 사용해 Java 21 `bash scripts/test.sh`(clean test)를 실행했다. 2,426개 중 실패·오류 0, 조건부 건너뜀 25이며 JavaScript 35개도 통과했다. 실패했던 Kafka 테스트도 전체 실행에서 통과했다.
+- `compileJava`, `git diff --check`, 변경 문서 경로 확인 통과. 운영 배포는 수행하지 않았다.
