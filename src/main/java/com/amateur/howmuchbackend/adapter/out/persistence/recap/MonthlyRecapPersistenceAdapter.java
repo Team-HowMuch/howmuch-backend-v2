@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -14,12 +16,16 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.YearMonth;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
 public class MonthlyRecapPersistenceAdapter implements LoadMonthlyRecapPort, StoreMonthlyRecapPort {
     private final NamedParameterJdbcTemplate jdbc;
+    private final ObjectMapper json;
+    private static final TypeReference<List<RecapCategoryTotal>> CATEGORIES = new TypeReference<>() {};
+    private static final TypeReference<List<RecapBenefit>> BENEFITS = new TypeReference<>() {};
 
     @Override
     public java.util.List<YearMonth> findMonths(Long ownerId) {
@@ -47,15 +53,20 @@ public class MonthlyRecapPersistenceAdapter implements LoadMonthlyRecapPort, Sto
                 .addValue("kind", c == null ? null : c.kind().name()).addValue("identity", c == null ? null : c.identityKey())
                 .addValue("display", c == null ? null : c.displayName()).addValue("share", c == null ? null : c.shareDisplayName())
                 .addValue("avatar", c == null ? null : c.avatarFileName()).addValue("ccount", c == null ? null : c.completedSettlementCount())
-                .addValue("camount", c == null ? null : c.totalOwnAmount()).addValue("generated", Timestamp.valueOf(recap.generatedAt()));
+                .addValue("camount", c == null ? null : c.totalOwnAmount()).addValue("generated", Timestamp.valueOf(recap.generatedAt()))
+                .addValue("categories", serialize(recap.categories()))
+                .addValue("record", serialize(recap.record()))
+                .addValue("benefits", serialize(recap.benefits()));
         return jdbc.update("""
                 INSERT INTO monthly_recaps (
                     id, owner_user_id, month_start, owner_name, completed_settlement_count, total_own_amount,
                     comparison_status, previous_own_amount, amount_difference, change_rate_percent,
                     companion_kind, companion_identity_key, companion_display_name, companion_share_display_name,
-                    companion_avatar_file_name, companion_completed_settlement_count, companion_total_own_amount, generated_at
+                    companion_avatar_file_name, companion_completed_settlement_count, companion_total_own_amount, generated_at,
+                    categories_snapshot, record_snapshot, benefits_snapshot
                 ) VALUES (:id, :owner, :month, :name, :count, :amount, :status, :previous, :difference, :rate,
-                          :kind, :identity, :display, :share, :avatar, :ccount, :camount, :generated)
+                          :kind, :identity, :display, :share, :avatar, :ccount, :camount, :generated,
+                          CAST(:categories AS jsonb), CAST(:record AS jsonb), CAST(:benefits AS jsonb))
                 ON CONFLICT (owner_user_id, month_start) DO NOTHING
                 """, params) == 1;
     }
@@ -72,6 +83,17 @@ public class MonthlyRecapPersistenceAdapter implements LoadMonthlyRecapPort, Sto
                 new RecapComparison(RecapComparison.Status.valueOf(row.getString("comparison_status")),
                         row.getObject("previous_own_amount", Long.class), row.getObject("amount_difference", Long.class),
                         row.getBigDecimal("change_rate_percent")), companion,
-                row.getTimestamp("generated_at").toLocalDateTime());
+                row.getTimestamp("generated_at").toLocalDateTime(),
+                deserialize(row.getString("categories_snapshot"), CATEGORIES),
+                row.getString("record_snapshot") == null ? null : json.readValue(row.getString("record_snapshot"), RecapRecord.class),
+                deserialize(row.getString("benefits_snapshot"), BENEFITS));
+    }
+
+    private String serialize(Object value) {
+        return value == null ? null : json.writeValueAsString(value);
+    }
+
+    private <T> T deserialize(String value, TypeReference<T> type) {
+        return value == null ? null : json.readValue(value, type);
     }
 }
