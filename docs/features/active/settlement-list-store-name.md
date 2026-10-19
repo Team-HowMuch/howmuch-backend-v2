@@ -282,3 +282,32 @@ git status --short --untracked-files=all
 - Unverified items:
 - Remaining risks:
 - Follow-up work:
+
+## 12. PR #587 리뷰 보완 및 로컬 회귀 (2026-10-19)
+
+### 대상과 변경
+
+- 기준 커밋: `76d2b32428e984292f604ad8a7a0b622a0bf47f2`. 아래 보완은 이 커밋 위의 로컬 변경이다.
+- `SettlementControllerTest` 3곳과 `SettlementListServiceTest` 2곳에 누락된 `storeName` 인자를 추가한다.
+- `RECEIPT_OCR`·`PAYMENT_HISTORY` 지출 fixture에 고유 `source_reference`를 넣고, `MANUAL`은 NULL 계약을 유지한다. 혼합 지출 시나리오도 같은 제약을 만족하게 한다.
+- PR에서 삭제된 기존 목록 회귀 테스트와 fixture별 정리 코드를 복원한다. `SettlementDepositTestCleanup`을 사용해 불변 입금 증거를 보존하고 다른 테스트의 데이터를 포괄 삭제하지 않는다.
+- `NETTING_IN_PROGRESS`는 필요한 압축 snapshot 없이 일반 정산 fixture에 강제 설정하지 않는다. 해당 상태의 실제 흐름은 기존 `GroupNettingDirectIntegrationTest`에서 검증한다.
+- 사용자 탈퇴 차단 조회에 이미 포함된 미해결 압축 정산 조건을 다시 조회하지 않도록 중복 호출과 전용 중복 query 메서드를 제거한다.
+- 스키마 변경은 없으며 Flyway migration은 필요하지 않다. 예상 커밋 경계는 `fix(settlement): 목록 테스트 및 PR 리뷰 지적 보완`이다. 전체 로컬 테스트 통과 후 PR 원격 브랜치에 커밋·푸시한다.
+
+### 실행 조건
+
+- Java 21, 테스트 전용 Docker Compose PostgreSQL 18·Redis 8, Testcontainers PostgreSQL·Kafka.
+- `DB_URL`은 일회용 `howmuch_test`, `RECURRING_TEST_DB_URL`은 별도 `howmuch_recurring_test`를 사용한다. 반복 정산의 조건부 통합 테스트도 활성화한다.
+- 실제 은행·SMS·푸시 설정 대신 저장소 `scripts/test.sh`의 테스트 설정을 사용한다.
+- Java·JavaScript: `bash scripts/test.sh clean test`.
+- Python: PyYAML 6.0.2를 설치한 격리 가상 환경에서 `python -m unittest discover -s scripts/tests -v`.
+
+### 결과
+
+- 최초 원본 실행은 테스트 생성자 인자 누락 5건으로 `compileTestJava`에서 중단됐다.
+- 생성자만 수정한 실행은 Java 2,425개 중 목록 영속 조회 29개가 실패했다. 기존 정리 코드가 타 테스트의 불변 입금까지 삭제하려 해 fixture 설정부터 실패한 결과다.
+- 최종 보완 후 `bash scripts/test.sh clean test` 성공: Java **2,432개 / 293 suites**, JavaScript **35개** 통과. 실패·오류·건너뜀 0건. 목록 영속 조회 36개, 목록 서비스 24개, 정산 OpenAPI 3개, 실제 압축 흐름 44개를 포함한다.
+- PostgreSQL·Kafka를 직접 실행하는 인증서·SMS·Kafka 통합 테스트와 반복 정산 조건부 테스트도 제외 없이 통과했다.
+- `git diff --check` 통과. 실제 은행·SMS·FCM 호출, 운영 DB, 배포는 검증 범위에 포함하지 않았다.
+- Python은 Java 컴파일과 동시 실행했을 때 준비 상태 테스트의 2초 제한에서 일시 실패했다. Java 전체 실행 완료 후 독립 재실행에서는 **8개 모두 통과**했다. 배포 제어 코드와 테스트 제한은 변경하지 않았다.

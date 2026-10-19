@@ -316,7 +316,7 @@ class SettlementControllerTest {
                 SettlementListTab.RECEIVE, SettlementListStatusFilter.SUSPENDED, null, null)))
                 .thenReturn(List.of(new SettlementListItemResult(
                         SETTLEMENT_ID, SettlementStatus.SUSPENDED, CREATED_AT, suspendedAt, null,
-                        null, null, null, null, null, null, null, null, List.of())));
+                        null, null, null, null, null, null, null, null, null, List.of())));
 
         mockMvc.perform(get("/api/v2/settlements").queryParam("status", "SUSPENDED"))
                 .andExpect(status().isOk())
@@ -987,10 +987,10 @@ class SettlementControllerTest {
                 .thenReturn(List.of(
                         new SettlementListItemResult(SETTLEMENT_ID, SettlementStatus.AWAITING_DEPOSIT, CREATED_AT,
                                 null, null, 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null,
-                                List.of(), cafe),
+                                null, List.of(), cafe),
                         new SettlementListItemResult(uncategorizedId, SettlementStatus.AWAITING_DEPOSIT, CREATED_AT,
                                 null, null, 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null,
-                                List.of())));
+                                null, List.of())));
 
         mockMvc.perform(get("/api/v2/settlements"))
                 .andExpect(status().isOk())

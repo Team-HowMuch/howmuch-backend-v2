@@ -400,12 +400,6 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         """,nativeQuery=true)
     boolean existsNettingAccountUsage(@Param("accountId") Long accountId);
 
-    @Query(value="""
-        SELECT EXISTS(SELECT 1 FROM group_netting_parties p JOIN group_settlement_nettings n ON n.id=p.netting_id
-         WHERE p.user_id=:userId AND (n.status='ACTIVE' OR EXISTS(SELECT 1 FROM netting_deposit_reviews v WHERE v.netting_id=n.id AND v.status='OPEN')))
-        """,nativeQuery=true)
-    boolean existsUnresolvedNettingUser(@Param("userId") Long userId);
-
     boolean existsByReceivingAccountIdAndStatusNotAndDeletedAtIsNull(Long accountId, SettlementStatus status);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)

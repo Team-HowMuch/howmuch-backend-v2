@@ -315,7 +315,7 @@ class SettlementListServiceTest {
     void payList_receivableAmountNull() {
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID, SettlementStatus.REQUESTED, LocalDateTime.of(2026, 10, 1, 0, 0), null, null,
-                12_000L, SettlementAllocationType.ITEM_ALLOCATION, null, null, null, null, null, "요청자", List.of());
+                12_000L, SettlementAllocationType.ITEM_ALLOCATION, null, null, null, null, null, "요청자", null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.PAY,
                 SettlementListStatusFilter.IN_PROGRESS, null, null)).thenReturn(List.of(readModel));
@@ -335,7 +335,7 @@ class SettlementListServiceTest {
     ) {
         return new SettlementListReadModel(
                 SETTLEMENT_ID, status, LocalDateTime.of(2026, 10, 1, 0, 0), null, null,
-                12_000L, allocationType, 3, 2, 0, null, receivableShareAmount, null, List.of());
+                12_000L, allocationType, 3, 2, 0, null, receivableShareAmount, null, null, List.of());
     }
 
     /** 총액 12,000원 중 생성자가 콜라 2,000원을 골랐다. */

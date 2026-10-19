@@ -58,8 +58,7 @@ public class SettlementPersistenceAdapter implements
 
     @Override
     public boolean existsByUserIdAndStatusNotCompleted(Long userId) {
-        return settlementJpaRepository.existsByUserIdAndStatusNotCompleted(userId)
-                || settlementJpaRepository.existsUnresolvedNettingUser(userId);
+        return settlementJpaRepository.existsByUserIdAndStatusNotCompleted(userId);
     }
 
     @Override
