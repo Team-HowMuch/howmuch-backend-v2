@@ -1,0 +1,106 @@
+[
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.NettingCalculatorTest",
+    "tests": "5",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.183"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.NettingEstimateInvalidationServiceTest",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.064"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.GroupNettingEstimateServiceTest",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "1.713"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.BitmaskDpSettlementNettingCalculatorTest",
+    "tests": "7",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.035"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.GroupNettingHttpPerformanceTest",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "15.866"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.NettingCalculationEngineTest",
+    "tests": "17",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.014"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.infra.settlement.config.NettingCalculatorConfigurationTest",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.018"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.NettingExecutionFailurePolicyTest",
+    "tests": "44",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.01"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.GroupNettingDirectIntegrationTest",
+    "tests": "47",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "13.031"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.adapter.out.redis.NettingEstimateCacheRedisAdapterIntegrationTest",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "7.443"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.adapter.out.redis.NettingEstimateCacheRedisAdapterTest",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.333"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.NettingExecutionDispatcherTest",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.102"
+  },
+  {
+    "name": "com.amateur.howmuchbackend.application.settlement.netting.NettingPolicyTest",
+    "tests": "3",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.001"
+  }
+]

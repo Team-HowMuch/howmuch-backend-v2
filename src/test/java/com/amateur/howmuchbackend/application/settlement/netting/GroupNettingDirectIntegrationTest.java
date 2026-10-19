@@ -58,6 +58,7 @@ class GroupNettingDirectIntegrationTest {
     @Autowired GetNettedTransferInstructionUseCase instructions;
     @Autowired ProcessNettingExecutionUseCase worker;
     @Autowired NettingExecutionStorePort store;
+    @Autowired LoadGroupNettingDebtPort sourceData;
     @MockitoBean CurrentActorPort actor;
     @MockitoBean BankTransactionPort bank;
     @MockitoBean BankCatalog catalog;
@@ -585,8 +586,9 @@ class GroupNettingDirectIntegrationTest {
     private void leave(long group, long userId, String status) {
         // 가입 시각은 JVM, 탈퇴 시각은 DB 시계에서 와서 미세한 시차로 역전될 수 있다.
         jdbc.update(
-                "UPDATE group_members SET status=?,left_at=GREATEST(joined_at,now() AT TIME ZONE 'UTC')"
-                        + ",updated_at=GREATEST(joined_at,now() AT TIME ZONE 'UTC') WHERE group_id=? AND user_id=?",
+                "UPDATE group_members SET status=?,left_at=GREATEST(joined_at,now() AT TIME ZONE"
+                    + " 'UTC'),updated_at=GREATEST(joined_at,now() AT TIME ZONE 'UTC') WHERE"
+                    + " group_id=? AND user_id=?",
                 status,
                 group,
                 userId);
@@ -686,7 +688,8 @@ class GroupNettingDirectIntegrationTest {
             if (attempt < 3) makeRetryDue(queued.executionId());
         }
         dispatcher.dispatch();
-        verify(bank, times(3)).fetch(anyString(), anyString(), anyString(), any(), any(), any());
+        // Both unique accounts in the failed two-account window are attempted once per retry.
+        verify(bank, times(6)).fetch(anyString(), anyString(), anyString(), any(), any(), any());
         var row =
                 jdbc.queryForMap(
                         "SELECT next_attempt_at,finished_at FROM group_netting_executions WHERE"
@@ -724,7 +727,8 @@ class GroupNettingDirectIntegrationTest {
         assertThat(result.status()).isEqualTo("FAILED");
         assertThat(result.errorCode()).isEqualTo(code.getCode());
         dispatcher.dispatch();
-        verify(bank, times(1)).fetch(anyString(), anyString(), anyString(), any(), any(), any());
+        // A permanent failure still stops retries; the parallel window contains two accounts.
+        verify(bank, times(2)).fetch(anyString(), anyString(), anyString(), any(), any(), any());
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT attempt_count FROM group_netting_executions WHERE id=?",
@@ -1759,6 +1763,261 @@ class GroupNettingDirectIntegrationTest {
         verify(estimateCalculation, times(1)).calculate(f.group());
     }
 
+    @Test
+    void fourIndependentAccountsUseTwoConcurrentReadsAndDeduplicateEveryPeriod() {
+        var f = fixture(15000, 10000);
+        for (String name : List.of("C", "D")) {
+            long extra = user(name);
+            long account = account(extra);
+            member(f.group(), extra, "MEMBER", LocalDateTime.now(ZoneOffset.UTC));
+            original(
+                    f.group(),
+                    extra,
+                    f.a(),
+                    account,
+                    1000,
+                    LocalDateTime.now(ZoneOffset.UTC).minusHours(1));
+        }
+        original(
+                f.group(),
+                f.a(),
+                f.b(),
+                f.accountA(),
+                1000,
+                LocalDateTime.now(ZoneOffset.UTC).minusHours(1));
+        var active = new java.util.concurrent.atomic.AtomicInteger();
+        var peak = new java.util.concurrent.atomic.AtomicInteger();
+        var firstPair = new java.util.concurrent.CountDownLatch(2);
+        var calledAccounts = java.util.concurrent.ConcurrentHashMap.<String>newKeySet();
+        var calledPeriods = java.util.concurrent.ConcurrentHashMap.<String>newKeySet();
+        when(bank.fetch(anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(
+                        inv -> {
+                            assertThat(
+                                            TransactionSynchronizationManager
+                                                    .isActualTransactionActive())
+                                    .isFalse();
+                            peak.accumulateAndGet(active.incrementAndGet(), Math::max);
+                            try {
+                                String account = inv.getArgument(2);
+                                calledAccounts.add(account);
+                                assertThat(
+                                                calledPeriods.add(
+                                                        account
+                                                                + ":"
+                                                                + inv.getArgument(3)
+                                                                + ":"
+                                                                + inv.getArgument(4)))
+                                        .isTrue();
+                                firstPair.countDown();
+                                assertThat(
+                                                firstPair.await(
+                                                        5, java.util.concurrent.TimeUnit.SECONDS))
+                                        .isTrue();
+                                return List.of();
+                            } finally {
+                                active.decrementAndGet();
+                            }
+                        });
+        var result = compress(f);
+        assertThat(result.sources()).hasSize(5);
+        assertThat(calledAccounts).hasSize(4);
+        assertThat(peak).hasValue(2);
+    }
+
+    @Test
+    void successfulPrefixDepositSurvivesAnotherParallelAccountFailure() {
+        var f = fixture(15000, 10000);
+        var first = sourceData.findAwaitingSources(f.group()).getFirst();
+        String payer =
+                jdbc.queryForObject(
+                        "SELECT name FROM users WHERE id=?",
+                        String.class,
+                        first.debts().getFirst().payerId());
+        var income =
+                new BankTransactionPort.BankTransaction(
+                        com.amateur.howmuchbackend.domain.account.AccountTransactionType.INCOME,
+                        java.math.BigDecimal.valueOf(1000),
+                        LocalDateTime.now(ZoneOffset.UTC),
+                        payer,
+                        java.math.BigDecimal.valueOf(101000));
+        when(bank.fetch(anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(
+                        inv -> {
+                            if (number(first.creatorId()).equals(inv.getArgument(2)))
+                                return List.of(income);
+                            throw ApplicationException.of(
+                                    ExternalConnectionStatusCode.CODEF_RATE_LIMITED);
+                        });
+        as(f.a());
+        var queued =
+                executions.execute(f.group(), new ExecuteGroupNettingCommand(UUID.randomUUID()));
+        dispatcher.dispatch();
+        var result = executions.getExecution(f.group(), queued.executionId());
+        assertThat(result.status()).isEqualTo("RETRY");
+        assertThat(result.errorCode()).isEqualTo("CODEF_RATE_LIMITED");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM settlement_deposits WHERE settlement_id=?",
+                                Integer.class,
+                                first.settlementId()))
+                .isOne();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM group_settlement_nettings WHERE group_id=?",
+                                Integer.class,
+                                f.group()))
+                .isZero();
+    }
+
+    @Test
+    void failedFirstAccountDoesNotApplyLaterSuccessfulIncome() {
+        var f = fixture(15000, 10000);
+        var ordered = sourceData.findAwaitingSources(f.group());
+        var first = ordered.getFirst();
+        var second = ordered.getLast();
+        String payer =
+                jdbc.queryForObject(
+                        "SELECT name FROM users WHERE id=?",
+                        String.class,
+                        second.debts().getFirst().payerId());
+        var income =
+                new BankTransactionPort.BankTransaction(
+                        com.amateur.howmuchbackend.domain.account.AccountTransactionType.INCOME,
+                        java.math.BigDecimal.valueOf(1000),
+                        LocalDateTime.now(ZoneOffset.UTC),
+                        payer,
+                        java.math.BigDecimal.valueOf(101000));
+        when(bank.fetch(anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(
+                        inv -> {
+                            if (number(first.creatorId()).equals(inv.getArgument(2))) {
+                                throw ApplicationException.of(
+                                        ExternalConnectionStatusCode.CODEF_RATE_LIMITED);
+                            }
+                            return List.of(income);
+                        });
+        as(f.a());
+        var queued =
+                executions.execute(f.group(), new ExecuteGroupNettingCommand(UUID.randomUUID()));
+        dispatcher.dispatch();
+        var result = executions.getExecution(f.group(), queued.executionId());
+        assertThat(result.status()).isEqualTo("RETRY");
+        assertThat(result.errorCode()).isEqualTo("CODEF_RATE_LIMITED");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM settlement_deposits WHERE settlement_id IN"
+                                    + " (?,?)",
+                                Integer.class,
+                                f.ab(),
+                                f.ba()))
+                .isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM group_settlement_nettings WHERE group_id=?",
+                                Integer.class,
+                                f.group()))
+                .isZero();
+    }
+
+    @Test
+    void sourceIdentityUsesTheSameEligibilityAndDigestAsFullRead() {
+        var f = fixture(15000, 10000);
+        var sources = sourceData.findAwaitingSources(f.group());
+        assertThat(sources).hasSize(2);
+        for (var source : sources) {
+            assertThat(sourceData.findAwaitingSourceIdentity(f.group(), source.settlementId()))
+                    .contains(
+                            new LoadGroupNettingDebtPort.SourceIdentity(
+                                    source.settlementId(),
+                                    source.receivingAccountId(),
+                                    source.receivingAccountDigest()));
+        }
+        assertThat(sourceData.findAwaitingSourceIdentity(f.group() + 100000, f.ab())).isEmpty();
+        assertThat(sourceData.findAwaitingSourceIdentity(f.group(), UUID.randomUUID())).isEmpty();
+
+        jdbc.update(
+                "UPDATE settlements SET deleted_at=now() AT TIME ZONE 'UTC' WHERE id=?", f.ab());
+        assertThat(sourceData.findAwaitingSourceIdentity(f.group(), f.ab())).isEmpty();
+        jdbc.update("UPDATE settlements SET status='SUSPENDED' WHERE id=?", f.ba());
+        assertThat(sourceData.findAwaitingSourceIdentity(f.group(), f.ba())).isEmpty();
+        assertThat(sourceData.findAwaitingSources(f.group())).isEmpty();
+    }
+
+    @Test
+    void mixedGroupSourceIsExcludedFromIdentityAndBulkRead() {
+        var f = fixture(15000, 10000);
+        var other = fixture(2000, 1000);
+        jdbc.update(
+                "UPDATE settlement_participants SET source_group_id=? WHERE settlement_id=?"
+                        + " AND linked_user_id=?",
+                other.group(),
+                f.ab(),
+                f.a());
+        assertThat(sourceData.findAwaitingSourceIdentity(f.group(), f.ab())).isEmpty();
+        assertThat(sourceData.findAwaitingSources(f.group()))
+                .extracting(NettingInput.Source::settlementId)
+                .containsExactly(f.ba());
+    }
+
+    @Test
+    void bulkSourceReadKeepsPartialDepositTotalsKeysAndCreatorExclusion() {
+        var f = fixture(15000, 10000);
+        long first = income(f.accountB(), 2000, "A");
+        long second = income(f.accountB(), 1000, "A");
+        UUID share =
+                jdbc.queryForObject(
+                        "SELECT sh.id FROM settlement_shares sh"
+                                + " JOIN settlement_participants p ON p.id=sh.payer_participant_id"
+                                + " WHERE sh.settlement_id=? AND p.linked_user_id=?",
+                        UUID.class,
+                        f.ab(),
+                        f.a());
+        for (long transaction : List.of(first, second)) {
+            jdbc.update(
+                    "INSERT INTO"
+                        + " settlement_deposits(id,settlement_id,share_id,source_account_id,account_transaction_id,matched_at)"
+                        + " VALUES (?,?,?,?,?,now() AT TIME ZONE 'UTC')",
+                    UUID.randomUUID(),
+                    f.ab(),
+                    share,
+                    f.accountB(),
+                    transaction);
+        }
+        var sources = sourceData.findAwaitingSources(f.group());
+        var ab =
+                sources.stream()
+                        .filter(s -> s.settlementId().equals(f.ab()))
+                        .findFirst()
+                        .orElseThrow();
+        var ba =
+                sources.stream()
+                        .filter(s -> s.settlementId().equals(f.ba()))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(ab.parties()).hasSize(2);
+        assertThat(ab.debts())
+                .singleElement()
+                .satisfies(
+                        debt -> {
+                            assertThat(debt.payerId()).isEqualTo(f.a());
+                            assertThat(debt.amount()).isEqualTo(15000);
+                            assertThat(debt.confirmedAmount()).isEqualTo(3000);
+                        });
+        assertThat(ab.depositKeys())
+                .containsExactlyElementsOf(
+                        jdbc.queryForList(
+                                "SELECT external_transaction_key FROM account_transactions WHERE id"
+                                    + " IN (?,?) ORDER BY external_transaction_key",
+                                String.class,
+                                first,
+                                second));
+        assertThat(ba.depositKeys()).isEmpty();
+        assertThat(ba.debts())
+                .singleElement()
+                .satisfies(debt -> assertThat(debt.confirmedAmount()).isZero());
+    }
+
     private long user(String name) {
         String unique = UUID.randomUUID().toString();
         var now = LocalDateTime.now(ZoneOffset.UTC).minusDays(2);
@@ -1837,7 +2096,7 @@ class GroupNettingDirectIntegrationTest {
                 now);
     }
 
-    private UUID original(
+    UUID original(
             long group, long creator, long payer, long account, long amount, LocalDateTime now) {
         UUID id = UUID.randomUUID(), self = UUID.randomUUID(), party = UUID.randomUUID();
         jdbc.update(

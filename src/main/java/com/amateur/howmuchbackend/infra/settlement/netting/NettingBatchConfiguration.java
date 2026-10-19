@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.infra.settlement.netting;
 
 import com.amateur.howmuchbackend.adapter.in.batch.settlement.NettingExecutionTasklet;
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.ProcessNettingExecutionUseCase;
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingBankTransactionReader;
 
 import org.springframework.batch.core.configuration.support.JdbcDefaultBatchConfiguration;
 import org.springframework.batch.core.job.Job;
@@ -67,6 +68,13 @@ public class NettingBatchConfiguration extends JdbcDefaultBatchConfiguration {
                 .start(sync)
                 .next(commit)
                 .build();
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    java.util.concurrent.ExecutorService nettingBankQueryExecutor() {
+        return java.util.concurrent.Executors.newFixedThreadPool(
+                NettingBankTransactionReader.MAX_PARALLEL_ACCOUNTS,
+                Thread.ofPlatform().name("netting-bank-", 0).factory());
     }
 
     @Bean
