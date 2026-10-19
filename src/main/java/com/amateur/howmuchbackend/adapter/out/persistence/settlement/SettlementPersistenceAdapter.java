@@ -1,4 +1,5 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
+
 import com.amateur.howmuchbackend.adapter.out.persistence.common.PostgresLockTimeoutConfigurer;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.SettlementMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
@@ -17,9 +18,6 @@ import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -30,6 +28,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
@@ -165,6 +165,7 @@ public class SettlementPersistenceAdapter implements
                 projection.getAmountToPay(),
                 tab == SettlementListTab.RECEIVE ? projection.getReceivableShareAmount() : null,
                 tab == SettlementListTab.PAY ? projection.getRequesterName() : null,
+                projection.getStoreName(),
                 groups
         );
     }

@@ -100,6 +100,7 @@ public interface SettlementDocs {
                     + "endedAt은 종료 상태 공통 시각입니다. COMPLETED에서는 완료 시각, SUSPENDED에서는 현재 중단 시각이며 "
                     + "그 외 상태는 null입니다. UTC 기준 offset 없는 값입니다. "
                     + "completedAt은 기존 호환 필드로 완료 정산에만 값을 제공합니다. "
+                    + "storeName은 표시 대상 지출이 단일 영수증일 때만 상호명을 반환하며, 그 외에는 null입니다. "
                     + "yearMonth(yyyy-MM)는 Asia/Seoul 기준 완료 월이며 COMPLETED 정산에만 적용되고 생략하면 전체 기간입니다. "
                     + "기존 상태·그룹 조건과 함께 적용하므로 월별 완료 정산은 status=COMPLETED 또는 ALL로 조회하세요. "
                     + "status 생략 시 IN_PROGRESS가 유지되어 yearMonth와 함께 지정하면 빈 목록입니다. "

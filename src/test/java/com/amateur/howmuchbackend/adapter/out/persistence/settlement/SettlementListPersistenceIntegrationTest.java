@@ -208,6 +208,77 @@ class SettlementListPersistenceIntegrationTest {
     }
 
     @ParameterizedTest
+    @CsvSource(value = {
+            "RECEIPT_OCR, 1, 롯데리아",
+            "PAYMENT_HISTORY, 1, null",
+            "RECEIPT_OCR, 2, null",
+            "MANUAL, 1, null"
+    }, nullValues = "null")
+    @DisplayName("storeName은 표시 대상 지출이 단일 영수증일 때만 반환한다")
+    void settlementList_storeName_singleReceiptOcrOnly(
+            String source, int count, String expectedStoreName
+    ) {
+        for (int i = 0; i < count; i++) {
+            String description = expectedStoreName != null ? expectedStoreName : "지출" + i;
+            jdbcTemplate.update("""
+                            INSERT INTO settlement_expenses (
+                                id, settlement_id, source, source_reference, description, amount, display_order,
+                                created_at, updated_at
+                            )
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                    UUID.randomUUID(), receiveSettlementId, source,
+                    "MANUAL".equals(source) ? null : UUID.randomUUID().toString(), description, 100L, i,
+                    CREATED_AT, CREATED_AT);
+        }
+
+        var result = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS,
+                null,
+                null
+        );
+
+        assertThat(result).singleElement().satisfies(item ->
+                assertThat(item.storeName()).isEqualTo(expectedStoreName)
+        );
+    }
+
+    @Test
+    @DisplayName("storeName은 영수증 1건과 결제내역 1건이 함께 있으면 null이다")
+    void settlementList_storeName_receiptAndPaymentHistory_returnsNull() {
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_expenses (
+                            id, settlement_id, source, source_reference, description, amount, display_order,
+                            created_at, updated_at
+                        )
+                        VALUES (?, ?, 'RECEIPT_OCR', ?, '롯데리아', 100, 0, ?, ?)
+                        """,
+                UUID.randomUUID(), receiveSettlementId, UUID.randomUUID().toString(), CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_expenses (
+                            id, settlement_id, source, source_reference, description, amount, display_order,
+                            created_at, updated_at
+                        )
+                        VALUES (?, ?, 'PAYMENT_HISTORY', ?, '이체', 100, 1, ?, ?)
+                        """,
+                UUID.randomUUID(), receiveSettlementId, UUID.randomUUID().toString(), CREATED_AT, CREATED_AT);
+
+        var result = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS,
+                null,
+                null
+        );
+
+        assertThat(result).singleElement().satisfies(item ->
+                assertThat(item.storeName()).isNull()
+        );
+    }
+
+    @ParameterizedTest
     @org.junit.jupiter.params.provider.EnumSource(value = SettlementStatus.class,
             names = {"AWAITING_DEPOSIT", "COMPLETED"})
     @DisplayName("확정 더치페이는 0원 참여 기록을 보존하고 PAY 목록과 총무·납부 인원에서 제외한다")

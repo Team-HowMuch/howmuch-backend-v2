@@ -27,6 +27,7 @@ public record SettlementListReadModel(
         Long amountToPay,
         Long receivableShareAmount,
         String requesterName,
+        String storeName,
         List<GroupSummary> groups
 ) {
     public record GroupSummary(

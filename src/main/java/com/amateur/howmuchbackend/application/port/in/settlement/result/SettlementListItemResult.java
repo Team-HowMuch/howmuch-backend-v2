@@ -21,6 +21,7 @@ public record SettlementListItemResult(
         Long amountToPay,
         Long receivableAmount,
         String requesterName,
+        String storeName,
         List<GroupSummary> groups,
         SettlementCategoryResult myCategory
 ) {
@@ -28,11 +29,12 @@ public record SettlementListItemResult(
             UUID settlementId, SettlementStatus status, LocalDateTime requestedAt, LocalDateTime endedAt,
             LocalDateTime completedAt, Long totalAmount, SettlementAllocationType allocationType,
             Integer participantCount, Integer payableParticipantCount, Integer completedParticipantCount,
-            Long amountToPay, Long receivableAmount, String requesterName, List<GroupSummary> groups
+            Long amountToPay, Long receivableAmount, String requesterName, String storeName,
+            List<GroupSummary> groups
     ) {
         this(settlementId, status, requestedAt, endedAt, completedAt, totalAmount, allocationType,
                 participantCount, payableParticipantCount, completedParticipantCount, amountToPay,
-                receivableAmount, requesterName, groups, null);
+                receivableAmount, requesterName, storeName, groups, null);
     }
 
     public record GroupSummary(

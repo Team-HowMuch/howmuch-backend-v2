@@ -84,7 +84,7 @@ class SettlementListServiceTest {
     private static SettlementListReadModel readModel(UUID settlementId) {
         return new SettlementListReadModel(settlementId, SettlementStatus.AWAITING_DEPOSIT,
                 LocalDateTime.of(2026, 8, 13, 0, 0), null, null, 600L, SettlementAllocationType.DUTCH_PAY,
-                3, 2, 0, 300L, null, "요청자", List.of());
+                3, 2, 0, 300L, null, "요청자", null, List.of());
     }
 
     @Test
@@ -103,6 +103,7 @@ class SettlementListServiceTest {
                 0,
                 null,
                 400L,
+                null,
                 null,
                 List.of(new SettlementListReadModel.GroupSummary(
                         10L,
@@ -148,20 +149,41 @@ class SettlementListServiceTest {
                 null,
                 400L,
                 null,
+                null,
                 List.of(new SettlementListItemResult.GroupSummary(
                         10L,
                         "여행 모임",
                         IMAGE_VERSION
                 ))
         ));
+        assertThat(result).singleElement().satisfies(item -> assertThat(item.storeName()).isNull());
     }
+
+    @Test
+    void settlementList_storeName_passedThrough() {
+        var readModel = new SettlementListReadModel(
+                SETTLEMENT_ID, SettlementStatus.AWAITING_DEPOSIT, LocalDateTime.of(2026, 8, 13, 0, 0),
+                null, null, 600L, SettlementAllocationType.DUTCH_PAY, 3, 2, 0, null, null,
+                null, "행복식당", List.of());
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
+        when(loadSettlementListPort.findAll(
+                USER_ID, SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null
+        )).thenReturn(List.of(readModel));
+
+        var result = service().get(new GetSettlementsCommand(
+                SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null));
+
+        assertThat(result).singleElement().satisfies(item ->
+                assertThat(item.storeName()).isEqualTo("행복식당"));
+    }
+
     @Test
     void settlementList_monthAndCompletedAt_passedThrough() {
         var month = java.time.YearMonth.of(2026, 9);
         var completedAt = LocalDateTime.of(2026, 9, 1, 0, 0);
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID, SettlementStatus.COMPLETED, completedAt.minusMonths(1), completedAt, completedAt,
-                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 1, null, 300L, null, List.of());
+                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 1, null, 300L, null, null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.COMPLETED, 10L, month)).thenReturn(List.of(readModel));
@@ -180,7 +202,7 @@ class SettlementListServiceTest {
         var suspendedAt = LocalDateTime.of(2026, 9, 2, 12, 30);
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID, SettlementStatus.SUSPENDED, suspendedAt.minusDays(1), suspendedAt, null,
-                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null, List.of());
+                600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null, null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.RECEIVE,
                 SettlementListStatusFilter.IN_PROGRESS, null, null)).thenReturn(List.of(readModel));
@@ -223,7 +245,7 @@ class SettlementListServiceTest {
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID, status, LocalDateTime.of(2026, 9, 30, 0, 0), null, null,
                 6_000L, allocationType, null, null, null, shareAmount,
-                tab == SettlementListTab.RECEIVE ? 0L : null, null, List.of());
+                tab == SettlementListTab.RECEIVE ? 0L : null, null, null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(USER_ID, tab, SettlementListStatusFilter.ALL, null, null))
                 .thenReturn(List.of(readModel));
@@ -293,7 +315,7 @@ class SettlementListServiceTest {
     void payList_receivableAmountNull() {
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID, SettlementStatus.REQUESTED, LocalDateTime.of(2026, 10, 1, 0, 0), null, null,
-                12_000L, SettlementAllocationType.ITEM_ALLOCATION, null, null, null, null, null, "요청자", List.of());
+                12_000L, SettlementAllocationType.ITEM_ALLOCATION, null, null, null, null, null, "요청자", null, List.of());
         when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(USER_ID));
         when(loadSettlementListPort.findAll(USER_ID, SettlementListTab.PAY,
                 SettlementListStatusFilter.IN_PROGRESS, null, null)).thenReturn(List.of(readModel));
@@ -313,7 +335,7 @@ class SettlementListServiceTest {
     ) {
         return new SettlementListReadModel(
                 SETTLEMENT_ID, status, LocalDateTime.of(2026, 10, 1, 0, 0), null, null,
-                12_000L, allocationType, 3, 2, 0, null, receivableShareAmount, null, List.of());
+                12_000L, allocationType, 3, 2, 0, null, receivableShareAmount, null, null, List.of());
     }
 
     /** 총액 12,000원 중 생성자가 콜라 2,000원을 골랐다. */
