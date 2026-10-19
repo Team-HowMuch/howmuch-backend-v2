@@ -1,6 +1,6 @@
 # Feature Plan: 월 리캡 카테고리와 의외의 기록
 
-- 상태: 후속 구현 진행 중
+- 상태: 구현 및 로컬 검증 완료
 - 최종 수정: 2026-10-20
 - 관련 이슈: [#594](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/594)
 - 기반 문서: [월 리캡](../completed/monthly-recap.md), [개발 흐름](../../development-workflow.md)
@@ -10,11 +10,11 @@
 앱의 리캡 카테고리 TOP3·의외의 기록·혜택 카드에 필요한 값을 생성 시점에 저장한다.
 조회 시 원본 정산이나 공통 코드가 바뀌어도 이미 생성된 리캡의 내용은 변하지 않아야 한다.
 
-- [ ] 상세 응답에 nullable `categories`, `record`, `benefits`를 제공한다.
-- [ ] 개인 카테고리는 수정값 → 자동 분류 값 순서로 선택하고 미분류는 집계에서 제외한다.
-- [ ] 새 값과 기존 요약을 같은 스냅샷 INSERT에 저장하고 조회 때 재계산하지 않는다.
-- [ ] 데이터 없는 카드·기록 칸을 `null`로 표현하고 OpenAPI에 명시한다.
-- [ ] 기존 리캡·공유 응답·소유자 권한과 탈퇴 정리를 보존한다.
+- [x] 상세 응답에 nullable `categories`, `record`, `benefits`를 제공한다.
+- [x] 개인 카테고리는 수정값 → 자동 분류 값 순서로 선택하고 미분류는 집계에서 제외한다.
+- [x] 새 값과 기존 요약을 같은 스냅샷 INSERT에 저장하고 조회 때 재계산하지 않는다.
+- [x] 데이터 없는 카드·기록 칸을 `null`로 표현하고 OpenAPI에 명시한다.
+- [x] 기존 리캡·공유 응답·소유자 권한과 탈퇴 정리를 보존한다.
 
 선행 저장 구조 [#596](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/596)은 2026-10-19 23:46 KST에 머지됐다.
 이번 후속 작업은 집계·저장·상세 API·OpenAPI·회귀 테스트를 구현한다. 추가 마이그레이션은 필요 없다.
@@ -50,13 +50,13 @@
 `GET /api/v2/recaps/{yearMonth}`는 현재 인증·소유자 조회·404 동작을 유지한다.
 새 Command는 필요 없다. Application 값은 plain record로 두고 Web DTO가 Swagger를 소유한다.
 
-예정된 카드 값:
+상세 응답의 카드 값:
 
 - `categories[]`: `rank`, `category {code, name, icon}`, `totalOwnAmount`
 - `record`: nullable `busiestWeekday {weekday, count}`, `frequentCategory {category, count}`, `largestSettlement {totalOwnAmount, category}`, `fastestSettlement {durationMinutes, title}`
 - `benefits[]`: `title`, `reason`, `expiresAt`, `url`, nullable `logoUrl` (제휴 데이터 준비 후)
 
-중첩 필드 이름은 프론트 #405의 `toRecapDetail`에서 이름·금액·요일을 변환할 수 있도록 확정한다. 기존 DB 변경은 JSON 최상위 형태와 개수만 제한한다.
+중첩 필드 이름은 프론트 #405의 `toRecapDetail`에서 이름·금액·요일을 변환할 수 있도록 확정했다. 프론트 연결은 이번 서버 변경 범위에 포함하지 않는다. 기존 DB 변경은 JSON 최상위 형태와 개수만 제한한다.
 원본·카테고리·표시값이 변경되어도 저장한 카드 값을 조회하며, 누락 카드는 기존 NULL을 유지한다.
 
 ## 4. 저장 설계와 Flyway 판단
@@ -65,16 +65,16 @@
 - 마이그레이션: `V61__add_monthly_recap_card_snapshots.sql`
 - 기반: 2026-10-19 조회한 `origin/develop`의 최신 버전 V60, 선택 시 열린 PR 없음. 게시 전 재확인한 #595에는 마이그레이션 변경 없음
 - 마이그레이션 PR: [#596](https://github.com/Team-HowMuch/howmuch-backend-v2/pull/596) (MERGED)
-- 추가 컬럼: `monthly_recaps.categories_snapshot`, `record_snapshot`, `benefits_snapshot` (`JSONB`, nullable, 기본값 없음)
+- 재사용 컬럼: `monthly_recaps.categories_snapshot`, `record_snapshot`, `benefits_snapshot` (`JSONB`, nullable, 기본값 없음)
 - 제약: categories는 배열 최대 3개, record는 객체, benefits는 배열 최대 2개. SQL NULL 허용, 최상위 JSON null·다른 타입 거부. 빈 배열 허용.
 - 기존 `guard_monthly_recap_snapshot()`은 행 전체를 비교하므로 세 컬럼도 자동으로 수정 금지 대상이다.
-- 기존 INSERT는 컬럼명을 명시하므로 새 nullable 컬럼을 생략할 수 있다. 조회는 추가 컬럼을 무시하므로 기존 배포와 호환된다.
+- 기존 배포는 새 컬럼을 생략하는 INSERT와 조회를 계속 사용할 수 있다. 이번 Adapter는 세 JSONB 컬럼을 하나의 INSERT에 포함하고 저장된 NULL을 그대로 읽는다.
 - 카테고리·정산 FK, 별도 테이블, 인덱스, 백필, 기존 트리거 변경은 필요 없다.
 - Redis·외부 API·환경 설정 변경은 없다.
 
 고정된 카드 묶음을 하나의 리캡 행과 원자적으로 보존하기 위해 JSONB를 선택한다.
 세부 필드마다 SQL 컬럼을 늘리거나 자식 테이블에 별도 불변 트리거를 만드는 대안보다 저장·조회가 단순하다.
-중첩 필드의 유효성·집계 정합성은 후속 Application 정책과 타입이 보장한다. DB는 최상위 형태·개수와 불변성만 보장한다.
+집계 정합성은 Application 정책이 담당하고 중첩 응답은 plain record로 표현한다. DB는 최상위 형태·개수와 불변성만 보장한다.
 
 ## 5. 영향 범위와 검증
 
@@ -86,7 +86,7 @@
 | 권한 / 공유 / 이미지 / 탈퇴 | 기존 동작 보존 및 회귀 검증 |
 | 문서 | 구현 계획과 결과 게시, 완료 후 completed로 이동 |
 
-검증은 격리된 PostgreSQL 18·Redis 8에서만 수행하고 실제 `.env`는 읽지 않는다.
+검증은 격리된 PostgreSQL 18·Redis 8에서만 수행하고 실제 `.env`는 읽지 않는다. 아래 목록은 선행 #596 검증이며 이번 구현 검증은 6·7절에 기록한다.
 
 - [x] Flyway 빈 DB → V61, V60 + 기존 리캡 → V61, validate와 재실행 0건
 - [x] 기존 행·기존 INSERT 호환성, nullable 컬럼 기본값 확인
@@ -107,15 +107,15 @@
 새 Port·외부 서비스·Infra 설정은 필요 없다. 기존 불완전 Share 실패 처리는 유지하고 정상 0원 제출은 집계한다.
 동행자 조인으로 같은 정산이 여러 행이어도 카테고리·요일·횟수는 정산 ID당 한 번만 센다.
 모든 동률은 순서를 고정하고 합계는 `Math.addExact`로 overflow를 거부한다.
-`withCompanionAvatar()`도 새 카드 필드를 유지해야 한다.
+`withCompanionAvatar()`도 새 카드 필드를 유지한다.
 
 ### 이번 검증 계획
 
-- [ ] 순위 3개 제한, 개인 수정 우선, 미분류·비활성 카테고리 제외, 0원, 동률, 중복, overflow
-- [ ] KST 요일 경계, 가장 큰 본인 금액, 실제 시간순 비교 후 분 버림, 요청 없음·음수 시간 제외
-- [ ] JSONB 왕복, 기존 NULL, 공유 제외, 스냅샷 재조회 불변, 이미지 복사 후 카드 유지
-- [ ] 실제 HTTP 응답·권한·OpenAPI nullable 객체와 배열·상한·중첩 기록 계약
-- [ ] 관련 회귀 테스트와 전체 suite, compileJava, verifyMigrationVersions, diff check, 문서 링크
+- [x] 순위 3개 제한, 개인 수정 우선, 미분류·비활성 카테고리 제외, 0원, 동률, 중복, overflow
+- [x] KST 요일 경계, 가장 큰 본인 금액, 실제 시간순 비교 후 분 버림, 요청 없음·음수 시간 제외
+- [x] JSONB 왕복, 기존 NULL, 공유 제외, 스냅샷 재조회 불변, 이미지 복사 후 카드 유지
+- [x] 실제 HTTP 응답·권한·OpenAPI nullable 객체와 배열·상한·중첩 기록 계약
+- [x] 관련 회귀 테스트와 전체 suite, compileJava, verifyMigrationVersions, diff check, 문서 링크
 
 ## 7. 검증 결과와 진행 기록
 
@@ -128,4 +128,27 @@
   - 별도 검증 harness와 로그: `/tmp/howmuch-594-verification/` (게시 제외).
   - 전체 Java suite·새 API 검증·원격 CI는 수행하지 않았다. 이번 변경은 저장 구조이며 API는 후속 작업이다.
 - 2026-10-20: #596 MERGED와 최신 `develop` (`ec6eeb7c`)을 확인하고 후속 구현 시작. 위 2026-10-19 결과는 선행 마이그레이션 검증이다. 이번 검증 결과는 완료 시 별도 기록한다.
+- 2026-10-20 구현 검증:
+  - 집계·저장 단계: 리캡 관련 Java 96개와 JavaScript 35개 통과.
+  - API 단계: 실제 HTTP 응답과 공유 제외·권한·기존 NULL·스냅샷 고정 검증 통과. OpenAPI 배열 nullable 누락을 찾아 Web DTO의 `@Schema(nullable = true)`와 `@Size(max = ...)`로 표현했다.
+  - 생성된 `/v3/api-docs`에서 배열의 null 허용·상한, 각 기록의 nullable 참조를 확인하는 테스트 통과. 전체 suite에서도 통과했다. 배열 요소와 공통 객체 스키마에 잘못된 null 타입이 전파되지 않는 것도 확인했다.
 - 제외: 제휴 혜택 추천 데이터 연결 (현재 공급원 없음).
+
+## 8. 남은 확인 범위
+
+- 실제 앱의 `toRecapDetail` 연결과 화면 표시는 프론트 작업이다.
+- 운영 배포와 실데이터 검증은 수행하지 않는다.
+- 새 카드가 없는 기존 스냅샷은 재생성하지 않는다. 배포 후 생성되는 리캡에 집계 결과를 저장한다.
+
+
+## 9. 완료 기록
+
+- 완료일: 2026-10-20
+- 추가 마이그레이션: 없음
+- 최종 검증 환경: Java 21, 격리된 PostgreSQL 18.6·Redis 8
+- `bash scripts/test.sh clean test`: Java 총 2,506개 중 **2,437개 통과, 실패·오류 0, 조건부 69개 건너뜀**. 건너뛴 항목은 반복 정산 25개와 opt-in 압축정산 HTTP 성능 suite 44개다.
+- 같은 전체 실행에 리캡 관련 100개가 포함되며 전부 통과했다. JavaScript 35개도 통과했다.
+- `compileJava`, `compileTestJava`, `verifyMigrationVersions`는 위 clean 실행에서 성공했다. `git diff --check`와 문서 상대 링크도 확인했다.
+- 구현 범위: 카테고리 TOP3·의외의 기록 생성, JSONB 원자 저장·조회, nullable 상세 응답·OpenAPI, 기존 NULL과 공유 응답 보존.
+- 명시적 제외: 실제 제휴 혜택 추천, 프론트 변환 연결, 조건부 테스트 활성화, 운영 배포·실데이터 검증.
+- 위 결과는 로컬 검증이다. 원격 CI 상태는 PR에서 별도로 확인한다.
