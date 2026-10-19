@@ -1447,22 +1447,86 @@ class AskTreasurerServiceTest {
     }
 
     @Test
-    @DisplayName("안내 LLM이 정한 기간과 질문에 적힌 정산 이름으로 좁힌다")
+    @DisplayName("질문에 기간이 있으면 안내 LLM이 정한 기간과 질문에 적힌 정산 이름으로 좁힌다")
     void llmPeriodAndTitle_narrowSettlements() {
         PrioritySettlements fixture = prioritySettlements();
         when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
-        llmSaysData("지난번 보낼 돈 알려줘", InquiryIntent.SEND_SETTLEMENTS, InquiryPeriod.LAST_MONTH, null);
+        String periodQuestion = "지난달 말고 이번 달 보낼 돈 알려줘";
+        llmSaysData(periodQuestion, InquiryIntent.SEND_SETTLEMENTS, InquiryPeriod.THIS_MONTH, null);
         llmSaysData("제주 여행 보낼 돈 알려줘", InquiryIntent.SEND_SETTLEMENTS, null, "제주 여행");
         AskTreasurerService service = service();
 
-        var lastMonth = service.ask(new AskTreasurerCommand("지난번 보낼 돈 알려줘"));
+        var thisMonth = service.ask(new AskTreasurerCommand(periodQuestion));
         var titled = service.ask(new AskTreasurerCommand("제주 여행 보낼 돈 알려줘"));
 
-        assertThat(lastMonth.period()).isEqualTo(InquiryPeriod.LAST_MONTH);
-        assertThat(lastMonth.items()).extracting(TreasurerAnswerResult.Item::settlementId)
-                .containsExactly(fixture.lastMonthSend().settlementId());
+        assertThat(new InquiryParser().parse(periodQuestion).period()).isEqualTo(InquiryPeriod.LAST_MONTH);
+        assertThat(thisMonth.period()).isEqualTo(InquiryPeriod.THIS_MONTH);
+        assertThat(thisMonth.items()).extracting(TreasurerAnswerResult.Item::settlementId)
+                .containsExactlyInAnyOrder(fixture.overdueSend().settlementId(), fixture.freshSend().settlementId());
         assertThat(titled.items()).extracting(TreasurerAnswerResult.Item::settlementId)
                 .containsExactly(fixture.overdueSend().settlementId());
+    }
+
+    @Test
+    @DisplayName("질문에 기간 표현이 없으면 안내 LLM이 기간을 채워도 쓰지 않는다")
+    void llmPeriod_withoutPeriodInQuestion_ignored() {
+        PrioritySettlements fixture = prioritySettlements();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
+        String question = "뭐부터 처리해?";
+        llmSaysData(question, InquiryIntent.PRIORITY_SETTLEMENTS, InquiryPeriod.THIS_MONTH, null);
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(result.period()).isNull();
+        assertThat(result.items()).extracting(TreasurerAnswerResult.Item::settlementId)
+                .contains(fixture.lastMonthSend().settlementId());
+    }
+
+    @Test
+    @DisplayName("안내 LLM이 기간을 비우면 질문에서 키워드가 뽑은 기간을 쓴다")
+    void llmPeriodEmpty_usesKeywordPeriod() {
+        PrioritySettlements fixture = prioritySettlements();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
+        String question = "지난달에 내가 내야 하는 거";
+        llmSaysData(question, InquiryIntent.SEND_SETTLEMENTS, null, null);
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(result.period()).isEqualTo(InquiryPeriod.LAST_MONTH);
+        assertThat(result.items()).extracting(TreasurerAnswerResult.Item::settlementId)
+                .containsExactly(fixture.lastMonthSend().settlementId());
+    }
+
+    @Test
+    @DisplayName("안내 LLM이 준 이름이 정산과 맞지 않으면 키워드가 뽑은 이름으로 다시 좁힌다")
+    void llmTitleUnmatched_fallsBackToKeywordTitle() {
+        PrioritySettlements fixture = prioritySettlements();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
+        String question = "제주 여행 모임에서 보낼 돈 알려줘";
+        llmSaysData(question, InquiryIntent.SEND_SETTLEMENTS, null, "제주 여행 모임에서");
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(new InquiryParser().parse(question).titleHint()).isNotNull();
+        assertThat(result.items()).extracting(TreasurerAnswerResult.Item::settlementId)
+                .containsExactly(fixture.overdueSend().settlementId());
+        assertThat(result.scope()).doesNotContain("찾지 못해");
+    }
+
+    @Test
+    @DisplayName("안내 LLM이 데이터 질문이라면서 의도를 비우고 키워드가 영수증 안내면 영수증 안내로 답한다")
+    void llmDataWithoutIntent_keywordGuide_answersOcr() {
+        String question = "영수증 인식은 어떻게 해?";
+        llmSaysData(question, null, null, null);
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(new InquiryParser().parse(question).intent()).isEqualTo(InquiryIntent.GUIDE);
+        assertThat(result.answer()).isEqualTo(TreasurerCardCopy.OCR_ANSWER);
     }
 
     @Test

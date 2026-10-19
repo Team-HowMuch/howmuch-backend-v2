@@ -55,16 +55,16 @@ public class TreasurerGuideLlmAdapter implements GenerateTreasurerGuidePort {
             - SETTLEMENT_STATUS: 정산이 어디까지 진행됐는지, 남은 정산 현황
             - UNCLEAR: 내 정산을 묻지만 위 중 어느 것인지 정할 수 없을 때
             period는 질문에 이번 주, 이번 달, 지난달이 있을 때만 THIS_WEEK, THIS_MONTH, LAST_MONTH로 적고, 그 밖에는 null로 둔다.
-            titleHint는 질문이 특정 정산이나 모임 이름을 말할 때만 질문에 적힌 글자 그대로 적는다. "내 정산", "모임 정산"처럼 특정 이름이 아니면 null로 둔다.
+            titleHint는 질문이 특정 정산이나 모임 이름을 말할 때만 질문에 적힌 글자 그대로 적고, 뒤에 붙은 조사(에서, 의, 에, 은, 는 등)는 뺀다. "내 정산", "모임 정산", "친구"처럼 특정 이름이 아니면 null로 둔다.
 
             출력은 JSON 하나만 쓴다.
             {"route":"GUIDE|DATA|UNRELATED","intent":"SEND_SETTLEMENTS|RECEIVE_SETTLEMENTS|PRIORITY_SETTLEMENTS|DUE_SETTLEMENTS|EXPENSE_SUMMARY|SETTLEMENT_STATUS|UNCLEAR|null","period":"THIS_WEEK|THIS_MONTH|LAST_MONTH|null","titleHint":"정산·모임 이름 또는 null","answer":"답변","sources":["근거 섹션 ID"],"followUps":["이어서 물어볼 질문 최대 3개, 각 30자 안쪽"]}
             intent, period, titleHint는 DATA일 때만 적고 그 밖에는 null로 둔다.
-            sources에는 답변 근거가 된 문서의 [ID]를 대괄호 없이 적는다. GUIDE가 아니면 answer와 sources는 비워도 된다.
+            sources에는 답변 근거가 된 문서의 [ID]를 대괄호 없이 적는다. GUIDE가 아니면 answer는 빈 문자열, sources와 followUps는 []로 쓴다.
             followUps는 사용자가 다음에 물어볼 만한 얼마 사용법 질문으로 쓴다.
             """;
 
-    /** LLM이 고를 수 있는 데이터 의도. 정해진 글자와 똑같을 때만 받는다. */
+    /** LLM이 고를 수 있는 데이터 의도. 대소문자만 다르고 정해진 글자와 같을 때만 받는다. */
     private static final Map<String, InquiryIntent> DATA_INTENTS = Map.of(
             "SEND_SETTLEMENTS", InquiryIntent.SEND_SETTLEMENTS,
             "RECEIVE_SETTLEMENTS", InquiryIntent.RECEIVE_SETTLEMENTS,

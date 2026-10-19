@@ -119,6 +119,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         if (guided.reply() == null) {
             return keywordAnswer(question, parsed);
         }
+        log.debug(
+                "Treasurer question routed. route={}, llmIntent={}, keywordIntent={}",
+                guided.reply().route(), guided.reply().intent(), parsed.intent()
+        );
         return switch (guided.reply().route()) {
             case UNRELATED -> outOfScopeAnswer();
             case GUIDE -> guided.answer().orElseGet(() -> keywordAnswer(question, parsed));
@@ -139,7 +143,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
      * LLM이 데이터 질문이라고 한 답변.
      *
      * <p>LLM이 의도를 정하지 못했다고 하면 되묻는다. 의도를 비우거나 정해진 값이 아니면 키워드 분류를 쓴다.
-     * 기간과 이름도 LLM이 비우면 키워드가 뽑은 값을 쓴다.
+     *
+     * <p>기간은 질문에 기간 표현이 있을 때만 LLM 값을 쓴다. 기간을 말하지 않은 질문에 LLM이 기간을 채우면
+     * 우선순위 질문이 지난달에 밀린 정산을 놓친다. 이름은 질문에 적힌 글자일 때만 쓰고, 사용자의 정산과 맞지
+     * 않으면 키워드가 뽑은 이름으로 다시 본다.
      */
     private Answered routedDataAnswer(String question, InquiryParser.ParsedInquiry parsed, TreasurerGuideReply reply) {
         if (reply.intent() == InquiryIntent.UNKNOWN) {
@@ -148,20 +155,26 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         if (reply.intent() == null) {
             return parsed.intent() == InquiryIntent.UNKNOWN ? clarifyAnswer() : keywordAnswer(question, parsed);
         }
+        InquiryPeriod period = parsed.period() != null && reply.period() != null ? reply.period() : parsed.period();
         String titleHint = titleHintVerification.fromQuestion(question, reply.titleHint());
-        return dataAnswer(question, new InquiryParser.ParsedInquiry(
-                reply.intent(),
-                reply.period() != null ? reply.period() : parsed.period(),
-                titleHint != null ? titleHint : parsed.titleHint()
-        ));
+        if (titleHint == null) {
+            return dataAnswer(question, new InquiryParser.ParsedInquiry(reply.intent(), period, parsed.titleHint()));
+        }
+        return dataAnswer(question, new InquiryParser.ParsedInquiry(reply.intent(), period, titleHint), parsed.titleHint());
     }
 
     private Answered dataAnswer(String question, InquiryParser.ParsedInquiry parsed) {
+        return dataAnswer(question, parsed, null);
+    }
+
+    /** {@code fallbackTitleHint}는 질문의 이름이 사용자의 정산과 맞지 않을 때 다시 볼 이름이다. */
+    private Answered dataAnswer(String question, InquiryParser.ParsedInquiry parsed, String fallbackTitleHint) {
         InquiryPeriod parsedPeriod = parsed.period();
         InquiryPeriod period = parsedPeriod == null ? InquiryPeriod.THIS_MONTH : parsedPeriod;
         Instant now = clock.instant();
         List<PersonalSettlement> all = treasurerSettlementQuery.loadMine();
-        String titleHint = titleHintVerification.verify(all, parsed.titleHint());
+        String verified = titleHintVerification.verify(all, parsed.titleHint());
+        String titleHint = verified != null ? verified : titleHintVerification.verify(all, fallbackTitleHint);
         boolean titleDropped = parsed.titleHint() != null && titleHint == null;
         List<PersonalSettlement> mine = all.stream()
                 .filter(settlement -> titleHintVerification.matchesTitle(settlement, titleHint))
