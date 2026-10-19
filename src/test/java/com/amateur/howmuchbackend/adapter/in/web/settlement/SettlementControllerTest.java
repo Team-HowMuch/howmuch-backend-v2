@@ -264,7 +264,7 @@ class SettlementControllerTest {
                         10L,
                         "여행 모임",
                         IMAGE_VERSION
-                ))
+                )), null, CREATED_AT.plusMinutes(30)
         )));
 
         mockMvc.perform(get("/api/v2/settlements")
@@ -279,6 +279,7 @@ class SettlementControllerTest {
                         org.hamcrest.Matchers.equalTo("endedAt"), org.hamcrest.Matchers.nullValue())))
                 .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
                         org.hamcrest.Matchers.equalTo("completedAt"), org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.data[0].reminderNextAvailableAt").value("2026-08-21T09:30:00"))
                 .andExpect(jsonPath("$.data[0].totalAmount").value(600))
                 .andExpect(jsonPath("$.data[0].receivableAmount").value(400))
                 .andExpect(jsonPath("$.data[0].participantCount").value(3))
@@ -321,7 +322,9 @@ class SettlementControllerTest {
         mockMvc.perform(get("/api/v2/settlements").queryParam("status", "SUSPENDED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].endedAt").value("2026-09-02T12:30:00"))
-                .andExpect(jsonPath("$.data[0].completedAt").value(org.hamcrest.Matchers.nullValue()));
+                .andExpect(jsonPath("$.data[0].completedAt").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
+                        org.hamcrest.Matchers.equalTo("reminderNextAvailableAt"), org.hamcrest.Matchers.nullValue())));
     }
 
     @Test

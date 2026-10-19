@@ -16,6 +16,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementItemAllocationPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementReminderPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.auth.status.AuthStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -61,6 +62,7 @@ public class SettlementDetailService implements GetSettlementUseCase {
     private final BankCatalog bankCatalog;
     private final SettlementItemAllocationPolicy itemAllocationPolicy;
     private final MySettlementCategoryReader myCategoryReader;
+    private final SettlementReminderPolicy reminderPolicy;
 
     @Override
     @Transactional(readOnly = true)
@@ -233,32 +235,21 @@ public class SettlementDetailService implements GetSettlementUseCase {
             Set<UUID> submittedParticipantIds
     ) {
         if (viewerRole != SettlementDetailResult.ViewerRole.CREATOR
-                || (settlement.status() != SettlementStatus.REQUESTED
-                && settlement.status() != SettlementStatus.AWAITING_DEPOSIT)) {
+                || !reminderPolicy.supportsManualReminder(settlement.status())) {
             return null;
         }
 
         List<UUID> reminderCandidateIds = payments.stream()
-                .filter(SettlementDetailResult.ParticipantPayment::linked)
-                .filter(payment -> isReminderCandidate(
-                        settlement.status(), payment, submittedParticipantIds
-                ))
+                .filter(payment -> reminderPolicy.isManualReminderCandidate(
+                        settlement.status(), payment.linked(),
+                        submittedParticipantIds.contains(payment.participantId()),
+                        payment.paymentStatus() == SettlementDetailResult.PaymentStatus.UNPAID))
                 .map(SettlementDetailResult.ParticipantPayment::participantId)
                 .toList();
         return cooldownReader.findLatestNextAvailableAt(
                 settlement.id(),
                 reminderCandidateIds
         ).orElse(null);
-    }
-
-    private boolean isReminderCandidate(
-            SettlementStatus status,
-            SettlementDetailResult.ParticipantPayment payment,
-            Set<UUID> submittedParticipantIds
-    ) {
-        return status == SettlementStatus.REQUESTED
-                ? !submittedParticipantIds.contains(payment.participantId())
-                : payment.paymentStatus() == SettlementDetailResult.PaymentStatus.UNPAID;
     }
 
     private SettlementDetailResult.PaymentInfo paymentInfo(

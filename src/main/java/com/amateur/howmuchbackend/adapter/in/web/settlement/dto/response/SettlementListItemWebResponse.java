@@ -12,7 +12,7 @@ import java.util.UUID;
 @Schema(requiredProperties = {
         "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
         "payableParticipantCount", "completedParticipantCount", "amountToPay", "receivableAmount",
-        "requesterName", "groups", "myCategory"
+        "requesterName", "groups", "myCategory", "reminderNextAvailableAt"
 })
 public record SettlementListItemWebResponse(
         UUID settlementId,
@@ -69,7 +69,12 @@ public record SettlementListItemWebResponse(
         @Schema(nullable = true, description =
                                 "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. 정산 요청 전, 분류 전, 기능 배포 전에"
                                     + " 요청된 정산은 null이다. 미분류면 code가 UNCATEGORIZED다.")
-        SettlementMyCategoryWebResponse myCategory
+        SettlementMyCategoryWebResponse myCategory,
+        @Schema(nullable = true, description = "생성자가 보는 RECEIVE 정산의 다음 독촉 가능 시각. 상세와 동일하게 "
+                + "연결된 미제출·완전 미납 대상의 가장 늦은 활성 쿨다운 만료 시각입니다. "
+                + "UTC 기준 offset 없는 값이며 PAY·독촉 불가 상태·대상 또는 활성 쿨다운이 없으면 null입니다. "
+                + "null이 독촉 가능함을 보장하지 않으며 발송 API가 최종 검증합니다.")
+        LocalDateTime reminderNextAvailableAt
 ) {
     public static SettlementListItemWebResponse from(SettlementListItemResult result) {
         return new SettlementListItemWebResponse(
@@ -90,7 +95,8 @@ public record SettlementListItemWebResponse(
                 result.groups().stream()
                         .map(GroupSummary::from)
                         .toList(),
-                SettlementMyCategoryWebResponse.from(result.myCategory())
+                SettlementMyCategoryWebResponse.from(result.myCategory()),
+                result.reminderNextAvailableAt()
         );
     }
 

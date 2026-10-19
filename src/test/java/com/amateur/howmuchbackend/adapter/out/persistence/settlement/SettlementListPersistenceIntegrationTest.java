@@ -14,6 +14,8 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSett
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReminderFactsPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReminderCooldownPort;
 import com.amateur.howmuchbackend.application.settlement.service.SettlementListService;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -28,6 +30,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
@@ -36,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.Duration;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -44,8 +50,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.Mockito.when;
 import static java.time.temporal.ChronoUnit.MICROS;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
 @DisplayName("정산 목록 영속 조회")
 class SettlementListPersistenceIntegrationTest {
@@ -56,6 +67,15 @@ class SettlementListPersistenceIntegrationTest {
 
     @Autowired
     private SettlementListService settlementListService;
+
+    @Autowired
+    private LoadSettlementReminderFactsPort reminderFactsPort;
+
+    @Autowired
+    private SettlementReminderCooldownPort cooldownPort;
+
+    @Autowired
+    private MockMvc mvc;
 
     @MockitoBean
     private CurrentActorPort currentActorPort;
@@ -422,39 +442,73 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("RECEIVE는 실제 완납 참여자 수와 링크 생성 시각을 조회한다")
-    void receiveSettlement_completedMembersAndLinkTime_loaded() {
+    void receiveSettlement_completedMembersAndLinkTime_loaded() throws Exception {
         RequestFixture request = insertReceiveRequest(600L);
-        insertDeposit(request.shareId(), 300L);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+        assertThat(cooldownPort.reserve(receiveSettlementId, receivePayerParticipantId,
+                "list-reminder", Duration.ofMinutes(30))).isTrue();
+        try {
+            LocalDateTime expectedExpiry = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(30);
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .singleElement().satisfies(item -> assertThat(item.reminderNextAvailableAt())
+                            .isCloseTo(expectedExpiry, within(2, java.time.temporal.ChronoUnit.SECONDS)));
+            mvc.perform(get("/api/v2/settlements").with(user("creator")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].reminderNextAvailableAt").isString());
+            mvc.perform(get("/api/v2/settlements"))
+                    .andExpect(status().isUnauthorized());
+            when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(payerId));
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.PAY, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .allSatisfy(item -> assertThat(item.reminderNextAvailableAt()).isNull());
+            mvc.perform(get("/api/v2/settlements").param("tab", "PAY").with(user("payer")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].reminderNextAvailableAt")
+                            .value(org.hamcrest.Matchers.nullValue()));
+            when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+            insertDeposit(request.shareId(), 300L);
 
-        var partiallyPaid = settlementPersistenceAdapter.findAll(
-                creatorId,
-                SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS,
-                null,
-                null
-        );
+            var partiallyPaid = settlementPersistenceAdapter.findAll(
+                    creatorId,
+                    SettlementListTab.RECEIVE,
+                    SettlementListStatusFilter.IN_PROGRESS,
+                    null,
+                    null
+            );
 
-        assertThat(partiallyPaid).singleElement().satisfies(item -> {
-            assertThat(item.payableParticipantCount()).isEqualTo(1);
-            assertThat(item.completedParticipantCount()).isZero();
-            assertThat(item.requestedAt()).isCloseTo(request.requestedAt(), within(1, MICROS));
-        });
+            assertThat(partiallyPaid).singleElement().satisfies(item -> {
+                assertThat(item.payableParticipantCount()).isEqualTo(1);
+                assertThat(item.completedParticipantCount()).isZero();
+                assertThat(item.requestedAt()).isCloseTo(request.requestedAt(), within(1, MICROS));
+            });
 
-        insertDeposit(request.shareId(), 300L);
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .singleElement().satisfies(item -> assertThat(item.reminderNextAvailableAt()).isNull());
+            mvc.perform(get("/api/v2/settlements").with(user("creator")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].reminderNextAvailableAt")
+                            .value(org.hamcrest.Matchers.nullValue()));
 
-        var fullyPaid = settlementPersistenceAdapter.findAll(
-                creatorId,
-                SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS,
-                null,
-                null
-        );
+            insertDeposit(request.shareId(), 300L);
 
-        assertThat(fullyPaid).singleElement().satisfies(item -> {
-            // 모든 참여자를 동일한 분모와 분자로 계산해 전원 납부 시 진행률을 100%로 반환한다.
-            assertThat(item.payableParticipantCount()).isEqualTo(1);
-            assertThat(item.completedParticipantCount()).isEqualTo(1);
-        });
+            var fullyPaid = settlementPersistenceAdapter.findAll(
+                    creatorId,
+                    SettlementListTab.RECEIVE,
+                    SettlementListStatusFilter.IN_PROGRESS,
+                    null,
+                    null
+            );
+
+            assertThat(fullyPaid).singleElement().satisfies(item -> {
+                // 모든 참여자를 동일한 분모와 분자로 계산해 전원 납부 시 진행률을 100%로 반환한다.
+                assertThat(item.payableParticipantCount()).isEqualTo(1);
+                assertThat(item.completedParticipantCount()).isEqualTo(1);
+            });
+        } finally {
+            cooldownPort.release(receiveSettlementId, receivePayerParticipantId, "list-reminder");
+        }
     }
 
     @Test
@@ -823,6 +877,38 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(receipt.expenses()).singleElement()
                     .satisfies(expense -> assertThat(expense.amount()).isEqualTo(12_000L));
         });
+        jdbcTemplate.update("""
+                INSERT INTO settlement_item_submissions (id, settlement_id, participant_id, submitted_at)
+                VALUES (?, ?, ?, ?)
+                """, UUID.randomUUID(), receiveSettlementId, receiveCreatorParticipantId, CREATED_AT);
+        assertThat(reminderFactsPort.findAllBySettlementIds(List.of(receiveSettlementId, paySettlementId)))
+                .anySatisfy(fact -> {
+                    assertThat(fact.participantId()).isEqualTo(receiveCreatorParticipantId);
+                    assertThat(fact.linkedNonCreator()).isFalse();
+                    assertThat(fact.submitted()).isTrue();
+                }).anySatisfy(fact -> {
+                    assertThat(fact.participantId()).isEqualTo(receivePayerParticipantId);
+                    assertThat(fact.linkedNonCreator()).isTrue();
+                    assertThat(fact.submitted()).isFalse();
+                    assertThat(fact.sharePresent()).isFalse();
+                });
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+        assertThat(cooldownPort.reserve(receiveSettlementId, receivePayerParticipantId,
+                "selection-reminder", Duration.ofMinutes(30))).isTrue();
+        try {
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .singleElement().satisfies(item -> assertThat(item.reminderNextAvailableAt()).isNotNull());
+            jdbcTemplate.update("""
+                    INSERT INTO settlement_item_submissions (id, settlement_id, participant_id, submitted_at)
+                    VALUES (?, ?, ?, ?)
+                    """, UUID.randomUUID(), receiveSettlementId, receivePayerParticipantId, CREATED_AT);
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .singleElement().satisfies(item -> assertThat(item.reminderNextAvailableAt()).isNull());
+        } finally {
+            cooldownPort.release(receiveSettlementId, receivePayerParticipantId, "selection-reminder");
+        }
         assertThat(facts.get(1)).satisfies(dutchPay -> {
             assertThat(dutchPay.creatorParticipantId()).isNotNull();
             assertThat(dutchPay.items()).isEmpty();
@@ -840,6 +926,8 @@ class SettlementListPersistenceIntegrationTest {
         assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of(receiveSettlementId)))
                 .isEmpty();
         assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of())).isEmpty();
+        assertThat(reminderFactsPort.findAllBySettlementIds(List.of(receiveSettlementId))).isEmpty();
+        assertThat(reminderFactsPort.findAllBySettlementIds(List.of())).isEmpty();
     }
 
     @Test

@@ -432,12 +432,13 @@ class CertificateSmsAuthenticationIntegrationTest {
         assertThat(authStore.find(id, false).orElseThrow().execution()).isNull();
         assertThat(authStore.find(id, false).orElseThrow().operationType())
                 .isEqualTo("BANK_CONNECT");
-        assertThat(
-                        jdbc.queryForObject(
-                                "SELECT convert_from(encrypted_payload,'LATIN1') FROM"
-                                        + " codef_authentication_challenges WHERE id=?",
-                                String.class,
-                                id))
+        byte[] encryptedPayload = jdbc.queryForObject(
+                "SELECT encrypted_payload FROM codef_authentication_challenges WHERE id=?",
+                byte[].class,
+                id);
+        assertThat(encryptedPayload).isNotEmpty();
+        // Ciphertext may contain NUL bytes, which PostgreSQL text values cannot represent.
+        assertThat(new String(encryptedPayload, java.nio.charset.StandardCharsets.ISO_8859_1))
                 .doesNotContain("generic-private-context");
         assertThatThrownBy(() -> auth.withAccountQueryAdmission(user, "0020", List::of))
                 .isInstanceOf(

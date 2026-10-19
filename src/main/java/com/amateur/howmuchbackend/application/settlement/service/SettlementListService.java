@@ -13,9 +13,11 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +26,7 @@ public class SettlementListService implements GetSettlementsUseCase {
     private final LoadSettlementListPort loadSettlementListPort;
     private final RequestedItemReceivableCalculator requestedItemReceivableCalculator;
     private final MySettlementCategoryReader myCategoryReader;
+    private final SettlementReminderCooldownReader cooldownReader;
 
     @Override
     public List<SettlementListItemResult> get(GetSettlementsCommand command) {
@@ -40,6 +43,10 @@ public class SettlementListService implements GetSettlementsUseCase {
                 : Map.of();
         Map<UUID, SettlementCategoryResult> myCategories = myCategoryReader.read(
                 userId, items.stream().map(SettlementListReadModel::settlementId).toList());
+        Map<UUID, LocalDateTime> reminderTimes = command.tab() == SettlementListTab.RECEIVE
+                ? cooldownReader.findLatestNextAvailableAt(items.stream().collect(Collectors.toMap(
+                        SettlementListReadModel::settlementId, SettlementListReadModel::status)))
+                : Map.of();
         return items.stream()
                 .map(item -> new SettlementListItemResult(
                         item.settlementId(),
@@ -63,7 +70,8 @@ public class SettlementListService implements GetSettlementsUseCase {
                                         group.imageVersion()
                                 ))
                                 .toList(),
-                        myCategories.get(item.settlementId())
+                        myCategories.get(item.settlementId()),
+                        reminderTimes.get(item.settlementId())
                 ))
                 .toList();
     }
