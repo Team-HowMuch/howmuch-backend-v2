@@ -8,6 +8,8 @@ import com.amateur.howmuchbackend.application.port.in.treasurer.command.ReportTr
 import com.amateur.howmuchbackend.application.port.in.treasurer.result.TreasurerAnswerReportResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerAnswerPort;
+import com.amateur.howmuchbackend.application.port.out.treasurer.GenerateTreasurerGuidePort;
+import com.amateur.howmuchbackend.application.treasurer.model.TreasurerGuideReply;
 import com.amateur.howmuchbackend.application.port.out.treasurer.LoadTreasurerAnswerPort;
 import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAnswerPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -67,6 +69,7 @@ class TreasurerAnswerReportIntegrationTest {
     @MockitoBean CurrentActorPort actor;
     @MockitoBean Clock clock;
     @MockitoBean GenerateTreasurerAnswerPort generateTreasurerAnswerPort;
+    @MockitoBean GenerateTreasurerGuidePort generateTreasurerGuidePort;
 
     Long owner;
     Long stranger;
@@ -256,6 +259,11 @@ class TreasurerAnswerReportIntegrationTest {
     @DisplayName("질문 흐름은 LLM을 부르는 동안 트랜잭션을 쥐지 않는다")
     void askTreasurer_llmCall_runsWithoutTransaction() {
         AtomicBoolean transactionWasActive = new AtomicBoolean(true);
+        AtomicBoolean guideTransactionWasActive = new AtomicBoolean(true);
+        when(generateTreasurerGuidePort.generate(any(), any())).thenAnswer(invocation -> {
+            guideTransactionWasActive.set(TransactionSynchronizationManager.isActualTransactionActive());
+            return Optional.of(new TreasurerGuideReply(TreasurerGuideReply.Route.DATA, null, List.of(), List.of()));
+        });
         when(generateTreasurerAnswerPort.generate(any())).thenAnswer(invocation -> {
             // 여기서 트랜잭션이 살아 있으면 커넥션 하나를 LLM 호출 내내 쥐고 있다는 뜻이다.
             // 그 상태로 저장이 두 번째 커넥션을 요구하면, 동시 질문이 풀 크기만큼 들어왔을 때
@@ -266,6 +274,7 @@ class TreasurerAnswerReportIntegrationTest {
 
         var result = ask.ask(new AskTreasurerCommand("이번 달 보낼 정산 얼마야"));
 
+        assertThat(guideTransactionWasActive).isFalse();
         assertThat(transactionWasActive).isFalse();
         // 트랜잭션을 걷어내도 저장은 그대로 되어야 한다.
         assertThat(result.answerId()).isNotNull();
