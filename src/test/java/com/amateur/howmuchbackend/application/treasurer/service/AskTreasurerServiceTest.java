@@ -49,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
@@ -1362,6 +1363,143 @@ class AskTreasurerServiceTest {
         assertThat(result.items()).extracting(TreasurerAnswerResult.Item::settlementId).containsExactly(
                 fixture.overdueReceive().settlementId(), fixture.freshReceive().settlementId());
         assertThat(result.answer()).doesNotContain("시간 이상");
+    }
+
+    @Test
+    @DisplayName("키워드로 못 나누는 말투도 안내 LLM이 우선순위 질문이라고 하면 처리할 정산을 보여준다")
+    void llmPriority_unmatchedPhrasing_answersPriority() {
+        PrioritySettlements fixture = prioritySettlements();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
+        String question = "내가 지금 해야하는 정산";
+        llmSaysData(question, InquiryIntent.PRIORITY_SETTLEMENTS, null, null);
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(new InquiryParser().parse(question).intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(result.intent()).isEqualTo(InquiryIntent.PRIORITY_SETTLEMENTS);
+        assertThat(result.items()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("안내 LLM이 보낼 정산이라고 하면 받을 정산이 함께 있어도 보낼 정산만 보여준다")
+    void llmSend_onlySendSettlements() {
+        PrioritySettlements fixture = prioritySettlements();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
+        String question = "내가 지금 해야하는 정산";
+        llmSaysData(question, InquiryIntent.SEND_SETTLEMENTS, null, null);
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(result.items()).extracting(TreasurerAnswerResult.Item::settlementId)
+                .containsExactlyInAnyOrder(fixture.overdueSend().settlementId(), fixture.freshSend().settlementId());
+    }
+
+    @Test
+    @DisplayName("키워드와 안내 LLM의 의도가 다르면 안내 LLM을 따른다")
+    void llmIntent_overridesKeyword() {
+        PrioritySettlements fixture = prioritySettlements();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
+        String question = "받을 사람한테 보낼 정산 알려줘";
+        llmSaysData(question, InquiryIntent.SEND_SETTLEMENTS, null, null);
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        assertThat(result.items()).extracting(TreasurerAnswerResult.Item::settlementId)
+                .containsExactlyInAnyOrder(fixture.overdueSend().settlementId(), fixture.freshSend().settlementId());
+    }
+
+    @Test
+    @DisplayName("안내 LLM이 데이터 질문이지만 의도를 정하지 못했다고 하면 정산을 조회하지 않고 되묻는다")
+    void llmUnclear_clarifies() {
+        String question = "보낼 정산이랑 받을 정산 중에 뭐가 많아?";
+        llmSaysData(question, InquiryIntent.UNKNOWN, null, null);
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.UNKNOWN);
+        assertThat(result.answer()).isEqualTo(TreasurerCardCopy.CLARIFY_ANSWER);
+        assertThat(result.prompts()).isNotEmpty();
+        verifyNoInteractions(treasurerSettlementQuery);
+    }
+
+    @Test
+    @DisplayName("안내 LLM이 데이터 질문이라면서 의도를 비우면 키워드 분류를 쓰고, 키워드도 모르면 되묻는다")
+    void llmDataWithoutIntent_usesKeywordOrClarifies() {
+        PrioritySettlements fixture = prioritySettlements();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
+        llmSaysData("받을 정산 알려줘", null, null, null);
+        llmSaysData("정산 좀 봐줘", null, null, null);
+        AskTreasurerService service = service();
+
+        var keyword = service.ask(new AskTreasurerCommand("받을 정산 알려줘"));
+        var unmatched = service.ask(new AskTreasurerCommand("정산 좀 봐줘"));
+
+        assertThat(keyword.intent()).isEqualTo(InquiryIntent.RECEIVE_SETTLEMENTS);
+        assertThat(keyword.items()).extracting(TreasurerAnswerResult.Item::settlementId).containsExactly(
+                fixture.overdueReceive().settlementId(), fixture.freshReceive().settlementId());
+        assertThat(unmatched.answer()).isEqualTo(TreasurerCardCopy.CLARIFY_ANSWER);
+    }
+
+    @Test
+    @DisplayName("안내 LLM이 정한 기간과 질문에 적힌 정산 이름으로 좁힌다")
+    void llmPeriodAndTitle_narrowSettlements() {
+        PrioritySettlements fixture = prioritySettlements();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
+        llmSaysData("지난번 보낼 돈 알려줘", InquiryIntent.SEND_SETTLEMENTS, InquiryPeriod.LAST_MONTH, null);
+        llmSaysData("제주 여행 보낼 돈 알려줘", InquiryIntent.SEND_SETTLEMENTS, null, "제주 여행");
+        AskTreasurerService service = service();
+
+        var lastMonth = service.ask(new AskTreasurerCommand("지난번 보낼 돈 알려줘"));
+        var titled = service.ask(new AskTreasurerCommand("제주 여행 보낼 돈 알려줘"));
+
+        assertThat(lastMonth.period()).isEqualTo(InquiryPeriod.LAST_MONTH);
+        assertThat(lastMonth.items()).extracting(TreasurerAnswerResult.Item::settlementId)
+                .containsExactly(fixture.lastMonthSend().settlementId());
+        assertThat(titled.items()).extracting(TreasurerAnswerResult.Item::settlementId)
+                .containsExactly(fixture.overdueSend().settlementId());
+    }
+
+    @Test
+    @DisplayName("질문에 없는 정산 이름을 안내 LLM이 지어내면 그 이름으로 좁히지 않는다")
+    void llmTitleNotInQuestion_ignored() {
+        PrioritySettlements fixture = prioritySettlements();
+        when(treasurerSettlementQuery.loadMine()).thenReturn(fixture.all());
+        String question = "보낼 돈 알려줘";
+        llmSaysData(question, InquiryIntent.SEND_SETTLEMENTS, null, "제주 여행");
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(result.items()).extracting(TreasurerAnswerResult.Item::settlementId)
+                .containsExactlyInAnyOrder(fixture.overdueSend().settlementId(), fixture.freshSend().settlementId());
+    }
+
+    @Test
+    @DisplayName("안내 답변이 검사에서 버려지면 안내 LLM을 다시 부르지 않고 키워드 분류로 답한다")
+    void rejectedGuide_fallsBackToKeywordWithoutSecondCall() {
+        when(treasurerSettlementQuery.loadMine()).thenReturn(List.of());
+        String question = "보낼 정산 알려줘";
+        when(generateTreasurerGuidePort.generate(eq(question), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.GUIDE, "없는 근거로 답해요.", List.of("NOPE"), List.of())));
+        AskTreasurerService service = service();
+
+        var result = service.ask(new AskTreasurerCommand(question));
+
+        assertThat(result.intent()).isEqualTo(InquiryIntent.SEND_SETTLEMENTS);
+        verify(generateTreasurerGuidePort, times(1)).generate(eq(question), any());
+    }
+
+    private void llmSaysData(String question, InquiryIntent intent, InquiryPeriod period, String titleHint) {
+        when(generateTreasurerGuidePort.generate(eq(question), any()))
+                .thenReturn(Optional.of(new TreasurerGuideReply(
+                        TreasurerGuideReply.Route.DATA, null, List.of(), List.of(), intent, period, titleHint)));
     }
 
     private record PrioritySettlements(
