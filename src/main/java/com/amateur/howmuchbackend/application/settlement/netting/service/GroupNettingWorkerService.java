@@ -28,7 +28,7 @@ public class GroupNettingWorkerService implements ProcessNettingExecutionUseCase
     private final LoadGroupNettingPort nettings;
     private final GroupNettingInputReader inputs;
     private final NettingBankQueryGuard queryGuard;
-    private final SettlementBankTransactionFetchService fetcher;
+    private final NettingBankTransactionReader bankReader;
     private final NettingOriginalDepositWriter originalWriter;
     private final NettingObservedTransactionWriter observedWriter;
     private final GroupNettingCommitWriter commitWriter;
@@ -47,9 +47,6 @@ public class GroupNettingWorkerService implements ProcessNettingExecutionUseCase
         if (e.kind() == NettingExecutionStorePort.Kind.DETECT) return null;
         if (e.kind() == NettingExecutionStorePort.Kind.CREATE) {
             var before = inputs.read(e.groupId());
-            var fetchedByAccount =
-                    new HashMap<
-                            Long, List<com.amateur.howmuchbackend.domain.account.Transaction>>();
             var sourceSnapshots =
                     new LinkedHashMap<
                             UUID,
@@ -62,50 +59,60 @@ public class GroupNettingWorkerService implements ProcessNettingExecutionUseCase
                 earliest.merge(
                         snap.sourceAccountId(), snap.createdAt(), (a, b) -> a.isBefore(b) ? a : b);
             }
-            if (before.predecessorNettingId() != null)
-                for (var account : nettings.monitoredAccounts(before.predecessorNettingId()))
-                    earliest.merge(
-                            account.accountId(),
-                            account.activatedAt(),
-                            (a, b) -> a.isBefore(b) ? a : b);
+            var monitored =
+                    before.predecessorNettingId() == null
+                            ? List.<LoadGroupNettingPort.ReceivingAccount>of()
+                            : nettings.monitoredAccounts(before.predecessorNettingId());
+            for (var account : monitored) {
+                earliest.merge(
+                        account.accountId(),
+                        account.activatedAt(),
+                        (a, b) -> a.isBefore(b) ? a : b);
+            }
+            // Keep first-use order for error handling, and deduplicate source/predecessor accounts.
+            Map<Long, NettingBankTransactionReader.Query> queries = new LinkedHashMap<>();
             for (var source : before.sources()) {
                 var snap = sourceSnapshots.get(source.settlementId());
-                var context = queryGuard.source(e, source, snap);
-                var fetched =
-                        fetchedByAccount.computeIfAbsent(
+                queries.putIfAbsent(
+                        snap.sourceAccountId(),
+                        new NettingBankTransactionReader.Query(
                                 snap.sourceAccountId(),
-                                ignored ->
-                                        fetcher.fetch(
-                                                context,
-                                                snap.sourceAccountId(),
-                                                snap.organization(),
-                                                snap.accountNumber(),
-                                                earliest.get(snap.sourceAccountId()),
-                                                LocalDateTime.now(ZoneOffset.UTC),
-                                                () -> queryGuard.source(e, source, snap)));
+                                snap.organization(),
+                                snap.accountNumber(),
+                                earliest.get(snap.sourceAccountId()),
+                                () -> queryGuard.source(e, source, snap)));
+            }
+            for (var account : monitored) {
+                queries.putIfAbsent(
+                        account.accountId(),
+                        new NettingBankTransactionReader.Query(
+                                account.accountId(),
+                                account.organization(),
+                                account.accountNumber(),
+                                earliest.get(account.accountId()),
+                                () ->
+                                        queryGuard.monitored(
+                                                e, before.predecessorNettingId(), account)));
+            }
+            var fetchedByAccount = bankReader.fetch(List.copyOf(queries.values()));
+            Set<Long> appliedAccounts = new HashSet<>();
+            for (var source : before.sources()) {
+                var snap = sourceSnapshots.get(source.settlementId());
+                // First-use and per-period guards ran in the fetch task. Reused results retain
+                // the original per-source guard before the existing transactional writer.
+                if (!appliedAccounts.add(snap.sourceAccountId()))
+                    queryGuard.source(e, source, snap);
+                var fetched = fetchedByAccount.get(snap.sourceAccountId()).transactionsOrThrow();
                 originalWriter.apply(e, source, snap, fetched, LocalDateTime.now(ZoneOffset.UTC));
             }
-            if (before.predecessorNettingId() != null) {
-                for (var account : nettings.monitoredAccounts(before.predecessorNettingId())) {
-                    var context = queryGuard.monitored(e, before.predecessorNettingId(), account);
-                    var fetched =
-                            fetchedByAccount.computeIfAbsent(
-                                    account.accountId(),
-                                    ignored ->
-                                            fetcher.fetch(
-                                                    context,
-                                                    account.accountId(),
-                                                    account.organization(),
-                                                    account.accountNumber(),
-                                                    earliest.get(account.accountId()),
-                                                    LocalDateTime.now(ZoneOffset.UTC),
-                                                    () ->
-                                                            queryGuard.monitored(
-                                                                    e,
-                                                                    before.predecessorNettingId(),
-                                                                    account)));
-                    observedWriter.save(e, account, fetched, LocalDateTime.now(ZoneOffset.UTC));
+            for (var account : monitored) {
+                if (!appliedAccounts.add(account.accountId())) {
+                    queryGuard.monitored(e, before.predecessorNettingId(), account);
                 }
+                var fetched = fetchedByAccount.get(account.accountId()).transactionsOrThrow();
+                observedWriter.save(e, account, fetched, LocalDateTime.now(ZoneOffset.UTC));
+            }
+            if (before.predecessorNettingId() != null) {
                 depositWriter.refresh(e, before.predecessorNettingId());
             }
             var fresh = inputs.read(e.groupId());
@@ -134,18 +141,25 @@ public class GroupNettingWorkerService implements ProcessNettingExecutionUseCase
                 throw ApplicationException.of(NettingStatusCode.NETTING_INPUT_CHANGED);
             return fresh;
         }
-        for (var account : nettings.monitoredAccounts(e.nettingId(), e.actorId())) {
-            var context = queryGuard.monitored(e, e.nettingId(), account);
-            var fetched =
-                    fetcher.fetch(
-                            context,
+        var monitored = nettings.monitoredAccounts(e.nettingId(), e.actorId());
+        Map<Long, NettingBankTransactionReader.Query> queries = new LinkedHashMap<>();
+        for (var account : monitored) {
+            queries.putIfAbsent(
+                    account.accountId(),
+                    new NettingBankTransactionReader.Query(
                             account.accountId(),
                             account.organization(),
                             account.accountNumber(),
                             account.activatedAt(),
-                            LocalDateTime.now(ZoneOffset.UTC),
-                            () -> queryGuard.monitored(e, e.nettingId(), account));
-            observedWriter.save(e, account, fetched, LocalDateTime.now(ZoneOffset.UTC));
+                            () -> queryGuard.monitored(e, e.nettingId(), account)));
+        }
+        var fetchedByAccount = bankReader.fetch(List.copyOf(queries.values()));
+        for (var account : monitored) {
+            observedWriter.save(
+                    e,
+                    account,
+                    fetchedByAccount.get(account.accountId()).transactionsOrThrow(),
+                    LocalDateTime.now(ZoneOffset.UTC));
         }
         return null;
     }

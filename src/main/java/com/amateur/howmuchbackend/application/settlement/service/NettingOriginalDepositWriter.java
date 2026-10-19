@@ -40,13 +40,13 @@ public class NettingOriginalDepositWriter {
         groups.loadActiveForUpdate(e.groupId());
         groups.requireActiveMember(e.groupId(), e.actorId());
         executions.requireLease(e.id(), e.leaseToken(), LocalDateTime.now(ZoneOffset.UTC));
-        if (sources.findAwaitingSources(e.groupId()).stream()
-                .noneMatch(
+        if (sources.findAwaitingSourceIdentity(e.groupId(), source.settlementId())
+                .filter(
                         s ->
                                 s.settlementId().equals(source.settlementId())
                                         && s.receivingAccountDigest()
-                                                .equals(source.receivingAccountDigest())))
-            throw ApplicationException.of(NettingStatusCode.NETTING_INPUT_CHANGED);
+                                                .equals(source.receivingAccountDigest()))
+                .isEmpty()) throw ApplicationException.of(NettingStatusCode.NETTING_INPUT_CHANGED);
         writer.reconcile(source.settlementId(), source.creatorId(), snapshot, transactions, now);
     }
 }

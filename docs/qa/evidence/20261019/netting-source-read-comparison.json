@@ -1,0 +1,32 @@
+[
+  {
+    "originals": 2,
+    "beforeMs": 2764.674542,
+    "afterFreshMs": 2848.975916,
+    "afterRegressionMs": 2396.534542,
+    "freshReductionPercent": -3.0,
+    "beforeFullReads": 10,
+    "afterFullReads": 4,
+    "bankCalls": 2
+  },
+  {
+    "originals": 20,
+    "beforeMs": 3785.221458,
+    "afterFreshMs": 3011.613833,
+    "afterRegressionMs": 2888.154125,
+    "freshReductionPercent": 20.4,
+    "beforeFullReads": 46,
+    "afterFullReads": 4,
+    "bankCalls": 2
+  },
+  {
+    "originals": 100,
+    "beforeMs": 17995.807375,
+    "afterFreshMs": 4571.684042,
+    "afterRegressionMs": 3917.909125,
+    "freshReductionPercent": 74.6,
+    "beforeFullReads": 206,
+    "afterFullReads": 4,
+    "bankCalls": 2
+  }
+]

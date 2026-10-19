@@ -33,14 +33,14 @@ public class NettingBankQueryGuard {
                     snapshot) {
         groups.loadActive(e.groupId());
         groups.requireActiveMember(e.groupId(), e.actorId());
-        if (sources.findAwaitingSources(e.groupId()).stream()
-                .noneMatch(
+        if (sources.findAwaitingSourceIdentity(e.groupId(), source.settlementId())
+                .filter(
                         s ->
                                 s.settlementId().equals(source.settlementId())
                                         && s.receivingAccountId() == snapshot.sourceAccountId()
                                         && s.receivingAccountDigest()
-                                                .equals(source.receivingAccountDigest())))
-            throw ApplicationException.of(NettingStatusCode.NETTING_INPUT_CHANGED);
+                                                .equals(source.receivingAccountDigest()))
+                .isEmpty()) throw ApplicationException.of(NettingStatusCode.NETTING_INPUT_CHANGED);
         executions.requireLease(e.id(), e.leaseToken(), LocalDateTime.now(ZoneOffset.UTC));
         return contexts.load(
                 snapshot.sourceAccountId(), source.creatorId(), snapshot.accountNumber());

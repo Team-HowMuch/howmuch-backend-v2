@@ -1,0 +1,184 @@
+[ {
+  "scenario" : "estimate cold",
+  "originals" : 2,
+  "data" : {
+    "groupId" : 1,
+    "eligibleSettlementCount" : 2,
+    "beforeTransferCount" : 2,
+    "afterTransferCount" : 1,
+    "reducedTransferCount" : 1,
+    "canCompress" : true
+  },
+  "ms" : 391.530917
+}, {
+  "requests" : 20,
+  "scenario" : "estimate warm originals=2",
+  "medianMs" : 18.322583,
+  "p95Ms" : 21.340166,
+  "maxMs" : 25.142291
+}, {
+  "requests" : 20,
+  "scenario" : "unrelated GET before originals=2",
+  "medianMs" : 6.704667,
+  "p95Ms" : 12.993709,
+  "maxMs" : 13.001375
+}, {
+  "requests" : 20,
+  "scenario" : "unrelated GET during slow bank originals=2",
+  "medianMs" : 5.734667,
+  "p95Ms" : 6.800416,
+  "maxMs" : 8.630375
+}, {
+  "requests" : 20,
+  "scenario" : "execution polling during slow bank originals=2",
+  "medianMs" : 7.428917,
+  "p95Ms" : 7.890875,
+  "maxMs" : 7.891
+}, {
+  "bankCalls" : 2,
+  "netTransfers" : 1,
+  "enqueueMs" : 49.306125,
+  "elapsedMs" : 2764.674542,
+  "scenario" : "compression",
+  "sources" : 2,
+  "detailMs" : 22.112042,
+  "fullSourceReadCalls" : 10,
+  "originals" : 2
+}, {
+  "steps" : [ {
+    "step_name" : "groupNetting.synchronize",
+    "duration_ms" : 2382.184000
+  }, {
+    "step_name" : "groupNetting.commit",
+    "duration_ms" : 170.224000
+  } ],
+  "scenario" : "batch steps",
+  "originals" : 2
+}, {
+  "scenario" : "reconcile completes all sources",
+  "originals" : 2,
+  "status" : "COMPLETED",
+  "confirmedAmount" : 5000
+}, {
+  "scenario" : "estimate cold",
+  "originals" : 20,
+  "data" : {
+    "groupId" : 2,
+    "eligibleSettlementCount" : 20,
+    "beforeTransferCount" : 20,
+    "afterTransferCount" : 1,
+    "reducedTransferCount" : 19,
+    "canCompress" : true
+  },
+  "ms" : 69.650667
+}, {
+  "requests" : 20,
+  "scenario" : "estimate warm originals=20",
+  "medianMs" : 15.86675,
+  "p95Ms" : 30.256292,
+  "maxMs" : 30.386875
+}, {
+  "requests" : 20,
+  "scenario" : "unrelated GET before originals=20",
+  "medianMs" : 5.127125,
+  "p95Ms" : 5.609041,
+  "maxMs" : 5.643417
+}, {
+  "requests" : 20,
+  "scenario" : "unrelated GET during slow bank originals=20",
+  "medianMs" : 8.28575,
+  "p95Ms" : 15.603791,
+  "maxMs" : 15.637208
+}, {
+  "requests" : 20,
+  "scenario" : "execution polling during slow bank originals=20",
+  "medianMs" : 9.922041,
+  "p95Ms" : 18.5645,
+  "maxMs" : 19.078833
+}, {
+  "bankCalls" : 2,
+  "netTransfers" : 1,
+  "enqueueMs" : 28.566292,
+  "elapsedMs" : 3785.221458,
+  "scenario" : "compression",
+  "sources" : 20,
+  "detailMs" : 13.853458,
+  "fullSourceReadCalls" : 46,
+  "originals" : 20
+}, {
+  "steps" : [ {
+    "step_name" : "groupNetting.synchronize",
+    "duration_ms" : 3474.227000
+  }, {
+    "step_name" : "groupNetting.commit",
+    "duration_ms" : 205.140000
+  } ],
+  "scenario" : "batch steps",
+  "originals" : 20
+}, {
+  "scenario" : "reconcile completes all sources",
+  "originals" : 20,
+  "status" : "COMPLETED",
+  "confirmedAmount" : 23000
+}, {
+  "scenario" : "estimate cold",
+  "originals" : 100,
+  "data" : {
+    "groupId" : 3,
+    "eligibleSettlementCount" : 100,
+    "beforeTransferCount" : 100,
+    "afterTransferCount" : 1,
+    "reducedTransferCount" : 99,
+    "canCompress" : true
+  },
+  "ms" : 123.199791
+}, {
+  "requests" : 20,
+  "scenario" : "estimate warm originals=100",
+  "medianMs" : 16.476583,
+  "p95Ms" : 39.427667,
+  "maxMs" : 39.940625
+}, {
+  "requests" : 20,
+  "scenario" : "unrelated GET before originals=100",
+  "medianMs" : 6.200125,
+  "p95Ms" : 6.633,
+  "maxMs" : 6.709916
+}, {
+  "requests" : 20,
+  "scenario" : "unrelated GET during slow bank originals=100",
+  "medianMs" : 7.748833,
+  "p95Ms" : 27.689458,
+  "maxMs" : 27.751417
+}, {
+  "requests" : 20,
+  "scenario" : "execution polling during slow bank originals=100",
+  "medianMs" : 7.646875,
+  "p95Ms" : 8.535333,
+  "maxMs" : 8.62125
+}, {
+  "bankCalls" : 2,
+  "netTransfers" : 1,
+  "enqueueMs" : 133.615417,
+  "elapsedMs" : 17995.807375,
+  "scenario" : "compression",
+  "sources" : 100,
+  "detailMs" : 16.71475,
+  "fullSourceReadCalls" : 206,
+  "originals" : 100
+}, {
+  "steps" : [ {
+    "step_name" : "groupNetting.synchronize",
+    "duration_ms" : 17476.698000
+  }, {
+    "step_name" : "groupNetting.commit",
+    "duration_ms" : 306.391000
+  } ],
+  "scenario" : "batch steps",
+  "originals" : 100
+}, {
+  "scenario" : "reconcile completes all sources",
+  "originals" : 100,
+  "status" : "COMPLETED",
+  "confirmedAmount" : 103000
+} ]
