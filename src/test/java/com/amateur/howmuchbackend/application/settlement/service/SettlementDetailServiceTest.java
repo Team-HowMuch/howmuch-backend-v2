@@ -17,6 +17,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementItemAllocationPolicy;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementReminderPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -106,7 +107,8 @@ class SettlementDetailServiceTest {
                 cooldownReader,
                 bankCatalog,
                 itemAllocationPolicy,
-                myCategoryReader
+                myCategoryReader,
+                new SettlementReminderPolicy()
         );
     }
 

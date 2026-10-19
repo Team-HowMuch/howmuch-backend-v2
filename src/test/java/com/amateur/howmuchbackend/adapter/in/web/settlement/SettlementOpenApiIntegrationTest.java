@@ -59,7 +59,8 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementListItemWebResponse",
                 "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
-                "completedParticipantCount", "amountToPay", "receivableAmount", "requesterName", "groups"
+                "completedParticipantCount", "amountToPay", "receivableAmount", "requesterName", "groups",
+                "reminderNextAvailableAt"
         );
         assertRequired(
                 document,
@@ -103,10 +104,11 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementListItemWebResponse",
                 "endedAt", "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay",
-                "receivableAmount", "requesterName", "storeName"
+                "receivableAmount", "requesterName", "storeName", "reminderNextAvailableAt"
         );
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "endedAt");
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "completedAt");
+        assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "reminderNextAvailableAt");
         List<JsonNode> parameters = new ArrayList<>();
         document.path("paths").path("/api/v2/settlements").path("get").path("parameters")
                 .forEach(parameters::add);

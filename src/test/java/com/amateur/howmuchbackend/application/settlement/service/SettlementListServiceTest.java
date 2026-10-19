@@ -53,13 +53,17 @@ class SettlementListServiceTest {
     @Mock
     private MySettlementCategoryReader myCategoryReader;
 
+    @Mock
+    private SettlementReminderCooldownReader cooldownReader;
+
     private SettlementListService service() {
         return new SettlementListService(
                 currentActorPort,
                 loadSettlementListPort,
                 new RequestedItemReceivableCalculator(
                         loadRequestedItemReceivableFactsPort, new SettlementItemAllocationPolicy()),
-                myCategoryReader
+                myCategoryReader,
+                cooldownReader
         );
     }
 
@@ -78,6 +82,8 @@ class SettlementListServiceTest {
                 SettlementListTab.PAY, SettlementListStatusFilter.IN_PROGRESS, null, null));
 
         assertThat(result).extracting(SettlementListItemResult::myCategory).containsExactly(cafe, null);
+        assertThat(result).extracting(SettlementListItemResult::reminderNextAvailableAt).containsOnlyNulls();
+        verifyNoInteractions(cooldownReader);
         verify(myCategoryReader).read(USER_ID, List.of(SETTLEMENT_ID, other));
     }
 
@@ -170,11 +176,18 @@ class SettlementListServiceTest {
                 USER_ID, SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null
         )).thenReturn(List.of(readModel));
 
+        LocalDateTime nextAvailableAt = LocalDateTime.of(2026, 8, 13, 0, 30);
+        when(cooldownReader.findLatestNextAvailableAt(Map.of(
+                SETTLEMENT_ID, SettlementStatus.AWAITING_DEPOSIT)))
+                .thenReturn(Map.of(SETTLEMENT_ID, nextAvailableAt));
+
         var result = service().get(new GetSettlementsCommand(
                 SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null));
 
         assertThat(result).singleElement().satisfies(item ->
                 assertThat(item.storeName()).isEqualTo("행복식당"));
+        assertThat(result).singleElement().satisfies(item ->
+                assertThat(item.reminderNextAvailableAt()).isEqualTo(nextAvailableAt));
     }
 
     @Test

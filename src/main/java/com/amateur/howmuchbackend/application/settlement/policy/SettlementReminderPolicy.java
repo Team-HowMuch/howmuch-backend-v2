@@ -19,6 +19,20 @@ public class SettlementReminderPolicy {
     private static final LocalTime QUIET_HOURS_START = LocalTime.of(3, 0);
     private static final LocalTime QUIET_HOURS_END = LocalTime.of(6, 0);
 
+    public boolean supportsManualReminder(SettlementStatus status) {
+        return status == SettlementStatus.REQUESTED || status == SettlementStatus.AWAITING_DEPOSIT;
+    }
+
+    public boolean isManualReminderCandidate(
+            SettlementStatus status, boolean linked, boolean submitted, boolean unpaid
+    ) {
+        return linked && switch (status) {
+            case REQUESTED -> !submitted;
+            case AWAITING_DEPOSIT -> unpaid;
+            default -> false;
+        };
+    }
+
     public boolean isAutomaticDue(
             Settlement settlement,
             SettlementShare share,
@@ -45,8 +59,7 @@ public class SettlementReminderPolicy {
         if (!settlement.isCreatedBy(actorId)) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
         }
-        if (settlement.status() != SettlementStatus.REQUESTED
-                && settlement.status() != SettlementStatus.AWAITING_DEPOSIT) {
+        if (!supportsManualReminder(settlement.status())) {
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_REMINDER_NOT_AVAILABLE);
         }
     }
