@@ -19,7 +19,10 @@ public interface RecapDocs {
             @ApiResponse(responseCode = "401", description = "UNAUTHORIZED - 인증 필요 또는 유효하지 않은 세션")})
     com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse<RecapMonthsWebResponse> getMonths();
 
-    @Operation(summary = "본인 월 리캡 상세", description = "생성 시점에 고정한 본인 부담액·전월 비교·동행자를 조회합니다. 완료 월은 KST, 생성 시각은 UTC입니다.")
+    @Operation(summary = "본인 월 리캡 상세", description = "생성 시점에 고정한 본인 부담액·전월 비교·동행자·카테고리 TOP3·의외의 기록을 조회합니다. "
+            + "완료 월과 요일은 KST, 생성 시각은 UTC입니다. 카테고리는 본인 수정값 우선이며 미분류를 제외합니다. "
+            + "categories·record·benefits는 자료가 없으면 null이며 기존 리캡을 다시 계산하지 않습니다. 제휴 혜택은 데이터 준비 전까지 null입니다. "
+            + "가장 빠른 정산은 유효한 링크 생성 시각이 있는 정산만 비교하며, 분 미만을 버립니다.")
     @ApiResponses({@ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
             @ApiResponse(responseCode = "400", description = "INVALID_ARGUMENT - 0001-01~9999-12 yyyy-MM 형식 필요"),
             @ApiResponse(responseCode = "404", description = "RECAP_NOT_FOUND - 현재·미래 월을 포함해 저장된 리캡 없음"),

@@ -271,6 +271,127 @@ class RecapHttpIntegrationTest {
         assertThat(shareSchema.path("completedSettlementCount").path("format").stringValue()).isEqualTo("int32");
     }
 
+    @Test
+    void detailCards_workerPublication_returnsFixedPersonalCardsAndPrivateTitle() throws Exception {
+        UUID settlement = completed(owner, MONTH.minusMonths(1));
+        LocalDateTime completedAt = MONTH.minusMonths(1).atDay(15).atStartOfDay();
+        f.share(settlement, f.participant(settlement, owner), 1000);
+        f.share(settlement, f.participant(settlement, other), 9000);
+        jdbc.update("UPDATE settlements SET title='고정할 정산 제목' WHERE id=?", settlement);
+        jdbc.update("""
+                INSERT INTO settlement_categories(settlement_id,status,category_code,source,classified_at,created_at,updated_at)
+                VALUES (?,'CLASSIFIED','FOOD','RULE',?,?,?)
+                """, settlement, completedAt, completedAt, completedAt);
+        jdbc.update("""
+                INSERT INTO settlement_user_categories(settlement_id,user_id,category_code,created_at,updated_at)
+                VALUES (?,?,'CAFE_SNACK',?,?)
+                """, settlement, owner, completedAt, completedAt);
+        jdbc.update("""
+                INSERT INTO settlement_links(id,settlement_id,token_hash,status,expires_at,created_at,updated_at)
+                VALUES (?,?,?,'ACTIVE',?,?,?)
+                """, UUID.randomUUID(), settlement, UUID.randomUUID().toString().replace("-", "").repeat(2), now().plusDays(1),
+                completedAt.minusSeconds(65), completedAt.minusSeconds(65));
+        seed(owner, MONTH.minusMonths(1));
+        worker.processBatch(100);
+        copiedFiles.add(snapshots.find(owner, MONTH.minusMonths(1)).orElseThrow().companion().avatarFileName());
+
+        var response = get(ROOT + "/2026-08", ownerToken);
+        var detail = data(response);
+        var category = detail.path("categories").get(0);
+        assertThat(category.path("rank").intValue()).isOne();
+        assertThat(category.path("totalOwnAmount").longValue()).isEqualTo(1000);
+        assertThat(category.path("category").path("code").stringValue()).isEqualTo("CAFE_SNACK");
+        assertThat(category.path("category").path("name").stringValue()).isEqualTo("카페 / 간식");
+        assertThat(category.path("category").path("icon").stringValue()).isEqualTo("cafe-snack");
+        var record = detail.path("record");
+        assertThat(record.path("busiestWeekday").path("weekday").stringValue()).isEqualTo("SATURDAY");
+        assertThat(record.path("busiestWeekday").path("count").intValue()).isOne();
+        assertThat(record.path("frequentCategory").path("count").intValue()).isOne();
+        assertThat(record.path("frequentCategory").path("category")).isEqualTo(category.path("category"));
+        assertThat(record.path("largestSettlement").path("totalOwnAmount").longValue()).isEqualTo(1000);
+        assertThat(record.path("largestSettlement").path("category")).isEqualTo(category.path("category"));
+        assertThat(record.path("fastestSettlement").path("durationMinutes").longValue()).isOne();
+        assertThat(record.path("fastestSettlement").path("title").stringValue()).isEqualTo("고정할 정산 제목");
+        assertThat(detail.has("benefits")).isTrue();
+        assertThat(detail.path("benefits").isNull()).isTrue();
+        assertThat(get(ROOT + "/2026-08", otherToken).statusCode()).isEqualTo(404);
+        var shared = data(get(ROOT + "/2026-08/share", ownerToken));
+        assertThat(shared.has("categories") || shared.has("record") || shared.has("benefits")).isFalse();
+        assertThat(shared.toString()).doesNotContain("고정할 정산 제목");
+
+        jdbc.update("UPDATE settlement_user_categories SET category_code='SHOPPING' WHERE settlement_id=? AND user_id=?", settlement, owner);
+        jdbc.update("UPDATE settlement_shares SET amount=90000 WHERE settlement_id=?", settlement);
+        jdbc.update("UPDATE settlements SET title='바뀐 제목', deleted_at=? WHERE id=?", now(), settlement);
+        assertThat(get(ROOT + "/2026-08", ownerToken).body()).isEqualTo(response.body());
+    }
+
+    @Test
+    void detailCards_legacySnapshot_returnsExplicitNullFields() throws Exception {
+        jdbc.update("""
+                INSERT INTO monthly_recaps(id,owner_user_id,month_start,owner_name,completed_settlement_count,
+                    total_own_amount,comparison_status,generated_at)
+                VALUES (?,?,'2026-07-01','기존 회원',1,1000,'NO_PREVIOUS',?)
+                """, UUID.randomUUID(), owner, now());
+        var detail = data(get(ROOT + "/2026-07", ownerToken));
+        for (String field : List.of("categories", "record", "benefits")) {
+            assertThat(detail.has(field)).as(field).isTrue();
+            assertThat(detail.path(field).isNull()).as(field).isTrue();
+        }
+    }
+
+    @Test
+    void openApi_detailCards_documentsNullableArraysAndNestedRecords() throws Exception {
+        var doc = json.readTree(get("/v3/api-docs", null).body());
+        var schemas = doc.path("components").path("schemas");
+        var detail = schemas.path("MonthlyRecapWebResponse");
+        assertThat(detail.path("required").toString()).contains("categories", "record", "benefits");
+        assertNullableReference(schemas, "MonthlyRecapWebResponse", "record", "RecapRecordWebResponse");
+        for (String field : List.of("categories", "benefits")) {
+            var property = detail.path("properties").path(field);
+            assertThat(property.path("nullable").asBoolean(false) || property.path("type").toString().contains("null"))
+                    .as("nullable array %s: %s", field, property).isTrue();
+            assertThat(property.path("type").toString()).contains("array");
+            assertThat(property.path("maxItems").intValue()).isEqualTo(field.equals("categories") ? 3 : 2);
+            assertThat(property.path("items").path("$ref").stringValue()).endsWith(
+                    field.equals("categories") ? "/RecapCategoryTotalWebResponse" : "/RecapBenefitWebResponse");
+            assertThat(property.path("items").path("type").toString()).doesNotContain("null");
+        }
+        var targets = Map.of("busiestWeekday", "RecapBusiestWeekdayWebResponse",
+                "frequentCategory", "RecapFrequentCategoryWebResponse", "largestSettlement", "RecapLargestSettlementWebResponse",
+                "fastestSettlement", "RecapFastestSettlementWebResponse");
+        targets.forEach((field, target) -> {
+            assertNullableReference(schemas, "RecapRecordWebResponse", field, target);
+            assertThat(schemas.path("RecapRecordWebResponse").path("required").toString()).contains(field);
+        });
+        assertNullableReference(schemas, "RecapLargestSettlementWebResponse", "category", "RecapCategoryWebResponse");
+        assertThat(schemas.path("RecapBusiestWeekdayWebResponse").path("properties").path("weekday").path("enum").size()).isEqualTo(7);
+        assertThat(schemas.path("RecapFastestSettlementWebResponse").path("properties").path("durationMinutes").path("format").stringValue()).isEqualTo("int64");
+        assertThat(schemas.path("RecapCategoryTotalWebResponse").path("properties").path("totalOwnAmount").path("format").stringValue()).isEqualTo("int64");
+        assertThat(schemas.path("RecapCategoryWebResponse").path("required").toString()).contains("code", "name", "icon");
+        for (String schema : List.of("RecapCategoryTotalWebResponse", "RecapCategoryWebResponse", "RecapBenefitWebResponse",
+                "RecapRecordWebResponse", "RecapBusiestWeekdayWebResponse", "RecapFrequentCategoryWebResponse",
+                "RecapLargestSettlementWebResponse", "RecapFastestSettlementWebResponse")) {
+            assertThat(schemas.path(schema).path("type").toString()).as(schema).contains("object").doesNotContain("null");
+        }
+        var shareProperties = schemas.path("SharedMonthlyRecapWebResponse").path("properties");
+        assertThat(shareProperties.has("categories") || shareProperties.has("record") || shareProperties.has("benefits")).isFalse();
+    }
+
+    private void assertNullableReference(JsonNode schemas, String schema, String field, String target) {
+        var property = schemas.path(schema).path("properties").path(field);
+        boolean nullable = property.path("nullable").asBoolean(false)
+                && property.toString().contains("#/components/schemas/" + target + "\"");
+        for (String keyword : List.of("anyOf", "oneOf")) {
+            boolean reference = false, nullType = false;
+            for (var branch : property.path(keyword)) {
+                reference |= branch.path("$ref").asString("").equals("#/components/schemas/" + target);
+                nullType |= branch.path("type").toString().contains("null");
+            }
+            nullable |= reference && nullType;
+        }
+        assertThat(nullable).as("%s.%s nullable reference: %s", schema, field, property).isTrue();
+    }
+
     private void assertImageMissing(String month) throws Exception {
         var response = get(ROOT + "/" + month + "/companion/avatar", ownerToken);
         assertThat(response.statusCode()).isEqualTo(404);
