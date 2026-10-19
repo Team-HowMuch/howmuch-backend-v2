@@ -77,8 +77,8 @@
 ### Boundary conditions
 
 - 정산 없음: 금액 0, “현재 처리할 정산이 없어요.”
-- 질문 의도 없음 + 서비스 무관: UNKNOWN + 예시. 안내 LLM을 부르지 않는다
-- 질문 의도 없음 + 서비스 관련: 서비스 안내 문서로 답한다(GUIDE). 안내 LLM이 없거나 검사에서 버려지면 UNKNOWN + 되묻기(`TreasurerCardCopy.CLARIFY_ANSWER`) + 예시 칩. 상세는 `treasurer-service-guide.md` 참고
+- 모든 질문은 안내 LLM이 먼저 분류한다. 무관이면 UNKNOWN + 예시, 데이터 질문인데 어떤 정산인지 정할 수 없으면 UNKNOWN + 되묻기(`TreasurerCardCopy.CLARIFY_ANSWER`) + 예시 칩. 상세는 `treasurer-llm-intent-routing.md` 참고
+- 안내 LLM이 없거나 실패하면 키워드 대비 경로로 간다. 질문 의도 없음 + 서비스 무관이면 UNKNOWN + 예시, 서비스 관련이면 UNKNOWN + 되묻기 + 예시 칩
 - 기간 필터 후 0건: 건수 0 안내. 제목 필터는 맞는 정산이 있을 때만 적용하므로 제목 때문에 0건이 되지 않는다
 
 ## 4. Contracts
@@ -108,9 +108,9 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 
 ## 5. Design decisions
 
-- 의도 분류는 키워드 (`InquiryParser`). 금액·건수는 서버가 계산한다.
-- 의도 키워드는 강함과 약함으로 나뉜다. `남았`·`들어와`처럼 일상어로도 쓰이는 약한 표현은 정산·모임·돈 같은 맥락 단어가 질문에 함께 있을 때만 의도로 본다.
-- 세부 의도 분류에 실패하면 `InquiryScopePolicy`가 서비스 관련성을 다시 판정한다. 무관이면 범위를 안내한다. 관련이면 서비스 안내 문서로 답하고, 안내가 실패하면 되묻는다. 상세는 `treasurer-question-scope.md`(#317), `treasurer-service-guide.md` 참고.
+- 의도 분류는 안내 LLM이 먼저 한다(`TreasurerGuideLlmAdapter`의 `route`·`intent`·`period`·`titleHint`). LLM이 없거나 실패하면 키워드(`InquiryParser`)로 분류한다. 금액·건수는 서버가 계산한다. 상세는 `treasurer-llm-intent-routing.md` 참고.
+- 대비용 의도 키워드는 강함과 약함으로 나뉜다. `남았`·`들어와`처럼 일상어로도 쓰이는 약한 표현은 정산·모임·돈 같은 맥락 단어가 질문에 함께 있을 때만 의도로 본다.
+- 키워드 대비 경로에서 세부 의도 분류에 실패하면 `InquiryScopePolicy`가 서비스 관련성을 다시 판정한다. 무관이면 범위를 안내한다. 관련이면 서비스 안내 문서로 답하고, 안내가 실패하면 되묻는다. 상세는 `treasurer-question-scope.md`(#317), `treasurer-service-guide.md` 참고.
 - `answer` 문장만 OpenAI(`gpt-6-luna`) 또는 Gemini(`gemini-flash-latest`)가 생성한다. `TREASURER_LLM_PROVIDER=none` 이거나 키/호출 실패면 템플릿 문장을 쓴다.
 - OpenAI 기본 모델은 추론 모델 `gpt-6-luna`다(#553). 추론 모델은 `temperature`를 받지 않으므로 두 OpenAI 요청(조회 답변 문장, 서비스 안내) 모두 `temperature`를 보내지 않고 `reasoning_effort`를 보낸다. 값은 `OPENAI_REASONING_EFFORT`이며 설정하지 않으면 `low`, 빈 값으로 두면 요청에서 뺀다. 추론 모델이 아닌 모델(`OPENAI_MODEL`)로 바꿀 때는 `OPENAI_REASONING_EFFORT=`로 비워야 한다. 비우지 않으면 OpenAI가 400으로 거절하고 템플릿 문장으로 되돌아간다. 추론 강도를 올리면 응답이 길어지므로 `TREASURER_LLM_READ_TIMEOUT`(기본 20초)도 함께 늘린다.
 - OpenAI·Gemini가 요청을 거절하면 상태 코드와 오류 본문 앞 200자를 경고 로그(`Treasurer LLM call failed` / `Treasurer guide LLM call failed`)에 남긴다. 질문 원문은 남기지 않는다.
@@ -136,7 +136,7 @@ GetTreasurerRecommendationsUseCase → TreasurerRecommendationsResult
 - `이번 주`는 Asia/Seoul ISO 주이고, 기한 필드가 없어 `마감`은 요청일 + 7일이 해당 기간에 들어오는 미완료 정산으로 근사한다.
 - OCR 안내 키워드(`ocr`, `영수증`)는 보낼/받을/마감/지출/상태 의도가 없을 때만 GUIDE로 본다.
 - GUIDE는 서비스 안내 문서로 답하고, 안내 LLM이 없거나 검사에서 버려지면 영수증 인식 고정 문구를 반환한다. OCR 서버는 호출하지 않는다.
-- 데이터 의도로 걸려도 "어떻게 해", "방법", "하려면"처럼 사용법을 묻는 말투면(`InquiryHowToPolicy`) 안내를 먼저 시도한다. 안내가 데이터 질문이라고 돌려보내거나 실패하면 정산을 조회한다.
+- 안내 LLM이 사용법 질문(GUIDE)으로 답하고 검사를 통과하면 키워드 의도와 관계없이 안내로 답한다. 키워드 대비 경로에서는 데이터 의도로 걸려도 "어떻게 해", "방법", "하려면"처럼 사용법을 묻는 말투면(`InquiryHowToPolicy`) 안내 결과를 보고, 데이터 질문이라고 돌려보냈거나 안내가 실패했으면 정산을 조회한다.
 
 ## 6. Impact surface
 
