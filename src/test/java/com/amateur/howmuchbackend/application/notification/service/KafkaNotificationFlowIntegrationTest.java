@@ -17,6 +17,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.testcontainers.kafka.KafkaContainer;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.ObjectMapper;
@@ -38,9 +40,21 @@ class KafkaNotificationFlowIntegrationTest {
     private static final String SUFFIX = UUID.randomUUID().toString();
     private static final String DELIVERY = "notification.delivery.v1.test." + SUFFIX;
     private static final String RECAP = "recap.published.v1.test." + SUFFIX;
+    // relayBatch claims globally: retained financial fixtures in the shared DB must not
+    // consume this test's batch or reach its provider mock.
+    @Container static final GenericContainer<?> DB = new GenericContainer<>("postgres:18.6")
+            .withEnv("POSTGRES_HOST_AUTH_METHOD", "trust")
+            .withEnv("POSTGRES_DB", "kafka_notification_flow")
+            .withExposedPorts(5432)
+            .waitingFor(Wait.forLogMessage(".*database system is ready to accept connections.*\\n", 2));
     @Container static final KafkaContainer BROKER = new KafkaContainer("apache/kafka:4.2.2")
             .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false");
     @DynamicPropertySource static void brokerProperties(DynamicPropertyRegistry properties) throws Exception {
+        DB.start();
+        properties.add("spring.datasource.url", () -> "jdbc:postgresql://" + DB.getHost()
+                + ":" + DB.getMappedPort(5432) + "/kafka_notification_flow");
+        properties.add("spring.datasource.username", () -> "postgres");
+        properties.add("spring.datasource.password", () -> "");
         BROKER.start();
         try (var admin = AdminClient.create(Map.of("bootstrap.servers", BROKER.getBootstrapServers()))) {
             admin.createTopics(List.of(new NewTopic(DELIVERY,1,(short)1),new NewTopic(DELIVERY+".dlt",1,(short)1),
