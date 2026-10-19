@@ -63,7 +63,7 @@
 - Rules that must always hold:
   - 금액·건수·목록은 LLM이 만들지 않는다.
   - LLM이 준 `titleHint`는 질문 원문(공백 제거)의 연속 부분 문자열일 때만 쓰고, 다시 `TitleHintVerification.verify()`로 사용자 정산과 대조한다.
-  - LLM 응답이 없으면 지금과 결과가 같다.
+  - LLM 응답이 없으면 의도·기간·제목·목록은 지금과 같다. 답변 문장은 서버 문구로 고정한다(문장 다듬기 LLM을 부르지 않는다). 키가 없을 때는 원래 문장 다듬기도 꺼져 있어 지금과 완전히 같다.
 - Invalid states: LLM이 정한 의도가 `GUIDE`이거나 목록 밖의 값이면 의도가 없는 것으로 본다. `UNCLEAR`는 의도 없음이 아니라 "정할 수 없음"이라 `InquiryIntent.UNKNOWN`으로 읽고 되묻는다.
 
 ## 3. Scenarios
@@ -77,7 +77,7 @@
 
 ### Failure flow
 
-- LLM 실패·키 없음·JSON 아님: 지금 흐름 그대로(키워드 → 관련성 → 되묻기/범위 안내).
+- LLM 실패·키 없음·JSON 아님: 지금 흐름 그대로(키워드 → 관련성 → 되묻기/범위 안내). 데이터 답변은 문장 다듬기 LLM 없이 서버 문구로 낸다.
 - `route=DATA` + `intent=UNCLEAR`: 되묻기.
 - `route=DATA` + 의도 없음·무효: 키워드 결과가 `UNKNOWN`이 아니면 그 결과대로 답하고(`GUIDE`면 영수증 고정 문구), `UNKNOWN`이면 관련성 판정 없이 되묻기. LLM이 데이터 질문이라고 했으므로 범위 안내는 하지 않는다.
 - `route=GUIDE` + 검사 탈락: LLM을 다시 부르지 않고 키워드 결과대로 답한다(영수증 고정 문구, 정산 조회, 되묻기·범위 안내).
@@ -159,7 +159,7 @@ Result -> Web Response DTO: 변경 없음
 - Alternatives considered: 키워드 추가(끝이 없어 기각), 분류 전용 LLM 호출 추가(호출이 3번이 돼 기각).
 - Trade-offs and limits:
   - 키워드로 바로 잡히던 데이터 질문도 LLM을 먼저 부른다. 호출이 1번(문장 다듬기)에서 2번으로 늘어 응답 시간과 비용이 는다. 1~2초는 정상 응답을 가정한 추정이고 실측하지 않았다.
-  - LLM 공급자가 응답하지 않으면 두 호출이 차례로 읽기 시간 제한(20초)까지 기다린다. 데이터 질문의 최악 응답 시간이 약 25초에서 약 50초로 는다.
+  - LLM 공급자가 응답하지 않으면 두 호출이 차례로 읽기 시간 제한(20초)까지 기다려 최악 응답이 약 50초가 될 수 있었다. 안내 LLM이 응답하지 않으면 문장 다듬기 LLM을 부르지 않도록 해서 최악 응답을 약 25초로 유지한다. 대신 안내 LLM만 실패하고 문장 다듬기는 됐을 경우에도 서버 문구로 답한다.
   - 서비스와 무관한 질문도 LLM을 부른다.
   - 키워드로 잡히던 질문이라도 LLM이 `UNRELATED`나 `GUIDE`로 판정하면 그 판정을 따른다.
   - OpenAI 키는 2026-10-24까지다. 그 뒤 키가 없으면 대비 경로로만 동작해 같은 증상이 다시 나온다. Gemini 경로(`TREASURER_LLM_PROVIDER=gemini`)는 이미 있다.
@@ -179,13 +179,15 @@ Result -> Web Response DTO: 변경 없음
 
 Existing behavior that must remain unchanged:
 
-- LLM 응답이 없을 때 모든 질문의 의도·기간·제목·문구
+- LLM 응답이 없을 때 모든 질문의 의도·기간·제목·목록
 - 제목을 버린 답변은 LLM 문장을 쓰지 않는 동작
 - 우선순위 질문의 기간 없음 = 전체 의미
 
 의도적으로 바뀌는 기존 테스트(`AskTreasurerServiceTest`)
 
 - `unrelatedQuestion_skipsGuide`, `wordPrefixedMoneyTerm_skipsGuide`, `dataPhrasing_skipsGuide`: 이제 모든 질문이 안내 LLM을 먼저 부른다. "LLM 응답이 없으면 지금처럼 답한다"로 바꿔 대비 경로를 지키는 테스트로 남긴다.
+- 문장 다듬기 LLM을 쓰는 기존 테스트: 기본 상태를 "안내 LLM이 데이터 질문이라고만 하고 의도는 키워드에 맡긴다"로 두었다(`@BeforeEach guideDefersToKeywords`). LLM이 없는 경우를 보는 테스트 6개는 `guideUnavailable()`로 명시한다.
+- `TreasurerAnswerReportIntegrationTest.askTreasurer_llmCall_runsWithoutTransaction`: 안내 LLM을 목으로 바꾸고, 안내 LLM 호출 중에도 트랜잭션이 없는지 함께 본다.
 
 ## 7. Implementation plan
 
@@ -209,6 +211,8 @@ fix(treasurer): 안내 LLM의 의도·기간 값을 대소문자 없이 읽는�
 test(treasurer): LLM 의도 분류와 키워드 대비 경로 검증
 fix(treasurer): 안내 LLM 기간·이름을 질문 기준으로 거른다
 docs(treasurer): LLM 의도 분류 검증 결과 기록
+fix(treasurer): 안내 LLM이 응답하지 않으면 문장 다듬기 LLM을 부르지 않는다
+docs(treasurer): LLM 장애 때 지연 처리 기록
 ```
 
 ## 8. Verification
@@ -238,9 +242,10 @@ git status --short --untracked-files=all
 | Item | Result | Evidence |
 |---|---|---|
 | 컴파일 | `compileJava`, `compileTestJava` 통과 | 로컬 맥 |
-| AI 비서 테스트 | `*Treasurer*`, `*Inquiry*`, `*TitleHint*` 292건 통과, 1건 건너뜀(API 키가 필요한 로컬 평가) | `build/test-results/test/TEST-*.xml` |
-| 전체 테스트 | 2433건 통과, 26건 건너뜀, 실패 0 | `bash scripts/test.sh test`, `3a65fcf7` 기준 |
-| 테스트가 실제로 잡는지 | LLM 데이터 판정을 키워드로 돌리면 5건, 기간 확인을 빼면 1건, 이름 재대조를 빼면 1건 실패를 확인하고 되돌렸다 | 로컬에서 임시 수정 |
+| AI 비서 테스트 | `*Treasurer*`, `*Inquiry*`, `*TitleHint*` 293건 통과, 1건 건너뜀(API 키가 필요한 로컬 평가) | `build/test-results/test/TEST-*.xml`, `0f1a8d6d` 기준 |
+| 전체 테스트 (`3a65fcf7`) | 2433건 통과, 26건 건너뜀, 실패 0 | `bash scripts/test.sh test` |
+| 전체 테스트 (`0f1a8d6d`) | 2434건 중 실패 7건, 26건 건너뜀. 실패는 모두 `GroupNettingDirectIntegrationTest`다 | 같은 테스트가 develop `c6b293b4` 작업 트리에서도 5건 실패해 이 변경과 무관하다. 테스트 DB를 새로 만들어도 같다 |
+| 테스트가 실제로 잡는지 | LLM 데이터 판정을 키워드로 돌리면 5건, 기간 확인을 빼면 1건, 이름 재대조를 빼면 1건, 문장 다듬기 생략을 빼면 1건 실패를 확인하고 되돌렸다 | 로컬에서 임시 수정 |
 | 적대적 검토 | 별도 에이전트 검토. LLM이 없을 때의 회귀 없음. 기간·이름·프롬프트·로그·문서 지적을 반영했다 | 이 문서 10장 |
 | 실제 LLM 평가 | 하지 않음 | API 키는 사용자가 다룬다. `TreasurerGuideLiveEvaluation`으로 확인 필요 |
 
@@ -249,7 +254,8 @@ git status --short --untracked-files=all
 | Date | Completed work | Next work | Discovered risk |
 |---|---|---|---|
 | 2026-10-19 | 계획 작성, develop `c6b293b4` 기준 줄 번호 재확인 | 구현 | 키 기한 2026-10-24 |
-| 2026-10-19 | 구현, 테스트, 적대적 검토 반영, 전체 테스트 통과 | 실제 LLM 평가, 이슈·PR | 공급자 장애 때 데이터 질문 최악 응답 약 50초(미해결) |
+| 2026-10-19 | 구현, 테스트, 적대적 검토 반영, 전체 테스트 통과 | 실제 LLM 평가, 이슈·PR | 공급자 장애 때 데이터 질문 최악 응답 약 50초 |
+| 2026-10-19 | 안내 LLM 실패 시 문장 다듬기 생략, 전체 테스트 통과 | 실제 LLM 평가, 이슈·PR | 없음 |
 
 ## 10. Decision log
 
@@ -261,6 +267,7 @@ git status --short --untracked-files=all
 | 2026-10-19 | LLM이 기간·제목을 비우면 키워드 값을 쓴다 | 키워드는 대비용 | LLM이 빠뜨린 "지난달" 등을 놓치지 않는다 |
 | 2026-10-19 | LLM 기간은 질문에 기간 표현이 있을 때만 쓴다 | 적대적 검토: 기간 없는 우선순위 질문에 LLM이 기간을 채우면 밀린 정산이 빠진다 | 키워드가 못 찾는 기간 표현은 LLM도 쓰지 못한다(프롬프트가 허용하는 표현은 키워드 목록과 같다) |
 | 2026-10-19 | LLM 이름이 정산과 맞지 않으면 키워드 이름으로 다시 대조한다 | 적대적 검토: 조사가 붙은 이름 때문에 LLM이 없을 때보다 나빠지는 경우 | 없음 |
+| 2026-10-19 | 안내 LLM이 응답하지 않으면 문장 다듬기 LLM을 부르지 않는다 | 공급자 장애 때 데이터 질문 최악 응답이 약 50초로 늘어난다(사용자 결정) | 안내 LLM만 실패한 경우에도 서버 문구로 답한다 |
 | 2026-10-19 | `InquiryHowToPolicy` 삭제 | LLM이 모든 질문을 먼저 나누면서 호출할 곳이 없어졌다 | 사용법 말투 판정은 LLM이 한다 |
 
 ## 11. Completion record
