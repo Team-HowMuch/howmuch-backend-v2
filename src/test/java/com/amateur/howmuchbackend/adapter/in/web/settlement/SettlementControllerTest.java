@@ -259,6 +259,7 @@ class SettlementControllerTest {
                 null,
                 400L,
                 null,
+                null,
                 List.of(new SettlementListItemResult.GroupSummary(
                         10L,
                         "여행 모임",
@@ -283,6 +284,7 @@ class SettlementControllerTest {
                 .andExpect(jsonPath("$.data[0].participantCount").value(3))
                 .andExpect(jsonPath("$.data[0].payableParticipantCount").value(2))
                 .andExpect(jsonPath("$.data[0].completedParticipantCount").value(0))
+                .andExpect(jsonPath("$.data[0].storeName").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data[0].groups[0].groupId").value(10))
                 .andExpect(jsonPath("$.data[0].groups[0].groupName").value("여행 모임"))
                 .andExpect(jsonPath("$.data[0].groups[0].groupImageUrl")
@@ -298,7 +300,7 @@ class SettlementControllerTest {
                 .thenReturn(List.of(new SettlementListItemResult(
                         SETTLEMENT_ID, SettlementStatus.COMPLETED, CREATED_AT, completedAt, completedAt,
                         null, SettlementAllocationType.DUTCH_PAY, null, null, null, 600L, null,
-                        "요청자", List.of())));
+                        "요청자", null, List.of())));
         mockMvc.perform(get("/api/v2/settlements")
                         .queryParam("tab", "PAY").queryParam("status", "COMPLETED")
                         .queryParam("groupId", "10").queryParam("yearMonth", "2026-09"))

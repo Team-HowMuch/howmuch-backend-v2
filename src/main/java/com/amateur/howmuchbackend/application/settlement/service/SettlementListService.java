@@ -55,6 +55,7 @@ public class SettlementListService implements GetSettlementsUseCase {
                         amountToPay(item, command.tab()),
                         receivableAmount(item, command.tab(), requestedReceivables),
                         item.requesterName(),
+                        item.storeName(),
                         item.groups().stream()
                                 .map(group -> new SettlementListItemResult.GroupSummary(
                                         group.groupId(),

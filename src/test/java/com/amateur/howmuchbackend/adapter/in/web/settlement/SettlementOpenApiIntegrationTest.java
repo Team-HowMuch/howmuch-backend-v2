@@ -103,7 +103,7 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementListItemWebResponse",
                 "endedAt", "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay",
-                "receivableAmount", "requesterName"
+                "receivableAmount", "requesterName", "storeName"
         );
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "endedAt");
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "completedAt");

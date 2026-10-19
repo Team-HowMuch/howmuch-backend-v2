@@ -60,6 +60,11 @@ public record SettlementListItemWebResponse(
         Long receivableAmount,
         @Schema(nullable = true)
         String requesterName,
+        @Schema(
+                nullable = true,
+                description = "표시 대상 지출이 단일 영수증일 때만 상호명을 반환한다. 그 외에는 null이다."
+        )
+        String storeName,
         List<GroupSummary> groups,
         @Schema(nullable = true, description =
                                 "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. 정산 요청 전, 분류 전, 기능 배포 전에"
@@ -81,6 +86,7 @@ public record SettlementListItemWebResponse(
                 result.amountToPay(),
                 result.receivableAmount(),
                 result.requesterName(),
+                result.storeName(),
                 result.groups().stream()
                         .map(GroupSummary::from)
                         .toList(),

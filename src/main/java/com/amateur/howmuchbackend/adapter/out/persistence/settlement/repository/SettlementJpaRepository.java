@@ -3,17 +3,16 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementJpaEntity;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEntity, UUID> {
     Optional<SettlementJpaEntity> findByIdAndDeletedAtIsNull(UUID settlementId);
@@ -46,8 +45,21 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                         WHEN participant.linked_user_id IS NULL
                              OR participant.linked_user_id <> settlement.creator_id
                         THEN share.amount
-                    END), 0) AS receivableShareAmount
+                    END), 0) AS receivableShareAmount,
+                store_info.store_name AS storeName
               FROM settlements settlement
+              LEFT JOIN (
+                    SELECT expense.settlement_id,
+                           CASE
+                               WHEN COUNT(*) FILTER (WHERE expense.source IN ('RECEIPT_OCR', 'PAYMENT_HISTORY')) = 1
+                                    AND MAX(CASE WHEN expense.source = 'RECEIPT_OCR' THEN 1 ELSE 0 END) = 1
+                               THEN MAX(CASE WHEN expense.source = 'RECEIPT_OCR' THEN expense.description END)
+                               ELSE NULL
+                           END AS store_name
+                      FROM settlement_expenses expense
+                     GROUP BY expense.settlement_id
+              ) store_info
+                ON store_info.settlement_id = settlement.id
               JOIN users creator
                 ON creator.id = settlement.creator_id
               LEFT JOIN settlement_participants participant
@@ -147,7 +159,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     )
                 )
              GROUP BY settlement.id, settlement.status, settlement.created_at, link.created_at,
-                      settlement.total_amount, settlement.allocation_type, creator.name
+                      settlement.total_amount, settlement.allocation_type, creator.name, store_info.store_name
              ORDER BY COALESCE(link.created_at, settlement.created_at) DESC, settlement.id DESC
             """, nativeQuery = true)
     List<SettlementListProjection> findAllForUser(
@@ -191,7 +203,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 creator.name AS requesterName,
                 settlement.allocation_type AS allocationType,
                 MAX(CASE
-                        WHEN participant.linked_user_id = :userId THEN share.amount
+                        WHEN participant.linked_user_id = :userId AND NOT EXISTS(SELECT 1 FROM group_netting_sources ns WHERE ns.settlement_id=settlement.id) THEN share.amount
                     END) AS amountToPay,
                 COALESCE(SUM(CASE
                         WHEN participant.linked_user_id IS NULL
@@ -346,6 +358,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         long getReceivableShareAmount();
 
         String getAllocationType();
+
+        String getStoreName();
     }
 
     interface SettlementListGroupProjection {
@@ -379,6 +393,18 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
 
         long getCompletedPayerCount();
     }
+
+    @Query(value="""
+        SELECT EXISTS(SELECT 1 FROM group_netting_monitored_accounts r JOIN group_settlement_nettings n ON n.id=r.netting_id
+         WHERE r.account_id=:accountId AND (n.status='ACTIVE' OR EXISTS(SELECT 1 FROM netting_deposit_reviews v WHERE v.netting_id=n.id AND v.status='OPEN')))
+        """,nativeQuery=true)
+    boolean existsNettingAccountUsage(@Param("accountId") Long accountId);
+
+    @Query(value="""
+        SELECT EXISTS(SELECT 1 FROM group_netting_parties p JOIN group_settlement_nettings n ON n.id=p.netting_id
+         WHERE p.user_id=:userId AND (n.status='ACTIVE' OR EXISTS(SELECT 1 FROM netting_deposit_reviews v WHERE v.netting_id=n.id AND v.status='OPEN')))
+        """,nativeQuery=true)
+    boolean existsUnresolvedNettingUser(@Param("userId") Long userId);
 
     boolean existsByReceivingAccountIdAndStatusNotAndDeletedAtIsNull(Long accountId, SettlementStatus status);
 
