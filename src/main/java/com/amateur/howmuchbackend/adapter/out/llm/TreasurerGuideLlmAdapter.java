@@ -153,7 +153,7 @@ public class TreasurerGuideLlmAdapter implements GenerateTreasurerGuidePort {
     }
 
     private static <T> T pick(Map<String, T> allowed, String value) {
-        return value == null ? null : allowed.get(value);
+        return value == null ? null : allowed.get(value.toUpperCase(Locale.ROOT));
     }
 
     private static String titleHint(String value) {
