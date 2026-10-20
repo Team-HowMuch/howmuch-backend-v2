@@ -18,6 +18,7 @@
 - [x] `viewerRole`은 REQUESTER / PARTICIPANT / NONE이며 요청자가 우선한다.
 - [x] 모든 항목에 요청자 이름/publicId, 금액·인원·상호명·카테고리(조회자 지정 → 요청자 지정 → 자동 분류)를 제공한다.
 - [x] `receivableAmount`·`reminderNextAvailableAt`은 REQUESTER, `amountToPay`는 PARTICIPANT에게만 제공한다. NONE은 세 필드 모두 null이다.
+- [x] `needsItemSelection`은 PARTICIPANT가 품목 정산에서 아직 몫을 안 골라 `amountToPay`가 총액 표시값일 때만 true다(`settlement-list-needs-item-selection.md`).
 - [x] 송금 계좌번호·전화번호·인증 정보는 공개하지 않는다.
 - [x] 기존 개인 목록·상세 계약과 전체 로컬 테스트를 유지한다.
 
