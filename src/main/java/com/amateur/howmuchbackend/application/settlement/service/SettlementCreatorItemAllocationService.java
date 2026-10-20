@@ -22,10 +22,10 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 /**
- * 생성자가 알림을 보내기 전에 자기 품목 몫을 고르는 경로.
+ * 생성자가 알림 발송 전 또는 중단된 정산에서 자기 품목 몫을 고르는 경로.
  *
  * <p>링크 경로({@link SettlementItemAllocationService})와 같은 Reader/Writer를 쓰고,
- * 진입 경로만 {@code CREATOR}로 넘겨 DRAFT를 허용한다.
+ * 진입 경로만 {@code CREATOR}로 넘겨 DRAFT와 미입금 SUSPENDED 수정을 허용한다.
  */
 @Service
 @RequiredArgsConstructor

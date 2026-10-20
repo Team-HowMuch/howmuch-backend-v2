@@ -23,6 +23,8 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMembersPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementParticipantPort;
@@ -97,6 +99,8 @@ public class SettlementParticipantService implements
     private final SaveSettlementPort saveSettlementPort;
     private final SettlementAllocationDraftInvalidator allocationDraftInvalidator;
     private final SettlementRevisionGuard revisionGuard;
+    private final DeleteSettlementSharePort deleteSettlementSharePort;
+    private final SettlementItemAllocationStorePort itemAllocationStorePort;
 
     @Override
     @Transactional
@@ -152,8 +156,8 @@ public class SettlementParticipantService implements
                         SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND
                 ));
         modificationPolicy.validateRemoval(settlement, participant);
-        deleteSettlementParticipantPort.delete(participant);
         invalidateAllocation(settlement);
+        deleteSettlementParticipantPort.delete(participant);
     }
 
     @Override
@@ -199,7 +203,7 @@ public class SettlementParticipantService implements
             SearchSettlementParticipantCommand command
     ) {
         Settlement settlement = loadOwnedSettlement(settlementId);
-        settlement.ensureParticipantsEditable();
+        ensureParticipantsEditable(settlement);
         String publicIdPrefix = publicIdPolicy.normalizePrefix(
                 command == null ? null : command.publicIdPrefix()
         );
@@ -230,7 +234,7 @@ public class SettlementParticipantService implements
     @Transactional(readOnly = true)
     public ProfileImage get(UUID settlementId, String publicId) {
         Settlement settlement = loadOwnedSettlement(settlementId);
-        settlement.ensureParticipantsEditable();
+        ensureParticipantsEditable(settlement);
         String normalizedPublicId = publicIdPolicy.normalize(publicId);
         User candidate = loadUserPort.findByPublicId(normalizedPublicId)
                 .filter(User::active)
@@ -252,7 +256,7 @@ public class SettlementParticipantService implements
             MatchSettlementContactsCommand command
     ) {
         Settlement settlement = loadOwnedSettlement(settlementId);
-        settlement.ensureParticipantsEditable();
+        ensureParticipantsEditable(settlement);
         List<NormalizedContact> contacts = normalizeContacts(command);
         SettlementContactMatchUsage usage = trackSettlementContactMatchUsagePort.recordUsage(
                 settlement.creatorId(),
@@ -289,7 +293,7 @@ public class SettlementParticipantService implements
     @Transactional(readOnly = true)
     public List<SettlementParticipantCandidateResult> get(UUID settlementId, Long groupId) {
         Settlement settlement = loadOwnedSettlement(settlementId);
-        settlement.ensureParticipantsEditable();
+        ensureParticipantsEditable(settlement);
         if (groupId == null || groupId <= 0) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_GROUP_ID);
         }
@@ -440,7 +444,7 @@ public class SettlementParticipantService implements
 
     private Settlement loadOwnedEditableSettlement(UUID settlementId) {
         Settlement settlement = loadOwnedSettlementForUpdate(settlementId);
-        settlement.ensureParticipantsEditable();
+        ensureParticipantsEditable(settlement);
         return settlement;
     }
 
@@ -458,7 +462,20 @@ public class SettlementParticipantService implements
         }
     }
 
+    private void ensureParticipantsEditable(Settlement settlement) {
+        settlement.ensureParticipantsEditable();
+        if (settlement.status() == SettlementStatus.SUSPENDED) {
+            revisionGuard.ensureUnpaid(settlement.id());
+        }
+    }
+
     private void invalidateAllocation(Settlement settlement) {
+        if (settlement.status() == SettlementStatus.SUSPENDED) {
+            // Keep the receipt type and surviving selections while invalidating the old participant set.
+            deleteSettlementSharePort.deleteAllBySettlementId(settlement.id());
+            itemAllocationStorePort.deleteAllSubmissions(settlement.id());
+            return;
+        }
         Settlement invalidated = allocationDraftInvalidator.invalidate(
                 settlement,
                 LocalDateTime.now(ZoneOffset.UTC)

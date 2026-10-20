@@ -276,8 +276,8 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 참여자 추가",
-            description = "현재 로그인한 생성자가 DRAFT 정산에 등록 사용자, 연락처 또는 그룹 구성원 참여자를 추가합니다. "
-                    + "등록 사용자는 publicId만, 연락처는 displayName과 phoneNumber만, "
+            description = "현재 로그인한 생성자가 DRAFT 또는 미입금 SUSPENDED 영수증 정산에 등록 사용자, 연락처 또는 그룹 구성원 참여자를 추가합니다. "
+                    + "중단 상태를 유지하며 인원 변경 시 기존 제출 이력과 미입금 Share를 초기화합니다. 등록 사용자는 publicId만, 연락처는 displayName과 phoneNumber만, "
                     + "그룹 구성원은 groupId와 publicId만 전달해야 합니다. "
                     + "연락처 원본 전화번호는 회원 매칭과 HMAC 변환 후 저장하거나 응답하지 않습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
@@ -307,7 +307,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_PARTICIPANT_ALREADY_EXISTS"
+                    description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_REVISION_PAYMENT_EXISTS 또는 SETTLEMENT_PARTICIPANT_ALREADY_EXISTS"
             )
     })
     ApiResponse<SettlementParticipantWebResponse> addSettlementParticipant(
@@ -347,7 +347,7 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 참여자 공개 ID 후보 검색",
-            description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 활성 회원을 publicId prefix로 검색합니다. "
+            description = "현재 로그인한 생성자가 DRAFT 또는 미입금 SUSPENDED 영수증 정산에 추가할 활성 회원을 publicId prefix로 검색합니다. "
                     + "이미 정산에 포함된 회원은 제외하고 publicId 오름차순으로 최대 20명을 반환합니다. "
                     + "avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없으면 null입니다. "
                     + "내부 사용자 ID와 저장 파일명은 반환하지 않습니다.",
@@ -377,7 +377,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_REVISION_PAYMENT_EXISTS - 수정 불가 상태 또는 확인된 입금 존재"
             )
     })
     ApiResponse<List<SettlementParticipantCandidateWebResponse>> searchSettlementParticipantCandidates(
@@ -387,7 +387,7 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 참여자 공개 ID 후보 아바타 조회",
-            description = "현재 로그인한 생성자가 DRAFT 정산의 미추가 활성 회원 후보 아바타를 조회합니다. "
+            description = "현재 로그인한 생성자가 DRAFT 또는 미입금 SUSPENDED 영수증 정산의 미추가 활성 회원 후보 아바타를 조회합니다. "
                     + "후보가 아니거나 아바타가 없으면 404를 반환합니다. "
                     + "응답은 private 캐시에서 1일간 재사용할 수 있습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
@@ -420,7 +420,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_REVISION_PAYMENT_EXISTS - 수정 불가 상태 또는 확인된 입금 존재"
             )
     })
     ResponseEntity<byte[]> getSettlementParticipantCandidateAvatar(
@@ -430,7 +430,7 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 참여자 연락처 일괄 매칭",
-            description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 주소록 연락처를 활성 회원과 일괄 매칭합니다. "
+            description = "현재 로그인한 생성자가 DRAFT 또는 미입금 SUSPENDED 영수증 정산에 추가할 주소록 연락처를 활성 회원과 일괄 매칭합니다. "
                     + "같은 정규화 전화번호는 첫 항목만 반환하고 기존 참여 여부를 함께 제공합니다. "
                     + "사용자별 분당 10회, 24시간당 연락처 2,000개까지 조회할 수 있습니다. "
                     + "avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없으면 null입니다. "
@@ -462,7 +462,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_REVISION_PAYMENT_EXISTS - 수정 불가 상태 또는 확인된 입금 존재"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "429",
@@ -476,7 +476,7 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 그룹 구성원 후보 조회",
-            description = "현재 로그인한 생성자가 DRAFT 정산에 추가할 그룹의 활성 구성원을 조회합니다. "
+            description = "현재 로그인한 생성자가 DRAFT 또는 미입금 SUSPENDED 영수증 정산에 추가할 그룹의 활성 구성원을 조회합니다. "
                     + "생성자도 해당 그룹의 활성 구성원이어야 하며 이미 정산에 포함된 회원은 제외합니다. "
                     + "avatarUrl은 이미지 파일 버전 v 쿼리를 포함하며 사진이 없으면 null입니다. "
                     + "그룹 정보가 연결되지 않은 환경에서는 빈 목록을 반환합니다.",
@@ -506,7 +506,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE - 초안 상태가 아님"
+                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_REVISION_PAYMENT_EXISTS - 수정 불가 상태 또는 확인된 입금 존재"
             )
     })
     ApiResponse<List<SettlementParticipantCandidateWebResponse>> getSettlementGroupParticipantCandidates(
@@ -551,8 +551,8 @@ public interface SettlementDocs {
 
     @Operation(
             summary = "정산 참여자 제거",
-            description = "현재 로그인한 생성자가 DRAFT 정산의 참여자를 제거합니다. "
-                    + "정산 생성자 자신은 참여자에서 제거할 수 없습니다.",
+            description = "현재 로그인한 생성자가 DRAFT 또는 미입금 SUSPENDED 영수증 정산의 참여자를 제거합니다. "
+                    + "정산 생성자 자신은 참여자에서 제거할 수 없습니다. 중단 상태의 인원 변경은 제출 이력과 미입금 Share를 초기화하고 남은 참여자의 품목 선택을 유지합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -575,7 +575,7 @@ public interface SettlementDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "SETTLEMENT_NOT_EDITABLE 또는 SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED"
+                    description = "SETTLEMENT_NOT_EDITABLE, SETTLEMENT_REVISION_PAYMENT_EXISTS 또는 SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED"
             )
     })
     ApiResponse<Void> removeSettlementParticipant(UUID settlementId, UUID participantId);
