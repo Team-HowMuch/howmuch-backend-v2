@@ -23,13 +23,7 @@ public class RecapSummaryPolicy {
     public RecapSummary summarize(List<RecapSourceFact> facts) {
         Map<UUID, Long> amounts = new HashMap<>();
         for (RecapSourceFact fact : facts) {
-            if (fact.ownAmount() == null && !fact.validZeroSubmission()) {
-                throw new IllegalStateException("Incomplete own share in completed settlement");
-            }
-            long amount = fact.ownAmount() == null ? 0 : fact.ownAmount();
-            if (amount < 0) {
-                throw new IllegalStateException("Negative own share");
-            }
+            long amount = fact.confirmedOwnAmount();
             Long previous = amounts.putIfAbsent(fact.settlementId(), amount);
             if (previous != null && previous != amount) {
                 throw new IllegalStateException("Inconsistent own share");
