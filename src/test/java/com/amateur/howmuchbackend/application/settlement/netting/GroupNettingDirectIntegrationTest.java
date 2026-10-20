@@ -26,6 +26,7 @@ import com.amateur.howmuchbackend.infra.codef.config.CodefConfigurationFingerpri
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -1384,6 +1385,70 @@ class GroupNettingDirectIntegrationTest {
         assertOriginalsHidden(f);
     }
 
+    @ParameterizedTest
+    @CsvSource({"OWNER,15000", "MEMBER,15000", "OWNER,10000", "MEMBER,10000"})
+    void listCurrentAndDetailExposeCreatingActorAndGenerationTime(String role, long amount)
+            throws Exception {
+        var f = fixture(amount, 10000);
+        long creator = role.equals("OWNER") ? f.a() : f.b();
+        String creatorName = role.equals("OWNER") ? "A" : "B";
+        var n = compress(f, creator);
+        var createdAt = jdbc.queryForObject(
+                "SELECT created_at FROM group_settlement_nettings WHERE id=?",
+                LocalDateTime.class, n.nettingId());
+        as(creator == f.a() ? f.b() : f.a());
+        String base = "/api/v2/groups/" + f.group() + "/settlement-nettings";
+        for (String path : List.of(base, base + "/current", base + "/" + n.nettingId(),
+                "/api/v2/settlement-nettings/" + n.nettingId(),
+                "/api/v2/settlements/" + f.ab() + "/netting")) {
+            String prefix = path.equals(base) ? "$.data[0]" : "$.data";
+            var response = mvc.perform(get(path)
+                            .with(org.springframework.security.test.web.servlet.request
+                                    .SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath(prefix + ".creatorId").value(creator))
+                    .andExpect(jsonPath(prefix + ".creatorName").value(creatorName))
+                    .andReturn().getResponse().getContentAsString();
+            var data = new tools.jackson.databind.ObjectMapper().readTree(response).path("data");
+            var item = path.equals(base) ? data.get(0) : data;
+            assertThat(LocalDateTime.parse(item.path("createdAt").stringValue())).isEqualTo(createdAt);
+        }
+    }
+
+    @Test
+    void creatorOutsideTransferPartiesIsDisplayedWithCurrentName() {
+        var f = fixture(15000, 10000);
+        long creator = user("Creator");
+        member(f.group(), creator, "MEMBER", LocalDateTime.now(ZoneOffset.UTC));
+        var n = compress(f, creator);
+        assertThat(n.transfers()).noneMatch(t -> t.payerId() == creator || t.receiverId() == creator);
+        assertThat(n.creatorId()).isEqualTo(creator);
+        assertThat(n.creatorName()).isEqualTo("Creator");
+        jdbc.update("UPDATE users SET name='Changed' WHERE id=?", creator);
+        as(f.a());
+        var refreshed = nettings.get(f.group(), n.nettingId());
+        assertThat(refreshed.creatorId()).isEqualTo(creator);
+        assertThat(refreshed.creatorName()).isEqualTo("Changed");
+        assertThat(refreshed.createdAt()).isEqualTo(n.createdAt());
+    }
+
+    @Test
+    void recompressionKeepsEachGenerationsCreatingActorAndTime() {
+        var f = fixture(15000, 10000);
+        var first = compress(f, f.a());
+        original(f.group(), f.b(), f.a(), f.accountB(), 7000, LocalDateTime.now(ZoneOffset.UTC));
+        var second = compress(f, f.b());
+        as(f.a());
+        var history = nettings.list(f.group());
+        assertThat(history).extracting(GroupNettingResult::nettingId)
+                .containsExactly(second.nettingId(), first.nettingId());
+        assertThat(history).extracting(GroupNettingResult::creatorId).containsExactly(f.b(), f.a());
+        assertThat(history).extracting(GroupNettingResult::creatorName).containsExactly("B", "A");
+        assertThat(history).extracting(GroupNettingResult::createdAt)
+                .containsExactly(second.createdAt(), first.createdAt());
+        assertThat(history.getLast().status()).isEqualTo("SUPERSEDED");
+    }
+
     @Test
     void detailCardsIncludeStoreViewerCategoryAndActualPaymentCountsThroughHttp() throws Exception {
         var f = fixture(15000, 10000);
@@ -1479,7 +1544,11 @@ class GroupNettingDirectIntegrationTest {
         var document = json.readTree(body);
         var schemas = document.path("components").path("schemas");
         var detail = schemas.path("GroupNettingWebResponse");
-        assertThat(detail.path("required").toString()).contains("completedAt", "supersededAt");
+        assertThat(detail.path("required").toString()).contains("creatorId", "creatorName", "createdAt", "completedAt", "supersededAt");
+        assertThat(detail.path("properties").path("creatorId").path("type").stringValue()).isEqualTo("integer");
+        assertThat(detail.path("properties").path("creatorName").path("type").stringValue()).isEqualTo("string");
+        assertThat(detail.path("properties").path("creatorId").path("description").stringValue()).contains("실행");
+        assertThat(detail.path("properties").path("createdAt").path("description").stringValue()).contains("UTC");
         for (String field : List.of("completedAt", "supersededAt")) {
             assertThat(detail.path("properties").path(field).path("type").toString()).contains("null");
             assertThat(detail.path("properties").path(field).path("description").stringValue()).contains("UTC");

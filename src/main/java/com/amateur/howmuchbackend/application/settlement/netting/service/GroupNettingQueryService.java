@@ -122,13 +122,15 @@ public class GroupNettingQueryService
     private GroupNettingResult result(LoadGroupNettingPort.Netting n, long viewerId) {
         var sourceCategories = categories.read(
                 viewerId, n.sources().stream().map(LoadGroupNettingPort.SourceAmount::settlementId).toList());
-        var partyIds =
-                n.transfers().stream()
-                        .flatMap(t -> java.util.stream.Stream.of(t.payerId(), t.receiverId()))
+        var displayUserIds =
+                java.util.stream.Stream.concat(
+                                java.util.stream.Stream.of(n.creatorId()),
+                                n.transfers().stream()
+                                        .flatMap(t -> java.util.stream.Stream.of(t.payerId(), t.receiverId())))
                         .distinct()
                         .toList();
-        var parties =
-                users.findAllByIds(partyIds).stream()
+        var displayUsers =
+                users.findAllByIds(displayUserIds).stream()
                         .collect(
                                 java.util.stream.Collectors.toMap(
                                         User::id, java.util.function.Function.identity()));
@@ -138,6 +140,8 @@ public class GroupNettingQueryService
                 n.version(),
                 n.status(),
                 n.openReviews(),
+                n.creatorId(),
+                displayUsers.get(n.creatorId()).name(),
                 n.createdAt(),
                 n.completedAt(),
                 n.supersededAt(),
@@ -172,10 +176,10 @@ public class GroupNettingQueryService
                                                 t.reference(),
                                                 t.organization(),
                                                 t.maskedNumber(),
-                                                parties.get(t.payerId()).name(),
-                                                parties.get(t.payerId()).publicId(),
-                                                parties.get(t.receiverId()).name(),
-                                                parties.get(t.receiverId()).publicId(),
+                                                displayUsers.get(t.payerId()).name(),
+                                                displayUsers.get(t.payerId()).publicId(),
+                                                displayUsers.get(t.receiverId()).name(),
+                                                displayUsers.get(t.receiverId()).publicId(),
                                                 t.confirmedAmount() == 0
                                                         ? GroupNettingResult.TransferStatus.UNPAID
                                                         : t.remainingAmount() > 0

@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import java.util.*;
 
-@Schema(requiredProperties = {"nettingId", "groupId", "version", "status", "openReviews", "createdAt",
+@Schema(requiredProperties = {"nettingId", "groupId", "version", "status", "openReviews", "creatorId", "creatorName", "createdAt",
         "completedAt", "supersededAt", "sources", "transfers"})
 public record GroupNettingWebResponse(
         UUID nettingId,
@@ -15,6 +15,9 @@ public record GroupNettingWebResponse(
         long version,
         String status,
         int openReviews,
+        @Schema(description = "이 압축 정산의 CREATE 실행을 요청한 사용자 ID. 현재 그룹장이나 조회자와 다를 수 있음")
+        long creatorId,
+        @Schema(description = "압축 실행자의 현재 이름") String creatorName,
         @Schema(description = "생성 시각. UTC 기준 offset 없는 값") LocalDateTime createdAt,
         @Schema(description = "완료 시각. UTC 기준 offset 없는 값. 미완료는 null", nullable = true)
         LocalDateTime completedAt,
@@ -76,6 +79,8 @@ public record GroupNettingWebResponse(
                 r.version(),
                 r.status(),
                 r.openReviews(),
+                r.creatorId(),
+                r.creatorName(),
                 r.createdAt(),
                 r.completedAt(),
                 r.supersededAt(),
