@@ -8,6 +8,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.Settlem
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadGroupSettlementListPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadUserSettlementStatePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
@@ -37,6 +38,7 @@ public class SettlementPersistenceAdapter implements
         LoadSettlementPort,
         LoadUserSettlementStatePort,
         LoadSettlementListPort,
+        LoadGroupSettlementListPort,
         SaveSettlementPort,
         DeleteSettlementPort,
         SettlementReceivingAccountUsagePort {
@@ -109,6 +111,20 @@ public class SettlementPersistenceAdapter implements
                         tab,
                         groupsBySettlementId.getOrDefault(projection.getSettlementId(), List.of())
                 ))
+                .toList();
+    }
+
+    @Override
+    public List<GroupSettlementListReadModel> findAllInGroup(
+            Long groupId, Long viewerId, SettlementListStatusFilter status
+    ) {
+        return settlementJpaRepository.findAllForScope(
+                        viewerId, "RECEIVE", status.name(), groupId, null, null, true).stream()
+                .map(projection -> new GroupSettlementListReadModel(
+                        toReadModel(projection, SettlementListTab.RECEIVE, List.of()),
+                        projection.getRequesterId(), projection.getRequesterName(),
+                        projection.getRequesterPublicId(), projection.getViewerParticipant(),
+                        projection.getRequesterCategoryCode()))
                 .toList();
     }
 

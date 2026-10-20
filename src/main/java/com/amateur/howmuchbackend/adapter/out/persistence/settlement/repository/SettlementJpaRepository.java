@@ -28,6 +28,10 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.total_amount AS totalAmount,
                 settlement.allocation_type AS allocationType,
                 creator.name AS requesterName,
+                settlement.creator_id AS requesterId,
+                creator.public_id AS requesterPublicId,
+                COALESCE(BOOL_OR(participant.linked_user_id = :userId), FALSE) AS viewerParticipant,
+                MAX(COALESCE(requester_category.category_code, classified.category_code)) AS requesterCategoryCode,
                 COUNT(DISTINCT participant.id) AS participantCount,
                 COUNT(DISTINCT CASE
                         WHEN (participant.linked_user_id IS NULL
@@ -62,6 +66,12 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 ON store_info.settlement_id = settlement.id
               JOIN users creator
                 ON creator.id = settlement.creator_id
+              LEFT JOIN settlement_user_categories requester_category
+                ON :groupScope = TRUE AND requester_category.settlement_id = settlement.id
+               AND requester_category.user_id = settlement.creator_id
+              LEFT JOIN settlement_categories classified
+                ON :groupScope = TRUE AND classified.settlement_id = settlement.id
+               AND classified.status = 'CLASSIFIED'
               LEFT JOIN settlement_participants participant
                 ON participant.settlement_id = settlement.id
               LEFT JOIN settlement_shares share
@@ -103,7 +113,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                      WHERE compressed.settlement_id = settlement.id
                )
                AND (
-                    (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
+                    (:groupScope = TRUE AND :groupId IS NOT NULL)
+                    OR (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
                     OR (
                         :tab = 'PAY'
                         AND settlement.creator_id <> :userId
@@ -159,17 +170,25 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     )
                 )
              GROUP BY settlement.id, settlement.status, settlement.created_at, link.created_at,
-                      settlement.total_amount, settlement.allocation_type, creator.name, store_info.store_name
+                      settlement.total_amount, settlement.allocation_type, creator.name, creator.public_id, store_info.store_name
              ORDER BY COALESCE(link.created_at, settlement.created_at) DESC, settlement.id DESC
             """, nativeQuery = true)
-    List<SettlementListProjection> findAllForUser(
+    List<SettlementListProjection> findAllForScope(
             @Param("userId") Long userId,
             @Param("tab") String tab,
             @Param("status") String status,
             @Param("groupId") Long groupId,
             @Param("completedFrom") Instant completedFrom,
-            @Param("completedBefore") Instant completedBefore
+            @Param("completedBefore") Instant completedBefore,
+            @Param("groupScope") boolean groupScope
     );
+
+    default List<SettlementListProjection> findAllForUser(
+            Long userId, String tab, String status, Long groupId,
+            Instant completedFrom, Instant completedBefore
+    ) {
+        return findAllForScope(userId, tab, status, groupId, completedFrom, completedBefore, false);
+    }
 
     @Query(value = """
             SELECT DISTINCT
@@ -346,6 +365,14 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         long getTotalAmount();
 
         String getRequesterName();
+
+        Long getRequesterId();
+
+        String getRequesterPublicId();
+
+        boolean getViewerParticipant();
+
+        String getRequesterCategoryCode();
 
         long getParticipantCount();
 
