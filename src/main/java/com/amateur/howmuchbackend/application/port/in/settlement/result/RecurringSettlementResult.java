@@ -12,12 +12,17 @@ public record RecurringSettlementResult(UUID id, Long groupId, Long creatorId, S
         List<RecurringSettlement.Expense> expenses, LocalDateTime nextRunAt, int failureCount,
         LocalDateTime retryAt, String lastFailureCode, LocalDateTime lastFailureAt,
         boolean requiresManualReview, RecurringSettlement.CancellationReason cancellationReason,
-        LocalDateTime cancelledAt, LocalDateTime createdAt) {
+        LocalDateTime cancelledAt, LocalDateTime createdAt, RecurringSettlementPresentationResult presentation, SettlementCategoryResult category) {
     public static RecurringSettlementResult from(RecurringSettlement value) {
+        return from(value, null, null);
+    }
+
+    public static RecurringSettlementResult from(RecurringSettlement value,
+            RecurringSettlementPresentationResult presentation, SettlementCategoryResult category) {
         return new RecurringSettlementResult(value.id(), value.groupId(), value.creatorId(), value.title(),
                 value.categoryCode(), value.totalAmount(), value.receivingAccountId(), value.schedule(),
                 value.status(), value.participants(), value.expenses(), value.nextRunAt(), value.failureCount(),
                 value.retryAt(), value.lastFailureCode(), value.lastFailureAt(), value.requiresManualReview(),
-                value.cancellationReason(), value.cancelledAt(), value.createdAt());
+                value.cancellationReason(), value.cancelledAt(), value.createdAt(), presentation, category);
     }
 }

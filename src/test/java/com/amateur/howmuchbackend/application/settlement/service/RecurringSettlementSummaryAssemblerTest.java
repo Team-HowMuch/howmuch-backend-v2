@@ -26,7 +26,7 @@ class RecurringSettlementSummaryAssemblerTest {
 
     private final SettlementCategoryCatalog catalog = mock(SettlementCategoryCatalog.class);
     private final RecurringSettlementSummaryAssembler assembler =
-            new RecurringSettlementSummaryAssembler(catalog, CLOCK);
+            new RecurringSettlementSummaryAssembler(catalog, CLOCK, mock(RecurringSettlementPresentationAssembler.class));
 
     RecurringSettlementSummaryAssemblerTest() {
         when(catalog.byCode()).thenReturn(Map.of("HOUSING_TELECOM",

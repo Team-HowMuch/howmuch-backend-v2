@@ -12,6 +12,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.RecurringSettlementPresentationResult;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -20,20 +24,32 @@ import org.springframework.stereotype.Component;
  * 표시 상태는 발행 여부가 아니라 예정 회차와 실패 요약으로 결정한다.
  */
 @Component
+@ConditionalOnProperty(prefix = "howmuch.settlement.recurring", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class RecurringSettlementSummaryAssembler {
     private final SettlementCategoryCatalog categoryCatalog;
     private final Clock clock;
+    private final RecurringSettlementPresentationAssembler presentation;
 
     public List<RecurringSettlementSummaryResult> assemble(List<RecurringSettlementSummaryReadModel> values) {
+        return assemble(values, true);
+    }
+
+    public List<RecurringSettlementSummaryResult> assembleHome(List<RecurringSettlementSummaryReadModel> values) {
+        return assemble(values, false);
+    }
+
+    private List<RecurringSettlementSummaryResult> assemble(List<RecurringSettlementSummaryReadModel> values, boolean withPresentation) {
         var categories = categoryCatalog.byCode();
         LocalDate today = kstToday();
-        return values.stream().map(value -> assemble(value, categories, today)).toList();
+        Map<UUID, RecurringSettlementPresentationResult> displays = withPresentation
+                ? presentation.loadAll(values.stream().map(RecurringSettlementSummaryReadModel::id).toList()) : Map.of();
+        return values.stream().map(value -> assemble(value, categories, today, displays.get(value.id()))).toList();
     }
 
     private RecurringSettlementSummaryResult assemble(RecurringSettlementSummaryReadModel value,
             java.util.Map<String, com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementCategoryResult> categories,
-            LocalDate today) {
+            LocalDate today, RecurringSettlementPresentationResult presentation) {
         var category = categories.get(value.categoryCode());
         Long daysUntil = daysUntilNextRun(value.nextRunAt(), today);
         return new RecurringSettlementSummaryResult(
@@ -41,7 +57,7 @@ public class RecurringSettlementSummaryAssembler {
                 category == null ? null : category.name(), category == null ? null : category.icon(),
                 value.frequency(), value.dayOfWeek(), value.dayOfMonth(), value.totalAmount(),
                 value.viewerAmount(), value.viewerAmount() != null, value.status(),
-                displayState(value, daysUntil), value.nextRunAt(), daysUntil);
+                displayState(value, daysUntil), value.nextRunAt(), daysUntil, presentation);
     }
 
     private RecurringSettlementDisplayState displayState(RecurringSettlementSummaryReadModel value, Long daysUntil) {

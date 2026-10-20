@@ -882,6 +882,106 @@ class RecurringSettlementFlowIntegrationTest {
         assertThat(count("recurring_settlement_occurrences","recurring_settlement_id",value.id())).isZero();
     }
 
+    @Test
+    void detailAndListProvideNamesProfileCategoryAndMaskedAccount_andKeepLegacyTimeContract() throws Exception {
+        var f=fixture();var value=register(f);
+        jdbc.update("UPDATE users SET avatar_file_name='creator-profile.png' WHERE id=?", f.creator());
+        jdbc.update("UPDATE users SET avatar_file_name='member-profile.png' WHERE id=?", f.member());
+        String path="/api/v2/groups/" + f.group() + "/recurring-settlements";
+        Long memberId=jdbc.queryForObject("SELECT id FROM group_members WHERE group_id=? AND user_id=?",Long.class,f.group(),f.member());
+        String memberVersion=com.amateur.howmuchbackend.application.image.ImageCacheVersion.fromNullableFileName("member-profile.png");
+        mvc.perform(get(path + "/" + value.id()).with(user("signed")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("data.category.code").value("HOUSING_TELECOM"))
+                .andExpect(jsonPath("data.category.name").isNotEmpty())
+                .andExpect(jsonPath("data.category.icon").isNotEmpty())
+                .andExpect(jsonPath("data.receivingAccount.id").value(f.account()))
+                .andExpect(jsonPath("data.receivingAccount.bankName").isNotEmpty())
+                .andExpect(jsonPath("data.receivingAccount.maskedNumber").value("****1234"))
+                .andExpect(jsonPath("data.participants[0].name").value("생성자"))
+                .andExpect(jsonPath("data.participants[0].profileImageUrl").value(org.hamcrest.Matchers.startsWith("/api/v2/user/me/avatar?v=")))
+                .andExpect(jsonPath("data.participants[1].profileImageUrl").value("/api/v2/groups/" + f.group() + "/members/" + memberId + "/avatar?v=" + memberVersion))
+                .andExpect(jsonPath("data.nextRunAt").value("2026-10-31T00:00:00"));
+        mvc.perform(get(path).with(user("signed")))
+                .andExpect(status().isOk()).andExpect(jsonPath("data.items[0].participants[1].userId").value(f.member()))
+                .andExpect(jsonPath("data.items[0].participants[1].name").value("참여자"))
+                .andExpect(jsonPath("data.items[0].receivingAccount.maskedNumber").value("****1234"));
+        jdbc.update("UPDATE group_members SET status='LEFT',left_at=? WHERE group_id=? AND user_id=?", CREATED, f.group(), f.member());
+        mvc.perform(get(path + "/" + value.id()).with(user("signed")))
+                .andExpect(status().isOk()).andExpect(jsonPath("data.participants[1].profileImageUrl").doesNotExist());
+    }
+
+    @Test
+    void deletionRacingWithWorker_neverLosesPublishedHistoryOrPublishesAfterDeletion() throws Exception {
+        var f=fixture();var value=register(f);clock.at(FIRST.plusMinutes(1));
+        concurrent(() -> worker.process(value.id(),FIRST), () -> {deleteForm.delete(f.group(),value.id());return "deleted";});
+        assertThat(recurring.findById(value.id()).orElseThrow().deletedAt()).isNotNull();
+        int issued=count("recurring_settlement_occurrences","recurring_settlement_id",value.id());
+        assertThat(issued).isBetween(0,1);
+        assertThat(newSettlementCount(f)).isEqualTo(issued);
+        assertThat(worker.process(value.id(),FIRST)).isIn(RecurringSettlementExecutionResult.CANCELLED, RecurringSettlementExecutionResult.ALREADY_PUBLISHED);
+        assertThat(count("recurring_settlement_occurrences","recurring_settlement_id",value.id())).isEqualTo(issued);
+    }
+
+    @Test
+    void concurrentReplacements_persistOneWholeSnapshotAndNeverCombineAllocations() throws Exception {
+        var f=fixture();var value=register(f);
+        var a=form(f,20001,List.of(f.creator(),f.member()));
+        var b=form(f,30003,List.of(f.observer(),f.creator(),f.member()));
+        var results=concurrent(() -> attempt(() -> updateForm.update(f.group(),value.id(),a)),
+                () -> attempt(() -> updateForm.update(f.group(),value.id(),b)));
+        assertThat(results.stream().anyMatch(RecurringSettlementResult.class::isInstance)).isTrue();
+        var stored=recurring.findById(value.id()).orElseThrow();
+        assertThat(stored.participants().stream().mapToLong(RecurringSettlement.Participant::amount).sum()).isEqualTo(stored.totalAmount());
+        assertThat(stored.totalAmount()).isIn(20001L,30003L);
+        assertThat(stored.participants()).hasSize(stored.totalAmount()==20001?2:3);
+    }
+
+    @Test
+    void unchangedOriginalFirstRunDate_canRoundTripAfterAnOccurrenceWasPublished() {
+        var f=fixture();var value=register(f);clock.at(FIRST.plusMinutes(1));worker.process(value.id(),FIRST);
+        var c=form(f,30000,List.of(f.creator(),f.member()));
+        var explicit=new WriteRecurringSettlementCommand(c.title(),c.amount(),c.categoryCode(),c.frequency(),c.dayOfWeek(),c.dayOfMonth(),
+                value.schedule().firstRunDate(),c.participantUserIds(),c.receivingAccountId());
+        assertThat(updateForm.update(f.group(),value.id(),explicit).nextRunAt()).isEqualTo(LocalDateTime.of(2026,11,30,0,0));
+    }
+
+    @Test
+    void receivingAccountReplacement_usesNewSnapshotWithoutChangingTheOriginalDraft() {
+        var f=fixture();var value=register(f);
+        long replacement=jdbc.queryForObject("""
+                INSERT INTO accounts(user_id,external_connection_id,organization,candidate_key,external_account_key_ciphertext,
+                    type,name,masked_number,currency,active,created_at,updated_at,is_default,display_order,product_code)
+                SELECT user_id,external_connection_id,organization,?,external_account_key_ciphertext,
+                    type,name,'****5678',currency,active,created_at,updated_at,false,1,product_code
+                FROM accounts WHERE id=? RETURNING id
+                """,Long.class,UUID.randomUUID().toString().replace("-","")+"a".repeat(32),f.account());
+        var old=form(f,20000,List.of(f.creator(),f.member()));
+        var input=new WriteRecurringSettlementCommand(old.title(),old.amount(),old.categoryCode(),old.frequency(),old.dayOfWeek(),old.dayOfMonth(),
+                null,old.participantUserIds(),replacement);
+        var changed=updateForm.update(f.group(),value.id(),input);
+        assertThat(changed.receivingAccountId()).isEqualTo(replacement);
+        assertThat(changed.presentation().receivingAccount().maskedNumber()).isEqualTo("****5678");
+        assertThat(jdbc.queryForObject("SELECT receiving_account_id FROM settlements WHERE id=?",Long.class,f.source())).isEqualTo(f.account());
+        clock.at(FIRST.plusMinutes(1));worker.process(value.id(),FIRST);
+        UUID issued=occurrences.findBySchedule(value.id(),FIRST).orElseThrow().settlementId();
+        assertThat(jdbc.queryForObject("SELECT receiving_account_id FROM settlements WHERE id=?",Long.class,issued)).isEqualTo(replacement);
+    }
+
+    @Test
+    void creatorWhoLeftGroup_getsOwnAvatarOnly_andNoForbiddenMemberAvatarUrl() {
+        var f=fixture();long ownAccount=account(f.member());
+        when(actor.getCurrentActor()).thenReturn(new CurrentActor(f.member()));
+        jdbc.update("UPDATE users SET avatar_file_name='profile.png' WHERE id IN (?,?)",f.member(),f.observer());
+        var input=new WriteRecurringSettlementCommand("member's recurring",20000,"HOUSING_TELECOM",RecurrenceSchedule.Frequency.MONTHLY,
+                null,31,null,List.of(f.member(),f.observer()),ownAccount);
+        var value=createForm.create(f.group(),input);
+        jdbc.update("UPDATE group_members SET status='LEFT',left_at=? WHERE group_id=? AND user_id=?",CREATED,f.group(),f.member());
+        var result=get.get(f.group(),value.id());
+        assertThat(result.presentation().participants().get(0).avatarVersion()).isNotNull();
+        assertThat(result.presentation().participants().get(1).avatarVersion()).isNull();
+    }
+
     private WriteRecurringSettlementCommand form(Fixture f, long amount, List<Long> people) {
         return new WriteRecurringSettlementCommand(
                 "직접 월세", amount, "HOUSING_TELECOM", RecurrenceSchedule.Frequency.MONTHLY, null,31,null,people,f.account());

@@ -42,6 +42,7 @@ class RecurringSettlementServiceTest {
     private final MutableClock clock = new MutableClock(RecurringSettlementFixtures.CREATED);
 
     private RecurringSettlementService service;
+    private final RecurringSettlementPresentationAssembler presentation = mock(RecurringSettlementPresentationAssembler.class);
 
     @BeforeEach
     void setUp() {
@@ -50,10 +51,11 @@ class RecurringSettlementServiceTest {
                 "HOUSING_TELECOM", new SettlementCategoryResult("HOUSING_TELECOM", "주거", "월세", "housing-telecom"),
                 "SHOPPING", new SettlementCategoryResult("SHOPPING", "쇼핑", null, "shopping"),
                 "UNCATEGORIZED", new SettlementCategoryResult("UNCATEGORIZED", "미분류", null, "uncategorized")));
+        org.mockito.Mockito.when(presentation.assemble(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> RecurringSettlementResult.from(invocation.getArgument(0)));
         service = new RecurringSettlementService(
                 currentActorPort, recurring, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, new RecurringSettlementAccessPolicy(), null,
-                new RecurrenceScheduleResolver(clock), null, catalog, null);
+                new RecurrenceScheduleResolver(clock), null, catalog, null, presentation);
     }
 
     @Test

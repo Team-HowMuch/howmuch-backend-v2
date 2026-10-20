@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 /**
  * 홈 요약. 현재 사용자가 참여 중인 ACTIVE 설정만, 현재 활성 그룹·활성 멤버 조건을 SQL에서 확인해 돌려준다.
@@ -25,12 +26,12 @@ public class RecurringSettlementHomeService implements GetRecurringSettlementHom
     private final RecurringSettlementSummaryAssembler assembler;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<RecurringSettlementSummaryResult> getHome(int limit) {
         if (limit < 1 || limit > 20) {
             throw ApplicationException.of(RecurringSettlementStatusCode.INVALID_RECURRING_SETTLEMENT_CURSOR);
         }
         Long actorId = currentActorPort.getCurrentActor().userId();
-        return assembler.assemble(summaries.findHome(actorId, limit));
+        return assembler.assembleHome(summaries.findHome(actorId, limit));
     }
 }

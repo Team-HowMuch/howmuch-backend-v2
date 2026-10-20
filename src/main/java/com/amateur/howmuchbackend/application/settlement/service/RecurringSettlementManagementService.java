@@ -54,6 +54,7 @@ public class RecurringSettlementManagementService implements CreateRecurringSett
     private final RecurrenceScheduleResolver schedules;
     private final SettlementCategoryCatalog categories;
     private final Clock clock;
+    private final RecurringSettlementPresentationAssembler presentation;
     private final RecurringSettlementFormPolicy formPolicy;
 
     @Override
@@ -68,7 +69,7 @@ public class RecurringSettlementManagementService implements CreateRecurringSett
                 command.amount(), command.receivingAccountId(), schedule, people,
                 List.of(new RecurringSettlement.Expense(command.title(), command.amount(), 0)), LocalDateTime.now(clock));
         save.save(value);
-        return RecurringSettlementResult.from(value);
+        return presentation.assemble(value);
     }
 
     @Override
@@ -89,12 +90,13 @@ public class RecurringSettlementManagementService implements CreateRecurringSett
         boolean sameCadence = current.schedule().frequency() == command.frequency()
                 && Objects.equals(current.schedule().dayOfWeek(), command.dayOfWeek())
                 && Objects.equals(current.schedule().dayOfMonth(), command.dayOfMonth());
-        RecurrenceSchedule schedule = command.firstRunDate() == null && sameCadence ? current.schedule()
+        RecurrenceSchedule schedule = sameCadence && (command.firstRunDate() == null
+                || command.firstRunDate().equals(current.schedule().firstRunDate())) ? current.schedule()
                 : schedules.resolve(command.frequency(), command.dayOfWeek(), command.dayOfMonth(), command.firstRunDate());
         var value = current.revise(command.title(), command.categoryCode(), command.amount(),
                 command.receivingAccountId(), schedule, people, LocalDateTime.now(clock));
         save.replace(value);
-        return RecurringSettlementResult.from(value);
+        return presentation.assemble(value);
     }
 
     @Override

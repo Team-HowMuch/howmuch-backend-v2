@@ -29,6 +29,7 @@ public record RecurringSettlementSummaryResult(
         RecurringSettlement.Status status,
         RecurringSettlementDisplayState displayState,
         LocalDateTime nextRunAt,
-        Long daysUntilNextRun
+        Long daysUntilNextRun,
+        RecurringSettlementPresentationResult presentation
 ) {
 }

@@ -20,7 +20,9 @@ public record RecurringSettlementSummaryWebResponse(
         RecurringSettlement.Status status,
         RecurringSettlementDisplayState displayState,
         LocalDateTime nextRunAt,
-        Long daysUntilNextRun
+        Long daysUntilNextRun,
+        java.util.List<RecurringSettlementParticipantWebResponse> participants,
+        RecurringSettlementAccountWebResponse receivingAccount
 ) {
     public record Category(String code, String name, String icon) {
     }
@@ -33,6 +35,9 @@ public record RecurringSettlementSummaryWebResponse(
                 new Category(value.categoryCode(), value.categoryName(), value.categoryIcon()),
                 new Cadence(value.frequency(), value.dayOfWeek(), value.dayOfMonth()),
                 value.totalAmount(), value.myAmount(), value.isParticipant(), value.status(),
-                value.displayState(), value.nextRunAt(), value.daysUntilNextRun());
+                value.displayState(), value.nextRunAt(), value.daysUntilNextRun(),
+                value.presentation() == null ? java.util.List.of() : value.presentation().participants().stream()
+                        .map(person -> RecurringSettlementParticipantWebResponse.from(value.groupId(), person)).toList(),
+                RecurringSettlementAccountWebResponse.from(value.presentation()));
     }
 }
