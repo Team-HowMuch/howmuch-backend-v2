@@ -13,6 +13,6 @@ public interface LoadGroupSettlementListPort {
             String requesterName,
             String requesterPublicId,
             boolean viewerParticipant,
-            String requesterCategoryCode
+            String viewerCategoryCode
     ) {}
 }

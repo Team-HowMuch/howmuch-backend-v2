@@ -818,7 +818,12 @@ class SettlementListPersistenceIntegrationTest {
             });
             assertThat(participantItems).extracting(GroupSettlementListItemResult::amountToPay)
                     .containsExactly(600L, 6000L);
-            assertThat(participantItems.getFirst().category().code()).isEqualTo("CAFE_SNACK");
+            // 조회자가 고른 값이 요청자 값보다 우선하고, 없으면 요청자 값, 그것도 없으면 자동 분류 값이다.
+            assertThat(participantItems.getFirst().category().code()).isEqualTo("FOOD");
+            jdbcTemplate.update("DELETE FROM settlement_user_categories WHERE settlement_id = ? AND user_id = ?",
+                    receiveSettlementId, payerId);
+            assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null))
+                    .getFirst().category().code()).isEqualTo("CAFE_SNACK");
             jdbcTemplate.update("UPDATE settlement_user_categories SET category_code = 'REMOVED_CODE' WHERE settlement_id = ? AND user_id = ?",
                     receiveSettlementId, creatorId);
             assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null))

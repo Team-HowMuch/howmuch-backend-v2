@@ -124,7 +124,7 @@ public class SettlementPersistenceAdapter implements
                         toReadModel(projection, SettlementListTab.RECEIVE, List.of()),
                         projection.getRequesterId(), projection.getRequesterName(),
                         projection.getRequesterPublicId(), projection.getViewerParticipant(),
-                        projection.getRequesterCategoryCode()))
+                        projection.getViewerCategoryCode()))
                 .toList();
     }
 

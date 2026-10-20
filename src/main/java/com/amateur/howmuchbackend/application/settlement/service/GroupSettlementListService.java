@@ -58,8 +58,8 @@ public class GroupSettlementListService implements GetGroupSettlementsUseCase {
                     summary.status(), summary.requestedAt(), summary.endedAt(), summary.completedAt(),
                     summary.allocationType(), summary.totalAmount(), summary.participantCount(),
                     summary.payableParticipantCount(), summary.completedParticipantCount(), summary.storeName(),
-                    item.requesterCategoryCode() == null ? uncategorized
-                            : categories.getOrDefault(item.requesterCategoryCode(), uncategorized),
+                    item.viewerCategoryCode() == null ? uncategorized
+                            : categories.getOrDefault(item.viewerCategoryCode(), uncategorized),
                     role == ViewerRole.REQUESTER
                             ? receivables.getOrDefault(summary.settlementId(), summary.receivableShareAmount()) : null,
                     role == ViewerRole.PARTICIPANT ? amountToPay(item) : null,
