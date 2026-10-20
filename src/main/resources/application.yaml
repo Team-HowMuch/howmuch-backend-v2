@@ -148,6 +148,10 @@ howmuch:
     generation:
       enabled: ${RECAP_GENERATION_ENABLED:false}
       poll-interval: 30s
+    publication:
+      enabled: ${RECAP_PUBLICATION_ENABLED:false}
+      poll-interval: 10s
+      initial-delay: 30s
     image:
       storage-dir: ${RECAP_IMAGE_STORAGE_DIR:./uploads/recap-images}
   profile:

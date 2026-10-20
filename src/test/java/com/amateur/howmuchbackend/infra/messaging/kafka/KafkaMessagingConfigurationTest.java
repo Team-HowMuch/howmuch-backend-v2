@@ -112,6 +112,14 @@ class KafkaMessagingConfigurationTest {
     }
 
     @Test
+    void recapPublicationRequiresEnabledKafkaTransport() {
+        context.withPropertyValues("howmuch.recap.publication.enabled=true")
+                .run(app -> assertThat(app).hasFailed());
+        context.withPropertyValues("howmuch.recap.publication.enabled=true", "howmuch.messaging.kafka.enabled=true")
+                .run(app -> assertThat(app).hasNotFailed());
+    }
+
+    @Test
     void externalMtlsReferenceLoadsPasswordsFromMountedConfigTree() throws Exception {
         var secrets = Files.createDirectory(configDirectory.resolve("secrets"));
         Files.writeString(secrets.resolve("kafka.keystore.password"), "test-keystore-password");

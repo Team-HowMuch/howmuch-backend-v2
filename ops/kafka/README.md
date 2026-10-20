@@ -79,14 +79,14 @@ Minimum service ACL plan (grant Describe with the specified topic operations; gr
 
 | Identity | Write topics | Read topics / groups |
 |---|---|---|
-| Backend API/relay | `notification.delivery.v1`, `finance.sync.command.v1` when finance integration exists | `recap.published.v1` / `howmuch-recap-notification-v1`; finance event/group only when its consumer exists |
+| Backend API/relay | `notification.delivery.v1`, `recap.published.v1` when recap publication is enabled, `finance.sync.command.v1` when finance integration exists | `recap.published.v1` / `howmuch-recap-notification-v1`; finance event/group only when its consumer exists |
 | Notification worker | `notification.delivery.v1.dlt` | `notification.delivery.v1` / `howmuch-notification-delivery-v1` |
 | Recap producer | `recap.published.v1` only | None |
 | Recap consumer process | `recap.published.v1.dlt` | `recap.published.v1` / `howmuch-recap-notification-v1` |
 | Finance Connector | `finance.sync.event.v1`; its quarantine topic when its sanitized recoverer exists | `finance.sync.command.v1` / existing Connector group |
 | Operations | Provisioning and approved metadata/lag/quarantine inspection | Only approved groups/topics |
 
-The recap listener is a service integration boundary, not a public mobile publishing API. A mobile user cannot establish producer authenticity by putting `userId` in JSON. Enable `RECAP_KAFKA_CONSUMER_ENABLED` only after the real recap producer, its private authenticated principal, publication semantics, and ACL tests exist. This change includes the inbound listener and notification handling; it does not implement the upstream recap generator/producer.
+The recap listener is a service integration boundary, not a public mobile publishing API. A mobile user cannot establish producer authenticity by putting `userId` in JSON. The backend recap publisher uses V63's durable publication outbox and the existing authenticated Kafka transport. Enable `RECAP_PUBLICATION_ENABLED` and `RECAP_KAFKA_CONSUMER_ENABLED` only after granting their topic/group ACLs; see [recap activation](../../docs/deployment.md#recap-publication-and-notification-activation). Existing snapshots are not backfilled and delivery remains idempotent by recipient/month.
 
 Private provisioning uses the same script, for example from a broker's tools directory with `KAFKA_COMMAND_CONFIG` pointing to a private authenticated client-properties file:
 

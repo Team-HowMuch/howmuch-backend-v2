@@ -49,6 +49,18 @@ Generation failures retry after 5–60 minutes and hold later months for that ow
 
 The [completed Feature Plan](features/completed/monthly-recap.md) records API contracts, verification, and the remaining production storage checks. Local regression and activation checks do not verify EC2 volume permissions, shared storage across hosts, or backup restoration.
 
+### Recap publication and notification activation
+
+Flyway V63 adds `recap_publication_outbox`. Each newly stored recap and its publication intent commit in the same transaction. Existing snapshots are not backfilled. The relay uses the immutable recap UUID as its stable message ID and publishes only the user ID, month, completed count, and UTC generation time to `recap.published.v1`.
+
+Enable `RECAP_PUBLICATION_ENABLED=true` with `KAFKA_ENABLED=true` after checking authenticated broker access. The API/relay principal needs Write and Describe on `recap.published.v1` and the existing cluster IdempotentWrite permission. A process with `RECAP_KAFKA_CONSUMER_ENABLED=true` needs Read/Describe on that topic, Read on `howmuch-recap-notification-v1`, and Write/Describe on `recap.published.v1.dlt`. Provision the topics before starting the listeners; do not enable broker auto-creation.
+
+The publication relay polls every 10 seconds after a 30-second startup delay (`howmuch.recap.publication.initial-delay`). It uses its own single-thread `recapPublicationTaskScheduler`, so Kafka ACK timeouts do not occupy the shared scheduler used by other jobs. A shared `taskScheduler` is retained when no other configuration provides one. The relay claims at most 100 events, waits for a Kafka ACK, and then records `PUBLISHED`. Failed publication retries after 10–300 seconds; a two-minute expired claim can be recovered by another worker. An ACK followed by a process exit can redeliver the same message, so retain the consumer's recipient/month deduplication. `PUBLISHED` confirms broker receipt, not inbox creation or delivery to a device.
+
+In a single-process deployment, set `RECAP_GENERATION_ENABLED=true`, `RECAP_PUBLICATION_ENABLED=true`, `KAFKA_ENABLED=true`, and `RECAP_KAFKA_CONSUMER_ENABLED=true`. Keep the existing `NOTIFICATION_DELIVERY_MODE` and push provider configuration: recap event ingestion can use the existing DIRECT push worker, and does not require changing all notifications to Kafka delivery mode.
+
+To pause publication, disable `RECAP_PUBLICATION_ENABLED`; persisted intents remain queued. On rollback to an older application, keep V63 and its rows, disable the new relay, and inspect outstanding leases before resuming. Do not delete events or reset Kafka offsets to hide failures.
+
 ## Readiness gate
 
 After image identity verification, the [deployment script](../scripts/deploy-readiness.sh) waits up to 180 seconds for HTTP 200 from `/actuator/health/readiness` inside the same container. The probe uses loopback on the management port, which is allowed independently of `MANAGEMENT_ALLOWED_CIDR`; remote management requests still require that CIDR. The port defaults to 9091 (`MANAGEMENT_SERVER_PORT`); readiness includes application availability, PostgreSQL, and Redis. EC2 requires Bash and GNU `timeout`, and the application image includes curl. The management port remains private.

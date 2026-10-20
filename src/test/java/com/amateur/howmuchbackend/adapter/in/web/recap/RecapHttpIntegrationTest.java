@@ -81,7 +81,7 @@ class RecapHttpIntegrationTest {
     }
     @AfterEach void teardown() {
         sessions.deleteByUserId(owner); sessions.deleteByUserId(other);
-        jdbc.execute("TRUNCATE monthly_recaps, recap_generation_jobs, recap_generation_state, recap_image_cleanup_tasks");
+        jdbc.execute("TRUNCATE recap_publication_outbox, monthly_recaps, recap_generation_jobs, recap_generation_state, recap_image_cleanup_tasks");
         copiedFiles.forEach(images::delete); profiles.delete(ownerProfile); profiles.delete(otherProfile);
         f.close();
     }
