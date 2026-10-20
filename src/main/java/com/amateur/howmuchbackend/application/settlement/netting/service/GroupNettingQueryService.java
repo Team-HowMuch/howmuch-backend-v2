@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.settlement.netting.service;
 
 import com.amateur.howmuchbackend.application.group.service.GroupAccessService;
+import com.amateur.howmuchbackend.application.settlement.service.MySettlementCategoryReader;
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.*;
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.result.*;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -36,6 +37,7 @@ public class GroupNettingQueryService
     private final LoadUserPort users;
     private final SettlementTransferLinkPort links;
     private final NettingTransferAvailabilityPort availability;
+    private final MySettlementCategoryReader categories;
 
     public List<GroupNettingResult> list(long groupId) {
         long user = actor.getCurrentActor().userId();
@@ -46,7 +48,7 @@ public class GroupNettingQueryService
         return nettings.findAll(groupId).stream()
                 .map(id -> nettings.find(groupId, id).orElseThrow())
                 .filter(n -> !deleted || n.partyIds().contains(user))
-                .map(this::result)
+                .map(n -> result(n, user))
                 .toList();
     }
 
@@ -57,7 +59,8 @@ public class GroupNettingQueryService
     }
 
     public GroupNettingResult get(long groupId, UUID id) {
-        return result(access.requireAccess(groupId, id, actor.getCurrentActor().userId()));
+        long user = actor.getCurrentActor().userId();
+        return result(access.requireAccess(groupId, id, user), user);
     }
 
     public GroupNettingResult getById(UUID id) {
@@ -116,7 +119,9 @@ public class GroupNettingQueryService
                 link == null ? null : link.url());
     }
 
-    private GroupNettingResult result(LoadGroupNettingPort.Netting n) {
+    private GroupNettingResult result(LoadGroupNettingPort.Netting n, long viewerId) {
+        var sourceCategories = categories.read(
+                viewerId, n.sources().stream().map(LoadGroupNettingPort.SourceAmount::settlementId).toList());
         var partyIds =
                 n.transfers().stream()
                         .flatMap(t -> java.util.stream.Stream.of(t.payerId(), t.receiverId()))
@@ -134,6 +139,8 @@ public class GroupNettingQueryService
                 n.status(),
                 n.openReviews(),
                 n.createdAt(),
+                n.completedAt(),
+                n.supersededAt(),
                 n.sources().stream()
                         .map(
                                 s ->
@@ -146,7 +153,12 @@ public class GroupNettingQueryService
                                                 s.allocationType(),
                                                 s.originalAmount(),
                                                 s.actualDepositAmount(),
-                                                s.replacedAmount()))
+                                                s.replacedAmount(),
+                                                s.storeName(),
+                                                sourceCategories.get(s.settlementId()),
+                                                s.participantCount(),
+                                                s.payableParticipantCount(),
+                                                s.completedParticipantCount()))
                         .toList(),
                 n.transfers().stream()
                         .map(
@@ -163,7 +175,19 @@ public class GroupNettingQueryService
                                                 parties.get(t.payerId()).name(),
                                                 parties.get(t.payerId()).publicId(),
                                                 parties.get(t.receiverId()).name(),
-                                                parties.get(t.receiverId()).publicId()))
+                                                parties.get(t.receiverId()).publicId(),
+                                                t.confirmedAmount() == 0
+                                                        ? GroupNettingResult.TransferStatus.UNPAID
+                                                        : t.remainingAmount() > 0
+                                                                ? GroupNettingResult.TransferStatus.PARTIAL
+                                                                : GroupNettingResult.TransferStatus.PAID,
+                                                t.confirmedAt(),
+                                                n.sources().stream()
+                                                        .filter(s -> s.debtPartyIds().contains(t.payerId())
+                                                                || s.debtPartyIds().contains(t.receiverId()))
+                                                        .map(LoadGroupNettingPort.SourceAmount::settlementId)
+                                                        .distinct()
+                                                        .toList()))
                         .toList());
     }
 }

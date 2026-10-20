@@ -74,8 +74,8 @@ class GroupNettingDirectIntegrationTest {
         for (long group : fixtureGroups)
             jdbc.update(
                     "UPDATE group_netting_executions SET"
-                        + " status='FAILED',worker_id=NULL,lease_token=NULL,lease_until=NULL,next_attempt_at=NULL,finished_at=now()"
-                        + " AT TIME ZONE 'UTC',updated_at=now() AT TIME ZONE 'UTC' WHERE group_id=?"
+                        + " status='FAILED',worker_id=NULL,lease_token=NULL,lease_until=NULL,next_attempt_at=NULL,finished_at=GREATEST(updated_at,now()"
+                        + " AT TIME ZONE 'UTC'),updated_at=GREATEST(updated_at,now() AT TIME ZONE 'UTC') WHERE group_id=?"
                         + " AND status IN ('QUEUED','SYNCING','RETRY')",
                     group);
     }
@@ -297,6 +297,13 @@ class GroupNettingDirectIntegrationTest {
         assertThat(balances)
                 .containsExactlyInAnyOrderEntriesOf(Map.of(f.a(), 1000L, f.b(), 3000L, c, -4000L));
         assertThat(nettings.get(f.group(), first.nettingId()).status()).isEqualTo("SUPERSEDED");
+        assertThat(nettings.get(f.group(), first.nettingId()).supersededAt()).isEqualTo(
+                jdbc.queryForObject("SELECT superseded_at FROM group_settlement_nettings WHERE id=?",
+                        LocalDateTime.class, first.nettingId()));
+        assertThat(second.completedAt()).isNull();
+        assertThat(second.supersededAt()).isNull();
+        assertThat(second.transfers()).allSatisfy(t ->
+                assertThat(t.sourceSettlementIds()).containsExactlyInAnyOrder(f.ab(), f.ba(), next));
         assertThat(
                         nettings.get(f.group(), first.nettingId())
                                 .transfers()
@@ -354,6 +361,10 @@ class GroupNettingDirectIntegrationTest {
         var n = compress(f, role.equals("OWNER") ? f.a() : f.b());
         assertThat(n.transfers()).isEmpty();
         assertThat(n.status()).isEqualTo("COMPLETED");
+        assertThat(n.completedAt()).isNotNull();
+        assertThat(n.supersededAt()).isNull();
+        assertThat(n.sources()).allSatisfy(source ->
+                assertThat(source.completedParticipantCount()).isEqualTo(source.payableParticipantCount()));
         assertOriginalsHidden(f);
         assertThat(n.sources())
                 .allSatisfy(source -> assertThat(source.status()).isEqualTo("COMPLETED"));
@@ -896,6 +907,11 @@ class GroupNettingDirectIntegrationTest {
                                 .getFirst()
                                 .confirmedAmount())
                 .isEqualTo(1200);
+        var reviewed = nettings.get(f.group(), first.nettingId()).transfers().getFirst();
+        assertThat(reviewed.status()).isEqualTo(GroupNettingResult.TransferStatus.PARTIAL);
+        assertThat(reviewed.confirmedAt()).isEqualTo(
+                jdbc.queryForObject("SELECT resolved_at FROM netting_deposit_reviews WHERE id=?",
+                        LocalDateTime.class, review.id()));
         assertThat(unpaid.getSummary().remainingReceivableAmount()).isEqualTo(3800);
         original(f.group(), f.a(), f.b(), f.accountA(), 3000, LocalDateTime.now(ZoneOffset.UTC));
         var second = compress(f);
@@ -1291,7 +1307,8 @@ class GroupNettingDirectIntegrationTest {
                 .andExpect(jsonPath("$.data.beforeTransferCount").value(2))
                 .andExpect(jsonPath("$.data.afterTransferCount").value(1))
                 .andExpect(jsonPath("$.data.reducedTransferCount").value(1))
-                .andExpect(jsonPath("$.data.canCompress").value(true));
+                .andExpect(jsonPath("$.data.canCompress").value(true))
+                .andExpect(jsonPath("$.data.reason").isEmpty());
         assertThat(estimates.estimate(f.group()).afterTransferCount()).isEqualTo(1);
         verify(estimateCalculation, times(1)).calculate(f.group());
         verifyNoInteractions(bank);
@@ -1322,6 +1339,11 @@ class GroupNettingDirectIntegrationTest {
         var queued =
                 executions.execute(f.group(), new ExecuteGroupNettingCommand(UUID.randomUUID()));
         assertThat(estimates.estimate(f.group()).canCompress()).isFalse();
+        mvc.perform(get("/api/v2/groups/{g}/settlement-nettings/estimate", f.group())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canCompress").value(false))
+                .andExpect(jsonPath("$.data.reason").value("PROCESSING"));
         assertThat(settlements.findAllForUser(f.a(), "RECEIVE", "ALL", f.group(), null, null))
                 .hasSize(1);
         dispatcher.dispatch();
@@ -1361,7 +1383,154 @@ class GroupNettingDirectIntegrationTest {
     }
 
     @Test
-    void unchangedPositiveTransferCountDoesNotOfferCompression() {
+    void detailCardsIncludeStoreViewerCategoryAndActualPaymentCountsThroughHttp() throws Exception {
+        var f = fixture(15000, 10000);
+        var now = LocalDateTime.now(ZoneOffset.UTC);
+        for (UUID id : List.of(f.ab(), f.ba())) {
+            jdbc.update("""
+                    INSERT INTO settlement_expenses(id,settlement_id,source,source_reference,description,
+                        amount,display_order,created_at,updated_at)
+                    VALUES(?,?,'RECEIPT_OCR',?,'테스트 식당',15000,0,?,?)
+                    """, UUID.randomUUID(), id, UUID.randomUUID().toString(), now, now);
+        }
+        jdbc.update("""
+                INSERT INTO settlement_expenses(id,settlement_id,source,source_reference,description,
+                    amount,display_order,created_at,updated_at)
+                VALUES(?,?,'PAYMENT_HISTORY',?,'다른 결제',1000,1,?,?)
+                """, UUID.randomUUID(), f.ba(), UUID.randomUUID().toString(), now, now);
+        jdbc.update("""
+                INSERT INTO settlement_categories(settlement_id,status,category_code,source,classified_at,created_at,updated_at)
+                VALUES(?,'CLASSIFIED','CAFE_SNACK','RULE',?,?,?)
+                """, f.ab(), now, now, now);
+        jdbc.update("""
+                INSERT INTO settlement_user_categories(settlement_id,user_id,category_code,created_at,updated_at)
+                VALUES(?,?,'FOOD',?,?)
+                """, f.ab(), f.a(), now, now);
+        long zero = user("Zero"), paid = user("Paid");
+        member(f.group(), zero, "MEMBER", now);
+        member(f.group(), paid, "MEMBER", now);
+        UUID paidParty = UUID.randomUUID(), paidShare = UUID.randomUUID();
+        for (long person : List.of(zero, paid)) {
+            jdbc.update("""
+                    INSERT INTO settlement_participants(id,settlement_id,source,linked_user_id,source_group_id,
+                        display_name,display_order,created_at,updated_at)
+                    VALUES(?,?,'GROUP_MEMBER',?,?,'extra',?,?,?)
+                    """, person == paid ? paidParty : UUID.randomUUID(), f.ab(), person, f.group(),
+                    person == paid ? 3 : 2, now, now);
+        }
+        jdbc.update("INSERT INTO settlement_shares(id,settlement_id,payer_participant_id,amount,created_at) VALUES(?,?,?,?,?)",
+                paidShare, f.ab(), paidParty, 1000, now);
+        jdbc.update("UPDATE settlements SET total_amount=total_amount+1000 WHERE id=?", f.ab());
+        long transaction = income(f.accountB(), 1000, "Paid");
+        jdbc.update("""
+                INSERT INTO settlement_deposits(id,settlement_id,share_id,source_account_id,account_transaction_id,matched_at)
+                VALUES(?,?,?,?,?,?)
+                """, UUID.randomUUID(), f.ab(), paidShare, f.accountB(), transaction, now);
+        var n = compress(f);
+        var source = n.sources().stream().filter(card -> card.settlementId().equals(f.ab())).findFirst().orElseThrow();
+        assertThat(source.participantCount()).isEqualTo(4);
+        assertThat(source.payableParticipantCount()).isEqualTo(2);
+        assertThat(source.completedParticipantCount()).isEqualTo(1);
+        assertThat(source.category().code()).isEqualTo("FOOD");
+        as(f.b());
+        assertThat(nettings.get(f.group(), n.nettingId()).sources()).filteredOn(card -> card.settlementId().equals(f.ab()))
+                .singleElement().satisfies(card -> assertThat(card.category().code()).isEqualTo("CAFE_SNACK"));
+        as(f.a());
+        mvc.perform(get("/api/v2/groups/{g}/settlement-nettings/{id}", f.group(), n.nettingId())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.completedAt").isEmpty())
+                .andExpect(jsonPath("$.data.supersededAt").isEmpty())
+                .andExpect(jsonPath("$.data.sources[?(@.settlementId == '" + f.ab() + "')].storeName").value(org.hamcrest.Matchers.contains("테스트 식당")))
+                .andExpect(jsonPath("$.data.sources[?(@.settlementId == '" + f.ab() + "')].category.code").value(org.hamcrest.Matchers.contains("FOOD")))
+                .andExpect(jsonPath("$.data.sources[?(@.settlementId == '" + f.ba() + "')].storeName").value(org.hamcrest.Matchers.contains((Object) null)))
+                .andExpect(jsonPath("$.data.sources[?(@.settlementId == '" + f.ba() + "')].category").value(org.hamcrest.Matchers.contains((Object) null)))
+                .andExpect(jsonPath("$.data.transfers[0].status").value("UNPAID"))
+                .andExpect(jsonPath("$.data.transfers[0].confirmedAt").isEmpty())
+                .andExpect(jsonPath("$.data.transfers[0].sourceSettlementIds").value(
+                        org.hamcrest.Matchers.containsInAnyOrder(f.ab().toString(), f.ba().toString())));
+    }
+
+    @Test
+    void relatedOriginalsExcludeUnrelatedDebtParties() {
+        var f = fixture(15000, 10000);
+        long c = user("C"), d = user("D");
+        var now = LocalDateTime.now(ZoneOffset.UTC);
+        member(f.group(), c, "MEMBER", now);
+        member(f.group(), d, "MEMBER", now);
+        UUID unrelated = original(f.group(), c, d, account(c), 20000, now);
+        var n = compress(f);
+        assertThat(n.transfers()).filteredOn(t -> t.payerId() == f.a())
+                .singleElement().satisfies(t -> {
+                    assertThat(t.receiverId()).isEqualTo(f.b());
+                    assertThat(t.sourceSettlementIds()).containsExactlyInAnyOrder(f.ab(), f.ba());
+                });
+        assertThat(n.transfers()).filteredOn(t -> t.payerId() == d)
+                .singleElement().satisfies(t -> assertThat(t.sourceSettlementIds()).containsExactly(unrelated));
+    }
+
+    @Test
+    void detailOpenApiDocumentsNullableFieldsAndTransferStatus() throws Exception {
+        String body = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var json = new tools.jackson.databind.ObjectMapper();
+        var document = json.readTree(body);
+        var schemas = document.path("components").path("schemas");
+        var detail = schemas.path("GroupNettingWebResponse");
+        assertThat(detail.path("required").toString()).contains("completedAt", "supersededAt");
+        for (String field : List.of("completedAt", "supersededAt")) {
+            assertThat(detail.path("properties").path(field).path("type").toString()).contains("null");
+            assertThat(detail.path("properties").path(field).path("description").stringValue()).contains("UTC");
+        }
+        var estimate = schemas.path("GroupNettingEstimateWebResponse");
+        assertThat(estimate.path("required").toString()).contains("reason");
+        assertThat(estimate.path("properties").path("reason").path("anyOf").toString())
+                .contains("GroupNettingCompressionUnavailableReason", "null");
+        assertThat(schemas.path("GroupNettingCompressionUnavailableReason").path("enum").toString())
+                .contains("NOT_ENOUGH_TARGETS", "NO_REDUCTION", "PROCESSING");
+        var rootSchema = json.createObjectNode();
+        rootSchema.put("$ref", "#/components/schemas/GroupNettingEstimateWebResponse");
+        rootSchema.set("components", document.path("components"));
+        var validator = com.networknt.schema.SchemaRegistry.withDefaultDialect(
+                com.networknt.schema.SpecificationVersion.DRAFT_2020_12).getSchema(rootSchema);
+        var payload = json.readTree("""
+                {"groupId":1,"eligibleSettlementCount":2,"beforeTransferCount":2,"afterTransferCount":1,
+                 "reducedTransferCount":1,"canCompress":true,"reason":null}
+                """);
+        assertThat(validator.validate(payload)).isEmpty();
+        var withReason = (tools.jackson.databind.node.ObjectNode) payload.deepCopy();
+        withReason.put("canCompress", false);
+        for (String reason : List.of("NOT_ENOUGH_TARGETS", "NO_REDUCTION", "PROCESSING")) {
+            withReason.put("reason", reason);
+            assertThat(validator.validate(withReason)).isEmpty();
+        }
+        withReason.put("reason", "UNKNOWN");
+        assertThat(validator.validate(withReason)).isNotEmpty();
+        var source = schemas.path("GroupNettingSource");
+        assertThat(source.path("required").toString()).contains("storeName", "category", "participantCount",
+                "payableParticipantCount", "completedParticipantCount");
+        assertThat(source.path("properties").path("category").toString()).contains("SettlementMyCategoryWebResponse", "null");
+        var transfer = schemas.path("GroupNettingTransfer");
+        assertThat(transfer.path("required").toString()).contains("status", "confirmedAt", "sourceSettlementIds");
+        assertThat(transfer.path("properties").path("status").path("enum").toString()).contains("UNPAID", "PARTIAL", "PAID");
+        assertThat(transfer.path("properties").path("confirmedAt").path("type").toString()).contains("null");
+        assertThat(transfer.path("properties").path("sourceSettlementIds").path("description").stringValue())
+                .contains("귀속");
+    }
+
+    @Test
+    void completedGroupEstimateExplainsNotEnoughTargetsThroughHttp() throws Exception {
+        var f = fixture(10000, 10000);
+        compress(f);
+        mvc.perform(get("/api/v2/groups/{g}/settlement-nettings/estimate", f.group())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canCompress").value(false))
+                .andExpect(jsonPath("$.data.reason").value("NOT_ENOUGH_TARGETS"));
+    }
+
+    @Test
+    void unchangedPositiveTransferCountDoesNotOfferCompression() throws Exception {
         var f = fixture(15000, 10000);
         as(f.a());
         suspendUseCase.suspend(f.ba());
@@ -1376,6 +1545,11 @@ class GroupNettingDirectIntegrationTest {
         assertThat(estimate.beforeTransferCount()).isEqualTo(2);
         assertThat(estimate.afterTransferCount()).isEqualTo(2);
         assertThat(estimate.reducedTransferCount()).isZero();
+        assertThat(estimate.reason()).isEqualTo(GroupNettingEstimateResult.Reason.NO_REDUCTION);
+        mvc.perform(get("/api/v2/groups/{g}/settlement-nettings/estimate", f.group())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reason").value("NO_REDUCTION"));
         assertThat(estimate.canCompress()).isFalse();
         assertThat(estimates.estimate(f.group())).isEqualTo(estimate);
         verifyNoInteractions(bank);
@@ -1710,12 +1884,21 @@ class GroupNettingDirectIntegrationTest {
         as(f.b());
         assertThat(unpaid.getSummary().remainingReceivableAmount()).isEqualTo(5000);
         assertThat(unpaid.getSummary().unpaidParticipantCount()).isEqualTo(1);
+        assertThat(transfer.status()).isEqualTo(GroupNettingResult.TransferStatus.UNPAID);
+        assertThat(transfer.confirmedAt()).isNull();
+        assertThat(n.completedAt()).isNull();
         long partial = income(f.accountB(), 2000, transfer.reference());
         var refreshed = reconciliation.reconcile(f.group(), n.nettingId(), UUID.randomUUID());
         dispatcher.dispatch();
         assertThat(executions.getExecution(f.group(), refreshed.executionId()).status())
                 .isEqualTo("SUCCEEDED");
         assertThat(unpaid.getSummary().remainingReceivableAmount()).isEqualTo(3000);
+        var partiallyPaid = nettings.get(f.group(), n.nettingId());
+        assertThat(partiallyPaid.transfers().getFirst().status()).isEqualTo(GroupNettingResult.TransferStatus.PARTIAL);
+        assertThat(partiallyPaid.transfers().getFirst().confirmedAt()).isEqualTo(
+                jdbc.queryForObject("SELECT matched_at FROM netted_transfer_deposits WHERE account_transaction_id=?",
+                        LocalDateTime.class, partial));
+        assertThat(partiallyPaid.sources()).allSatisfy(source -> assertThat(source.completedParticipantCount()).isZero());
         income(f.accountB(), 3000, transfer.reference());
         refreshed = reconciliation.reconcile(f.group(), n.nettingId(), UUID.randomUUID());
         dispatcher.dispatch();
@@ -1724,6 +1907,16 @@ class GroupNettingDirectIntegrationTest {
         var completed = nettings.get(f.group(), n.nettingId());
         assertThat(completed.status()).isEqualTo("COMPLETED");
         assertThat(completed.transfers().getFirst().confirmedAmount()).isEqualTo(5000);
+        assertThat(completed.transfers().getFirst().status()).isEqualTo(GroupNettingResult.TransferStatus.PAID);
+        assertThat(completed.transfers().getFirst().confirmedAt()).isEqualTo(
+                jdbc.queryForObject("SELECT max(matched_at) FROM netted_transfer_deposits WHERE transfer_id=?",
+                        LocalDateTime.class, transfer.transferId()));
+        assertThat(completed.completedAt()).isEqualTo(
+                jdbc.queryForObject("SELECT completed_at FROM group_settlement_nettings WHERE id=?",
+                        LocalDateTime.class, n.nettingId()));
+        assertThat(completed.supersededAt()).isNull();
+        assertThat(completed.sources()).allSatisfy(source ->
+                assertThat(source.completedParticipantCount()).isEqualTo(source.payableParticipantCount()));
         assertThat(completed.sources())
                 .allSatisfy(source -> assertThat(source.status()).isEqualTo("COMPLETED"));
         assertThat(unpaid.getSummary().remainingReceivableAmount()).isZero();

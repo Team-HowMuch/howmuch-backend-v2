@@ -6,4 +6,9 @@ public record GroupNettingEstimateResult(
         int beforeTransferCount,
         int afterTransferCount,
         int reducedTransferCount,
-        boolean canCompress) {}
+        boolean canCompress,
+        Reason reason) {
+    public enum Reason {
+        NOT_ENOUGH_TARGETS, NO_REDUCTION, PROCESSING
+    }
+}

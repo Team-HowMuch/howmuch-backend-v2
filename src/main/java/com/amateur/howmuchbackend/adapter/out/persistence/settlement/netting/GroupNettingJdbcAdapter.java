@@ -32,6 +32,8 @@ public class GroupNettingJdbcAdapter implements LoadGroupNettingPort, SaveGroupN
                                         rs.getLong("version"),
                                         rs.getString("status"),
                                         rs.getTimestamp("created_at").toLocalDateTime(),
+                                        rs.getObject("completed_at", LocalDateTime.class),
+                                        rs.getObject("superseded_at", LocalDateTime.class),
                                         sources(id),
                                         transfers(id),
                                         Set.copyOf(
@@ -97,12 +99,38 @@ public class GroupNettingJdbcAdapter implements LoadGroupNettingPort, SaveGroupN
                 )
                 SELECT source.*, original.title, original.status, original.allocation_type,
                        creator.name AS requester_name,
-                       COALESCE(link.created_at,original.created_at) AS requested_at
+                       COALESCE(link.created_at,original.created_at) AS requested_at,
+                       store.store_name,
+                       (SELECT count(*) FROM settlement_participants p
+                         WHERE p.settlement_id=source.settlement_id) AS participant_count,
+                       payment.payable_count, payment.completed_count,
+                       ARRAY(SELECT source.creator_id UNION
+                             SELECT sh.payer_user_id FROM group_netting_source_shares sh
+                              WHERE sh.netting_id=source.netting_id
+                                AND sh.settlement_id=source.settlement_id
+                                AND sh.replaced_amount>0) AS debt_party_ids
                   FROM group_netting_sources source
                   JOIN lineage l ON l.id=source.netting_id
                   JOIN settlements original ON original.id=source.settlement_id
                   JOIN users creator ON creator.id=source.creator_id
                   LEFT JOIN settlement_links link ON link.settlement_id=source.settlement_id
+                  LEFT JOIN LATERAL (
+                      SELECT CASE WHEN count(*) FILTER (WHERE e.source IN ('RECEIPT_OCR','PAYMENT_HISTORY'))=1
+                                       AND count(*) FILTER (WHERE e.source='RECEIPT_OCR')=1
+                                  THEN max(e.description) FILTER (WHERE e.source='RECEIPT_OCR') END AS store_name
+                        FROM settlement_expenses e WHERE e.settlement_id=source.settlement_id
+                  ) store ON true
+                  LEFT JOIN LATERAL (
+                      SELECT count(*) AS payable_count,
+                             count(*) FILTER (WHERE original.status='COMPLETED' OR sh.amount <=
+                                 COALESCE((SELECT sum(tx.amount) FROM settlement_deposits d
+                                     JOIN account_transactions tx ON tx.id=d.account_transaction_id
+                                    WHERE d.share_id=sh.id),0)) AS completed_count
+                        FROM settlement_shares sh
+                        JOIN settlement_participants p ON p.id=sh.payer_participant_id
+                       WHERE sh.settlement_id=source.settlement_id
+                         AND p.linked_user_id IS DISTINCT FROM source.creator_id
+                  ) payment ON true
                  ORDER BY requested_at DESC,source.settlement_id
                 """,
                 (rs, n) ->
@@ -115,7 +143,12 @@ public class GroupNettingJdbcAdapter implements LoadGroupNettingPort, SaveGroupN
                                 rs.getString("allocation_type"),
                                 rs.getLong("original_amount"),
                                 rs.getLong("actual_deposit_amount"),
-                                rs.getLong("replaced_amount")),
+                                rs.getLong("replaced_amount"),
+                                rs.getString("store_name"),
+                                rs.getInt("participant_count"),
+                                rs.getInt("payable_count"),
+                                rs.getInt("completed_count"),
+                                Set.copyOf(Arrays.asList((Long[]) rs.getArray("debt_party_ids").getArray()))),
                 id);
     }
 
@@ -123,9 +156,22 @@ public class GroupNettingJdbcAdapter implements LoadGroupNettingPort, SaveGroupN
         return jdbc.query(
                 """
 SELECT t.*,r.account_id,m.organization,m.masked_number,t.created_at AS activated_at,
-  COALESCE((SELECT sum(tx.amount) FROM netted_transfer_deposits d JOIN account_transactions tx ON tx.id=d.account_transaction_id
-    WHERE d.transfer_id=t.id),0)+COALESCE((SELECT sum(tx.amount) FROM netting_deposit_reviews review JOIN account_transactions tx ON tx.id=review.account_transaction_id WHERE review.status='APPLIED_TO_NETTING' AND review.resolved_transfer_id=t.id),0) confirmed_amount
-FROM group_netted_transfers t JOIN group_netting_receivers r ON r.netting_id=t.netting_id AND r.user_id=t.receiver_id JOIN group_netting_monitored_accounts m ON m.netting_id=r.netting_id AND m.user_id=r.user_id AND m.account_id=r.account_id
+       confirmed.confirmed_amount, confirmed.confirmed_at
+FROM group_netted_transfers t
+JOIN group_netting_receivers r ON r.netting_id=t.netting_id AND r.user_id=t.receiver_id
+JOIN group_netting_monitored_accounts m ON m.netting_id=r.netting_id AND m.user_id=r.user_id AND m.account_id=r.account_id
+LEFT JOIN LATERAL (
+    SELECT COALESCE(sum(payment.amount),0) AS confirmed_amount, max(payment.confirmed_at) AS confirmed_at
+      FROM (
+          SELECT tx.amount, d.matched_at AS confirmed_at
+            FROM netted_transfer_deposits d JOIN account_transactions tx ON tx.id=d.account_transaction_id
+           WHERE d.transfer_id=t.id
+          UNION ALL
+          SELECT tx.amount, review.resolved_at AS confirmed_at
+            FROM netting_deposit_reviews review JOIN account_transactions tx ON tx.id=review.account_transaction_id
+           WHERE review.status='APPLIED_TO_NETTING' AND review.resolved_transfer_id=t.id
+      ) payment
+) confirmed ON true
 WHERE t.netting_id=? ORDER BY t.payer_id,t.receiver_id
 """,
                 (rs, n) ->
@@ -140,7 +186,8 @@ WHERE t.netting_id=? ORDER BY t.payer_id,t.receiver_id
                                 rs.getLong("account_id"),
                                 rs.getString("organization"),
                                 rs.getString("masked_number"),
-                                rs.getTimestamp("activated_at").toLocalDateTime()),
+                                rs.getTimestamp("activated_at").toLocalDateTime(),
+                                rs.getObject("confirmed_at", LocalDateTime.class)),
                 id);
     }
 
