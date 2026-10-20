@@ -1,30 +1,54 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement.netting.dto.response;
 
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.response.SettlementMyCategoryWebResponse;
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.result.GroupNettingResult;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 import java.util.*;
 
+@Schema(requiredProperties = {"nettingId", "groupId", "version", "status", "openReviews", "createdAt",
+        "completedAt", "supersededAt", "sources", "transfers"})
 public record GroupNettingWebResponse(
         UUID nettingId,
         long groupId,
         long version,
         String status,
         int openReviews,
-        LocalDateTime createdAt,
+        @Schema(description = "생성 시각. UTC 기준 offset 없는 값") LocalDateTime createdAt,
+        @Schema(description = "완료 시각. UTC 기준 offset 없는 값. 미완료는 null", nullable = true)
+        LocalDateTime completedAt,
+        @Schema(description = "재압축으로 대체된 시각. UTC 기준 offset 없는 값. 미대체는 null", nullable = true)
+        LocalDateTime supersededAt,
         List<Source> sources,
         List<Transfer> transfers) {
+    @Schema(name = "GroupNettingSource", requiredProperties = {"settlementId", "title", "status",
+            "requesterName", "requestedAt", "allocationType", "originalAmount", "actualDepositAmount",
+            "replacedAmount", "storeName", "category", "participantCount", "payableParticipantCount",
+            "completedParticipantCount"})
     public record Source(
             UUID settlementId,
             String title,
             String status,
             String requesterName,
-            LocalDateTime requestedAt,
+            @Schema(description = "요청 시각. UTC 기준 offset 없는 값") LocalDateTime requestedAt,
             String allocationType,
             long originalAmount,
             long actualDepositAmount,
-            long replacedAmount) {}
+            long replacedAmount,
+            @Schema(description = "결제 소스가 하나이고 영수증 OCR인 경우의 상호명. 그 외 null", nullable = true)
+            String storeName,
+            @Schema(description = "조회자 기준 카테고리. 개인 선택, 없으면 자동 분류. 없거나 유효하지 않으면 null", nullable = true)
+            SettlementMyCategoryWebResponse category,
+            @Schema(description = "원본의 전체 참여 인원(생성자 포함)") int participantCount,
+            @Schema(description = "생성자를 제외한 Share 보유 납부 대상 인원. 확정된 더치페이의 0원 참여자는 제외")
+            int payableParticipantCount,
+            @Schema(description = "원본 실제 입금 완료 인원. 원본이 COMPLETED이면 상계 대체도 완료되어 납부 대상 전원. 부분 상계 입금은 원본별로 배분하지 않음")
+            int completedParticipantCount) {}
 
+    @Schema(name = "GroupNettingTransfer", requiredProperties = {"transferId", "payerId", "receiverId",
+            "amount", "confirmedAmount", "reference", "organization", "maskedNumber", "payerName",
+            "payerPublicId", "receiverName", "receiverPublicId", "status", "confirmedAt", "sourceSettlementIds"})
     public record Transfer(
             UUID transferId,
             long payerId,
@@ -37,7 +61,13 @@ public record GroupNettingWebResponse(
             String payerName,
             String payerPublicId,
             String receiverName,
-            String receiverPublicId) {}
+            String receiverPublicId,
+            @Schema(description = "확인액 0: UNPAID, 일부: PARTIAL, 전액: PAID")
+            GroupNettingResult.TransferStatus status,
+            @Schema(description = "마지막 자동 입금 귀속 또는 수동 검토 적용 시각. UTC 기준 offset 없는 값. 입금 전 null이며 부분 입금에도 제공", nullable = true)
+            LocalDateTime confirmedAt,
+            @Schema(description = "송금자 또는 수취인이 미납 채무 당사자인 관련 원본 정산 ID(선대 포함). 원본별 송금 금액 귀속이나 직접 채권 관계를 뜻하지 않음")
+            List<UUID> sourceSettlementIds) {}
 
     public static GroupNettingWebResponse from(GroupNettingResult r) {
         return new GroupNettingWebResponse(
@@ -47,36 +77,22 @@ public record GroupNettingWebResponse(
                 r.status(),
                 r.openReviews(),
                 r.createdAt(),
+                r.completedAt(),
+                r.supersededAt(),
                 r.sources().stream()
-                        .map(
-                                s ->
-                                        new Source(
-                                                s.settlementId(),
-                                                s.title(),
-                                                s.status(),
-                                                s.requesterName(),
-                                                s.requestedAt(),
-                                                s.allocationType(),
-                                                s.originalAmount(),
-                                                s.actualDepositAmount(),
-                                                s.replacedAmount()))
+                        .map(s -> new Source(
+                                s.settlementId(), s.title(), s.status(), s.requesterName(),
+                                s.requestedAt(), s.allocationType(), s.originalAmount(),
+                                s.actualDepositAmount(), s.replacedAmount(), s.storeName(),
+                                SettlementMyCategoryWebResponse.from(s.category()),
+                                s.participantCount(), s.payableParticipantCount(), s.completedParticipantCount()))
                         .toList(),
                 r.transfers().stream()
-                        .map(
-                                t ->
-                                        new Transfer(
-                                                t.transferId(),
-                                                t.payerId(),
-                                                t.receiverId(),
-                                                t.amount(),
-                                                t.confirmedAmount(),
-                                                t.reference(),
-                                                t.organization(),
-                                                t.maskedNumber(),
-                                                t.payerName(),
-                                                t.payerPublicId(),
-                                                t.receiverName(),
-                                                t.receiverPublicId()))
+                        .map(t -> new Transfer(
+                                t.transferId(), t.payerId(), t.receiverId(), t.amount(), t.confirmedAmount(),
+                                t.reference(), t.organization(), t.maskedNumber(), t.payerName(),
+                                t.payerPublicId(), t.receiverName(), t.receiverPublicId(),
+                                t.status(), t.confirmedAt(), t.sourceSettlementIds()))
                         .toList());
     }
 }

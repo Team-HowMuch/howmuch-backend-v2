@@ -45,9 +45,9 @@ public interface GroupNettingDocs {
     @Operation(
             summary = "모든 멤버가 공유하는 최종 압축 정산 조회",
             description =
-                    "일반 목록에서 숨긴 원본 정산을 sources로 제공합니다. 카테고리는 없습니다. transfers의"
+                    "일반 목록에서 숨긴 원본 정산의 상호명·조회자 카테고리·전체/납부/완료 인원을 sources로 제공합니다. transfers의"
                         + " payerName/receiverName 및 payerPublicId/receiverPublicId로 표시·프로필을 연결합니다."
-                        + " 원본 금액, 실제 입금과 대체 금액을 구분합니다. 원본별 최종 송금 기여액으로 해석하지 마세요.")
+                        + " 원본 금액, 실제 입금과 대체 금액을 구분합니다. status(UNPAID/PARTIAL/PAID)·confirmedAt과 세대의 completedAt/supersededAt을 제공합니다. 시각은 UTC offset 없는 값입니다. sourceSettlementIds는 송금자 또는 수취인이 미납 채무 당사자인 관련 원본(선대 포함)이며 원본별 최종 송금 기여액이나 직접 채권 관계가 아닙니다.")
     ApiResponse<GroupNettingWebResponse> get(long groupId, UUID nettingId);
 
     @Operation(

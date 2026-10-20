@@ -10,6 +10,8 @@ public interface LoadGroupNettingPort {
             long version,
             String status,
             LocalDateTime createdAt,
+            LocalDateTime completedAt,
+            LocalDateTime supersededAt,
             List<SourceAmount> sources,
             List<Transfer> transfers,
             Set<Long> partyIds,
@@ -35,7 +37,12 @@ public interface LoadGroupNettingPort {
             String allocationType,
             long originalAmount,
             long actualDepositAmount,
-            long replacedAmount) {}
+            long replacedAmount,
+            String storeName,
+            int participantCount,
+            int payableParticipantCount,
+            int completedParticipantCount,
+            Set<Long> debtPartyIds) {}
 
     record Transfer(
             UUID id,
@@ -48,7 +55,8 @@ public interface LoadGroupNettingPort {
             long accountId,
             String organization,
             String maskedNumber,
-            LocalDateTime activatedAt) {
+            LocalDateTime activatedAt,
+            LocalDateTime confirmedAt) {
         public long remainingAmount() {
             return Math.subtractExact(amount, confirmedAmount);
         }

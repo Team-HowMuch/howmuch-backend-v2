@@ -46,7 +46,7 @@
 - `status`: 확인액 0이면 `UNPAID`, 금액 미만이면 `PARTIAL`, 전액이면 `PAID`.
 - `confirmedAt`: 자동 귀속의 `matched_at`, 수동 검토 적용의 `resolved_at` 중 마지막 시각. 은행 거래 발생 시각과 다르며 부분 입금에도 제공한다.
 - `completedAt / supersededAt`: 저장된 세대 종결 시각. 해당하지 않으면 `null`.
-- `sourceSettlementIds`: 송금 양 당사자가 미납 채무의 당사자인 원본 ID 목록을 기본안으로 검토한다. 선대 원본 포함, 순서 유지·중복 제거. 원본별 최종 송금 기여액을 의미하지 않는다. 사용자에게 의미를 확인 중이다.
+- `sourceSettlementIds`: 송금자 또는 수취인이 미납 채무의 당사자인 관련 원본 ID 목록. 선대 원본 포함, 순서 유지·중복 제거. 원본별 최종 송금 기여액을 의미하지 않는다. 사용자가 관련 원본 목록으로 제공하는 의미를 확인했다.
 - `reason`: 진행 중이면 `PROCESSING` 우선, 아니면 대상 부족, 건수 미감소 순. 가능하면 `null`. 미결 검토는 기존 409를 유지한다.
 
 ### 저장 구조와 외부 경계
@@ -74,7 +74,7 @@
 ## 5. 구현과 커밋 경계
 
 - [x] 마이그레이션 필요 여부 결정: N/A, 기존 구조 재사용
-- [ ] 상세 Result·Port·조회 SQL·Service·Web DTO·OpenAPI와 회귀 검증
+- [x] 상세 Result·Port·조회 SQL·Service·Web DTO·OpenAPI와 회귀 검증
 - [ ] estimate reason Result·Service·Web DTO·OpenAPI와 회귀 검증
 - [ ] 검증 결과 기록 및 completed로 이동
 - N/A: 새 UseCase·Command, Domain·Policy 추가, 신규 Output Port, Infra wiring
@@ -102,7 +102,7 @@ docs(settlement): 압축 정산 응답 검증 결과 정리
 | 검증 | 결과 |
 |---|---|
 | Java compile | 대기 |
-| 관련 회귀 | 대기 |
+| 상세 회귀 | Java 56개·JavaScript 35개 통과. 실제 DB·Redis, HTTP 요약과 OpenAPI 포함 |
 | 전체 회귀 | 대기 |
 | 문서·diff | 대기 |
 
@@ -111,6 +111,7 @@ docs(settlement): 압축 정산 응답 검증 결과 정리
 | 날짜 | 결정 / 진행 | 이유 / 후속 |
 |---|---|---|
 | 2026-10-20 | 최신 develop과 이슈·기존 PR·실제 조회 및 V53 확인 | 기존 컬럼·입금 이력 재사용, 마이그레이션 불필요 |
+| 2026-10-20 | 상세 회귀의 기존 fixture 정리 시각을 GREATEST(updated_at, DB now)로 보정 | 기존 동시성 테스트가 미래 시각을 사용해 정리 UPDATE가 불변 조건에 걸리고 다음 테스트에 작업을 남기는 문제 수정 |
 | 2026-10-20 | 원본별 기여 금액은 추정하지 않음 | 상계 결과와 원본 Share 사이에 고유 금액 배분이 없음 |
 
 ## 8. 완료 기록

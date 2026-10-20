@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.port.in.settlement.netting.result;
 
+import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementCategoryResult;
+
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -10,6 +12,8 @@ public record GroupNettingResult(
         String status,
         int openReviews,
         LocalDateTime createdAt,
+        LocalDateTime completedAt,
+        LocalDateTime supersededAt,
         List<Source> sources,
         List<Transfer> transfers) {
     public record Source(
@@ -21,7 +25,12 @@ public record GroupNettingResult(
             String allocationType,
             long originalAmount,
             long actualDepositAmount,
-            long replacedAmount) {}
+            long replacedAmount,
+            String storeName,
+            SettlementCategoryResult category,
+            int participantCount,
+            int payableParticipantCount,
+            int completedParticipantCount) {}
 
     public record Transfer(
             UUID transferId,
@@ -35,5 +44,12 @@ public record GroupNettingResult(
             String payerName,
             String payerPublicId,
             String receiverName,
-            String receiverPublicId) {}
+            String receiverPublicId,
+            TransferStatus status,
+            LocalDateTime confirmedAt,
+            List<UUID> sourceSettlementIds) {}
+
+    public enum TransferStatus {
+        UNPAID, PARTIAL, PAID
+    }
 }
