@@ -86,6 +86,21 @@ class SettlementOpenApiIntegrationTest {
                 "SettlementBulkReminderWebResponse",
                 "sentCount", "nextAvailableAt"
         );
+        assertRequired(document, "GroupSettlementListItemWebResponse", "settlementId", "viewerRole",
+                "requesterName", "requesterPublicId", "participantCount", "payableParticipantCount",
+                "completedParticipantCount", "category", "receivableAmount", "amountToPay", "reminderNextAvailableAt");
+        assertNullable(document, "GroupSettlementListItemWebResponse", "storeName", "allocationType",
+                "endedAt", "completedAt", "receivableAmount", "amountToPay", "reminderNextAvailableAt");
+        assertDescriptionContainsUtc(document, "GroupSettlementListItemWebResponse", "requestedAt");
+        assertDescriptionContainsUtc(document, "GroupSettlementListItemWebResponse", "reminderNextAvailableAt");
+        assertRequired(document, "GroupSettlementCategoryWebResponse", "code", "name", "icon");
+        assertThat(schema(document, "GroupSettlementListItemWebResponse").path("properties").path("viewerRole").toString())
+                .contains("REQUESTER", "PARTICIPANT", "NONE");
+        assertThat(schema(document, "GroupSettlementListItemWebResponse").path("properties").propertyNames())
+                .doesNotContain("accountNumber", "phoneNumber", "receivingAccountId");
+        var groupOperation = document.path("paths").path("/api/v2/groups/{groupId}/settlements").path("get");
+        assertThat(groupOperation.path("description").stringValue()).contains("제3자", "DRAFT", "압축", "활성");
+        assertThat(groupOperation.path("responses").propertyNames()).contains("200", "400", "401", "403", "404");
         assertRequired(document, "SettlementShareLinkWebResponse", "url", "expiresAt");
         assertRequired(
                 document,

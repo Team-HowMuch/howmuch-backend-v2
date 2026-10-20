@@ -285,6 +285,8 @@ class GroupNettingDirectIntegrationTest {
         assertThat(settlements.findAllForUser(f.a(), "RECEIVE", "ALL", f.group(), null, null))
                 .extracting(row -> row.getSettlementId())
                 .containsExactly(next);
+        assertThat(settlements.findAllForScope(f.a(), "RECEIVE", "ALL", f.group(), null, null, true))
+                .extracting(row -> row.getSettlementId()).containsExactly(next);
         var second = compress(f, f.b());
         assertThat(second.version()).isEqualTo(2);
         assertThat(second.transfers()).hasSize(2);
