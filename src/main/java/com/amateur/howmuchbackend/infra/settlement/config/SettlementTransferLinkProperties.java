@@ -25,7 +25,7 @@ public record SettlementTransferLinkProperties(Adapter adapter, Mock mock) {
     }
 
     private static String validateMockBaseUrl(String value) {
-        String message = "Mock transfer base URL must be HTTPS (or HTTP loopback), without user info, query or fragment.";
+        String message = "Mock transfer base URL must be HTTPS, HTTP loopback, or howmuch-mock://send, without user info, query or fragment.";
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(message);
         }
@@ -39,7 +39,8 @@ public record SettlementTransferLinkProperties(Adapter adapter, Mock mock) {
         }
         if (!uri.isAbsolute() || uri.getHost() == null
                 || uri.getUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null
-                || !("https".equalsIgnoreCase(uri.getScheme())
+                || !("howmuch-mock://send".equals(normalized)
+                || "https".equalsIgnoreCase(uri.getScheme())
                 || ("http".equalsIgnoreCase(uri.getScheme()) && isLoopbackHost(uri.getHost())))) {
             throw new IllegalArgumentException(message);
         }

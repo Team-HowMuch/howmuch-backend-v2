@@ -119,4 +119,18 @@ class MockSettlementTransferLinkAdapterTest {
                 .collect(Collectors.toMap(parts -> parts[0],
                         parts -> URLDecoder.decode(parts[1], StandardCharsets.UTF_8)));
     }
+
+    @Test
+    void mockTransferLink_androidApp_preservesExistingParameters() {
+        adapter = new MockSettlementTransferLinkAdapter(bankCatalog, "howmuch-mock://send");
+        when(bankCatalog.findBankName("0020")).thenReturn(Optional.of("우리은행"));
+
+        var link = adapter.create("0020", "1002-000-000002", 12_000, "김 하늘&가").orElseThrow();
+
+        assertThat(link.provider()).isEqualTo("TOSS");
+        assertThat(link.url()).startsWith("howmuch-mock://send?");
+        assertThat(query(link.url())).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "bankCode", "0020", "bank", "우리은행", "accountNo", "1002000000002",
+                "amount", "12000", "receiver", "김 하늘&가"));
+    }
 }
