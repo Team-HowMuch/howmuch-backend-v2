@@ -19,6 +19,7 @@ public class SettlementTransferLinkConfig {
         return switch (properties.adapter()) {
             case TOSS -> new TossSettlementTransferLinkAdapter(bankCatalog);
             case MOCK -> new MockSettlementTransferLinkAdapter(bankCatalog, properties.mock().baseUrl());
+            case MOCK2 -> new MockSettlementTransferLinkAdapter(bankCatalog, "howmuch-mock://send");
         };
     }
 }

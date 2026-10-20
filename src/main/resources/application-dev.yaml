@@ -28,8 +28,6 @@ howmuch:
   settlement:
     transfer-link:
       adapter: ${SETTLEMENT_TRANSFER_LINK_ADAPTER:mock}
-      mock:
-        base-url: ${SETTLEMENT_MOCK_TRANSFER_BASE_URL:howmuch-mock://send}
   auth:
     sms:
       sender: ${SMS_SENDER:discord}
