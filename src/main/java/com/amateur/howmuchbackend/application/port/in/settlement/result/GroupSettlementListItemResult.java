@@ -23,7 +23,9 @@ public record GroupSettlementListItemResult(
         SettlementCategoryResult category,
         Long receivableAmount,
         Long amountToPay,
-        LocalDateTime reminderNextAvailableAt
+        LocalDateTime reminderNextAvailableAt,
+        /** PARTICIPANT가 품목 정산에서 아직 몫을 안 골라 amountToPay가 총액 표시값이면 true. */
+        boolean needsItemSelection
 ) {
     public enum ViewerRole { REQUESTER, PARTICIPANT, NONE }
 }
