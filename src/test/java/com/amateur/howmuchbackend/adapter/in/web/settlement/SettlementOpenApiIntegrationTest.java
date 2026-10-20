@@ -60,7 +60,7 @@ class SettlementOpenApiIntegrationTest {
                 "SettlementListItemWebResponse",
                 "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
                 "completedParticipantCount", "amountToPay", "receivableAmount", "requesterName", "groups",
-                "reminderNextAvailableAt"
+                "reminderNextAvailableAt", "needsItemSelection"
         );
         assertRequired(
                 document,

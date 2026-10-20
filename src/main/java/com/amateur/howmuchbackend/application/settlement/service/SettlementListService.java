@@ -71,7 +71,8 @@ public class SettlementListService implements GetSettlementsUseCase {
                                 ))
                                 .toList(),
                         myCategories.get(item.settlementId()),
-                        reminderTimes.get(item.settlementId())
+                        reminderTimes.get(item.settlementId()),
+                        needsItemSelection(item, command.tab())
                 ))
                 .toList();
     }
@@ -96,12 +97,19 @@ public class SettlementListService implements GetSettlementsUseCase {
         if (tab != SettlementListTab.PAY) {
             return null;
         }
-        if (item.amountToPay() == null
+        return usesTotalAsAmountToPay(item) ? item.totalAmount() : item.amountToPay();
+    }
+
+    /** 앱이 금액 대신 품목 선택 안내를 그릴 수 있게, 총액 표시값을 쓰는 사실을 그대로 알린다. */
+    private boolean needsItemSelection(SettlementListReadModel item, SettlementListTab tab) {
+        return tab == SettlementListTab.PAY && usesTotalAsAmountToPay(item);
+    }
+
+    /** 품목 정산의 선택 대기·중단 상태에서 본인 Share가 없으면 개인 금액 대신 정산 총액을 목록에 보여 준다. */
+    private boolean usesTotalAsAmountToPay(SettlementListReadModel item) {
+        return item.amountToPay() == null
                 && item.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
                 && (item.status() == SettlementStatus.REQUESTED
-                || item.status() == SettlementStatus.SUSPENDED)) {
-            return item.totalAmount();
-        }
-        return item.amountToPay();
+                || item.status() == SettlementStatus.SUSPENDED);
     }
 }
