@@ -12,7 +12,7 @@ import java.util.UUID;
         "settlementId", "viewerRole", "requesterName", "requesterPublicId", "status", "requestedAt",
         "endedAt", "completedAt", "allocationType", "totalAmount", "participantCount",
         "payableParticipantCount", "completedParticipantCount", "storeName", "category",
-        "receivableAmount", "amountToPay", "reminderNextAvailableAt"
+        "receivableAmount", "amountToPay", "reminderNextAvailableAt", "needsItemSelection"
 })
 public record GroupSettlementListItemWebResponse(
         UUID settlementId,
@@ -45,7 +45,10 @@ public record GroupSettlementListItemWebResponse(
         Long amountToPay,
         @Schema(nullable = true, description = "REQUESTER의 다음 독촉 가능 시각. 기존 상세와 같은 UTC 기준 offset 없는 값이며 "
                 + "다른 역할·독촉 불가 상태·대상 또는 활성 쿨다운이 없으면 null입니다. 발송 API가 최종 검증합니다.")
-        LocalDateTime reminderNextAvailableAt
+        LocalDateTime reminderNextAvailableAt,
+        @Schema(description = "PARTICIPANT가 ITEM_ALLOCATION에서 아직 몫을 안 골라 amountToPay가 총액 표시값이면 true. "
+                + "앱은 금액 대신 품목 선택 안내를 그립니다. 다른 역할은 false입니다.")
+        boolean needsItemSelection
 ) {
     public static GroupSettlementListItemWebResponse from(GroupSettlementListItemResult result) {
         var category = result.category();
@@ -55,7 +58,8 @@ public record GroupSettlementListItemWebResponse(
                 result.allocationType(), result.totalAmount(), result.participantCount(),
                 result.payableParticipantCount(), result.completedParticipantCount(), result.storeName(),
                 new GroupSettlementCategoryWebResponse(category.code(), category.name(), category.icon()),
-                result.receivableAmount(), result.amountToPay(), result.reminderNextAvailableAt());
+                result.receivableAmount(), result.amountToPay(), result.reminderNextAvailableAt(),
+                result.needsItemSelection());
     }
 
     @Schema(name = "GroupSettlementCategoryWebResponse", requiredProperties = {"code", "name", "icon"},

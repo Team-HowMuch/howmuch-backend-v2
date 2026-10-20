@@ -12,7 +12,7 @@ import java.util.UUID;
 @Schema(requiredProperties = {
         "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
         "payableParticipantCount", "completedParticipantCount", "amountToPay", "receivableAmount",
-        "requesterName", "groups", "myCategory", "reminderNextAvailableAt"
+        "requesterName", "groups", "myCategory", "reminderNextAvailableAt", "needsItemSelection"
 })
 public record SettlementListItemWebResponse(
         UUID settlementId,
@@ -74,7 +74,10 @@ public record SettlementListItemWebResponse(
                 + "연결된 미제출·완전 미납 대상의 가장 늦은 활성 쿨다운 만료 시각입니다. "
                 + "UTC 기준 offset 없는 값이며 PAY·독촉 불가 상태·대상 또는 활성 쿨다운이 없으면 null입니다. "
                 + "null이 독촉 가능함을 보장하지 않으며 발송 API가 최종 검증합니다.")
-        LocalDateTime reminderNextAvailableAt
+        LocalDateTime reminderNextAvailableAt,
+        @Schema(description = "PAY 탭에서 ITEM_ALLOCATION의 내 몫이 아직 없어 amountToPay가 총액 표시값이면 true. "
+                + "앱은 금액 대신 품목 선택 안내를 그립니다. 그 외와 RECEIVE 탭에서는 false입니다.")
+        boolean needsItemSelection
 ) {
     public static SettlementListItemWebResponse from(SettlementListItemResult result) {
         return new SettlementListItemWebResponse(
@@ -96,7 +99,8 @@ public record SettlementListItemWebResponse(
                         .map(GroupSummary::from)
                         .toList(),
                 SettlementMyCategoryWebResponse.from(result.myCategory()),
-                result.reminderNextAvailableAt()
+                result.reminderNextAvailableAt(),
+                result.needsItemSelection()
         );
     }
 

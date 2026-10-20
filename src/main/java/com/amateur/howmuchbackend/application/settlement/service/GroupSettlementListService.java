@@ -63,8 +63,16 @@ public class GroupSettlementListService implements GetGroupSettlementsUseCase {
                     role == ViewerRole.REQUESTER
                             ? receivables.getOrDefault(summary.settlementId(), summary.receivableShareAmount()) : null,
                     role == ViewerRole.PARTICIPANT ? amountToPay(item) : null,
-                    role == ViewerRole.REQUESTER ? reminderTimes.get(summary.settlementId()) : null);
+                    role == ViewerRole.REQUESTER ? reminderTimes.get(summary.settlementId()) : null,
+                    role == ViewerRole.PARTICIPANT && needsItemSelection(item));
         }).toList();
+    }
+
+    /** 참여자 본인 Share가 없어 amountToPay가 총액 표시값이면 true. 앱이 금액 대신 품목 선택 안내를 그린다. */
+    private boolean needsItemSelection(GroupSettlementListReadModel item) {
+        var summary = item.summary();
+        return summary.amountToPay() == null
+                && receivableCalculator.appliesTo(summary.allocationType(), summary.status());
     }
 
     private Long amountToPay(GroupSettlementListReadModel item) {

@@ -232,28 +232,29 @@ class SettlementListServiceTest {
 
     @ParameterizedTest
     @CsvSource(value = {
-            "PAY, ITEM_ALLOCATION, REQUESTED, null, 6000",
-            "PAY, ITEM_ALLOCATION, SUSPENDED, null, 6000",
-            "PAY, ITEM_ALLOCATION, AWAITING_DEPOSIT, null, null",
-            "PAY, ITEM_ALLOCATION, COMPLETED, null, null",
-            "PAY, DUTCH_PAY, REQUESTED, null, null",
-            "PAY, DUTCH_PAY, SUSPENDED, null, null",
-            "PAY, DUTCH_PAY, AWAITING_DEPOSIT, null, null",
-            "PAY, DUTCH_PAY, COMPLETED, null, null",
-            "PAY, null, REQUESTED, null, null",
-            "PAY, ITEM_ALLOCATION, REQUESTED, 2000, 2000",
-            "PAY, ITEM_ALLOCATION, SUSPENDED, 2000, 2000",
-            "PAY, ITEM_ALLOCATION, AWAITING_DEPOSIT, 2000, 2000",
-            "PAY, ITEM_ALLOCATION, COMPLETED, 2000, 2000",
-            "RECEIVE, ITEM_ALLOCATION, REQUESTED, null, null",
-            "RECEIVE, ITEM_ALLOCATION, SUSPENDED, 2000, null"
+            "PAY, ITEM_ALLOCATION, REQUESTED, null, 6000, true",
+            "PAY, ITEM_ALLOCATION, SUSPENDED, null, 6000, true",
+            "PAY, ITEM_ALLOCATION, AWAITING_DEPOSIT, null, null, false",
+            "PAY, ITEM_ALLOCATION, COMPLETED, null, null, false",
+            "PAY, DUTCH_PAY, REQUESTED, null, null, false",
+            "PAY, DUTCH_PAY, SUSPENDED, null, null, false",
+            "PAY, DUTCH_PAY, AWAITING_DEPOSIT, null, null, false",
+            "PAY, DUTCH_PAY, COMPLETED, null, null, false",
+            "PAY, null, REQUESTED, null, null, false",
+            "PAY, ITEM_ALLOCATION, REQUESTED, 2000, 2000, false",
+            "PAY, ITEM_ALLOCATION, SUSPENDED, 2000, 2000, false",
+            "PAY, ITEM_ALLOCATION, AWAITING_DEPOSIT, 2000, 2000, false",
+            "PAY, ITEM_ALLOCATION, COMPLETED, 2000, 2000, false",
+            "RECEIVE, ITEM_ALLOCATION, REQUESTED, null, null, false",
+            "RECEIVE, ITEM_ALLOCATION, SUSPENDED, 2000, null, false"
     }, nullValues = "null")
     void settlementList_rawAmounts_displayedByTabAndAllocationState(
             SettlementListTab tab,
             SettlementAllocationType allocationType,
             SettlementStatus status,
             Long shareAmount,
-            Long expectedAmount
+            Long expectedAmount,
+            boolean expectedNeedsItemSelection
     ) {
         var readModel = new SettlementListReadModel(
                 SETTLEMENT_ID, status, LocalDateTime.of(2026, 9, 30, 0, 0), null, null,
@@ -268,6 +269,7 @@ class SettlementListServiceTest {
 
         assertThat(result).singleElement().satisfies(item -> {
             assertThat(item.amountToPay()).isEqualTo(expectedAmount);
+            assertThat(item.needsItemSelection()).isEqualTo(expectedNeedsItemSelection);
             assertThat(item.totalAmount()).isEqualTo(tab == SettlementListTab.RECEIVE ? 6_000L : null);
         });
     }
