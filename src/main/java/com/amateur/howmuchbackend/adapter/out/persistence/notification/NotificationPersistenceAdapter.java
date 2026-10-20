@@ -1,18 +1,18 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.notification;
 
-import com.amateur.howmuchbackend.adapter.out.persistence.notification.mapper.NotificationMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.notification.entity.UserNotificationJpaEntity;
+import com.amateur.howmuchbackend.adapter.out.persistence.notification.mapper.NotificationMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.notification.repository.UserNotificationJpaRepository;
 import com.amateur.howmuchbackend.application.port.out.notification.*;
-import com.amateur.howmuchbackend.domain.notification.UserNotification;
 import com.amateur.howmuchbackend.domain.notification.NotificationTarget;
 import com.amateur.howmuchbackend.domain.notification.NotificationTargetType;
-import java.time.Clock;
-import java.time.ZoneOffset;
+import com.amateur.howmuchbackend.domain.notification.UserNotification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 
 @Component
@@ -20,6 +20,9 @@ import java.util.*;
 public class NotificationPersistenceAdapter implements LoadNotificationPort, MarkNotificationReadPort, SaveNotificationPort {
     private final UserNotificationJpaRepository repository;
     private final Clock clock;
+    private final com.amateur.howmuchbackend.adapter.out.persistence.settlement.netting
+                    .NettingNotificationJdbcAdapter
+            nettingTargets;
     @Override
     @Transactional(readOnly = true)
     public List<UserNotification> findPage(Long userId, LocalDateTime beforeAt, UUID beforeId, int limit) {
@@ -80,8 +83,11 @@ public class NotificationPersistenceAdapter implements LoadNotificationPort, Mar
             case SETTLEMENT_PARTICIPATION, SETTLEMENT_DETAIL -> row.getSettlementId() != null;
             case GROUP_DETAIL -> accessibleGroups.contains(Long.valueOf(row.getTargetId()));
             case GROUP_INVITATION -> accessibleInvitations.contains(UUID.fromString(row.getTargetId()));
-            case MONTHLY_RECAP -> true;
-        };
+            case MONTHLY_RECAP, FINANCE_AUTHENTICATION -> true;
+                    case GROUP_SETTLEMENT_NETTING ->
+                            nettingTargets.visible(
+                                    UUID.fromString(row.getTargetId()), row.getRecipientUserId());
+                };
         return accessible ? new NotificationTarget(row.getTargetType(), row.getTargetId()) : null;
     }
 }

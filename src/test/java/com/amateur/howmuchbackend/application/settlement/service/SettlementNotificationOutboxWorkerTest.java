@@ -1,18 +1,26 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
+
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementNotificationOutboxPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementShareLinkStorePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementNotificationRetryPolicy;
 import com.amateur.howmuchbackend.domain.notification.NotificationType;
+import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
-import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.user.User;
 import com.amateur.howmuchbackend.domain.user.UserRole;
@@ -29,13 +37,6 @@ import org.springframework.transaction.TransactionStatus;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("정산 참여 알림 Outbox Worker")
@@ -62,17 +63,27 @@ class SettlementNotificationOutboxWorkerTest {
     @BeforeEach
     void setUp() {
         when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
-        worker = new SettlementNotificationOutboxWorker(
-                outboxPort,
-                loadSettlementPort,
+        var resolver =
+                new com.amateur.howmuchbackend.application.notification.service
+                        .NotificationDeliveryContentResolver(
+                        loadSettlementPort,
                 loadUserPort,
                 shareLinkStorePort,
                 linkTokenPort,
-                pushSenderPort,
-                new SettlementNotificationRetryPolicy(),
-                notifications,
-                transactionManager
-        );
+                        notifications,
+                        new com.amateur.howmuchbackend.application.notification.policy
+                                .NotificationDeliveryTimingPolicy(),
+                        (id, user, transfer) -> java.util.Optional.empty(),
+                        new com.amateur.howmuchbackend.application.settlement.netting.policy
+                                .NettingNotificationEligibilityPolicy());
+        worker =
+                new SettlementNotificationOutboxWorker(
+                        outboxPort,
+                        pushSenderPort,
+                        new SettlementNotificationRetryPolicy(),
+                        transactionManager,
+                        resolver,
+                        java.time.Clock.systemUTC());
     }
 
     @Test

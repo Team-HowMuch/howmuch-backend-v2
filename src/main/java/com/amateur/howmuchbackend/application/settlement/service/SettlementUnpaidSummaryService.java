@@ -15,11 +15,21 @@ public class SettlementUnpaidSummaryService implements GetSettlementUnpaidSummar
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementUnpaidSummaryPort loadSettlementUnpaidSummaryPort;
     private final SettlementUnpaidSummaryPolicy summaryPolicy;
+    private final com.amateur.howmuchbackend.application.port.out.settlement.netting
+                    .LoadNettedUnpaidSummaryPort
+            nettedSummary;
 
     @Override
     @Transactional(readOnly = true)
     public SettlementUnpaidSummaryResult getSummary() {
         Long creatorId = currentActorPort.getCurrentActor().userId();
-        return summaryPolicy.summarize(loadSettlementUnpaidSummaryPort.findAllByCreatorId(creatorId));
+        var original =
+                summaryPolicy.summarize(loadSettlementUnpaidSummaryPort.findAllByCreatorId(creatorId));
+        var netted = nettedSummary.findByReceiver(creatorId);
+        return new SettlementUnpaidSummaryResult(
+                Math.addExact(
+                        original.remainingReceivableAmount(), netted.remainingReceivableAmount()),
+                Math.addExact(original.unpaidParticipantCount(), netted.unpaidTransferCount()),
+                original.unconfirmedSettlementCount());
     }
 }

@@ -54,6 +54,24 @@ public class TitleHintVerification {
         return null;
     }
 
+    /**
+     * LLM이 준 이름을 질문에 실제로 적힌 글자일 때만 돌려준다. 아니면 {@code null}이다.
+     *
+     * <p>질문에 없는 이름은 LLM이 지어낸 것이다. 그 이름으로 좁히면 사용자가 묻지 않은 정산으로 답하게 된다.
+     * 공백은 빼고 본다. 정산 제목도 공백을 뺀 형태와 비교하므로 "8월 모임"과 "8월모임"은 같은 이름이다.
+     */
+    public String fromQuestion(String question, String candidate) {
+        if (question == null || candidate == null) {
+            return null;
+        }
+        String hint = candidate.replaceAll("\\s+", "");
+        String compactQuestion = question.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        if (hint.isEmpty() || !compactQuestion.contains(hint.toLowerCase(Locale.ROOT))) {
+            return null;
+        }
+        return hint;
+    }
+
     public boolean matchesTitle(PersonalSettlement settlement, String titleHint) {
         if (titleHint == null) {
             return true;

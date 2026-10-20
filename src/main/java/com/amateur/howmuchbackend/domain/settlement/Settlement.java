@@ -92,7 +92,12 @@ public record Settlement(
     }
 
     public void ensureParticipantsEditable() {
-        requireDraft();
+        if (status == SettlementStatus.DRAFT
+                || (status == SettlementStatus.SUSPENDED
+                    && allocationType == SettlementAllocationType.ITEM_ALLOCATION)) {
+            return;
+        }
+        throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_EDITABLE);
     }
 
     public void ensureParticipantRenameable() {
@@ -253,5 +258,14 @@ public record Settlement(
         if (amount <= 0) {
             throw ApplicationException.of(SettlementStatusCode.INVALID_SETTLEMENT_AMOUNT);
         }
+    }
+
+    public Settlement enterNetting(LocalDateTime now) {
+        return transition(
+                SettlementStatus.AWAITING_DEPOSIT, SettlementStatus.NETTING_IN_PROGRESS, now);
+    }
+
+    public Settlement completeByNetting(LocalDateTime now) {
+        return transition(SettlementStatus.NETTING_IN_PROGRESS, SettlementStatus.COMPLETED, now);
     }
 }

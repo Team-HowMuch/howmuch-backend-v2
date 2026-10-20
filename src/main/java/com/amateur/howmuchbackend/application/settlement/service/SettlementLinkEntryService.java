@@ -221,7 +221,8 @@ public class SettlementLinkEntryService implements
             Map<UUID, Long> amountByParticipantId
     ) {
         Long amount = settlement.allocationType() == SettlementAllocationType.DUTCH_PAY
-                ? amountByParticipantId.get(participant.id())
+                ? amountByParticipantId.getOrDefault(participant.id(),
+                        settlement.status() == SettlementStatus.AWAITING_DEPOSIT ? 0L : null)
                 : null;
         return new SettlementLinkParticipantResult(
                 participant.id(),

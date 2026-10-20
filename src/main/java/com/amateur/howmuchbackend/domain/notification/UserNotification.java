@@ -36,7 +36,12 @@ public record UserNotification(UUID id, Long recipientUserId, UUID settlementId,
                 case SETTLEMENT_DEPOSIT_CONFIRMED -> target.type() == NotificationTargetType.SETTLEMENT_DETAIL;
                 case GROUP_INVITATION -> target.type() == NotificationTargetType.GROUP_INVITATION;
                 case GROUP_MEMBER_LEFT -> target.type() == NotificationTargetType.GROUP_DETAIL;
-                case MONTHLY_RECAP -> target.type() == NotificationTargetType.MONTHLY_RECAP;
+                case GROUP_NETTING_CONFIRMED,
+                                        GROUP_NETTING_COMPLETED,
+                                        NETTED_TRANSFER_REMINDER ->
+                                target.type() == NotificationTargetType.GROUP_SETTLEMENT_NETTING;
+                        case FINANCE_AUTH_REQUIRED -> target.type() == NotificationTargetType.FINANCE_AUTHENTICATION;
+                        case MONTHLY_RECAP -> target.type() == NotificationTargetType.MONTHLY_RECAP;
             };
             if (!compatible || !target.type().isSettlement() && allocationType != null)
                 throw new IllegalArgumentException("알림 종류와 이동 대상이 일치하지 않습니다.");

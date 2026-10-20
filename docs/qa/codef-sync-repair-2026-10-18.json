@@ -1,0 +1,227 @@
+{
+  "accounts": {
+    "ms": 76.99,
+    "count": 1
+  },
+  "detail": {
+    "ms": 22.69,
+    "count": null,
+    "synced": true,
+    "lastSyncedAt": "2026-10-18T01:54:06.166",
+    "syncInProgress": false,
+    "yearMonth": "2026-10"
+  },
+  "transactions": {
+    "ms": 35.91,
+    "count": 24
+  },
+  "during_device_retry": {
+    "detail": {
+      "ms": 23.61,
+      "synced": true,
+      "syncInProgress": true,
+      "refreshed": null,
+      "syncedAt": null
+    },
+    "transactions": {
+      "ms": 26.72,
+      "count": 24
+    },
+    "duplicate": {
+      "ms": 22.95,
+      "synced": null,
+      "syncInProgress": true,
+      "refreshed": false,
+      "syncedAt": "2026-10-18T01:54:06.166"
+    }
+  },
+  "device_http": [
+    {
+      "at": 1792288445.763662,
+      "method": "GET",
+      "path": "/api/v2/accounts",
+      "status": 200,
+      "ms": 237.64,
+      "bytes": 299
+    },
+    {
+      "at": 1792288445.95886,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 107.96,
+      "bytes": 430
+    },
+    {
+      "at": 1792288445.9875321,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 136.27,
+      "bytes": 6004
+    },
+    {
+      "at": 1792288451.8825998,
+      "method": "POST",
+      "path": "/api/v2/accounts/1/transactions/sync?yearMonth=2026-10",
+      "status": 200,
+      "ms": 5794.3,
+      "bytes": 299
+    },
+    {
+      "at": 1792288451.9914901,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 18.6,
+      "bytes": 450
+    },
+    {
+      "at": 1792288451.9954472,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 22.62,
+      "bytes": 6004
+    },
+    {
+      "at": 1792288469.8249018,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-09",
+      "status": 200,
+      "ms": 33.38,
+      "bytes": 26
+    },
+    {
+      "at": 1792288469.82602,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-09",
+      "status": 200,
+      "ms": 40.93,
+      "bytes": 402
+    },
+    {
+      "at": 1792288474.522282,
+      "method": "POST",
+      "path": "/api/v2/accounts/1/transactions/sync?yearMonth=2026-09",
+      "status": 200,
+      "ms": 4485.13,
+      "bytes": 297
+    },
+    {
+      "at": 1792288474.68284,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-09",
+      "status": 200,
+      "ms": 82.52,
+      "bytes": 3664
+    },
+    {
+      "at": 1792288474.728914,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-09",
+      "status": 200,
+      "ms": 127.68,
+      "bytes": 448
+    },
+    {
+      "at": 1792288491.856925,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 31.88,
+      "bytes": 450
+    },
+    {
+      "at": 1792288491.864502,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 28.74,
+      "bytes": 6004
+    },
+    {
+      "at": 1792288524.270305,
+      "method": "POST",
+      "path": "/api/v2/accounts/1/transactions/sync?yearMonth=2026-10",
+      "status": 503,
+      "injected": true
+    },
+    {
+      "at": 1792288543.582277,
+      "method": "POST",
+      "path": "/api/v2/accounts/1/transactions/sync?yearMonth=2026-10",
+      "status": 200,
+      "ms": 3684.31,
+      "bytes": 299
+    },
+    {
+      "at": 1792288543.669427,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 15.13,
+      "bytes": 450
+    },
+    {
+      "at": 1792288543.6744618,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 16.98,
+      "bytes": 6004
+    }
+  ],
+  "after_retry": {
+    "synced": true,
+    "syncInProgress": false,
+    "lastSyncedAt": "2026-10-18T01:55:39.992"
+  },
+  "frontendTests": {
+    "passed": 9,
+    "typecheck": "passed"
+  },
+  "notes": [
+    "Device failure injected as a single local proxy 503; retry used real CODEF.",
+    "Timing samples are request durations, not screen TTI or production percentiles.",
+    "Original comparison database clone; no remote changes."
+  ],
+  "coverageEvidence": {
+    "schema": "epochMillis|from|through",
+    "months": {
+      "2026-09": {
+        "from": "2026-09-01",
+        "through": "2026-09-30"
+      },
+      "2026-10": {
+        "from": "2026-10-01",
+        "through": "2026-10-18"
+      }
+    }
+  },
+  "backendTests": {
+    "initialFullSuite": {
+      "tests": 2296,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "finalFullSuite": {
+      "tests": 2298,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0
+    },
+    "finalFullSuiteFailureReasons": [
+      "GroupNettingDirectIntegrationTest: 2 fixture timestamps violate left_at >= joined_at by approximately 0.35ms.",
+      "KafkaNotificationFlowIntegrationTest: 20s asynchronous state wait exceeded."
+    ],
+    "javascriptTests": 35,
+    "focusedRerunIncludingAllFailedSuites": {
+      "tests": 100,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  }
+}

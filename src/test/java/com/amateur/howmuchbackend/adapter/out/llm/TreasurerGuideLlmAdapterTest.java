@@ -2,6 +2,8 @@ package com.amateur.howmuchbackend.adapter.out.llm;
 
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerGuideReply;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerKnowledge;
+import com.amateur.howmuchbackend.domain.treasurer.InquiryIntent;
+import com.amateur.howmuchbackend.domain.treasurer.InquiryPeriod;
 import com.amateur.howmuchbackend.infra.treasurer.config.TreasurerLlmProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +14,7 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -94,6 +97,52 @@ class TreasurerGuideLlmAdapterTest {
                 .hasValueSatisfying(value -> assertThat(value.route()).isEqualTo(TreasurerGuideReply.Route.DATA));
         assertThat(adapter.parse("{\"route\":\"UNRELATED\"}"))
                 .hasValueSatisfying(value -> assertThat(value.route()).isEqualTo(TreasurerGuideReply.Route.UNRELATED));
+    }
+
+    @Test
+    @DisplayName("데이터 질문의 의도·기간·정산 이름을 읽는다")
+    void parse_dataIntent() {
+        TreasurerGuideLlmAdapter adapter = adapter("openai", "test-key");
+
+        var reply = adapter.parse("""
+                {"route":"DATA","intent":"priority_settlements","period":"THIS_WEEK","titleHint":" 8월 모임 "}""");
+
+        assertThat(reply).hasValueSatisfying(value -> {
+            assertThat(value.route()).isEqualTo(TreasurerGuideReply.Route.DATA);
+            assertThat(value.intent()).isEqualTo(InquiryIntent.PRIORITY_SETTLEMENTS);
+            assertThat(value.period()).isEqualTo(InquiryPeriod.THIS_WEEK);
+            assertThat(value.titleHint()).isEqualTo("8월 모임");
+        });
+    }
+
+    @Test
+    @DisplayName("의도를 정하지 못했다는 UNCLEAR는 미분류로 읽는다")
+    void parse_unclearIntent() {
+        TreasurerGuideLlmAdapter adapter = adapter("openai", "test-key");
+
+        assertThat(adapter.parse("{\"route\":\"DATA\",\"intent\":\"UNCLEAR\"}"))
+                .hasValueSatisfying(value -> assertThat(value.intent()).isEqualTo(InquiryIntent.UNKNOWN));
+    }
+
+    @Test
+    @DisplayName("정해진 값이 아닌 의도·기간과 문자열 null인 이름은 비워 두고 경로는 그대로 읽는다")
+    void parse_invalidDataFields_leftEmpty() {
+        TreasurerGuideLlmAdapter adapter = adapter("openai", "test-key");
+
+        var reply = adapter.parse("""
+                {"route":"DATA","intent":"GUIDE","period":"TODAY","titleHint":"null"}""");
+        var wrongTypes = adapter.parse("""
+                {"route":"DATA","intent":3,"period":null,"titleHint":["8월"]}""");
+        var legacy = adapter.parse("{\"route\":\"DATA\"}");
+
+        for (var parsed : List.of(reply, wrongTypes, legacy)) {
+            assertThat(parsed).hasValueSatisfying(value -> {
+                assertThat(value.route()).isEqualTo(TreasurerGuideReply.Route.DATA);
+                assertThat(value.intent()).isNull();
+                assertThat(value.period()).isNull();
+                assertThat(value.titleHint()).isNull();
+            });
+        }
     }
 
     @Test

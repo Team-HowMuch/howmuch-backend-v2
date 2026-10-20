@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>얼마 · 시연 관리</title><link rel="stylesheet" href="/console.css"></head><body>
+<div id="howmuch-demo-console">
+  <div class="hm-app">
+    <header class="hm-header">
+      <div class="hm-brand">얼마<span>시연 관리</span></div>
+      <div class="hm-env">개발 서버 · 관리자 전용 <button id="hm-logout" type="button" hidden>로그아웃</button></div>
+    </header>
+    <section id="hm-login" class="hm-login"><h1>관리자 로그인</h1><p>시연 폰의 네 계정은 그대로 유지합니다. 별도 관리자 계정으로 로그인해주세요.</p><form id="hm-login-form"><label>관리자 번호<input id="hm-login-phone" autocomplete="username" inputmode="tel" required></label><label>PIN<input id="hm-login-pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{6}" maxlength="6" required></label><button class="hm-button hm-primary" type="submit">로그인</button></form><p id="hm-login-message" role="status" aria-live="polite"></p></section><main class="hm-main" id="hm-workspace" hidden>
+      <div class="hm-page-title"><div><p class="hm-kicker">PPT · 시연 영상 · 폰 4대</p><h1>부스 운영</h1></div><button id="hm-refresh" class="hm-button hm-secondary cursor-interaction" type="button">상태 다시 확인</button></div>
+      <nav class="hm-nav" aria-label="운영 메뉴"><a href="#hm-phones-title">부스 현황</a><a href="#hm-quick-title">시나리오·알림</a><a href="#hm-recap-title">리캡</a><a href="#hm-netting-title">압축 회차</a></nav><div class="hm-status-line"><span id="hm-sync">서버 상태 확인 중</span><span>기기 사용 상태는 운영자가 표시</span></div>
+      <section aria-labelledby="hm-phones-title">
+        <h2 id="hm-phones-title">폰 배치</h2>
+        <div class="hm-pairs">
+          <div class="hm-pair">
+            <div class="hm-pair-title"><span>왼쪽 · 자유 체험</span><span class="hm-muted">별도 체험 모임</span></div>
+            <div class="hm-phones">
+              <article class="hm-phone"><div class="hm-device"><span>폰 1</span></div><h3>한승환</h3><p class="hm-number">01092410001</p><label>현재 사용<select data-phone="0" class="cursor-interaction"><option value="idle">대기</option><option value="receipt">영수증 체험 중</option><option value="money">홈·AI 금액 설명 중</option></select></label></article>
+              <article class="hm-phone"><div class="hm-device"><span>폰 2</span></div><h3>최영헌</h3><p class="hm-number">01092410003</p><label>현재 사용<select data-phone="1" class="cursor-interaction"><option value="idle">대기</option><option value="receipt">영수증 체험 중</option><option value="money">홈·AI 금액 설명 중</option></select></label></article>
+            </div>
+          </div>
+          <div class="hm-pair">
+            <div class="hm-pair-title"><span>오른쪽 · 설명 시연</span><span class="hm-muted">문채원 요청 → 최수아 참여</span></div>
+            <div class="hm-phones">
+              <article class="hm-phone"><div class="hm-device"><span>폰 3</span></div><h3>최수아</h3><p class="hm-number">01092410004</p><label>현재 사용<select data-phone="2" class="cursor-interaction"><option value="idle">대기</option><option value="guide">설명 시연 중</option><option value="money">홈·AI 금액 설명 중</option></select></label></article>
+              <article class="hm-phone"><div class="hm-device"><span>폰 4 · 반장</span></div><h3>문채원</h3><p class="hm-number">01092410002</p><label>현재 사용<select data-phone="3" class="cursor-interaction"><option value="idle">대기</option><option value="guide">설명 시연 중</option><option value="money">홈·AI 금액 설명 중</option></select></label></article>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div class="hm-body-grid">
+        <section class="hm-netting" aria-labelledby="hm-netting-title">
+          <div class="hm-section-head"><h2 id="hm-netting-title">압축 정산</h2><span id="hm-round-badge" class="hm-tag">1회차</span></div>
+          <div class="hm-sheet">
+            <div class="hm-group-line"><div><p class="hm-muted">현재 압축용 모임</p><h3 id="hm-group">아마추어</h3></div><span id="hm-netting-state" class="hm-tag">압축 전</span></div>
+            <div class="hm-metrics"><div><p>송금 횟수</p><div class="hm-value">15회 <span>→</span> 3회</div></div><div><p>실제 송금 총액</p><div class="hm-value">231,000원 <span>→</span> 82,000원</div></div></div>
+            <p id="hm-metric-label" class="hm-muted">기준 5건으로 계산한 예상값 · 실제 압축은 앱에서 실행</p>
+            <div id="hm-notice" class="hm-notice" role="status" aria-live="polite"></div>
+            <div class="hm-actions"><button id="hm-prepare" class="hm-button hm-primary cursor-interaction" type="button" disabled>다음 회차 준비</button><button id="hm-guide" class="hm-button hm-secondary cursor-interaction" type="button">폰에서 할 일 보기</button></div>
+            <p id="hm-action-help" class="hm-muted"></p>
+            <div id="hm-phone-guide" class="hm-phone-guide" hidden></div>
+            <details class="hm-details"><summary class="cursor-interaction">압축 기준 정산 5건</summary><div class="hm-table-wrap"><table><thead><tr><th>정산</th><th>결제자</th><th>총액</th></tr></thead><tbody><tr><td>첫 모임 저녁 식사</td><td>문채원</td><td>88,000원</td></tr><tr><td>작업실 대여</td><td>한승환</td><td>48,000원</td></tr><tr><td>발표 준비 저녁</td><td>최영헌</td><td>84,000원</td></tr><tr><td>회의 간식</td><td>최수아</td><td>24,000원</td></tr><tr><td>주말 모임 점심</td><td>문채원</td><td>64,000원</td></tr></tbody></table></div></details>
+          </div>
+        </section>
+        <section aria-labelledby="hm-feature-title">
+          <h2 id="hm-feature-title">다른 기능 보여주기</h2>
+          <div class="hm-sheet hm-feature-sheet">
+            <label for="hm-feature" class="hm-muted">지금 보여줄 기능</label>
+            <select id="hm-feature" class="cursor-interaction"><option value="basic-demo">기본 시연 · 3분</option><option value="receipt">영수증 정산</option><option value="basic">일반 더치페이</option><option value="deposit">입금 확인 · 독촉</option><option value="ai">AI 비서</option><option value="fixed">고정 지출</option><option value="recap">월별 리캡</option></select>
+            <div id="hm-feature-content"></div><ol id="hm-guide-steps"></ol><div class="hm-actions"><button id="hm-start-guide" class="hm-button hm-primary" type="button">설명 시연 시작</button><button id="hm-next-step" class="hm-button hm-secondary" type="button">다음 단계</button></div>
+          </div>
+          <div class="hm-round-log"><h2>회차 이력</h2><div id="hm-history"></div></div>
+        </section>
+      </div>
+      <section class="hm-quick" aria-labelledby="hm-quick-title">
+        <h2 id="hm-quick-title">빠르게 시연하기</h2>
+        <div class="hm-body-grid">
+          <section class="hm-sheet" aria-labelledby="hm-notify-title">
+            <h3 id="hm-notify-title">알림 보내기</h3>
+            <p class="hm-muted">선택한 폰으로 실제 알림을 요청해요. 정산 상태는 바꾸지 않아요.</p>
+            <label>받을 폰<select id="hm-notify-recipient"></select></label>
+            <div id="hm-notify-kinds" class="hm-choice-row"></div>
+            <label id="hm-target-label">연결할 정산<select id="hm-notify-target"></select></label>
+            <p id="hm-device-note" class="hm-muted"></p>
+            <button id="hm-send-notification" class="hm-button hm-primary" type="button">알림 보내기</button>
+            <p id="hm-notification-feedback" role="status" aria-live="polite"></p>
+          </section>
+          <section class="hm-sheet" aria-labelledby="hm-scenario-title">
+            <h3 id="hm-scenario-title">시나리오 데이터 넣기</h3>
+            <p class="hm-muted">현재 네 계정에 새 모임을 추가해요. 기존 모임과 압축 회차는 유지해요.</p>
+            <label class="hm-check"><input id="hm-scenario-push" type="checkbox"> 정산 요청 알림도 보내기</label>
+            <div id="hm-scenario-buttons" class="hm-scenario-buttons"></div>
+            <details class="hm-details"><summary>직접 시나리오 만들기</summary>
+              <form id="hm-template-form" class="hm-template-form">
+                <label>저장할 이름<input id="hm-template-name" maxlength="40" required placeholder="예: 오른쪽 폰 두 명 정산"></label>
+                <label>유형<select id="hm-template-kind"><option value="BASIC">더치페이</option><option value="RECEIPT">영수증 품목 선택 · 24,000원</option><option value="NETTING">압축 5건 · 308,000원</option><option value="GROUP">그룹만 만들기</option></select></label>
+                <label>정산·그룹 제목<input id="hm-template-title" maxlength="60" required value="모임 저녁 식사"></label>
+                <label>총액 (원)<input id="hm-template-amount" type="number" min="100" max="10000000" step="1" required value="20000"></label>
+                <label>정산 생성자<select id="hm-template-creator"></select></label>
+                <fieldset id="hm-template-participants"><legend>참여자 · 생성자 포함</legend></fieldset>
+                <button class="hm-button hm-secondary" type="submit">시나리오 저장</button>
+              </form>
+            </details>
+            <p id="hm-scenario-feedback" role="status" aria-live="polite"></p>
+            <div id="hm-created-scenarios"></div>
+          </section>
+        </div>
+        <button id="hm-action-retry" class="hm-button hm-secondary" type="button" hidden>이전 작업 결과 확인</button>
+        <p class="hm-muted">영수증 시나리오는 품목 인식 완료 상태부터 시작해요. 압축 시나리오는 새 연습 모임이며 현재 회차를 바꾸지 않아요.</p>
+        <details class="hm-details" open><summary>알림 발송 결과</summary><div id="hm-notification-history"></div></details>
+      </section>
+      <section class="hm-recap-section" aria-labelledby="hm-recap-title">
+        <h2 id="hm-recap-title">리캡 준비</h2>
+        <div class="hm-sheet">
+          <div class="hm-recap-controls"><label>대상 계정<select id="hm-recap-user"><option value="all">네 계정 모두</option></select></label><label>월<input id="hm-recap-month" type="month" value="2026-09" required></label></div>
+          <div class="hm-actions"><button id="hm-recap-generate" class="hm-button hm-primary" type="button" data-send-action>확정 리캡 준비</button><button id="hm-recap-preview" class="hm-button hm-secondary" type="button" data-send-action>실제 내역 미리보기</button></div>
+          <p class="hm-muted">기존 리캡은 덮어쓰지 않아요. 확정은 지난달까지, 이번 달은 저장하지 않는 미리보기로 확인해요. 서버의 실제 집계 로직을 사용해요.</p>
+          <p id="hm-recap-feedback" role="status" aria-live="polite"></p><div id="hm-recap-results"></div>
+        </div>
+      </section>
+      <section class="hm-events" aria-labelledby="hm-log-title"><h2 id="hm-log-title">최근 작업</h2><p id="hm-log" role="status" aria-live="polite">서버 상태를 불러오고 있어요.</p></section>
+    </main>
+  </div>
+</div>
+
+<script src="/console.js"></script></body></html>

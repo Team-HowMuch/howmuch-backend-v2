@@ -15,7 +15,8 @@ public interface SettlementRequestDocs {
     @Operation(
             summary = "정산 요청 확정과 공통 링크 발급",
             description = "초안의 참여자·지출·배분·수령 계좌를 검증하고 하나의 공통 링크를 발급합니다. "
-                    + "더치페이는 Share를 즉시 확정해 입금 대기 상태로 전환하며, "
+                    + "더치페이는 전원 배분 합계가 총액과 일치하면 양수 금액만 확정해 입금 대기 상태로 전환합니다. "
+                    + "생성자를 포함해 0원 배분을 허용하며, 0원 참여자는 참여 기록만 유지하고 정산 요청 알림·납부 대상에서 제외합니다. "
                     + "품목별 배분은 참여자의 품목 선택을 기다리는 요청 상태로 전환합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )

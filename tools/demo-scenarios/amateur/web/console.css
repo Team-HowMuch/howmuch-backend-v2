@@ -1,0 +1,115 @@
+
+#howmuch-demo-console { color-scheme: light dark; --hm-bg:light-dark(#f9fafb,#14181d); --hm-card:light-dark(#fff,#20262d); --hm-text:light-dark(#101214,#f1f5f9); --hm-heading:light-dark(#3d444d,#dce4ed); --hm-muted:light-dark(#707e8f,#a5b3c4); --hm-line:light-dark(#e7ebef,#36414e); --hm-blue:light-dark(#0092ff,#55b3ff); --hm-blue-fill:light-dark(#0092ff,#168ee7); --hm-blue-soft:light-dark(#eaf6ff,#15354e); --hm-button-text:#fff; --hm-danger:light-dark(#b54c2d,#ffb59e); --hm-warn-bg:light-dark(#fff5ef,#3d2c24); font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif; font-size:14px; line-height:1.55; color:var(--hm-text); }
+#howmuch-demo-console * {box-sizing:border-box;}
+#howmuch-demo-console [hidden] {display:none!important;}
+#howmuch-demo-console p,#howmuch-demo-console h1,#howmuch-demo-console h2,#howmuch-demo-console h3 {margin:0;}
+#howmuch-demo-console h1 {font-size:24px;font-weight:600;letter-spacing:-.8px;}
+#howmuch-demo-console h2 {font-size:16px;font-weight:600;color:var(--hm-heading);margin:0 0 12px;}
+#howmuch-demo-console h3 {font-size:17px;font-weight:600;}
+#howmuch-demo-console button,#howmuch-demo-console select {font:inherit;}
+#howmuch-demo-console .hm-preview {display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0 16px;}
+#howmuch-demo-console .hm-preview label {font-weight:600;}
+#howmuch-demo-console .hm-preview span {color:var(--hm-muted);font-size:12px;}
+#howmuch-demo-console select {border:1px solid var(--hm-line);background:var(--hm-card);color:var(--hm-text);border-radius:8px;padding:9px 10px;max-width:100%;min-width:0;}
+#howmuch-demo-console .hm-app {background:var(--hm-bg);border-radius:12px;overflow:hidden;}
+#howmuch-demo-console .hm-header {background:var(--hm-card);display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 28px;border-bottom:1px solid var(--hm-line);}
+#howmuch-demo-console .hm-brand {color:var(--hm-blue);font-size:25px;font-weight:700;letter-spacing:-1px;display:flex;gap:20px;align-items:center;}
+#howmuch-demo-console .hm-brand span {font-size:15px;font-weight:500;color:var(--hm-heading);letter-spacing:0;}
+#howmuch-demo-console .hm-env {color:var(--hm-muted);font-size:12px;}
+#howmuch-demo-console .hm-main {padding:26px 28px;}
+#howmuch-demo-console .hm-page-title {display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+#howmuch-demo-console .hm-kicker {font-size:12px;color:var(--hm-muted);margin-bottom:4px;}
+#howmuch-demo-console .hm-status-line {display:flex;gap:16px;justify-content:space-between;flex-wrap:wrap;color:var(--hm-muted);font-size:12px;margin:12px 0 24px;}
+#howmuch-demo-console .hm-pairs {display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px;}
+#howmuch-demo-console .hm-pair-title {display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 10px;font-size:13px;font-weight:500;color:var(--hm-heading);}
+#howmuch-demo-console .hm-pair-title .hm-muted {font-size:12px;font-weight:400;}
+#howmuch-demo-console .hm-phones {display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+#howmuch-demo-console .hm-phone {background:var(--hm-card);padding:16px;border-radius:10px;min-width:0;}
+#howmuch-demo-console .hm-device {display:flex;gap:6px;align-items:center;color:var(--hm-muted);font-size:12px;margin-bottom:12px;}
+#howmuch-demo-console .hm-device svg {width:16px;height:16px;}
+#howmuch-demo-console .hm-number {font-variant-numeric:tabular-nums;color:var(--hm-muted);font-size:12px;margin:3px 0 16px;overflow-wrap:anywhere;}
+#howmuch-demo-console .hm-phone label {display:block;color:var(--hm-muted);font-size:12px;}
+#howmuch-demo-console .hm-phone select {width:100%;margin-top:5px;font-size:12px;padding:7px 8px;}
+#howmuch-demo-console .hm-body-grid {display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:22px;align-items:start;}
+#howmuch-demo-console .hm-section-head {display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
+#howmuch-demo-console .hm-tag {display:inline-flex;align-items:center;background:var(--hm-blue-soft);color:var(--hm-blue);border-radius:6px;padding:4px 8px;font-size:12px;white-space:nowrap;}
+#howmuch-demo-console .hm-sheet {background:var(--hm-card);border-radius:10px;padding:20px;min-width:0;}
+#howmuch-demo-console .hm-group-line {display:flex;justify-content:space-between;align-items:center;gap:12px;}
+#howmuch-demo-console .hm-muted {color:var(--hm-muted);font-size:12px;}
+#howmuch-demo-console .hm-metrics {display:flex;gap:22px;flex-wrap:wrap;padding:22px 0 12px;}
+#howmuch-demo-console .hm-metrics p {color:var(--hm-muted);font-size:12px;margin-bottom:5px;}
+#howmuch-demo-console .hm-value {font-weight:600;font-size:20px;letter-spacing:-.6px;font-variant-numeric:tabular-nums;white-space:nowrap;}
+#howmuch-demo-console .hm-value span {font-weight:400;color:var(--hm-muted);margin:0 5px;}
+#howmuch-demo-console .hm-notice {background:var(--hm-bg);padding:14px;border-radius:8px;margin:20px 0 16px;white-space:pre-line;font-size:13px;overflow-wrap:anywhere;}
+#howmuch-demo-console .hm-notice.hm-warning {background:var(--hm-warn-bg);color:var(--hm-danger);}
+#howmuch-demo-console .hm-actions {display:flex;gap:8px;flex-wrap:wrap;}
+#howmuch-demo-console .hm-button {border:0;border-radius:8px;padding:11px 14px;min-height:42px;font-size:13px;font-weight:500;}
+#howmuch-demo-console .hm-primary {background:var(--hm-blue-fill);color:var(--hm-button-text);}
+#howmuch-demo-console .hm-secondary {background:var(--hm-bg);color:var(--hm-heading);border:1px solid var(--hm-line);}
+#howmuch-demo-console .hm-button:disabled {background:var(--hm-line);color:var(--hm-muted);cursor:not-allowed;}
+#howmuch-demo-console #hm-action-help {margin-top:10px;}
+#howmuch-demo-console .hm-phone-guide {padding:14px;background:var(--hm-blue-soft);border-radius:8px;margin-top:12px;font-size:13px;}
+#howmuch-demo-console .hm-details {margin-top:22px;border-top:1px solid var(--hm-line);padding-top:15px;}
+#howmuch-demo-console summary {color:var(--hm-heading);font-size:13px;}
+#howmuch-demo-console .hm-table-wrap {max-width:100%;overflow-x:auto;}
+#howmuch-demo-console table {width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
+#howmuch-demo-console th,#howmuch-demo-console td {padding:9px 4px;text-align:left;border-bottom:1px solid var(--hm-line);}
+#howmuch-demo-console th {color:var(--hm-muted);font-weight:500;}
+#howmuch-demo-console td:last-child,#howmuch-demo-console th:last-child {text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+#howmuch-demo-console .hm-feature-sheet label {display:block;margin-bottom:7px;}
+#howmuch-demo-console #hm-feature {width:100%;}
+#howmuch-demo-console #hm-feature-content {margin-top:18px;}
+#howmuch-demo-console #hm-feature-content h3 {font-size:14px;margin-bottom:8px;}
+#howmuch-demo-console #hm-feature-content p {font-size:13px;margin-bottom:10px;overflow-wrap:anywhere;}
+#howmuch-demo-console #hm-feature-content .hm-muted {font-size:12px;margin-bottom:0;}
+#howmuch-demo-console .hm-round-log {margin-top:22px;}
+#howmuch-demo-console .hm-history-item {display:flex;justify-content:space-between;gap:8px;padding:12px 0;border-bottom:1px solid var(--hm-line);font-size:13px;}
+#howmuch-demo-console .hm-history-item span:last-child {color:var(--hm-muted);font-size:12px;}
+#howmuch-demo-console .hm-events {margin-top:28px;border-top:1px solid var(--hm-line);padding-top:20px;}
+#howmuch-demo-console .hm-events p {font-size:13px;color:var(--hm-muted);white-space:pre-line;}
+@media(max-width:760px) {#howmuch-demo-console .hm-body-grid {grid-template-columns:1fr;} #howmuch-demo-console .hm-main {padding:22px 18px;} #howmuch-demo-console .hm-header {padding:18px;} #howmuch-demo-console .hm-pairs {gap:12px;} #howmuch-demo-console .hm-phone {padding:12px;} }
+@media(max-width:560px) {#howmuch-demo-console .hm-pairs {grid-template-columns:1fr;} #howmuch-demo-console .hm-preview {padding-right:90px;} #howmuch-demo-console .hm-preview select {width:100%;} #howmuch-demo-console .hm-metrics {gap:16px;} #howmuch-demo-console .hm-sheet {padding:16px;} #howmuch-demo-console .hm-button {min-height:44px;} #howmuch-demo-console select {font-size:16px;} #howmuch-demo-console .hm-phone select {font-size:14px;min-height:44px;} }
+
+#howmuch-demo-console .hm-login {padding:32px 28px;background:var(--hm-card);}
+#howmuch-demo-console .hm-login p {margin:12px 0;color:var(--hm-muted);}
+#howmuch-demo-console .hm-login form {display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;}
+#howmuch-demo-console .hm-login label {display:grid;gap:6px;}
+#howmuch-demo-console input {font:inherit;color:var(--hm-text);background:var(--hm-card);border:1px solid var(--hm-line);border-radius:8px;padding:10px;max-width:100%;}
+#howmuch-demo-console .hm-button:not(:disabled), #howmuch-demo-console select:not(:disabled), #howmuch-demo-console summary {cursor:pointer;}
+#howmuch-demo-console #hm-logout {font:inherit;margin-left:12px;color:var(--hm-heading);border:0;background:transparent;cursor:pointer;text-decoration:underline;}
+#howmuch-demo-console #hm-login-message {color:var(--hm-danger);}
+#howmuch-demo-console .hm-app {min-height:100vh;}
+body {margin:0;}
+@media(max-width:560px){#howmuch-demo-console input {font-size:16px;}#howmuch-demo-console .hm-login {padding:24px 18px;}#howmuch-demo-console .hm-login form {display:grid;}#howmuch-demo-console .hm-value {white-space:normal;overflow-wrap:anywhere;}}
+
+#howmuch-demo-console .hm-quick {margin-top:28px;}
+#howmuch-demo-console .hm-quick .hm-body-grid {grid-template-columns:1fr 1fr;}
+#howmuch-demo-console .hm-quick h3 {margin-bottom:8px;}
+#howmuch-demo-console .hm-quick label:not(.hm-check) {display:grid;gap:6px;margin:14px 0;font-size:13px;}
+#howmuch-demo-console .hm-quick label select {width:100%;}
+#howmuch-demo-console .hm-choice-row {display:flex;flex-wrap:wrap;gap:6px;margin:14px 0;}
+#howmuch-demo-console .hm-choice-row button[aria-pressed="true"] {color:var(--hm-blue);background:var(--hm-blue-soft);border-color:var(--hm-blue);}
+#howmuch-demo-console .hm-check {display:flex;align-items:center;gap:8px;margin:14px 0;font-size:13px;}
+#howmuch-demo-console .hm-scenario-buttons {display:grid;gap:8px;margin-top:14px;}
+#howmuch-demo-console .hm-template-form input:not([type="checkbox"]) {width:100%;min-width:0;}
+#howmuch-demo-console .hm-template-form fieldset {border:1px solid var(--hm-line);border-radius:8px;padding:10px;min-width:0;}
+#howmuch-demo-console .hm-template-form legend {color:var(--hm-muted);font-size:12px;}
+#howmuch-demo-console .hm-notification-row {display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--hm-line);font-size:13px;}
+#howmuch-demo-console #hm-notification-feedback,#howmuch-demo-console #hm-scenario-feedback {margin-top:12px;font-size:13px;}
+#howmuch-demo-console #hm-device-note {margin:12px 0;}
+#howmuch-demo-console #hm-action-retry {margin:16px 0;}
+@media(max-width:760px){#howmuch-demo-console .hm-quick .hm-body-grid {grid-template-columns:1fr;}}
+
+#howmuch-demo-console .hm-nav {display:flex;gap:18px;flex-wrap:wrap;margin:22px 0 6px;border-bottom:1px solid var(--hm-line);padding-bottom:12px;}
+#howmuch-demo-console .hm-nav a {color:var(--hm-heading);font-size:13px;text-decoration:none;}
+#howmuch-demo-console .hm-nav a:hover {color:var(--hm-blue);}
+#howmuch-demo-console .hm-recap-section {margin-top:28px;}
+#howmuch-demo-console .hm-recap-controls {display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+#howmuch-demo-console .hm-recap-controls label {display:grid;gap:6px;font-size:13px;}
+#howmuch-demo-console .hm-recap-section .hm-muted {margin-top:12px;}
+#howmuch-demo-console .hm-recap-result {padding:18px 0;border-top:1px solid var(--hm-line);}
+#howmuch-demo-console .hm-recap-result h3 {margin-bottom:8px;}
+#howmuch-demo-console .hm-recap-result p {font-size:13px;white-space:pre-line;}
+#howmuch-demo-console #hm-guide-steps {padding-left:20px;margin:14px 0;font-size:13px;}
+#howmuch-demo-console #hm-guide-steps li {padding:5px 0;color:var(--hm-muted);}
+#howmuch-demo-console #hm-guide-steps li[aria-current="step"] {color:var(--hm-blue);font-weight:600;}

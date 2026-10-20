@@ -31,6 +31,11 @@ public class CertificateRegistrationTransactions {
     private final CertificateConsentStorePort consents;
     private final CertificatePairingStorePort pairings;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.amateur.howmuchbackend.application.port.out.external
+                    .AdditionalAuthenticationStorePort
+            additionalAuthentications;
+
     @Transactional
     public void create(
             UUID id,
@@ -85,9 +90,10 @@ public class CertificateRegistrationTransactions {
 
     @Transactional
     public void cancelPairedForUser(UUID id, long userId) {
-        var p = pairings.find(id, true)
-                .filter(v -> v.userId() != null && v.userId() == userId)
-                .orElseThrow(() -> ApplicationException.of(CERTIFICATE_NOT_FOUND));
+        var p =
+                pairings.find(id, true)
+                        .filter(v -> v.userId() != null && v.userId() == userId)
+                        .orElseThrow(() -> ApplicationException.of(CERTIFICATE_NOT_FOUND));
         cancelLinkedSession(p);
     }
 
@@ -109,6 +115,7 @@ public class CertificateRegistrationTransactions {
         if (consents.find(id).isPresent()) throw ApplicationException.of(CERTIFICATE_CONFLICT);
         var now = LocalDateTime.now(clock);
         sessions.cancel(id, now);
+        if (additionalAuthentications != null) additionalAuthentications.cancelForSession(id, now);
         uploads.clear(s.uploadRef(), "CANCELLED", now);
         outbox.enqueue(s, "CANCEL", now);
     }

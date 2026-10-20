@@ -42,7 +42,7 @@ class RecapGenerationRecoveryIntegrationTest {
 
     @BeforeEach void setup() { f = new SettlementUnpaidFixtures(jdbc); }
     @AfterEach void teardown() {
-        jdbc.execute("TRUNCATE monthly_recaps, recap_generation_jobs, recap_generation_state, recap_image_cleanup_tasks");
+        jdbc.execute("TRUNCATE recap_publication_outbox, monthly_recaps, recap_generation_jobs, recap_generation_state, recap_image_cleanup_tasks");
         recapFiles.forEach(images::delete);
         profileFiles.forEach(profiles::delete);
         f.close();

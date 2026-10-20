@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.CreateSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.DeleteSettlementUseCase;
@@ -56,6 +57,7 @@ public class SettlementService implements
     private final SettlementSuspensionService suspensionService;
     private final SettlementRevisionGuard revisionGuard;
     private final DeleteSettlementSharePort deleteSettlementSharePort;
+    private final NettingEstimateInvalidationService estimateInvalidation;
 
     @Override
     @Transactional
@@ -79,6 +81,7 @@ public class SettlementService implements
                 0,
                 now
         ));
+        estimateInvalidation.settlementChanged(saved.id());
         return SettlementResult.from(saved);
     }
 
@@ -92,6 +95,7 @@ public class SettlementService implements
                 loadSettlementSharePort.existsBySettlementId(settlementId)
         );
         deleteSettlementPort.delete(settlementId, LocalDateTime.now(ZoneOffset.UTC));
+        estimateInvalidation.settlementChanged(settlementId);
     }
 
     @Override
@@ -109,7 +113,9 @@ public class SettlementService implements
                 command.totalAmount(),
                 now
         );
-        return SettlementResult.from(saveSettlementPort.update(updated));
+        var saved=saveSettlementPort.update(updated);
+        estimateInvalidation.settlementChanged(settlementId);
+        return SettlementResult.from(saved);
     }
 
     @Override
@@ -131,7 +137,9 @@ public class SettlementService implements
             deleteSettlementSharePort.deleteAllBySettlementId(settlementId);
         }
         settlementItemAllocationStorePort.deleteAllSubmissions(settlementId);
-        return SettlementResult.from(saveSettlementPort.update(resumed));
+        var saved=saveSettlementPort.update(resumed);
+        estimateInvalidation.settlementChanged(settlementId);
+        return SettlementResult.from(saved);
     }
 
     private Settlement loadOwnedSettlementForUpdate(UUID settlementId, Long userId) {

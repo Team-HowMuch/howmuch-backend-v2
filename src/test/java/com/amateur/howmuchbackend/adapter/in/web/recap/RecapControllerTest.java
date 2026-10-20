@@ -41,13 +41,36 @@ class RecapControllerTest {
     }
     @Test void privateDetailMapsNumericComparisonAndNullCompanion() throws Exception {
         when(detail.getRecap(MONTH)).thenReturn(new MonthlyRecapResult(MONTH, "본인 이름", GENERATED,
-                1, 0, new RecapComparisonResult("NO_PREVIOUS", null, null, null), null));
+                1, 0, new RecapComparisonResult("NO_PREVIOUS", null, null, null), null, null, null, null));
         mvc.perform(get("/api/v2/recaps/2026-09")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.ownerName").value("본인 이름"))
                 .andExpect(jsonPath("$.data.completedSettlementCount").value(1))
                 .andExpect(jsonPath("$.data.totalOwnAmount").value(0))
                 .andExpect(jsonPath("$.data.comparison.status").value("NO_PREVIOUS"))
-                .andExpect(jsonPath("$.data.companion").doesNotExist());
+                .andExpect(jsonPath("$.data.companion").doesNotExist())
+                .andExpect(content().json("""
+                        {"data":{"categories":null,"record":null,"benefits":null}}
+                        """));
+    }
+
+    @Test
+    void detail_partialRecordAndBenefits_preserveNullableFields() throws Exception {
+        var category = new RecapCategoryResult("FOOD", "식비", "food");
+        when(detail.getRecap(MONTH)).thenReturn(new MonthlyRecapResult(MONTH, "본인", GENERATED,
+                1, 1000, new RecapComparisonResult("NO_PREVIOUS", null, null, null), null,
+                List.of(new RecapCategoryTotalResult(1, category, 1000)),
+                new RecapRecordResult(null, null, new RecapRecordResult.LargestSettlement(1000, null), null),
+                List.of(new RecapBenefitResult("검증 혜택", "검증 이유", GENERATED.plusMonths(1), "https://example.invalid", null))));
+        mvc.perform(get("/api/v2/recaps/2026-09")).andExpect(status().isOk())
+                .andExpect(content().json("""
+                        {"data":{
+                          "categories":[{"rank":1,"category":{"code":"FOOD","name":"식비","icon":"food"},"totalOwnAmount":1000}],
+                          "record":{"busiestWeekday":null,"frequentCategory":null,
+                            "largestSettlement":{"totalOwnAmount":1000,"category":null},"fastestSettlement":null},
+                          "benefits":[{"title":"검증 혜택","reason":"검증 이유","expiresAt":"2026-11-01T00:00:00",
+                            "url":"https://example.invalid","logoUrl":null}]
+                        }}
+                        """));
     }
     @Test void shareDoesNotExposeOwnerAndUsesAuthenticatedAvatarAddress() throws Exception {
         when(share.getShare(MONTH)).thenReturn(new SharedMonthlyRecapResult(MONTH, GENERATED, 2, 1000,
@@ -77,7 +100,7 @@ class RecapControllerTest {
     @ParameterizedTest @ValueSource(strings = {"0001-01", "9999-12"})
     void acceptsFullContractYearRange(String text) throws Exception {
         when(detail.getRecap(YearMonth.parse(text))).thenReturn(new MonthlyRecapResult(YearMonth.parse(text), "본인", GENERATED,
-                1, 0, new RecapComparisonResult("NO_PREVIOUS", null, null, null), null));
+                1, 0, new RecapComparisonResult("NO_PREVIOUS", null, null, null), null, null, null, null));
         mvc.perform(get("/api/v2/recaps/" + text)).andExpect(status().isOk()).andExpect(jsonPath("$.data.yearMonth").value(text));
     }
 }

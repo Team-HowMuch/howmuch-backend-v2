@@ -16,7 +16,8 @@ public interface SettlementWidgetDocs {
                     + "선택 중 품목 정산의 받을 금액은 상세와 같은 예상액이고 amountUnconfirmed=true입니다. "
                     + "낼 금액은 확인 입금을 차감한 본인 Share 잔액이며 미확정이면 null입니다. "
                     + "PAYABLE은 송금 가능, SELECTION_REQUIRED는 몫 선택 미제출, WAITING은 확정 대기 또는 납부 완료입니다. "
-                    + "0원/납부 완료 참여도 진행 정산이면 목록에 남습니다. 빈 목록의 합계와 건수는 0입니다. "
+                    + "확정된 더치페이의 0원 참여자는 payable 목록과 생성자의 미납 인원에서 제외합니다. "
+                    + "품목 정산의 0원 참여와 양수 몫 납부 완료 참여는 진행 정산이면 목록에 남습니다. 빈 목록의 합계와 건수는 0입니다. "
                     + "lastReconciledAt은 마지막 성공한 위젯 전체 대조의 조회 기준 UTC 시각이며 최초·기록 만료 시 null입니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
@@ -27,7 +28,7 @@ public interface SettlementWidgetDocs {
 
     @Operation(summary = "홈 위젯 전체 입금 대조", security = @SecurityRequirement(name = "bearerAuth"),
             description = "본인이 생성한 진행 정산 전체의 입금을 대조한 뒤 요약 조회와 같은 응답을 반환합니다. "
-                    + "REQUESTED에서도 이미 확정된 몫만 대조합니다. 같은 계좌는 조회를 공유합니다. "
+                    + "REQUESTED에서도 이미 확정된 몫만 대조합니다. 같은 계좌는 조회를 공유합니다. 계좌 sync가 커밋한 동일 범위의 60초 이내 snapshot은 저장 거래로 대조합니다. "
                     + "월별 은행 조회마다 서비스 공유·사용자 KST 일일 예산을 사용합니다(정산 조회 총 100회, 자동 80회). "
                     + "동시 요청·새로고침 종료 후 60초 이내 재요청은 429이며 실패에도 제한을 유지합니다. "
                     + "일부 대조가 성공한 뒤 오류가 나면 성공한 입금 반영은 유지하고 전체 성공 시각은 갱신하지 않습니다. "

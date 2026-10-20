@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestPhase;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
@@ -64,6 +65,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("정산 요청 확정 Application 흐름")
 class SettlementRequestServiceTest {
+    @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final Long USER_ID = 1L;
     private static final UUID SETTLEMENT_ID = UUID.fromString("7c33b1fb-82f1-4a45-a834-a015a26b2ba6");
     private static final UUID CREATOR_PARTICIPANT_ID = UUID.fromString("bb97ee76-3a82-4ccc-b324-4a9974c8e1af");
@@ -91,8 +93,7 @@ class SettlementRequestServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SettlementRequestService(
-                currentActorPort,
+        SettlementRequestWriter writer = new SettlementRequestWriter(
                 loadSettlementPort,
                 saveSettlementPort,
                 loadSettlementParticipantPort,
@@ -107,8 +108,10 @@ class SettlementRequestServiceTest {
                 lockGroupMemberRosterPort,
                 notificationRecorder,
                 categoryJobStorePort,
-                new SettlementCategoryClassificationPolicy()
+                new SettlementCategoryClassificationPolicy(),
+                estimateInvalidation
         );
+        service = new SettlementRequestService(currentActorPort, writer);
     }
 
     @Test
@@ -149,6 +152,35 @@ class SettlementRequestServiceTest {
         assertThat(notification.getValue().type()).isEqualTo(NotificationType.SETTLEMENT_REQUEST);
         assertThat(notification.getValue().message()).isEqualTo("최수아님이 정산을 요청했어요");
 
+        verify(estimateInvalidation).settlementChanged(SETTLEMENT_ID);
+
+    }
+
+    @Test
+    @DisplayName("0원 생성자와 참여자는 Share 없이 남고 양수 참여자에게만 알림을 보낸다")
+    void settlementRequest_zeroAmounts_notifiesOnlyPayer() {
+        arrangeCommon(SettlementAllocationType.DUTCH_PAY);
+        UUID zeroParticipantId = UUID.randomUUID();
+        var participants = new java.util.ArrayList<>(participants());
+        participants.add(participant(zeroParticipantId, 3L, "0원 참여자", 2));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(participants);
+        when(allocationStorePort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                allocation(CREATOR_PARTICIPANT_ID, 0), allocation(PAYER_PARTICIPANT_ID, 10_000),
+                allocation(zeroParticipantId, 0)));
+
+        assertThat(service.request(SETTLEMENT_ID).status()).isEqualTo(SettlementStatus.AWAITING_DEPOSIT);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<SettlementShare>> shares = ArgumentCaptor.forClass(List.class);
+        verify(saveSettlementRequestPort).save(any(), shares.capture(), any(), eq(RAW_LINK_TOKEN));
+        assertThat(shares.getValue()).singleElement().satisfies(share -> {
+            assertThat(share.payerParticipantId()).isEqualTo(PAYER_PARTICIPANT_ID);
+            assertThat(share.amount()).isEqualTo(10_000);
+        });
+        verify(loadUserPort).findAllByIds(List.of(2L));
+        ArgumentCaptor<UserNotification> notification = ArgumentCaptor.forClass(UserNotification.class);
+        verify(notificationRecorder).record(notification.capture());
+        assertThat(notification.getValue().recipientUserId()).isEqualTo(2L);
     }
 
     @Test

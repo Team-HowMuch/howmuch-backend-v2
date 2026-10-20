@@ -12,11 +12,14 @@ import java.util.UUID;
 @Schema(requiredProperties = {
         "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
         "payableParticipantCount", "completedParticipantCount", "amountToPay", "receivableAmount",
-        "requesterName", "groups", "myCategory"
+        "requesterName", "groups", "myCategory", "reminderNextAvailableAt", "needsItemSelection"
 })
 public record SettlementListItemWebResponse(
         UUID settlementId,
-        SettlementStatus status,
+        @io.swagger.v3.oas.annotations.media.Schema(
+                        description =
+                                "압축 정산에 포함된 원본은 이 목록에서 제외하며 압축 상세 sources에서 조회합니다.")
+                SettlementStatus status,
         LocalDateTime requestedAt,
         @Schema(nullable = true, description = "공통 종료 시각. COMPLETED는 완료 시각, SUSPENDED는 현재 중단 시각이며 "
                 + "그 외 상태는 null입니다. UTC 기준 offset 없는 값입니다.")
@@ -37,29 +40,44 @@ public record SettlementListItemWebResponse(
         Integer participantCount,
         @Schema(
                 nullable = true,
-                description = "납부 대상 인원. 참여자 중 돈을 받는 생성자를 제외한 수이며 "
+                description = "납부 대상 인원. 생성자는 제외하며, 확정된 더치페이(AWAITING_DEPOSIT·COMPLETED·NETTING_IN_PROGRESS)는 0원 참여자도 제외한다. "
                         + "정산 상세의 payableParticipantCount와 항상 같다. 진행률의 분모로 쓴다. "
-                        + "Share 생성 전(품목별 정산에서 전원 제출 전)에도 실제 인원을 반환한다."
+                        + "품목 선택 중 또는 중단 후 재배분 중에는 생성자를 제외한 실제 참여 인원을 반환한다."
         )
         Integer payableParticipantCount,
         @Schema(nullable = true, description = "납부를 마친 인원. 생성자를 제외한다.")
         Integer completedParticipantCount,
-        @Schema(nullable = true, description = "PAY 탭의 확정 개인 납부 금액. "
+        @Schema(nullable = true, description = "PAY 탭의 확정 개인 납부 금액. 확정된 더치페이의 0원 참여자는 PAY 목록에서 제외합니다. "
                 + "ITEM_ALLOCATION의 REQUESTED·SUSPENDED 상태에서 개인 금액이 미확정이면 "
                 + "생성자 몫을 포함한 정산 총액을 목록 표시값으로 반환하며 실제 개인 납부액을 뜻하지 않습니다. "
                 + "그 외 금액 미확정 상태와 RECEIVE 탭에서는 null입니다.")
         Long amountToPay,
-        @Schema(nullable = true, description = "RECEIVE 탭에서 생성자가 받을 금액. 생성자 본인 몫을 뺀 참여자 납부 총액이며 "
-                + "입금 여부와 무관하다. 정산 상세의 summary.expectedAmount와 같다. "
-                + "ITEM_ALLOCATION의 REQUESTED·SUSPENDED 상태에서는 영수증 총액에서 생성자가 고른 몫을 뺀 값이다. "
-                + "PAY 탭에서는 null입니다.")
+        @Schema(nullable = true, description =
+                                "RECEIVE 탭에서 생성자가 받을 금액. 생성자 본인 몫을 뺀 참여자 납부 총액이며 입금 여부와 무관하다. 정산"
+                                    + " 상세의 summary.expectedAmount와 같다. ITEM_ALLOCATION의"
+                                    + " REQUESTED·SUSPENDED 상태에서는 영수증 총액에서 생성자가 고른 몫을 뺀 값이다. PAY"
+                                    + " 탭에서는 null입니다.")
         Long receivableAmount,
         @Schema(nullable = true)
         String requesterName,
+        @Schema(
+                nullable = true,
+                description = "표시 대상 지출이 단일 영수증일 때만 상호명을 반환한다. 그 외에는 null이다."
+        )
+        String storeName,
         List<GroupSummary> groups,
-        @Schema(nullable = true, description = "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. "
-                + "정산 요청 전, 분류 전, 기능 배포 전에 요청된 정산은 null이다. 미분류면 code가 UNCATEGORIZED다.")
-        SettlementMyCategoryWebResponse myCategory
+        @Schema(nullable = true, description =
+                                "조회하는 회원 기준 카테고리. 회원이 고른 값, 없으면 자동 분류 값이다. 정산 요청 전, 분류 전, 기능 배포 전에"
+                                    + " 요청된 정산은 null이다. 미분류면 code가 UNCATEGORIZED다.")
+        SettlementMyCategoryWebResponse myCategory,
+        @Schema(nullable = true, description = "생성자가 보는 RECEIVE 정산의 다음 독촉 가능 시각. 상세와 동일하게 "
+                + "연결된 미제출·완전 미납 대상의 가장 늦은 활성 쿨다운 만료 시각입니다. "
+                + "UTC 기준 offset 없는 값이며 PAY·독촉 불가 상태·대상 또는 활성 쿨다운이 없으면 null입니다. "
+                + "null이 독촉 가능함을 보장하지 않으며 발송 API가 최종 검증합니다.")
+        LocalDateTime reminderNextAvailableAt,
+        @Schema(description = "PAY 탭에서 ITEM_ALLOCATION의 내 몫이 아직 없어 amountToPay가 총액 표시값이면 true. "
+                + "앱은 금액 대신 품목 선택 안내를 그립니다. 그 외와 RECEIVE 탭에서는 false입니다.")
+        boolean needsItemSelection
 ) {
     public static SettlementListItemWebResponse from(SettlementListItemResult result) {
         return new SettlementListItemWebResponse(
@@ -76,10 +94,13 @@ public record SettlementListItemWebResponse(
                 result.amountToPay(),
                 result.receivableAmount(),
                 result.requesterName(),
+                result.storeName(),
                 result.groups().stream()
                         .map(GroupSummary::from)
                         .toList(),
-                SettlementMyCategoryWebResponse.from(result.myCategory())
+                SettlementMyCategoryWebResponse.from(result.myCategory()),
+                result.reminderNextAvailableAt(),
+                result.needsItemSelection()
         );
     }
 

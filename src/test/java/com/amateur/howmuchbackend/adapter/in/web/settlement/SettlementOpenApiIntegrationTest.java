@@ -59,7 +59,8 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementListItemWebResponse",
                 "settlementId", "status", "requestedAt", "endedAt", "completedAt", "totalAmount", "participantCount",
-                "completedParticipantCount", "amountToPay", "receivableAmount", "requesterName", "groups"
+                "completedParticipantCount", "amountToPay", "receivableAmount", "requesterName", "groups",
+                "reminderNextAvailableAt", "needsItemSelection"
         );
         assertRequired(
                 document,
@@ -85,6 +86,22 @@ class SettlementOpenApiIntegrationTest {
                 "SettlementBulkReminderWebResponse",
                 "sentCount", "nextAvailableAt"
         );
+        assertRequired(document, "GroupSettlementListItemWebResponse", "settlementId", "viewerRole",
+                "requesterName", "requesterPublicId", "participantCount", "payableParticipantCount",
+                "completedParticipantCount", "category", "receivableAmount", "amountToPay", "reminderNextAvailableAt",
+                "needsItemSelection");
+        assertNullable(document, "GroupSettlementListItemWebResponse", "storeName", "allocationType",
+                "endedAt", "completedAt", "receivableAmount", "amountToPay", "reminderNextAvailableAt");
+        assertDescriptionContainsUtc(document, "GroupSettlementListItemWebResponse", "requestedAt");
+        assertDescriptionContainsUtc(document, "GroupSettlementListItemWebResponse", "reminderNextAvailableAt");
+        assertRequired(document, "GroupSettlementCategoryWebResponse", "code", "name", "icon");
+        assertThat(schema(document, "GroupSettlementListItemWebResponse").path("properties").path("viewerRole").toString())
+                .contains("REQUESTER", "PARTICIPANT", "NONE");
+        assertThat(schema(document, "GroupSettlementListItemWebResponse").path("properties").propertyNames())
+                .doesNotContain("accountNumber", "phoneNumber", "receivingAccountId");
+        var groupOperation = document.path("paths").path("/api/v2/groups/{groupId}/settlements").path("get");
+        assertThat(groupOperation.path("description").stringValue()).contains("제3자", "DRAFT", "압축", "활성");
+        assertThat(groupOperation.path("responses").propertyNames()).contains("200", "400", "401", "403", "404");
         assertRequired(document, "SettlementShareLinkWebResponse", "url", "expiresAt");
         assertRequired(
                 document,
@@ -103,10 +120,11 @@ class SettlementOpenApiIntegrationTest {
                 document,
                 "SettlementListItemWebResponse",
                 "endedAt", "completedAt", "totalAmount", "participantCount", "completedParticipantCount", "amountToPay",
-                "receivableAmount", "requesterName"
+                "receivableAmount", "requesterName", "storeName", "reminderNextAvailableAt"
         );
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "endedAt");
         assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "completedAt");
+        assertDescriptionContainsUtc(document, "SettlementListItemWebResponse", "reminderNextAvailableAt");
         List<JsonNode> parameters = new ArrayList<>();
         document.path("paths").path("/api/v2/settlements").path("get").path("parameters")
                 .forEach(parameters::add);
@@ -160,6 +178,14 @@ class SettlementOpenApiIntegrationTest {
         assertNullable(document, "SettlementCategoryWebResponse", "description");
         assertThat(document.path("paths").path("/api/v2/settlement-categories").path("get").isMissingNode())
                 .isFalse();
+
+        JsonNode change = document.path("paths").path("/api/v2/settlements/{settlementId}/my-category").path("put");
+        assertThat(change.isMissingNode()).isFalse();
+        assertThat(change.path("security").toString()).contains("bearerAuth");
+        assertThat(change.path("requestBody").toString()).contains("ChangeMySettlementCategoryWebRequest");
+        assertThat(change.path("responses").path("200").toString()).contains("SettlementMyCategoryWebResponse");
+        assertThat(change.path("responses").propertyNames()).contains("400", "401", "403", "404");
+        assertRequired(document, "ChangeMySettlementCategoryWebRequest", "categoryCode");
     }
 
     /**

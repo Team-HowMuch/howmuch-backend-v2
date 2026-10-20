@@ -5,6 +5,10 @@ import com.amateur.howmuchbackend.application.port.out.recap.LoadMonthlyRecapPor
 import com.amateur.howmuchbackend.application.port.out.recap.LoadRecapSourcePort;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.recap.model.MonthlyRecap;
+import com.amateur.howmuchbackend.application.recap.model.RecapCategory;
+import com.amateur.howmuchbackend.application.recap.model.RecapSourceFact;
+import com.amateur.howmuchbackend.application.recap.policy.RecapCardPolicy;
+import com.amateur.howmuchbackend.application.settlement.service.MySettlementCategoryReader;
 import com.amateur.howmuchbackend.application.recap.policy.RecapComparisonPolicy;
 import com.amateur.howmuchbackend.application.recap.policy.RecapCompanionPolicy;
 import com.amateur.howmuchbackend.application.recap.policy.RecapSummaryPolicy;
@@ -29,6 +33,8 @@ public class BuildMonthlyRecapService implements BuildMonthlyRecapUseCase {
     private final com.amateur.howmuchbackend.application.settlement.policy.SettlementItemAllocationPolicy allocationPolicy;
     private final RecapComparisonPolicy comparisonPolicy;
     private final RecapCompanionPolicy companionPolicy;
+    private final MySettlementCategoryReader categoryReader;
+    private final RecapCardPolicy cardPolicy;
 
     @Override
     @Transactional(readOnly = true)
@@ -55,8 +61,14 @@ public class BuildMonthlyRecapService implements BuildMonthlyRecapUseCase {
         }
         Long previous = snapshots.find(ownerId, month.minusMonths(1))
                 .map(recap -> recap.summary().totalOwnAmount()).orElse(null);
+        var settlementIds = facts.stream().map(RecapSourceFact::settlementId).distinct().toList();
+        java.util.Map<UUID, RecapCategory> categories = new java.util.HashMap<>();
+        categoryReader.read(ownerId, settlementIds).forEach((id, category) ->
+                categories.put(id, new RecapCategory(category.code(), category.name(), category.icon())));
+        var cards = cardPolicy.summarize(facts, categories);
         return Optional.of(new MonthlyRecap(UUID.randomUUID(), ownerId, month, owner.get().name(), summary,
                 comparisonPolicy.compare(summary.totalOwnAmount(), previous),
-                companionPolicy.select(ownerId, facts), now.truncatedTo(ChronoUnit.MICROS)));
+                companionPolicy.select(ownerId, facts), now.truncatedTo(ChronoUnit.MICROS),
+                cards.categories(), cards.record(), null));
     }
 }

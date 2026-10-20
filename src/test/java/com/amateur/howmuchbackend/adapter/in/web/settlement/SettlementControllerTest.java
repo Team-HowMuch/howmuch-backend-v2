@@ -259,11 +259,12 @@ class SettlementControllerTest {
                 null,
                 400L,
                 null,
+                null,
                 List.of(new SettlementListItemResult.GroupSummary(
                         10L,
                         "여행 모임",
                         IMAGE_VERSION
-                ))
+                )), null, CREATED_AT.plusMinutes(30)
         )));
 
         mockMvc.perform(get("/api/v2/settlements")
@@ -278,11 +279,13 @@ class SettlementControllerTest {
                         org.hamcrest.Matchers.equalTo("endedAt"), org.hamcrest.Matchers.nullValue())))
                 .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
                         org.hamcrest.Matchers.equalTo("completedAt"), org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.data[0].reminderNextAvailableAt").value("2026-08-21T09:30:00"))
                 .andExpect(jsonPath("$.data[0].totalAmount").value(600))
                 .andExpect(jsonPath("$.data[0].receivableAmount").value(400))
                 .andExpect(jsonPath("$.data[0].participantCount").value(3))
                 .andExpect(jsonPath("$.data[0].payableParticipantCount").value(2))
                 .andExpect(jsonPath("$.data[0].completedParticipantCount").value(0))
+                .andExpect(jsonPath("$.data[0].storeName").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data[0].groups[0].groupId").value(10))
                 .andExpect(jsonPath("$.data[0].groups[0].groupName").value("여행 모임"))
                 .andExpect(jsonPath("$.data[0].groups[0].groupImageUrl")
@@ -298,7 +301,7 @@ class SettlementControllerTest {
                 .thenReturn(List.of(new SettlementListItemResult(
                         SETTLEMENT_ID, SettlementStatus.COMPLETED, CREATED_AT, completedAt, completedAt,
                         null, SettlementAllocationType.DUTCH_PAY, null, null, null, 600L, null,
-                        "요청자", List.of())));
+                        "요청자", null, List.of())));
         mockMvc.perform(get("/api/v2/settlements")
                         .queryParam("tab", "PAY").queryParam("status", "COMPLETED")
                         .queryParam("groupId", "10").queryParam("yearMonth", "2026-09"))
@@ -314,12 +317,14 @@ class SettlementControllerTest {
                 SettlementListTab.RECEIVE, SettlementListStatusFilter.SUSPENDED, null, null)))
                 .thenReturn(List.of(new SettlementListItemResult(
                         SETTLEMENT_ID, SettlementStatus.SUSPENDED, CREATED_AT, suspendedAt, null,
-                        null, null, null, null, null, null, null, null, List.of())));
+                        null, null, null, null, null, null, null, null, null, List.of())));
 
         mockMvc.perform(get("/api/v2/settlements").queryParam("status", "SUSPENDED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].endedAt").value("2026-09-02T12:30:00"))
-                .andExpect(jsonPath("$.data[0].completedAt").value(org.hamcrest.Matchers.nullValue()));
+                .andExpect(jsonPath("$.data[0].completedAt").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.hasEntry(
+                        org.hamcrest.Matchers.equalTo("reminderNextAvailableAt"), org.hamcrest.Matchers.nullValue())));
     }
 
     @Test
@@ -985,10 +990,10 @@ class SettlementControllerTest {
                 .thenReturn(List.of(
                         new SettlementListItemResult(SETTLEMENT_ID, SettlementStatus.AWAITING_DEPOSIT, CREATED_AT,
                                 null, null, 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null,
-                                List.of(), cafe),
+                                null, List.of(), cafe),
                         new SettlementListItemResult(uncategorizedId, SettlementStatus.AWAITING_DEPOSIT, CREATED_AT,
                                 null, null, 600L, SettlementAllocationType.DUTCH_PAY, 2, 1, 0, null, 300L, null,
-                                List.of())));
+                                null, List.of())));
 
         mockMvc.perform(get("/api/v2/settlements"))
                 .andExpect(status().isOk())

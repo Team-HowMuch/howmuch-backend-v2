@@ -8,7 +8,6 @@ import com.amateur.howmuchbackend.application.port.out.notification.LoadNotifica
 import com.amateur.howmuchbackend.application.port.out.notification.MarkNotificationReadPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.notification.UserNotification;
-import com.amateur.howmuchbackend.domain.notification.NotificationType;
 import com.amateur.howmuchbackend.domain.notification.status.NotificationStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import lombok.RequiredArgsConstructor;
@@ -66,7 +65,12 @@ public class MyNotificationService implements GetMyNotificationsUseCase, CountMy
             case GROUP_INVITATION -> "초대 확인하기";
             case GROUP_MEMBER_LEFT -> "그룹 확인하기";
             case MONTHLY_RECAP -> "리캡 확인하기";
-        };
+            case FINANCE_AUTH_REQUIRED -> "인증 계속하기";
+                    case GROUP_NETTING_CONFIRMED,
+                                    GROUP_NETTING_COMPLETED,
+                                    NETTED_TRANSFER_REMINDER ->
+                            "최종 송금 확인하기";
+                };
         String actionType = n.target() == null ? switch (n.type()) {
             case GROUP_INVITATION -> "GROUP_INVITATION";
             case GROUP_MEMBER_LEFT -> "GROUP_DETAIL";

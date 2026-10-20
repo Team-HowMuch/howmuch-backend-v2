@@ -81,6 +81,26 @@ class TitleHintVerificationTest {
         assertThat(policy.matchesTitle(settlement("여행 정산"), null)).isTrue();
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "8월 모임 보낼 돈 알려줘, 8월 모임, 8월모임",
+            "8월모임 보낼 돈 알려줘, 8월 모임, 8월모임",
+            "mt 정산 어떻게 됐어?, MT, MT"
+    })
+    @DisplayName("LLM이 준 이름은 공백을 빼고 질문에 그대로 있을 때만 쓴다")
+    void llmHint_inQuestion_compacted(String question, String candidate, String expected) {
+        assertThat(policy.fromQuestion(question, candidate)).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("질문에 없는 이름이나 빈 이름은 LLM이 지어낸 것으로 보고 쓰지 않는다")
+    void llmHint_notInQuestion_rejected() {
+        assertThat(policy.fromQuestion("보낼 돈 알려줘", "제주 여행")).isNull();
+        assertThat(policy.fromQuestion("8월 모임 보낼 돈", "모임 8월")).isNull();
+        assertThat(policy.fromQuestion("보낼 돈 알려줘", " ")).isNull();
+        assertThat(policy.fromQuestion("보낼 돈 알려줘", null)).isNull();
+    }
+
     private PersonalSettlement settlement(String title) {
         return new PersonalSettlement(
                 UUID.randomUUID(),

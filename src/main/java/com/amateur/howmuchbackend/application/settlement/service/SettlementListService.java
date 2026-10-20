@@ -13,9 +13,11 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +26,7 @@ public class SettlementListService implements GetSettlementsUseCase {
     private final LoadSettlementListPort loadSettlementListPort;
     private final RequestedItemReceivableCalculator requestedItemReceivableCalculator;
     private final MySettlementCategoryReader myCategoryReader;
+    private final SettlementReminderCooldownReader cooldownReader;
 
     @Override
     public List<SettlementListItemResult> get(GetSettlementsCommand command) {
@@ -40,6 +43,10 @@ public class SettlementListService implements GetSettlementsUseCase {
                 : Map.of();
         Map<UUID, SettlementCategoryResult> myCategories = myCategoryReader.read(
                 userId, items.stream().map(SettlementListReadModel::settlementId).toList());
+        Map<UUID, LocalDateTime> reminderTimes = command.tab() == SettlementListTab.RECEIVE
+                ? cooldownReader.findLatestNextAvailableAt(items.stream().collect(Collectors.toMap(
+                        SettlementListReadModel::settlementId, SettlementListReadModel::status)))
+                : Map.of();
         return items.stream()
                 .map(item -> new SettlementListItemResult(
                         item.settlementId(),
@@ -55,6 +62,7 @@ public class SettlementListService implements GetSettlementsUseCase {
                         amountToPay(item, command.tab()),
                         receivableAmount(item, command.tab(), requestedReceivables),
                         item.requesterName(),
+                        item.storeName(),
                         item.groups().stream()
                                 .map(group -> new SettlementListItemResult.GroupSummary(
                                         group.groupId(),
@@ -62,7 +70,9 @@ public class SettlementListService implements GetSettlementsUseCase {
                                         group.imageVersion()
                                 ))
                                 .toList(),
-                        myCategories.get(item.settlementId())
+                        myCategories.get(item.settlementId()),
+                        reminderTimes.get(item.settlementId()),
+                        needsItemSelection(item, command.tab())
                 ))
                 .toList();
     }
@@ -87,12 +97,19 @@ public class SettlementListService implements GetSettlementsUseCase {
         if (tab != SettlementListTab.PAY) {
             return null;
         }
-        if (item.amountToPay() == null
+        return usesTotalAsAmountToPay(item) ? item.totalAmount() : item.amountToPay();
+    }
+
+    /** 앱이 금액 대신 품목 선택 안내를 그릴 수 있게, 총액 표시값을 쓰는 사실을 그대로 알린다. */
+    private boolean needsItemSelection(SettlementListReadModel item, SettlementListTab tab) {
+        return tab == SettlementListTab.PAY && usesTotalAsAmountToPay(item);
+    }
+
+    /** 품목 정산의 선택 대기·중단 상태에서 본인 Share가 없으면 개인 금액 대신 정산 총액을 목록에 보여 준다. */
+    private boolean usesTotalAsAmountToPay(SettlementListReadModel item) {
+        return item.amountToPay() == null
                 && item.allocationType() == SettlementAllocationType.ITEM_ALLOCATION
                 && (item.status() == SettlementStatus.REQUESTED
-                || item.status() == SettlementStatus.SUSPENDED)) {
-            return item.totalAmount();
-        }
-        return item.amountToPay();
+                || item.status() == SettlementStatus.SUSPENDED);
     }
 }

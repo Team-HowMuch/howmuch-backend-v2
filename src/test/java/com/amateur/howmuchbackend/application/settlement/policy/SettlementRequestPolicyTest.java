@@ -49,7 +49,7 @@ class SettlementRequestPolicyTest {
     }
 
     @Test
-    @DisplayName("누락·0원·총액 불일치 더치페이 배분은 요청 확정하지 않는다")
+    @DisplayName("누락·총액 불일치 더치페이 배분은 요청 확정하지 않는다")
     void settlementRequest_dutchPayInvalidAllocation_rejected() {
         assertStatus(
                 List.of(allocation(CREATOR_PARTICIPANT_ID, 10_000)),
@@ -58,9 +58,9 @@ class SettlementRequestPolicyTest {
         assertStatus(
                 List.of(
                         allocation(CREATOR_PARTICIPANT_ID, 0),
-                        allocation(PAYER_PARTICIPANT_ID, 10_000)
+                        allocation(PAYER_PARTICIPANT_ID, 0)
                 ),
-                SettlementStatusCode.SETTLEMENT_SHARE_AMOUNT_REQUIRED
+                SettlementStatusCode.SETTLEMENT_SHARE_TOTAL_MISMATCH
         );
         assertStatus(
                 List.of(
@@ -130,6 +130,22 @@ class SettlementRequestPolicyTest {
         assertThatThrownBy(() -> policy.validateItemTotal(List.of(item), List.of(expense), 9_000))
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(SettlementStatusCode.SETTLEMENT_ITEM_TOTAL_MISMATCH));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"0,10000", "10000,0"})
+    @DisplayName("생성자 또는 다른 참여자의 0원 배분은 Share 없이 요청한다")
+    void settlementRequest_zeroAmount_createsOnlyPositiveShare(long creatorAmount, long payerAmount) {
+        var shares = policy.prepareShares(
+                settlement(SettlementAllocationType.DUTCH_PAY), participants(), expenses(), List.of(),
+                List.of(allocation(CREATOR_PARTICIPANT_ID, creatorAmount),
+                        allocation(PAYER_PARTICIPANT_ID, payerAmount)), NOW);
+
+        assertThat(shares).singleElement().satisfies(share -> {
+            assertThat(share.amount()).isEqualTo(10_000);
+            assertThat(share.payerParticipantId()).isEqualTo(
+                    creatorAmount > 0 ? CREATOR_PARTICIPANT_ID : PAYER_PARTICIPANT_ID);
+        });
     }
 
     private void assertStatus(

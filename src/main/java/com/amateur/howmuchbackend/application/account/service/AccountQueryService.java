@@ -1,8 +1,6 @@
 package com.amateur.howmuchbackend.application.account.service;
 
-import com.amateur.howmuchbackend.application.account.AccountTransactionKey;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
-import com.amateur.howmuchbackend.application.account.model.BankAccountCredentials;
 import com.amateur.howmuchbackend.application.account.policy.AccountTransactionDisplayNormalizer;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountDetailUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.GetAccountTransactionsUseCase;
@@ -12,29 +10,22 @@ import com.amateur.howmuchbackend.application.port.in.account.result.AccountDeta
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountSummaryResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountTransactionResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.BankCatalogResult;
+import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionCoveragePort;
+import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionRefreshStorePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
-import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
-import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionRefreshStorePort;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
-import com.amateur.howmuchbackend.application.port.out.external.BankTransactionPort;
-import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.account.Account;
 import com.amateur.howmuchbackend.domain.account.AccountMonthlySummary;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
 import com.amateur.howmuchbackend.domain.account.Transaction;
 import com.amateur.howmuchbackend.domain.account.status.AccountStatusCode;
-import com.amateur.howmuchbackend.domain.external.ExternalConnection;
-import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -51,17 +42,13 @@ public class AccountQueryService
         implements GetAccountsUseCase, GetAccountDetailUseCase, GetAccountTransactionsUseCase {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final String DEMAND_DEPOSIT = "11";
-    private static final Duration CURRENT_MONTH_REFRESH_TTL = Duration.ofMinutes(1);
 
     private final CurrentActorPort currentActorPort;
     private final LoadAccountPort loadAccountPort;
     private final LoadAccountTransactionPort loadTransactionPort;
-    private final SaveAccountTransactionPort saveTransactionPort;
+    private final AccountTransactionCoveragePort coveragePort;
     private final AccountTransactionRefreshStorePort refreshStorePort;
-    private final ExternalConnectionStorePort connectionStorePort;
-    private final BankTransactionPort bankTransactionPort;
     private final BankCatalog bankCatalog;
-    private final AccountCredentialProtectionService credentialProtection;
     private final AccountTransactionDisplayNormalizer transactionDisplayNormalizer;
     private final Clock clock;
 
@@ -92,12 +79,15 @@ public class AccountQueryService
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public AccountDetailResult getAccountDetail(Long accountId, YearMonth requestedYearMonth) {
         Account account = ownedAccount(accountId);
+        ensureTransactionSupported(account);
         LocalDate today = today();
         YearMonth yearMonth = yearMonth(requestedYearMonth, today);
-        AccountMonthlySummary summary = summary(account, yearMonth, today);
+        AccountMonthlySummary summary = summary(account.id(), yearMonth);
+        boolean syncInProgress = syncInProgress(account.id(), yearMonth);
+        LocalDateTime lastSyncedAt = lastSyncedAt(account.id(), yearMonth);
         BankCatalogResult institution = institutions().get(account.organization());
         return new AccountDetailResult(
                 account.id(),
@@ -111,17 +101,20 @@ public class AccountQueryService
                 yearMonth,
                 summary.monthlyExpenseAmount(),
                 summary.expenseCount(),
-                summary.lastUsedAt()
+                summary.lastUsedAt(),
+                lastSyncedAt != null && (yearMonth.equals(YearMonth.from(today)) || coversMonth(account.id(), yearMonth)),
+                lastSyncedAt,
+                syncInProgress
         );
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public List<AccountTransactionResult> getAccountTransactions(Long accountId, YearMonth requestedYearMonth) {
         Account account = ownedAccount(accountId);
+        ensureTransactionSupported(account);
         LocalDate today = today();
         YearMonth yearMonth = yearMonth(requestedYearMonth, today);
-        summary(account, yearMonth, today);
         List<Transaction> transactions = loadTransactionPort.findByAccountIdAndYearMonth(
                 account.id(),
                 yearMonth
@@ -165,80 +158,39 @@ public class AccountQueryService
                 .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
     }
 
-    private AccountMonthlySummary summary(Account account, YearMonth yearMonth, LocalDate today) {
-        YearMonth currentMonth = YearMonth.from(today);
-        var existing = loadTransactionPort.findSummary(account.id(), yearMonth);
-        if (existing.isPresent()
-                && (!yearMonth.equals(currentMonth) || refreshStorePort.isFresh(account.id(), yearMonth))) {
-            return existing.get();
-        }
-        boolean refreshMarkerRequired = yearMonth.equals(currentMonth);
-        AccountMonthlySummary refreshed = refreshSummary(account, yearMonth, today);
-        if (refreshMarkerRequired) {
-            markRefreshFreshAfterCommit(account.id(), yearMonth);
-        }
-        return refreshed;
+    private AccountMonthlySummary summary(Long accountId, YearMonth yearMonth) {
+        return loadTransactionPort.findSummary(accountId, yearMonth)
+                .orElseGet(() -> loadTransactionPort.calculateSummary(accountId, yearMonth));
     }
 
-    private void markRefreshFreshAfterCommit(Long accountId, YearMonth yearMonth) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()
-                || !TransactionSynchronizationManager.isActualTransactionActive()) {
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                refreshStorePort.markFresh(accountId, yearMonth, CURRENT_MONTH_REFRESH_TTL);
-            }
-        });
-    }
-
-    private AccountMonthlySummary refreshSummary(Account account, YearMonth yearMonth, LocalDate today) {
+    private void ensureTransactionSupported(Account account) {
         if (account.productCode() != null && !DEMAND_DEPOSIT.equals(account.productCode())) {
             throw ApplicationException.of(AccountStatusCode.ACCOUNT_TRANSACTION_NOT_SUPPORTED);
         }
-        ExternalConnection connection = connectionStorePort.findActiveByIdAndUserId(
-                        account.externalConnectionId(), account.userId()
-                )
-                .orElseThrow(() -> ApplicationException.of(
-                        ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND
-                ));
-        Account activeAccount = loadAccountPort.findActiveByIdAndUserIdForUpdate(
-                        account.id(), account.userId()
-                )
-                .orElseThrow(() -> ApplicationException.of(AccountStatusCode.ACCOUNT_NOT_FOUND));
-        BankAccountCredentials credentials = bankCatalog.requiresAccountCredentials(activeAccount.organization())
-                ? credentialProtection.reveal(account.userId(), connection.id(), activeAccount.organization()) : null;
-        LocalDate endDate = yearMonth.equals(YearMonth.from(today))
-                ? today
-                : yearMonth.atEndOfMonth();
-        List<Transaction> transactions = bankTransactionPort.fetch(
-                        connection.connectedId(),
-                        activeAccount.organization(),
-                        activeAccount.externalAccountKey(),
-                        yearMonth.atDay(1),
-                        endDate,
-                        credentials
-                ).stream()
-                .map(transaction -> new Transaction(
-                        null,
-                        activeAccount.id(),
-                        AccountTransactionKey.from(activeAccount.externalAccountKey(), transaction),
-                        transaction.type(),
-                        transaction.amount(),
-                        transaction.transactedAt(),
-                        transaction.description(),
-                        transaction.afterBalance(),
-                        transaction.description1(),
-                        transaction.description2(),
-                        transaction.description3(),
-                        transaction.description4()
-                ))
-                .toList();
-        saveTransactionPort.saveAllIgnoringDuplicates(transactions);
-        AccountMonthlySummary calculated = loadTransactionPort.calculateSummary(activeAccount.id(), yearMonth);
-        saveTransactionPort.saveSummaryIfAbsent(calculated);
-        return loadTransactionPort.findSummary(activeAccount.id(), yearMonth).orElse(calculated);
+    }
+
+    private boolean coversMonth(Long accountId, YearMonth month) {
+        try {
+            return coveragePort.coversMonth(accountId, month);
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private boolean syncInProgress(Long accountId, YearMonth month) {
+        try {
+            return refreshStorePort.isSyncInProgress(accountId, month);
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private LocalDateTime lastSyncedAt(Long accountId, YearMonth yearMonth) {
+        try {
+            return coveragePort.findCoveredAt(accountId, yearMonth).orElse(null);
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private YearMonth yearMonth(YearMonth requested, LocalDate today) {

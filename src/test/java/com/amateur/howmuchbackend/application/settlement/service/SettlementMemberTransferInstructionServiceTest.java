@@ -1,13 +1,21 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
+
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
-import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementTransferLinkPort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
@@ -21,8 +29,8 @@ import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,13 +39,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("회원 참여자 송금 안내 Application 흐름")
@@ -72,9 +73,12 @@ class SettlementMemberTransferInstructionServiceTest {
                         loadSettlementSharePort,
                         loadDepositSummaryPort,
                         loadSnapshotPort,
+                        loadSettlementParticipantPort,
                         List.of(transferLinkPort),
-                        bankCatalog
-                )
+                        bankCatalog,
+                                org.mockito.Mockito.mock(
+                                        com.amateur.howmuchbackend.application.port.out.settlement
+                                                .netting.NettingTransferAvailabilityPort.class))
         );
     }
 
@@ -97,7 +101,9 @@ class SettlementMemberTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID))
+                .thenReturn(Optional.of(participant(MY_PARTICIPANT_ID, MY_USER_ID)));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아", "내 이름"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?accountNo=1002123456789&amount=6000"
@@ -161,7 +167,9 @@ class SettlementMemberTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID))
+                .thenReturn(Optional.of(participant(MY_PARTICIPANT_ID, MY_USER_ID)));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아", "내 이름"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?accountNo=1002123456789&amount=6000"
@@ -191,7 +199,9 @@ class SettlementMemberTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID))
+                .thenReturn(Optional.of(participant(MY_PARTICIPANT_ID, MY_USER_ID)));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아", "내 이름"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?accountNo=1002123456789&amount=6000"
@@ -251,7 +261,9 @@ class SettlementMemberTransferInstructionServiceTest {
                 ));
         String url = "supertoss://send?accountNo=1002123456789&amount=" + expectedAmount;
         if (expectedAmount > 0) {
-            when(transferLinkPort.create("0020", "1002123456789", expectedAmount, "최수아"))
+            when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID))
+                    .thenReturn(Optional.of(participant(MY_PARTICIPANT_ID, MY_USER_ID)));
+            when(transferLinkPort.create("0020", "1002123456789", expectedAmount, "최수아", "내 이름"))
                     .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink("TOSS", url)));
         }
 
@@ -264,10 +276,11 @@ class SettlementMemberTransferInstructionServiceTest {
         if (expectedAmount == 0) {
             assertThat(result.transferLinks()).isEmpty();
             verifyNoInteractions(transferLinkPort);
+            verify(loadSettlementParticipantPort, never()).findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID);
         } else {
             assertThat(result.transferLinks()).singleElement()
                     .satisfies(link -> assertThat(link.url()).isEqualTo(url));
-            verify(transferLinkPort).create("0020", "1002123456789", expectedAmount, "최수아");
+            verify(transferLinkPort).create("0020", "1002123456789", expectedAmount, "최수아", "내 이름");
         }
         verify(loadDepositSummaryPort).findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID);
     }
@@ -292,7 +305,7 @@ class SettlementMemberTransferInstructionServiceTest {
                 userId,
                 null,
                 null,
-                "참여자",
+                participantId.equals(MY_PARTICIPANT_ID) ? "내 이름" : "다른 참여자",
                 0,
                 CREATED_AT,
                 CREATED_AT

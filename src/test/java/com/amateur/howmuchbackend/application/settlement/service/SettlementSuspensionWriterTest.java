@@ -1,5 +1,6 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
@@ -49,6 +50,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("정산 중단 final writer")
 class SettlementSuspensionWriterTest {
+    @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final Long CREATOR_ID = 11L;
     private static final Long PAYER_ID = 22L;
     private static final UUID SETTLEMENT_ID = UUID.randomUUID();
@@ -84,7 +86,8 @@ class SettlementSuspensionWriterTest {
                 depositReader,
                 depositStorePort,
                 policy,
-                saveSettlementPort
+                saveSettlementPort,
+                estimateInvalidation
         );
         settlement = new Settlement(
                 SETTLEMENT_ID, CREATOR_ID, "공동 정산", 1000,

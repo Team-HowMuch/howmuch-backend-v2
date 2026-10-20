@@ -9,6 +9,7 @@ import com.amateur.howmuchbackend.application.port.in.account.GetBankCatalogUseC
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.ReplaceAccountDisplayOrdersUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.SetDefaultAccountUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.SyncAccountTransactionsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.UpdateAccountDisplayOrderUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.command.ReplaceAccountDisplayOrdersCommand;
 import com.amateur.howmuchbackend.application.port.in.account.command.UpdateAccountDisplayOrderCommand;
@@ -16,6 +17,7 @@ import com.amateur.howmuchbackend.application.port.in.account.command.GetAccount
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountDetailResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountSummaryResult;
 import com.amateur.howmuchbackend.application.port.in.account.result.AccountTransactionResult;
+import com.amateur.howmuchbackend.application.port.in.account.result.AccountTransactionSyncResult;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.GlobalExceptionHandler;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
@@ -44,6 +46,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -56,6 +59,7 @@ class AccountControllerTest {
     @Mock private GetAccountsUseCase getAccountsUseCase;
     @Mock private GetAccountDetailUseCase getAccountDetailUseCase;
     @Mock private GetAccountTransactionsUseCase getAccountTransactionsUseCase;
+    @Mock private SyncAccountTransactionsUseCase syncAccountTransactionsUseCase;
     @Mock private DeleteAccountUseCase deleteAccountUseCase;
     @Mock private SetDefaultAccountUseCase setDefaultAccountUseCase;
     @Mock private UpdateAccountDisplayOrderUseCase updateAccountDisplayOrderUseCase;
@@ -72,6 +76,7 @@ class AccountControllerTest {
                 getAccountsUseCase,
                 getAccountDetailUseCase,
                 getAccountTransactionsUseCase,
+                syncAccountTransactionsUseCase,
                 deleteAccountUseCase,
                 setDefaultAccountUseCase,
                 updateAccountDisplayOrderUseCase,
@@ -107,14 +112,17 @@ class AccountControllerTest {
         when(getAccountDetailUseCase.getAccountDetail(1L, august)).thenReturn(new AccountDetailResult(
                 1L, "0020", "우리은행", "woori.png", "생활비 통장", "****6789",
                 true, 0, august, new BigDecimal("12500.0000"), 1,
-                LocalDateTime.of(2026, 8, 20, 0, 15)
+                LocalDateTime.of(2026, 8, 20, 0, 15), false, null, true
         ));
 
         mockMvc.perform(get("/api/v2/accounts/1").param("yearMonth", "2026-08"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.yearMonth").value("2026-08"))
                 .andExpect(jsonPath("$.data.monthlyExpenseAmount").value(12500.0000))
-                .andExpect(jsonPath("$.data.expenseCount").value(1));
+                .andExpect(jsonPath("$.data.expenseCount").value(1))
+                .andExpect(jsonPath("$.data.synced").value(false))
+                .andExpect(jsonPath("$.data.syncInProgress").value(true))
+                .andExpect(jsonPath("$.data.lastSyncedAt").doesNotExist());
     }
 
     @Test
@@ -148,6 +156,32 @@ class AccountControllerTest {
                         .value("AWAITING_DEPOSIT"))
                 .andExpect(jsonPath("$.data[0].display.title").value("식당"))
                 .andExpect(jsonPath("$.data[0].display.kind").value("OTHER"));
+    }
+
+    @Test
+    @DisplayName("거래 동기화 결과를 동기화 계약 필드로 반환한다")
+    void transactionsSync_returnsSyncResult() throws Exception {
+        YearMonth august = YearMonth.of(2026, 8);
+        when(syncAccountTransactionsUseCase.sync(1L, august)).thenReturn(new AccountTransactionSyncResult(
+                1L, august, true, false, LocalDateTime.of(2026, 8, 31, 3, 0),
+                august.atDay(1), august.atEndOfMonth(), 3,
+                new BigDecimal("12500.0000"), 1, LocalDateTime.of(2026, 8, 20, 0, 15)
+        ));
+
+        mockMvc.perform(post("/api/v2/accounts/1/transactions/sync")
+                        .param("yearMonth", "2026-08"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accountId").value(1))
+                .andExpect(jsonPath("$.data.yearMonth").value("2026-08"))
+                .andExpect(jsonPath("$.data.refreshed").value(true))
+                .andExpect(jsonPath("$.data.syncInProgress").value(false))
+                .andExpect(jsonPath("$.data.fetchedFrom").value("2026-08-01"))
+                .andExpect(jsonPath("$.data.fetchedTo").value("2026-08-31"))
+                .andExpect(jsonPath("$.data.fetchedCount").value(3))
+                .andExpect(jsonPath("$.data.monthlyExpenseAmount").value(12500.0000))
+                .andExpect(jsonPath("$.data.expenseCount").value(1));
+
+        verify(syncAccountTransactionsUseCase).sync(1L, august);
     }
 
     @Test

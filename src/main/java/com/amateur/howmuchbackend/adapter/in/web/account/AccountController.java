@@ -10,6 +10,7 @@ import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.BankConnec
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.LinkedAccountsWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.AccountDetailWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.AccountSummaryWebResponse;
+import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.AccountTransactionSyncWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.account.dto.response.AccountTransactionWebResponse;
 import com.amateur.howmuchbackend.adapter.in.web.common.ApiResponse;
 import com.amateur.howmuchbackend.application.port.in.account.ConnectBankUseCase;
@@ -21,6 +22,7 @@ import com.amateur.howmuchbackend.application.port.in.account.GetBankCatalogUseC
 import com.amateur.howmuchbackend.application.port.in.account.LinkBankAccountsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.ReplaceAccountDisplayOrdersUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.SetDefaultAccountUseCase;
+import com.amateur.howmuchbackend.application.port.in.account.SyncAccountTransactionsUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.UpdateAccountDisplayOrderUseCase;
 import com.amateur.howmuchbackend.application.port.in.account.command.GetAccountsQuery;
 import com.amateur.howmuchbackend.domain.account.AccountSort;
@@ -49,6 +51,7 @@ public class AccountController implements AccountDocs {
     private final GetAccountsUseCase getAccountsUseCase;
     private final GetAccountDetailUseCase getAccountDetailUseCase;
     private final GetAccountTransactionsUseCase getAccountTransactionsUseCase;
+    private final SyncAccountTransactionsUseCase syncAccountTransactionsUseCase;
     private final DeleteAccountUseCase deleteAccountUseCase;
     private final SetDefaultAccountUseCase setDefaultAccountUseCase;
     private final UpdateAccountDisplayOrderUseCase updateAccountDisplayOrderUseCase;
@@ -85,6 +88,17 @@ public class AccountController implements AccountDocs {
         return ApiResponse.success(getAccountTransactionsUseCase.getAccountTransactions(accountId, yearMonth).stream()
                 .map(AccountTransactionWebResponse::from)
                 .toList());
+    }
+
+    @Override
+    @PostMapping("/{accountId}/transactions/sync")
+    public ApiResponse<AccountTransactionSyncWebResponse> syncAccountTransactions(
+            @PathVariable Long accountId,
+            @RequestParam(required = false) YearMonth yearMonth
+    ) {
+        return ApiResponse.success(AccountTransactionSyncWebResponse.from(
+                syncAccountTransactionsUseCase.sync(accountId, yearMonth)
+        ));
     }
 
     @Override

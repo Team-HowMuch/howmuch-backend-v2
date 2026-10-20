@@ -1,4 +1,9 @@
 spring:
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
   application:
     name: howmuch-backend-v2
   jackson:
@@ -92,6 +97,18 @@ howmuch:
     invite:
       base-url: ${GROUP_INVITE_BASE_URL:http://localhost:8080/groups/join}
   settlement:
+    netting:
+      enabled: ${SETTLEMENT_NETTING_ENABLED:false}
+      estimate-cache:
+        ttl: ${SETTLEMENT_NETTING_ESTIMATE_CACHE_TTL:30s}
+        lease: ${SETTLEMENT_NETTING_ESTIMATE_CACHE_LEASE:10s}
+      pair-reduction:
+        enabled: ${SETTLEMENT_NETTING_PAIR_REDUCTION_ENABLED:true}
+    recurring:
+      enabled: ${SETTLEMENT_RECURRING_ENABLED:false}
+      poll-enabled: ${SETTLEMENT_RECURRING_POLL_ENABLED:true}
+      poll-interval: ${SETTLEMENT_RECURRING_POLL_INTERVAL:1m}
+      batch-size: ${SETTLEMENT_RECURRING_BATCH_SIZE:50}
     transfer-link:
       adapter: ${SETTLEMENT_TRANSFER_LINK_ADAPTER:toss}
       mock:
@@ -131,6 +148,10 @@ howmuch:
     generation:
       enabled: ${RECAP_GENERATION_ENABLED:false}
       poll-interval: 30s
+    publication:
+      enabled: ${RECAP_PUBLICATION_ENABLED:false}
+      poll-interval: 10s
+      initial-delay: 30s
     image:
       storage-dir: ${RECAP_IMAGE_STORAGE_DIR:./uploads/recap-images}
   profile:
@@ -146,6 +167,8 @@ howmuch:
       private-key-path: ${APNS_PRIVATE_KEY_PATH:}
       environment: ${APNS_ENVIRONMENT:dev}
   codef:
+    additional-auth:
+      enabled: ${CODEF_SMS_ADDITIONAL_AUTH_ENABLED:false}
     base-url: ${CODEF_BASE_URL:https://development.codef.io}
     oauth-url: ${CODEF_OAUTH_URL:https://oauth.codef.io/oauth/token}
     client-id: ${CODEF_CLIENT_ID:}

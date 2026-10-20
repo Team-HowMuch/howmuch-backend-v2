@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadMySettlementCategoryPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveMySettlementCategoryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -20,12 +22,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @Transactional
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
-@DisplayName("내 카테고리 조회 저장소")
+@DisplayName("내 카테고리 조회·저장 저장소")
 class SettlementUserCategoryJdbcAdapterIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 15, 3, 0);
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private LoadMySettlementCategoryPort port;
+    @Autowired private SaveMySettlementCategoryPort savePort;
 
     private Long creator;
     private Long member;
@@ -62,6 +65,53 @@ class SettlementUserCategoryJdbcAdapterIntegrationTest {
                 uncategorized, "UNCATEGORIZED",
                 onlyOverride, "LIVING"));
         assertThat(port.findCategoryCodes(member, List.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("처음 고르면 행을 만들고, 다시 고르면 그 회원 행만 덮어쓰며 생성 시각은 그대로다")
+    void save_insertsThenOverwritesOwnRowOnly() {
+        UUID settlementId = settlement();
+        classify(settlementId, "CAFE_SNACK", "RULE");
+        override(settlementId, creator, "LIVING");
+        LocalDateTime later = NOW.plusHours(1);
+
+        savePort.save(settlementId, member, "FOOD", NOW);
+        savePort.save(settlementId, member, "UNCATEGORIZED", later);
+        savePort.save(settlementId, member, "UNCATEGORIZED", later);
+
+        assertThat(row(settlementId, member))
+                .containsEntry("category_code", "UNCATEGORIZED")
+                .containsEntry("created_at", Timestamp.valueOf(NOW))
+                .containsEntry("updated_at", Timestamp.valueOf(later));
+        assertThat(row(settlementId, creator)).containsEntry("category_code", "LIVING");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM settlement_user_categories WHERE settlement_id = ?",
+                Integer.class, settlementId)).isEqualTo(2);
+        assertThat(port.findCategoryCodes(member, List.of(settlementId)))
+                .containsExactlyEntriesOf(Map.of(settlementId, "UNCATEGORIZED"));
+        assertThat(port.findCategoryCodes(creator, List.of(settlementId)))
+                .containsExactlyEntriesOf(Map.of(settlementId, "LIVING"));
+    }
+
+    @Test
+    @DisplayName("덮어쓸 때 시각이 생성 시각보다 이르면 수정 시각을 생성 시각으로 맞춰 DB 제약을 지킨다")
+    void save_clockMovedBackward_keepsUpdatedAtNotBeforeCreatedAt() {
+        UUID settlementId = settlement();
+        savePort.save(settlementId, member, "FOOD", NOW);
+
+        savePort.save(settlementId, member, "LIVING", NOW.minusMinutes(5));
+
+        assertThat(row(settlementId, member))
+                .containsEntry("category_code", "LIVING")
+                .containsEntry("created_at", Timestamp.valueOf(NOW))
+                .containsEntry("updated_at", Timestamp.valueOf(NOW));
+    }
+
+    private Map<String, Object> row(UUID settlementId, Long userId) {
+        return jdbc.queryForMap("""
+                SELECT category_code, created_at, updated_at
+                FROM settlement_user_categories
+                WHERE settlement_id = ? AND user_id = ?
+                """, settlementId, userId);
     }
 
     private Long user(String prefix) {

@@ -56,7 +56,7 @@ public class CertificatePairingJdbcAdapter implements CertificatePairingStorePor
                             + " AND (EXISTS(SELECT 1 FROM certificate_provider_command_inbox j"
                             + " WHERE j.session_id=s.id AND j.command_type='REGISTER' AND"
                             + " j.provider_request_started_at IS NOT NULL AND j.status IN"
-                            + " ('PROCESSING','UNKNOWN')) OR EXISTS(SELECT 1 FROM"
+                            + " ('PROCESSING','WAITING_AUTH','UNKNOWN')) OR EXISTS(SELECT 1 FROM"
                             + " certificate_provider_connections c WHERE c.session_id=s.id AND"
                             + " c.status='READY')))",
                         Boolean.class,
@@ -100,8 +100,9 @@ public class CertificatePairingJdbcAdapter implements CertificatePairingStorePor
 
     public void pair(UUID id, long user, String organization, LocalDateTime now) {
         if (jdbc.update(
-                        "UPDATE certificate_pc_pairings SET paired_user_id=?,paired_at=?,organization_code=? WHERE id=?"
-                                + " AND paired_user_id IS NULL AND cancelled_at IS NULL AND"
+                        "UPDATE certificate_pc_pairings SET"
+                                + " paired_user_id=?,paired_at=?,organization_code=? WHERE id=? AND"
+                                + " paired_user_id IS NULL AND cancelled_at IS NULL AND"
                                 + " qr_expires_at>?",
                         user,
                         now,
@@ -117,11 +118,11 @@ public class CertificatePairingJdbcAdapter implements CertificatePairingStorePor
                             + " registration_session_id=?,registration_pc_capability_hash=?,"
                             + " authentication_prepared=FALSE,existing_connection_id=NULL WHERE"
                             + " id=? AND (registration_session_id IS NULL OR EXISTS (SELECT 1 FROM"
-                            + " certificate_registration_sessions s WHERE s.id=registration_session_id"
-                            + " AND s.status='FAILED' AND s.approval_id IS NULL"
-                            + " AND s.current_claim_id IS NULL AND s.approved_user_id IS NULL))"
-                            + " AND paired_user_id IS NOT"
-                            + " NULL AND cancelled_at IS NULL",
+                            + " certificate_registration_sessions s WHERE"
+                            + " s.id=registration_session_id AND s.status='FAILED' AND"
+                            + " s.approval_id IS NULL AND s.current_claim_id IS NULL AND"
+                            + " s.approved_user_id IS NULL)) AND paired_user_id IS NOT NULL AND"
+                            + " cancelled_at IS NULL",
                         session,
                         registrationPcHash,
                         id)

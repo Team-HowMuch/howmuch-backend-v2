@@ -29,8 +29,10 @@ public class RecapSourcePersistenceAdapter implements LoadRecapSourcePort {
         java.util.Map<UUID, com.amateur.howmuchbackend.application.recap.model.RecapAllocationFacts> allocations = new java.util.HashMap<>();
         return jdbc.query("""
                 WITH target AS (
-                    SELECT s.id, s.updated_at, s.allocation_type, s.total_amount
+                    SELECT s.id, s.updated_at, s.allocation_type, s.total_amount, s.title,
+                           link.created_at AS requested_at
                     FROM settlements s
+                    LEFT JOIN settlement_links link ON link.settlement_id = s.id
                     WHERE s.status = 'COMPLETED' AND s.deleted_at IS NULL
                       AND s.updated_at >= :start AND s.updated_at < :end
                       AND (s.creator_id = :owner OR EXISTS (
@@ -38,7 +40,8 @@ public class RecapSourcePersistenceAdapter implements LoadRecapSourcePort {
                           WHERE member.settlement_id = s.id AND member.linked_user_id = :owner
                       ))
                 ), own AS (
-                    SELECT t.id, t.updated_at, t.total_amount, t.allocation_type, share.amount AS own_amount,
+                    SELECT t.id, t.updated_at, t.total_amount, t.allocation_type, t.title, t.requested_at,
+                           share.amount AS own_amount,
                            member.id AS own_participant_id, submission.id IS NOT NULL AS own_submitted
                     FROM target t
                     LEFT JOIN settlement_participants member
@@ -49,6 +52,7 @@ public class RecapSourcePersistenceAdapter implements LoadRecapSourcePort {
                       ON submission.settlement_id = t.id AND submission.participant_id = member.id
                 )
                 SELECT own.id, own.updated_at, own.total_amount, own.allocation_type, own.own_amount,
+                       own.title, own.requested_at,
                        own.own_participant_id, own.own_submitted, allocation.*,
                        p.id AS participant_id, p.linked_user_id, p.display_name,
                        account.name AS account_name, account.public_id, account.avatar_file_name, account.active
@@ -85,7 +89,8 @@ public class RecapSourcePersistenceAdapter implements LoadRecapSourcePort {
                             row.getObject("own_amount", Long.class), false,
                             row.getObject("participant_id", UUID.class), row.getObject("linked_user_id", Long.class),
                             row.getString("display_name"), row.getString("account_name"), row.getString("public_id"),
-                            row.getString("avatar_file_name"), row.getBoolean("active"), allocation);
+                            row.getString("avatar_file_name"), row.getBoolean("active"), allocation,
+                            row.getObject("requested_at", java.time.LocalDateTime.class), row.getString("title"));
                 });
     }
 }

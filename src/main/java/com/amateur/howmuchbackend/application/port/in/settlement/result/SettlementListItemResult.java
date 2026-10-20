@@ -21,18 +21,47 @@ public record SettlementListItemResult(
         Long amountToPay,
         Long receivableAmount,
         String requesterName,
+        String storeName,
         List<GroupSummary> groups,
-        SettlementCategoryResult myCategory
+        SettlementCategoryResult myCategory,
+        LocalDateTime reminderNextAvailableAt,
+        /** PAY 참여자가 품목 정산에서 아직 몫을 안 골라 amountToPay가 총액 표시값이면 true. */
+        boolean needsItemSelection
 ) {
     public SettlementListItemResult(
             UUID settlementId, SettlementStatus status, LocalDateTime requestedAt, LocalDateTime endedAt,
             LocalDateTime completedAt, Long totalAmount, SettlementAllocationType allocationType,
             Integer participantCount, Integer payableParticipantCount, Integer completedParticipantCount,
-            Long amountToPay, Long receivableAmount, String requesterName, List<GroupSummary> groups
+            Long amountToPay, Long receivableAmount, String requesterName, String storeName,
+            List<GroupSummary> groups, SettlementCategoryResult myCategory, LocalDateTime reminderNextAvailableAt
     ) {
         this(settlementId, status, requestedAt, endedAt, completedAt, totalAmount, allocationType,
                 participantCount, payableParticipantCount, completedParticipantCount, amountToPay,
-                receivableAmount, requesterName, groups, null);
+                receivableAmount, requesterName, storeName, groups, myCategory, reminderNextAvailableAt, false);
+    }
+
+    public SettlementListItemResult(
+            UUID settlementId, SettlementStatus status, LocalDateTime requestedAt, LocalDateTime endedAt,
+            LocalDateTime completedAt, Long totalAmount, SettlementAllocationType allocationType,
+            Integer participantCount, Integer payableParticipantCount, Integer completedParticipantCount,
+            Long amountToPay, Long receivableAmount, String requesterName, String storeName,
+            List<GroupSummary> groups, SettlementCategoryResult myCategory
+    ) {
+        this(settlementId, status, requestedAt, endedAt, completedAt, totalAmount, allocationType,
+                participantCount, payableParticipantCount, completedParticipantCount, amountToPay,
+                receivableAmount, requesterName, storeName, groups, myCategory, null);
+    }
+
+    public SettlementListItemResult(
+            UUID settlementId, SettlementStatus status, LocalDateTime requestedAt, LocalDateTime endedAt,
+            LocalDateTime completedAt, Long totalAmount, SettlementAllocationType allocationType,
+            Integer participantCount, Integer payableParticipantCount, Integer completedParticipantCount,
+            Long amountToPay, Long receivableAmount, String requesterName, String storeName,
+            List<GroupSummary> groups
+    ) {
+        this(settlementId, status, requestedAt, endedAt, completedAt, totalAmount, allocationType,
+                participantCount, payableParticipantCount, completedParticipantCount, amountToPay,
+                receivableAmount, requesterName, storeName, groups, null);
     }
 
     public record GroupSummary(

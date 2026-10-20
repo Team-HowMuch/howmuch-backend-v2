@@ -10,7 +10,8 @@ public record NotificationTarget(NotificationTargetType type, String id) {
         Objects.requireNonNull(id, "알림 이동 식별자는 필수입니다.");
         try {
             id = switch (type) {
-                case SETTLEMENT_PARTICIPATION, SETTLEMENT_DETAIL, GROUP_INVITATION -> {
+                case SETTLEMENT_PARTICIPATION, SETTLEMENT_DETAIL, GROUP_INVITATION,
+                                GROUP_SETTLEMENT_NETTING, FINANCE_AUTHENTICATION -> {
                     UUID value = UUID.fromString(id);
                     if (!value.toString().equalsIgnoreCase(id)) throw new IllegalArgumentException();
                     yield value.toString();

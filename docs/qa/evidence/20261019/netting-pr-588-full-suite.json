@@ -1,0 +1,101 @@
+{
+  "tests": 2486,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 69,
+  "suites": 295,
+  "passed": 2417,
+  "base": "c6b293b4894c4272f7e074df043b12f3f7053c2e",
+  "branch": "refactor/588-netting-query-optimization",
+  "command": "bash scripts/test.sh clean test",
+  "javascript": {
+    "tests": 35,
+    "passed": 35,
+    "failed": 0,
+    "skipped": 0
+  },
+  "skippedSuites": [
+    {
+      "name": "반복 정산 스키마(V59)",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "2",
+      "time": "0.0"
+    },
+    {
+      "name": "반복 정산 실제 인증 HTTP 스모크",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "1",
+      "time": "0.001"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.application.settlement.netting.GroupNettingHttpPerformanceTest",
+      "tests": "44",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "44",
+      "time": "0.001"
+    },
+    {
+      "name": "com.amateur.howmuchbackend.application.settlement.service.RecurringSettlementFlowIntegrationTest",
+      "tests": "22",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "22",
+      "time": "0.0"
+    }
+  ],
+  "skippedReason": "Default environment omits 25 opt-in recurring tests and the opt-in HTTP performance subclass (44 discovered test cases including inherited methods). The HTTP scenario and recurring tests are validated separately.",
+  "optInValidation": {
+    "tests": 26,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": [
+      {
+        "name": "반복 정산 스키마(V59)",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "1.592"
+      },
+      {
+        "name": "반복 정산 실제 인증 HTTP 스모크",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "7.823"
+      },
+      {
+        "name": "com.amateur.howmuchbackend.application.settlement.netting.GroupNettingHttpPerformanceTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "15.358"
+      },
+      {
+        "name": "com.amateur.howmuchbackend.application.settlement.service.RecurringSettlementFlowIntegrationTest",
+        "tests": "22",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.148"
+      }
+    ]
+  },
+  "optInCommand": "RECURRING_TEST_DB_URL=<disposable DB_URL> NETTING_HTTP_PERF_QA=true NETTING_HTTP_PERF_OUTPUT=build/reports/netting-pr-588-http.json bash scripts/test.sh compileJava compileTestJava test --tests '*RecurringSettlementSchemaIntegrationTest' --tests '*RecurringSettlementHttpIntegrationTest' --tests '*RecurringSettlementFlowIntegrationTest' --tests '*GroupNettingHttpPerformanceTest.httpScenarioWithSlowBankAndScale'",
+  "distinctJavaTestsPassed": 2443,
+  "python": {
+    "tests": 8,
+    "passed": 8,
+    "failed": 0,
+    "dependency": "PyYAML==6.0.2 in a temporary venv"
+  },
+  "notes": "The HTTP subclass inherits the direct regression fixture and test methods. Its inherited tests already ran in the full suite through the parent class; only its new HTTP scenario is explicitly selected in opt-in validation."
+}

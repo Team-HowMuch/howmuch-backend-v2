@@ -18,7 +18,7 @@ public record SettlementTransferLinkProperties(Adapter adapter, Mock mock) {
     }
 
     public enum Adapter {
-        TOSS, MOCK
+        TOSS, MOCK, MOCK2
     }
 
     public record Mock(String baseUrl) {

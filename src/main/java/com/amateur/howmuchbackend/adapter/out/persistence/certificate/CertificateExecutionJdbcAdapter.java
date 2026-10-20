@@ -174,6 +174,8 @@ public class CertificateExecutionJdbcAdapter
                 ((Number) row.get("lease_generation")).longValue() == e.generation()
                         && (("PROCESSING".equals(row.get("status"))
                                         && e.leaseToken().equals(row.get("lease_token")))
+                                || ("WAITING_AUTH".equals(row.get("status"))
+                                        && e.leaseToken() == null)
                                 || ("UNKNOWN".equals(row.get("status"))
                                         && row.get("provider_request_started_at") != null));
         if ("PROCESSING".equals(row.get("status"))
@@ -181,6 +183,16 @@ public class CertificateExecutionJdbcAdapter
                 && !((Timestamp) row.get("lease_expires_at")).toLocalDateTime().isAfter(now))
             return;
         if (!current || ("UNKNOWN".equals(row.get("status")) && status.equals("UNKNOWN"))) return;
+        jdbc.update(
+                """
+                UPDATE certificate_provider_command_inbox SET status=?,last_failure_code=?,completed_at=?,updated_at=?,
+                 lease_token=NULL,processing_started_at=NULL,lease_expires_at=NULL,next_attempt_at=NULL WHERE message_id=?
+                """,
+                status,
+                code,
+                now,
+                now,
+                c.messageId());
         if (connectionRef != null) {
             jdbc.update(
                     """
@@ -199,16 +211,6 @@ public class CertificateExecutionJdbcAdapter
                     now,
                     now);
         }
-        jdbc.update(
-                """
-                UPDATE certificate_provider_command_inbox SET status=?,last_failure_code=?,completed_at=?,updated_at=?,
-                 lease_token=NULL,processing_started_at=NULL,lease_expires_at=NULL,next_attempt_at=NULL WHERE message_id=?
-                """,
-                status,
-                code,
-                now,
-                now,
-                c.messageId());
         if (c.type().equals("REGISTER")) {
             if (status.equals("UNKNOWN")) {
                 // Preserve uncertainty before result delivery; recovery must not offer a retry

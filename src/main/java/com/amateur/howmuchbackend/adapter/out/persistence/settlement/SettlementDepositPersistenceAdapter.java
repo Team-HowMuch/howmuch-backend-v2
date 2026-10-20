@@ -26,6 +26,7 @@ public class SettlementDepositPersistenceAdapter implements
         LoadSettlementDepositSummaryPort {
     private final SettlementDepositJpaRepository repository;
     private final CodefSecretCipher cipher;
+    private final org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc;
 
     @Override
     @Transactional(readOnly = true)
@@ -69,7 +70,9 @@ public class SettlementDepositPersistenceAdapter implements
         if (externalTransactionKeys.isEmpty()) {
             return Set.of();
         }
-        return repository.findMatchedTransactionsByCreatorIdAndOrganization(
+        var result =
+                new java.util.HashSet<String>(
+                        repository.findMatchedTransactionsByCreatorIdAndOrganization(
                         creatorId,
                         organization,
                         externalTransactionKeys
@@ -83,7 +86,14 @@ public class SettlementDepositPersistenceAdapter implements
                         candidate.getAccountNumberCiphertext()
                 ))
                 .map(SettlementDepositJpaRepository.MatchedTransactionProjection::getExternalTransactionKey)
-                .collect(Collectors.toUnmodifiableSet());
+                .collect(Collectors.toSet()));
+        result.addAll(
+                jdbc.queryForList(
+                        "SELECT external_transaction_key FROM settlement_bank_transaction_claims"
+                            + " WHERE organization=:bank AND external_transaction_key IN (:keys)",
+                        java.util.Map.of("bank", organization, "keys", externalTransactionKeys),
+                        String.class));
+        return Set.copyOf(result);
     }
 
     @Override

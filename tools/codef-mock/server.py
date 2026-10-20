@@ -8,6 +8,8 @@ import json
 import os
 import secrets
 import sqlite3
+import threading
+import time
 from decimal import Decimal, InvalidOperation
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -23,6 +25,10 @@ CLIENT_ID = os.getenv("CODEF_MOCK_CLIENT_ID", "mock-client")
 CLIENT_SECRET = os.getenv("CODEF_MOCK_CLIENT_SECRET", "mock-secret")
 ACCESS_TOKEN = os.getenv("CODEF_MOCK_ACCESS_TOKEN", "mock-access-token")
 MAX_BODY_BYTES = 1_000_000
+SCENARIO_LOCK = threading.Lock()
+TRANSACTION_SCENARIO = {"delayMs": 0, "httpStatus": 200, "transactions": []}
+TRANSACTION_COUNTS = {"requests": 0, "inFlight": 0}
+
 ASSET_TABLES = {
     "DEPOSIT_TRUST": "resDepositTrust",
     "FOREIGN_CURRENCY": "resForeignCurrency",
@@ -102,6 +108,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send_bytes(200, WEB_FILE.read_bytes(), "text/html; charset=utf-8")
         elif path == "/health":
             self._send_json(200, {"status": "ok", "database": str(DB_FILE)})
+        elif path == "/admin/api/transaction-scenario":
+            with SCENARIO_LOCK:
+                snapshot = {**TRANSACTION_SCENARIO, **TRANSACTION_COUNTS}
+            self._send_json(200, snapshot)
         elif path == "/admin/api/state":
             self._send_json(200, self._state())
         else:
@@ -127,6 +137,11 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/v1/kr/bank/p/account/account-list":
                 self._require_bearer()
                 self._account_list(self._codef_body())
+            elif path == "/v1/kr/bank/p/account/transaction-list":
+                self._require_bearer()
+                self._transaction_list(self._codef_body())
+            elif path == "/admin/api/transaction-scenario":
+                self._set_transaction_scenario(self._json_body())
             elif path == "/admin/api/profiles":
                 self._save_profile(self._json_body())
             elif path == "/admin/api/accounts":
@@ -232,6 +247,54 @@ class Handler(BaseHTTPRequestHandler):
                 "resAccountCurrency": row["currency"] or "",
             })
         self._send_codef(200, {"result": codef_result(), "data": data})
+
+    def _set_transaction_scenario(self, body: dict) -> None:
+        delay = body.get("delayMs", 0)
+        status = body.get("httpStatus", 200)
+        rows = body.get("transactions", [])
+        if (not isinstance(delay, int) or not 0 <= delay <= 120_000
+                or status not in (200, 429, 500, 503)
+                or not isinstance(rows, list) or len(rows) > 1000
+                or not all(isinstance(row, dict) for row in rows)):
+            raise RequestError(400, "Invalid synthetic transaction scenario")
+        with SCENARIO_LOCK:
+            TRANSACTION_SCENARIO.update(delayMs=delay, httpStatus=status, transactions=rows)
+            if body.get("resetCounts"):
+                TRANSACTION_COUNTS["requests"] = 0
+        self._send_json(200, {"saved": True})
+
+    def _transaction_list(self, body: dict) -> None:
+        connected_id = self._required(body, "connectedId", 200)
+        organization = self._organization(body.get("organization"))
+        number = self._required(body, "account", 64)
+        start = self._required(body, "startDate", 8)
+        end = self._required(body, "endDate", 8)
+        with connect() as db:
+            valid = db.execute("""SELECT 1 FROM connections c
+                JOIN institutions i ON i.connected_id=c.connected_id
+                JOIN accounts a ON a.login_id=c.login_id AND a.organization=i.organization
+                WHERE c.connected_id=? AND i.organization=? AND a.account_number=?""",
+                (connected_id, organization, number)).fetchone()
+        if not valid:
+            self._send_codef(200, self._codef_error("CF-04000", "등록되지 않은 가상 계좌입니다."))
+            return
+        with SCENARIO_LOCK:
+            scenario = dict(TRANSACTION_SCENARIO)
+            TRANSACTION_COUNTS["requests"] += 1
+            TRANSACTION_COUNTS["inFlight"] += 1
+        try:
+            time.sleep(scenario["delayMs"] / 1000)
+            rows = [{k: v for k, v in row.items() if k not in ("account", "organization")}
+                    for row in scenario["transactions"]
+                    if row.get("account", number) == number
+                    and row.get("organization", organization) == organization
+                    and start <= str(row.get("resAccountTrDate", "")) <= end]
+            status = scenario["httpStatus"]
+            self._send_codef(status, {"result": codef_result("CF-00000" if status == 200 else "CF-99999"),
+                                      "data": {"resTrHistoryList": rows if status == 200 else []}})
+        finally:
+            with SCENARIO_LOCK:
+                TRANSACTION_COUNTS["inFlight"] -= 1
 
     def _register_institutions(self, db: sqlite3.Connection, connected_id: str, items: list[dict]) -> list[dict]:
         success = []

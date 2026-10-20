@@ -1,7 +1,7 @@
 package com.amateur.howmuchbackend.application.notification.service;
 
-import com.amateur.howmuchbackend.application.port.out.notification.LoadNotificationPort;
 import com.amateur.howmuchbackend.application.notification.policy.NotificationDeliveryTimingPolicy;
+import com.amateur.howmuchbackend.application.port.out.notification.LoadNotificationPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
@@ -26,9 +26,20 @@ public class NotificationDeliveryContentResolver {
     private final SettlementLinkTokenPort linkTokens;
     private final LoadNotificationPort notifications;
     private final NotificationDeliveryTimingPolicy timing;
+    private final com.amateur.howmuchbackend.application.port.out.settlement.netting
+                    .LoadNettingNotificationStatePort
+            nettingState;
+    private final com.amateur.howmuchbackend.application.settlement.netting.policy
+                    .NettingNotificationEligibilityPolicy
+            nettingPolicy;
 
     public PreparedDelivery prepare(SettlementNotificationOutbox event, LocalDateTime now) {
-        if (event.settlementId() != null && settlements.findByIdForUpdate(event.settlementId()).isEmpty())
+        var original =
+                event.settlementId() == null
+                        ? java.util.Optional
+                                .<com.amateur.howmuchbackend.domain.settlement.Settlement>empty()
+                        : settlements.findByIdForUpdate(event.settlementId());
+        if (event.settlementId() != null && original.isEmpty())
             return PreparedDelivery.unavailable(SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
         var candidate = users.findById(event.recipientUserId());
         if (candidate.isEmpty() || !candidate.get().active() || candidate.get().fcmToken() == null
@@ -42,13 +53,53 @@ public class NotificationDeliveryContentResolver {
                     || !Objects.equals(event.settlementId(), notification.get().settlementId()))
                 return PreparedDelivery.unavailable(SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
             var n = notification.get();
+            if (n.target().type()
+                    == com.amateur.howmuchbackend.domain.notification.NotificationTargetType
+                            .GROUP_SETTLEMENT_NETTING) {
+                java.util.UUID transfer = null;
+                if (n.type() == NotificationType.NETTED_TRANSFER_REMINDER) {
+                    try {
+                        transfer = java.util.UUID.fromString(n.deduplicationKey().split(":")[1]);
+                    } catch (RuntimeException invalid) {
+                        return PreparedDelivery.unavailable(
+                                SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
+                    }
+                }
+                var state =
+                        nettingState.find(
+                                java.util.UUID.fromString(n.target().id()),
+                                n.recipientUserId(),
+                                transfer);
+                if (state.isEmpty() || !nettingPolicy.available(n.type(), state.get()))
+                    return PreparedDelivery.unavailable(
+                            SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
+            }
+            if (event.settlementId() != null
+                    && (n.type() == NotificationType.SETTLEMENT_REQUEST
+                            || n.type() == NotificationType.SETTLEMENT_REMINDER)) {
+                if (original.isEmpty()
+                        || original.get().status()
+                                == com.amateur.howmuchbackend.domain.settlement.SettlementStatus
+                                        .NETTING_IN_PROGRESS)
+                    return PreparedDelivery.unavailable(
+                            SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
+            }
             String type = n.type() == NotificationType.SETTLEMENT_REQUEST ? "SETTLEMENT_PARTICIPATION"
                     : n.type().name();
             return new PreparedDelivery(token, new SettlementPushSenderPort.NotificationMessage(
                     n.id(), n.settlementId(), type, n.allocationType(), n.title(), n.message(), n.target()),
-                    null, null, n.type() == NotificationType.SETTLEMENT_REMINDER
-                            && n.deduplicationKey().startsWith("AUTO_REMINDER:") ? timing.resumeAutomaticAt(now) : null);
+                    null, null,
+                    (n.type() == NotificationType.SETTLEMENT_REMINDER
+                                            || n.type()
+                                                    == NotificationType.NETTED_TRANSFER_REMINDER)
+                                    && n.deduplicationKey().startsWith("AUTO_") ? timing.resumeAutomaticAt(now) : null);
         }
+        if (original.isPresent()
+                && original.get().status()
+                        == com.amateur.howmuchbackend.domain.settlement.SettlementStatus
+                                .NETTING_IN_PROGRESS)
+            return PreparedDelivery.unavailable(
+                    SettlementNotificationFailureCode.TARGET_UNAVAILABLE);
         var linkCandidate = links.findBySettlementId(event.settlementId());
         if (linkCandidate.isEmpty()) return PreparedDelivery.unavailable(SettlementNotificationFailureCode.LINK_UNAVAILABLE);
         var link = linkCandidate.get();
@@ -68,7 +119,9 @@ public class NotificationDeliveryContentResolver {
             return message != null ? sender.sendNotification(token, message)
                     : sender.sendParticipationRequest(token, event.settlementId(), legacyShareLink);
         }
-        // The record contains a provider token/share link. Never expose it through default record logging.
+
+        // The record contains a provider token/share link. Never expose it through default record
+        // logging.
         @Override public String toString() { return "PreparedDelivery[available=" + (failure == null) + "]"; }
     }
 }

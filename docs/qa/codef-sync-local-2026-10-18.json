@@ -1,0 +1,480 @@
+{
+  "date": "2026-10-18",
+  "timezone": "Asia/Seoul",
+  "environment": {
+    "device": "Galaxy A71 Android development build",
+    "bank": "0020",
+    "transactionCount": 24,
+    "controlledBaselineCommit": "87b223e9",
+    "database": "howmuch_codef_compare_20261018",
+    "flywayEnabled": false,
+    "notes": [
+      "Local data copy; original database preserved except requested test settlements.",
+      "Original SMS backend initial measurements are distinct from controlled commit baseline.",
+      "Shared Redis refresh marker: cold baseline measured after natural one-minute expiry.",
+      "No request headers, response bodies, credentials, account numbers or transaction descriptions included."
+    ]
+  },
+  "screenDataReadyMs": {
+    "baselineExpired": 7740,
+    "baselineFresh": 744,
+    "syncStoredData": 747
+  },
+  "screenMeasurement": "React effect after account and transaction queries ready, not first-pixel/TTI. One observation per condition.",
+  "verified": [
+    "Actual CODEF sync returned 24 transactions.",
+    "Concurrent sync returned syncInProgress=true; immediate repeat refreshed=false.",
+    "Stored transactions GET remained available during sync.",
+    "Transaction responses identical between controlled baseline and sync.",
+    "Mobile refresh retained transaction list and showed sync progress.",
+    "Test settlement remained AWAITING_DEPOSIT, one unpaid guest and zero completed."
+  ],
+  "limitations": [
+    "No real incoming payment; transition to completed not tested.",
+    "No oldest-month multi-month savings measurement or production p95.",
+    "CODEF provider request count not independently instrumented.",
+    "SMS API integration absent from sync branch; mobile finance-authentications polling returned 500.",
+    "Snapshot schema reused with Flyway disabled: not a migration/deployment validation."
+  ],
+  "tests": {
+    "java": 63,
+    "javaFailures": 0,
+    "javascript": 35,
+    "javascriptFailures": 0,
+    "frontendTypecheck": "passed",
+    "bootJar": "passed after Jackson import correction"
+  },
+  "measurements": [
+    {
+      "phase": "baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts",
+      "status": 200,
+      "ms": 46.8,
+      "bytes": 299
+    },
+    {
+      "phase": "baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 3099.66,
+      "bytes": 372
+    },
+    {
+      "phase": "baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 33.16,
+      "bytes": 6004
+    },
+    {
+      "phase": "baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts",
+      "status": 200,
+      "ms": 16.08,
+      "bytes": 299
+    },
+    {
+      "phase": "baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 14.91,
+      "bytes": 372
+    },
+    {
+      "phase": "baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 19.66,
+      "bytes": 6004
+    },
+    {
+      "phase": "baseline",
+      "method": "POST",
+      "path": "/api/v2/settlements",
+      "status": 200,
+      "ms": 55.07
+    },
+    {
+      "phase": "baseline",
+      "method": "GET",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a",
+      "status": 200,
+      "ms": 126.33
+    },
+    {
+      "phase": "baseline",
+      "method": "GET",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a/deposits",
+      "status": 200,
+      "ms": 39.41
+    },
+    {
+      "phase": "baseline",
+      "method": "POST",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a/deposits/reconcile",
+      "status": 200,
+      "ms": 2849.42
+    },
+    {
+      "phase": "sync",
+      "method": "GET",
+      "path": "/api/v2/accounts",
+      "status": 200,
+      "ms": 261.56
+    },
+    {
+      "phase": "sync",
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 57.22,
+      "synced": false
+    },
+    {
+      "phase": "sync",
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 72.46
+    },
+    {
+      "phase": "sync",
+      "method": "POST",
+      "path": "/api/v2/accounts/1/transactions/sync?yearMonth=2026-10",
+      "status": 200,
+      "ms": 19.54,
+      "refreshed": false,
+      "syncInProgress": true,
+      "fetchedCount": 0
+    },
+    {
+      "phase": "sync",
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 28.53
+    },
+    {
+      "phase": "sync",
+      "method": "POST",
+      "path": "/api/v2/accounts/1/transactions/sync?yearMonth=2026-10",
+      "status": 200,
+      "ms": 3632.7,
+      "refreshed": true,
+      "syncInProgress": false,
+      "fetchedCount": 24
+    },
+    {
+      "phase": "sync",
+      "method": "POST",
+      "path": "/api/v2/accounts/1/transactions/sync?yearMonth=2026-10",
+      "status": 200,
+      "ms": 17.16,
+      "refreshed": false,
+      "syncInProgress": false,
+      "fetchedCount": 0
+    },
+    {
+      "phase": "sync",
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 12.09,
+      "synced": true
+    },
+    {
+      "phase": "sync",
+      "method": "POST",
+      "path": "/api/v2/settlements",
+      "ms": 68.8,
+      "settlementStatus": "DRAFT"
+    },
+    {
+      "phase": "sync",
+      "method": "GET",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a",
+      "ms": 51.0,
+      "settlementStatus": "AWAITING_DEPOSIT"
+    },
+    {
+      "phase": "sync",
+      "method": "GET",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a/deposits",
+      "ms": 19.5,
+      "settlementStatus": "AWAITING_DEPOSIT"
+    },
+    {
+      "phase": "sync",
+      "method": "POST",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a/deposits/reconcile",
+      "ms": 3182.41,
+      "settlementStatus": "AWAITING_DEPOSIT"
+    },
+    {
+      "phase": "controlled-baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts",
+      "status": 200,
+      "ms": 461.85,
+      "bytes": 299
+    },
+    {
+      "phase": "controlled-baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 129.88,
+      "bytes": 372
+    },
+    {
+      "phase": "controlled-baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 80.94,
+      "bytes": 6004
+    },
+    {
+      "phase": "controlled-baseline",
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 16.06,
+      "bytes": 372
+    },
+    {
+      "phase": "sync-warm",
+      "method": "GET",
+      "path": "/api/v2/accounts",
+      "status": 200,
+      "ms": 56.17,
+      "bytes": 299
+    },
+    {
+      "phase": "sync-warm",
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 39.08,
+      "bytes": 427
+    },
+    {
+      "phase": "sync-warm",
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 39.85,
+      "bytes": 6004
+    },
+    {
+      "phase": "sync-warm",
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 21.22,
+      "bytes": 427
+    },
+    {
+      "phase": "controlled-baseline-expired",
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 4045.02,
+      "bytes": 372
+    },
+    {
+      "phase": "controlled-baseline-expired",
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 34.05,
+      "bytes": 6004
+    },
+    {
+      "at": 1792264271.568918,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 8933.43,
+      "bytes": 6004,
+      "phase": "mobile-original"
+    },
+    {
+      "at": 1792264383.329786,
+      "method": "GET",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a/participants",
+      "status": 200,
+      "ms": 7.33,
+      "bytes": 355,
+      "phase": "mobile-original"
+    },
+    {
+      "at": 1792264391.928967,
+      "method": "GET",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a/participants",
+      "status": 200,
+      "ms": 14.11,
+      "bytes": 355,
+      "phase": "mobile-original"
+    },
+    {
+      "at": 1792264762.788393,
+      "method": "GET",
+      "path": "/api/v2/accounts",
+      "status": 200,
+      "ms": 31.07,
+      "bytes": 299,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264762.967857,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 16.46,
+      "bytes": 427,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264762.9762151,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 21.43,
+      "bytes": 6004,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264793.3802829,
+      "method": "POST",
+      "path": "/api/v2/accounts/1/transactions/sync?yearMonth=2026-10",
+      "status": 200,
+      "ms": 3162.43,
+      "bytes": 298,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264793.449167,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 12.91,
+      "bytes": 427,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264793.455744,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 19.39,
+      "bytes": 6004,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264903.732336,
+      "method": "GET",
+      "path": "/api/v2/settlements?tab=RECEIVE&status=IN_PROGRESS",
+      "status": 200,
+      "ms": 175.92,
+      "bytes": 911,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264910.3205209,
+      "method": "GET",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a",
+      "status": 200,
+      "ms": 56.71,
+      "bytes": 1070,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264921.4596689,
+      "method": "POST",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a/deposits/reconcile",
+      "status": 200,
+      "ms": 2972.87,
+      "bytes": 198,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264921.5252218,
+      "method": "GET",
+      "path": "/api/v2/settlements/64f6ad8a-f585-4042-abe9-ca98b1df6d3a",
+      "status": 200,
+      "ms": 16.88,
+      "bytes": 1070,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264921.654264,
+      "method": "GET",
+      "path": "/api/v2/settlements?tab=RECEIVE&status=IN_PROGRESS",
+      "status": 200,
+      "ms": 31.63,
+      "bytes": 911,
+      "phase": "mobile-sync"
+    },
+    {
+      "at": 1792264823.544808,
+      "method": "GET",
+      "path": "/api/v2/accounts",
+      "status": 200,
+      "ms": 56.15,
+      "bytes": 299,
+      "phase": "mobile-controlled-baseline"
+    },
+    {
+      "at": 1792264823.7016718,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 19.37,
+      "bytes": 372,
+      "phase": "mobile-controlled-baseline"
+    },
+    {
+      "at": 1792264823.7268019,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 44.68,
+      "bytes": 6004,
+      "phase": "mobile-controlled-baseline"
+    },
+    {
+      "at": 1792264866.3653271,
+      "method": "GET",
+      "path": "/api/v2/accounts",
+      "status": 200,
+      "ms": 17.98,
+      "bytes": 299,
+      "phase": "mobile-controlled-baseline"
+    },
+    {
+      "at": 1792264869.518982,
+      "method": "GET",
+      "path": "/api/v2/accounts/1/transactions?yearMonth=2026-10",
+      "status": 200,
+      "ms": 3081.53,
+      "bytes": 6004,
+      "phase": "mobile-controlled-baseline"
+    },
+    {
+      "at": 1792264873.602231,
+      "method": "GET",
+      "path": "/api/v2/accounts/1?yearMonth=2026-10",
+      "status": 200,
+      "ms": 7166.01,
+      "bytes": 372,
+      "phase": "mobile-controlled-baseline"
+    }
+  ]
+}

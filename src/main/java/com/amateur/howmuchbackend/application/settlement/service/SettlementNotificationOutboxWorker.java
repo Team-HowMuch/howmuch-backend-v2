@@ -1,14 +1,9 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
-import com.amateur.howmuchbackend.application.port.out.notification.LoadNotificationPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.notification.service.NotificationDeliveryContentResolver;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementNotificationOutboxPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementPushSenderPort;
-import com.amateur.howmuchbackend.application.port.out.settlement.SettlementShareLinkStorePort;
-import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementNotificationRetryPolicy;
-import com.amateur.howmuchbackend.application.notification.service.NotificationDeliveryContentResolver;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationFailureCode;
 import com.amateur.howmuchbackend.domain.settlement.SettlementNotificationOutbox;
 import lombok.extern.slf4j.Slf4j;
@@ -16,10 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.LocalDateTime;
 import java.time.Clock;
-import com.amateur.howmuchbackend.application.notification.policy.NotificationDeliveryTimingPolicy;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 
@@ -34,32 +27,16 @@ public class SettlementNotificationOutboxWorker {
     private final Clock clock;
 
     public SettlementNotificationOutboxWorker(SettlementNotificationOutboxPort outboxPort,
-            LoadSettlementPort loadSettlementPort, LoadUserPort loadUserPort,
-            SettlementShareLinkStorePort shareLinkStorePort, SettlementLinkTokenPort linkTokenPort,
-            SettlementPushSenderPort pushSenderPort, SettlementNotificationRetryPolicy retryPolicy,
-            LoadNotificationPort loadNotificationPort, PlatformTransactionManager transactionManager) {
-        this(outboxPort, loadSettlementPort, loadUserPort, shareLinkStorePort, linkTokenPort,
-                pushSenderPort, retryPolicy, loadNotificationPort, transactionManager, Clock.systemUTC());
-    }
-
-    @Autowired
-    public SettlementNotificationOutboxWorker(
-            SettlementNotificationOutboxPort outboxPort,
-            LoadSettlementPort loadSettlementPort,
-            LoadUserPort loadUserPort,
-            SettlementShareLinkStorePort shareLinkStorePort,
-            SettlementLinkTokenPort linkTokenPort,
             SettlementPushSenderPort pushSenderPort,
             SettlementNotificationRetryPolicy retryPolicy,
-            LoadNotificationPort loadNotificationPort,
-            PlatformTransactionManager transactionManager, Clock clock
+            PlatformTransactionManager transactionManager,
+            NotificationDeliveryContentResolver contentResolver, Clock clock
     ) {
         this.outboxPort = outboxPort;
         this.pushSenderPort = pushSenderPort;
         this.retryPolicy = retryPolicy;
         this.deliveryTransaction = new TransactionTemplate(transactionManager);
-        this.contentResolver = new NotificationDeliveryContentResolver(loadSettlementPort, loadUserPort,
-                shareLinkStorePort, linkTokenPort, loadNotificationPort, new NotificationDeliveryTimingPolicy());
+        this.contentResolver = contentResolver;
         this.clock = clock;
     }
 

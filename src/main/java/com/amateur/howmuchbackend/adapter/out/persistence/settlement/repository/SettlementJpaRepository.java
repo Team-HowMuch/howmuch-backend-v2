@@ -3,17 +3,16 @@ package com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.entity.SettlementJpaEntity;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEntity, UUID> {
     Optional<SettlementJpaEntity> findByIdAndDeletedAtIsNull(UUID settlementId);
@@ -29,10 +28,18 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.total_amount AS totalAmount,
                 settlement.allocation_type AS allocationType,
                 creator.name AS requesterName,
+                settlement.creator_id AS requesterId,
+                creator.public_id AS requesterPublicId,
+                COALESCE(BOOL_OR(participant.linked_user_id = :userId), FALSE) AS viewerParticipant,
+                MAX(COALESCE(viewer_category.category_code, requester_category.category_code,
+                             classified.category_code)) AS viewerCategoryCode,
                 COUNT(DISTINCT participant.id) AS participantCount,
                 COUNT(DISTINCT CASE
-                        WHEN participant.linked_user_id IS NULL
-                             OR participant.linked_user_id <> settlement.creator_id
+                        WHEN (participant.linked_user_id IS NULL
+                              OR participant.linked_user_id <> settlement.creator_id)
+                         AND (settlement.allocation_type IS DISTINCT FROM 'DUTCH_PAY'
+                              OR settlement.status NOT IN ('AWAITING_DEPOSIT', 'COMPLETED', 'NETTING_IN_PROGRESS')
+                              OR share.id IS NOT NULL)
                         THEN participant.id
                     END) AS payableParticipantCount,
                 MAX(payment_summary.completed_participant_count) AS completedParticipantCount,
@@ -43,10 +50,32 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                         WHEN participant.linked_user_id IS NULL
                              OR participant.linked_user_id <> settlement.creator_id
                         THEN share.amount
-                    END), 0) AS receivableShareAmount
+                    END), 0) AS receivableShareAmount,
+                store_info.store_name AS storeName
               FROM settlements settlement
+              LEFT JOIN (
+                    SELECT expense.settlement_id,
+                           CASE
+                               WHEN COUNT(*) FILTER (WHERE expense.source IN ('RECEIPT_OCR', 'PAYMENT_HISTORY')) = 1
+                                    AND MAX(CASE WHEN expense.source = 'RECEIPT_OCR' THEN 1 ELSE 0 END) = 1
+                               THEN MAX(CASE WHEN expense.source = 'RECEIPT_OCR' THEN expense.description END)
+                               ELSE NULL
+                           END AS store_name
+                      FROM settlement_expenses expense
+                     GROUP BY expense.settlement_id
+              ) store_info
+                ON store_info.settlement_id = settlement.id
               JOIN users creator
                 ON creator.id = settlement.creator_id
+              LEFT JOIN settlement_user_categories viewer_category
+                ON :groupScope = TRUE AND viewer_category.settlement_id = settlement.id
+               AND viewer_category.user_id = :userId
+              LEFT JOIN settlement_user_categories requester_category
+                ON :groupScope = TRUE AND requester_category.settlement_id = settlement.id
+               AND requester_category.user_id = settlement.creator_id
+              LEFT JOIN settlement_categories classified
+                ON :groupScope = TRUE AND classified.settlement_id = settlement.id
+               AND classified.status = 'CLASSIFIED'
               LEFT JOIN settlement_participants participant
                 ON participant.settlement_id = settlement.id
               LEFT JOIN settlement_shares share
@@ -83,8 +112,13 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 ) payment_summary
                 ON payment_summary.settlement_id = settlement.id
              WHERE settlement.deleted_at IS NULL
+               AND NOT EXISTS (
+                    SELECT 1 FROM group_netting_sources compressed
+                     WHERE compressed.settlement_id = settlement.id
+               )
                AND (
-                    (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
+                    (:groupScope = TRUE AND :groupId IS NOT NULL)
+                    OR (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
                     OR (
                         :tab = 'PAY'
                         AND settlement.creator_id <> :userId
@@ -93,6 +127,13 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                               FROM settlement_participants linked_participant
                              WHERE linked_participant.settlement_id = settlement.id
                                AND linked_participant.linked_user_id = :userId
+                               AND (settlement.allocation_type IS DISTINCT FROM 'DUTCH_PAY'
+                                    OR settlement.status NOT IN ('AWAITING_DEPOSIT', 'COMPLETED', 'NETTING_IN_PROGRESS')
+                                    OR EXISTS (
+                                        SELECT 1 FROM settlement_shares linked_share
+                                         WHERE linked_share.settlement_id = settlement.id
+                                           AND linked_share.payer_participant_id = linked_participant.id
+                                    ))
                         )
                     )
                 )
@@ -110,7 +151,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     OR (
                         :status = 'IN_PROGRESS'
                         AND settlement.status IN (
-                            'REQUESTED', 'AWAITING_DEPOSIT', 'SUSPENDED'
+                            'REQUESTED', 'AWAITING_DEPOSIT', 'SUSPENDED', 'NETTING_IN_PROGRESS'
                         )
                     )
                     OR settlement.status = :status
@@ -133,17 +174,25 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                     )
                 )
              GROUP BY settlement.id, settlement.status, settlement.created_at, link.created_at,
-                      settlement.total_amount, settlement.allocation_type, creator.name
+                      settlement.total_amount, settlement.allocation_type, creator.name, creator.public_id, store_info.store_name
              ORDER BY COALESCE(link.created_at, settlement.created_at) DESC, settlement.id DESC
             """, nativeQuery = true)
-    List<SettlementListProjection> findAllForUser(
+    List<SettlementListProjection> findAllForScope(
             @Param("userId") Long userId,
             @Param("tab") String tab,
             @Param("status") String status,
             @Param("groupId") Long groupId,
             @Param("completedFrom") Instant completedFrom,
-            @Param("completedBefore") Instant completedBefore
+            @Param("completedBefore") Instant completedBefore,
+            @Param("groupScope") boolean groupScope
     );
+
+    default List<SettlementListProjection> findAllForUser(
+            Long userId, String tab, String status, Long groupId,
+            Instant completedFrom, Instant completedBefore
+    ) {
+        return findAllForScope(userId, tab, status, groupId, completedFrom, completedBefore, false);
+    }
 
     @Query(value = """
             SELECT DISTINCT
@@ -173,11 +222,11 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.id AS settlementId,
                 settlement.title AS title,
                 settlement.status AS status,
-                settlement.created_at AS requestedAt,
+                COALESCE(link.created_at, settlement.created_at) AS requestedAt,
                 creator.name AS requesterName,
                 settlement.allocation_type AS allocationType,
                 MAX(CASE
-                        WHEN participant.linked_user_id = :userId THEN share.amount
+                        WHEN participant.linked_user_id = :userId AND NOT EXISTS(SELECT 1 FROM group_netting_sources ns WHERE ns.settlement_id=settlement.id) THEN share.amount
                     END) AS amountToPay,
                 COALESCE(SUM(CASE
                         WHEN participant.linked_user_id IS NULL
@@ -185,8 +234,11 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                         THEN share.amount
                     END), 0) AS receivableAmount,
                 COUNT(DISTINCT CASE
-                        WHEN participant.linked_user_id IS NULL
-                             OR participant.linked_user_id <> settlement.creator_id
+                        WHEN (participant.linked_user_id IS NULL
+                              OR participant.linked_user_id <> settlement.creator_id)
+                         AND (settlement.allocation_type IS DISTINCT FROM 'DUTCH_PAY'
+                              OR settlement.status NOT IN ('AWAITING_DEPOSIT', 'COMPLETED', 'NETTING_IN_PROGRESS')
+                              OR share.id IS NOT NULL)
                         THEN participant.id
                     END) AS payerCount,
                 COUNT(DISTINCT CASE
@@ -211,7 +263,13 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 ) paid
                 ON paid.settlement_id = settlement.id
                AND paid.share_id = share.id
+              LEFT JOIN settlement_links link
+                ON link.settlement_id = settlement.id
              WHERE settlement.deleted_at IS NULL
+               AND NOT EXISTS (
+                    SELECT 1 FROM group_netting_sources compressed
+                     WHERE compressed.settlement_id = settlement.id
+               )
                AND (
                     (:tab = 'RECEIVE' AND settlement.creator_id = :userId)
                     OR (
@@ -222,12 +280,19 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                               FROM settlement_participants linked_participant
                              WHERE linked_participant.settlement_id = settlement.id
                                AND linked_participant.linked_user_id = :userId
+                               AND (settlement.allocation_type IS DISTINCT FROM 'DUTCH_PAY'
+                                    OR settlement.status NOT IN ('AWAITING_DEPOSIT', 'COMPLETED', 'NETTING_IN_PROGRESS')
+                                    OR EXISTS (
+                                        SELECT 1 FROM settlement_shares linked_share
+                                         WHERE linked_share.settlement_id = settlement.id
+                                           AND linked_share.payer_participant_id = linked_participant.id
+                                    ))
                         )
                     )
                 )
-             GROUP BY settlement.id, settlement.title, settlement.status, settlement.created_at,
+             GROUP BY settlement.id, settlement.title, settlement.status, settlement.created_at, link.created_at,
                       settlement.allocation_type, creator.name
-             ORDER BY settlement.created_at DESC, settlement.id DESC
+             ORDER BY COALESCE(link.created_at, settlement.created_at) DESC, settlement.id DESC
             """, nativeQuery = true)
     List<TreasurerSettlementProjection> findAllForTreasurer(
             @Param("userId") Long userId,
@@ -263,9 +328,32 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                                AND participant.linked_user_id = :userId
                         )
                    )
+            ) OR EXISTS (
+                SELECT 1
+                  FROM group_netting_parties party
+                  JOIN group_settlement_nettings netting ON netting.id = party.netting_id
+                 WHERE party.user_id = :userId
+                   AND (netting.status = 'ACTIVE' OR EXISTS (
+                       SELECT 1 FROM netting_deposit_reviews review
+                        WHERE review.netting_id = netting.id AND review.status = 'OPEN'
+                   ))
             )
             """, nativeQuery = true)
     boolean existsByUserIdAndStatusNotCompleted(@Param("userId") Long userId);
+
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                  FROM group_netting_monitored_accounts monitored
+                  JOIN group_settlement_nettings netting ON netting.id = monitored.netting_id
+                 WHERE monitored.account_id = :accountId
+                   AND (netting.status = 'ACTIVE' OR EXISTS (
+                       SELECT 1 FROM netting_deposit_reviews review
+                        WHERE review.netting_id = netting.id AND review.status = 'OPEN'
+                   ))
+            )
+            """, nativeQuery = true)
+    boolean existsNettingAccountDependency(@Param("accountId") Long accountId);
 
     interface SettlementListProjection {
         UUID getSettlementId();
@@ -282,6 +370,14 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
 
         String getRequesterName();
 
+        Long getRequesterId();
+
+        String getRequesterPublicId();
+
+        boolean getViewerParticipant();
+
+        String getViewerCategoryCode();
+
         long getParticipantCount();
 
         long getPayableParticipantCount();
@@ -293,6 +389,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
         long getReceivableShareAmount();
 
         String getAllocationType();
+
+        String getStoreName();
     }
 
     interface SettlementListGroupProjection {
@@ -326,6 +424,12 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
 
         long getCompletedPayerCount();
     }
+
+    @Query(value="""
+        SELECT EXISTS(SELECT 1 FROM group_netting_monitored_accounts r JOIN group_settlement_nettings n ON n.id=r.netting_id
+         WHERE r.account_id=:accountId AND (n.status='ACTIVE' OR EXISTS(SELECT 1 FROM netting_deposit_reviews v WHERE v.netting_id=n.id AND v.status='OPEN')))
+        """,nativeQuery=true)
+    boolean existsNettingAccountUsage(@Param("accountId") Long accountId);
 
     boolean existsByReceivingAccountIdAndStatusNotAndDeletedAtIsNull(Long accountId, SettlementStatus status);
 

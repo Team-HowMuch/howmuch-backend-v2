@@ -36,6 +36,10 @@ public class CertificateRegistrationService
     private final CertificateRegistrationPolicy policy;
     private final Clock clock;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.amateur.howmuchbackend.application.external.service.AdditionalAuthenticationService
+            additionalAuthentication;
+
     public CertificateRegistrationResult create(CreateCertificateRegistrationCommand c) {
         if (!limits.acquire(capabilities.hash(c.remoteAddress())))
             throw ApplicationException.of(CERTIFICATE_RATE_LIMITED);
@@ -102,7 +106,10 @@ public class CertificateRegistrationService
                 null,
                 null,
                 failure == null ? null : failure.getCode(),
-                failure == null ? null : failure.getMessage());
+                failure == null ? null : failure.getMessage(),
+                additionalAuthentication == null
+                        ? null
+                        : additionalAuthentication.forSession(s.id()));
     }
 
     public void cancel(UUID id, String pc) {

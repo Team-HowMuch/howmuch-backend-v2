@@ -17,7 +17,8 @@ public interface SettlementLinkEntryDocs {
             description = "인증 없이 참여자 이름 목록을 조회할 수 있습니다. 유효한 Bearer 인증이 있고 "
                     + "회원 참여자와 연결되면 APP_DIRECT와 단기 참여 문맥을 반환합니다. "
                     + "participantCount는 요청자를 포함한 전체 참여자 수입니다. 요청자 여부와 참여자별 "
-                    + "금액을 포함하며, 품목 정산이거나 아직 확정 Share가 없는 참여자의 amount는 null입니다. "
+                    + "금액을 포함합니다. 입금 대기 중 더치페이의 0원 참여자는 amount=0이며 송금 안내 대상이 아닙니다. "
+                    + "품목 정산 또는 중단 후 재배분 중인 참여자의 미확정 amount는 null입니다. "
                     + "requestedAt은 공유 링크 생성 시각이며 링크 생성 시각이 없으면 정산 생성 시각입니다."
     )
     @ApiResponses({

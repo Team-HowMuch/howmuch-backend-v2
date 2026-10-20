@@ -10,7 +10,7 @@ public class SettlementDeletionPolicy {
     public void validate(Settlement settlement, boolean hasShares) {
         boolean blocked = switch (settlement.status()) {
             case DRAFT, REQUESTED -> hasShares;
-            case AWAITING_DEPOSIT -> true;
+            case AWAITING_DEPOSIT, NETTING_IN_PROGRESS -> true;
             case SUSPENDED, COMPLETED -> false;
         };
         if (blocked) {

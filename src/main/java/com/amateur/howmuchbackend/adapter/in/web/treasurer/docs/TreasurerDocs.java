@@ -43,7 +43,9 @@ public interface TreasurerDocs {
 
     @Operation(
             summary = "AI 정산·지출 질의",
-            description = "자유 대화와 바로가기·메뉴 칩을 같은 계약으로 처리합니다. view가 LIST이면 날짜·헤드라인 카드, SUMMARY이면 낼/받을/완료 요약 카드, TEXT이면 안내 문장입니다. 바로가기 질문 예: 보낼 정산, 받을 정산, 정산 상태. items의 allocationType과 status는 카드를 눌렀을 때 이동할 화면을 앱이 정하는 값입니다. allocationType은 배분 방식을 정하기 전이면 null이고, status는 정산 목록 응답과 같은 값입니다.",
+            description = "자유 대화와 바로가기·메뉴 칩을 같은 계약으로 처리합니다. view가 LIST이면 날짜·헤드라인 카드, SUMMARY이면 낼/받을/완료 요약 카드, TEXT이면 안내 문장입니다. 바로가기 질문 예: 보낼 정산, 받을 정산, 정산 상태. items의 allocationType과 status는 카드를 눌렀을 때 이동할 화면을 앱이 정하는 값입니다. allocationType은 배분 방식을 정하기 전이면 null이고, status는 정산 목록 응답과 같은 값입니다. "
+                    + "\"뭐부터 처리해?\"처럼 먼저 처리할 정산을 물으면 intent PRIORITY_SETTLEMENTS로 추천 API와 같은 순서의 카드를 반환합니다. 이때 기간을 말하지 않으면 끝나지 않은 정산 전체를 보고 period는 null입니다. "
+                    + "보낼·받을 정산 목록 카드도 같은 순서입니다. 맨 위가 24시간 이상 지난 보낼 정산이면 답변에 경과 시간 안내가 붙습니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({
@@ -55,7 +57,10 @@ public interface TreasurerDocs {
 
     @Operation(
             summary = "확인이 필요한 정산 추천",
-            description = "미완료이면서 이미 요청된 정산을 보낼/받을·장기 미처리 순으로 안내합니다. 작성 중인 DRAFT는 제외합니다. 화면 이동 액션만 제공하며, 송금·입금 확인은 AWAITING_DEPOSIT에서만 노출합니다.",
+            description = "미완료이면서 이미 요청된 정산을 priority 순서(SEND_OVERDUE → SEND_OPEN → RECEIVE_OVERDUE → RECEIVE_OPEN)로 안내합니다. "
+                    + "OVERDUE는 요청됨·입금 대기 정산이 요청 후 24시간 이상 지난 경우이고, 중단된 정산은 OPEN입니다. "
+                    + "같은 단계 안에서는 요청이 오래된 정산, 금액이 큰 정산이 먼저입니다. "
+                    + "작성 중인 DRAFT는 제외합니다. 화면 이동 액션만 제공하며, 송금·입금 확인은 AWAITING_DEPOSIT에서만 노출합니다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses({

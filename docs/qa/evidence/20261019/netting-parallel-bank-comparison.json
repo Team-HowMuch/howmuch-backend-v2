@@ -1,0 +1,29 @@
+[
+  {
+    "originals": 2,
+    "sequentialMs": 2848.975916,
+    "parallelMs": 1571.242625,
+    "reductionPercent": 44.8,
+    "bankCalls": 2,
+    "maxConcurrentBankCalls": 2,
+    "fullSourceReadCalls": 4
+  },
+  {
+    "originals": 20,
+    "sequentialMs": 3011.613833,
+    "parallelMs": 1796.09,
+    "reductionPercent": 40.4,
+    "bankCalls": 2,
+    "maxConcurrentBankCalls": 2,
+    "fullSourceReadCalls": 4
+  },
+  {
+    "originals": 100,
+    "sequentialMs": 4571.684042,
+    "parallelMs": 2851.007916,
+    "reductionPercent": 37.6,
+    "bankCalls": 2,
+    "maxConcurrentBankCalls": 2,
+    "fullSourceReadCalls": 4
+  }
+]

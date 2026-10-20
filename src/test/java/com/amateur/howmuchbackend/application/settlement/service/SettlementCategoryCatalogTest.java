@@ -36,6 +36,23 @@ class SettlementCategoryCatalogTest {
         assertThat(catalog.byCode().keySet()).containsExactly("FOOD", "CAFE_SNACK", "UNCATEGORIZED");
     }
 
+    @Test
+    @DisplayName("관리 화면에서 넣은 코드가 저장 형식(대문자로 시작, 대문자·밑줄 50자 이내)이 아니면 정산용이어도 내지 않는다")
+    void categories_excludeUnstorableCodes() {
+        when(loadCommonCodePort.findActiveByGroupCode("SETTLEMENT_CATEGORY")).thenReturn(List.of(
+                code("FOOD", "식비", 1, "food", "Y"),
+                code("Food", "소문자", 2, "food", "Y"),
+                code("FOOD2", "숫자", 3, "food", "Y"),
+                code("CAFE-SNACK", "하이픈", 4, "cafe-snack", "Y"),
+                code("CAFE SNACK", "공백", 5, "cafe-snack", "Y"),
+                code("_FOOD", "밑줄 시작", 6, "food", "Y"),
+                code("A" + "B".repeat(50), "51자", 7, "food", "Y"),
+                code("A" + "B".repeat(49), "50자", 8, "food", "Y")));
+        SettlementCategoryCatalog catalog = new SettlementCategoryCatalog(loadCommonCodePort);
+
+        assertThat(catalog.byCode().keySet()).containsExactly("FOOD", "A" + "B".repeat(49));
+    }
+
     private static CommonCode code(String code, String name, int order, String icon, String settlementUse) {
         return new CommonCode("SETTLEMENT_CATEGORY", code, name, code + " 예시", order, icon, settlementUse, null, true);
     }

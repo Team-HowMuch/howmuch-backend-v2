@@ -204,6 +204,35 @@ class SettlementWidgetHttpIntegrationTest {
     }
 
     @Test
+    void zeroAmountDutchPayIsExcludedButUnconfirmedItemAllocationRemains() throws Exception {
+        UUID receive = fixtures.settlement(creator, SettlementStatus.AWAITING_DEPOSIT, SettlementAllocationType.DUTCH_PAY);
+        fixtures.participant(receive, creator);
+        fixtures.share(receive, fixtures.participant(receive, payer), 10_000);
+        fixtures.participant(receive, null); // 0원 비회원 참여 기록
+        UUID creatorOnly = fixtures.settlement(creator, SettlementStatus.AWAITING_DEPOSIT, SettlementAllocationType.DUTCH_PAY);
+        fixtures.share(creatorOnly, fixtures.participant(creatorOnly, creator), 10_000);
+        fixtures.participant(creatorOnly, payer);
+        UUID zeroPay = fixtures.settlement(payer, SettlementStatus.AWAITING_DEPOSIT, SettlementAllocationType.DUTCH_PAY);
+        fixtures.share(zeroPay, fixtures.participant(zeroPay, payer), 10_000);
+        fixtures.participant(zeroPay, creator); // 로그인 사용자의 0원 배분
+        UUID select = fixtures.settlement(payer, SettlementStatus.REQUESTED, SettlementAllocationType.ITEM_ALLOCATION);
+        fixtures.participant(select, creator);
+
+        var data = data(request("GET", PATH, widget));
+
+        assertThat(data.path("receivable").path("totalCount").intValue()).isEqualTo(2);
+        assertThat(data.path("receivable").path("totalAmount").longValue()).isEqualTo(10_000);
+        assertThat(find(data, "receivable", receive).path("unpaidParticipantCount").intValue()).isOne();
+        assertThat(find(data, "receivable", creatorOnly).path("unpaidParticipantCount").intValue()).isZero();
+        assertThat(find(data, "receivable", creatorOnly).path("remainingAmount").longValue()).isZero();
+        assertThat(data.path("payable").path("totalCount").intValue()).isOne();
+        assertThat(data.path("payable").path("settlements").size()).isOne();
+        assertThat(find(data, "payable", select).path("status").stringValue()).isEqualTo("SELECTION_REQUIRED");
+        assertThat(find(data, "payable", select).path("remainingAmount").isNull()).isTrue();
+        verifyNoInteractions(bank, connections);
+    }
+
+    @Test
     void requestedPreviewIncludesCreatorSelectionReceiptDiscountAndDeliveryFee() throws Exception {
         UUID id = fixtures.settlement(creator, SettlementStatus.REQUESTED, SettlementAllocationType.ITEM_ALLOCATION);
         UUID self = fixtures.participant(id, creator);

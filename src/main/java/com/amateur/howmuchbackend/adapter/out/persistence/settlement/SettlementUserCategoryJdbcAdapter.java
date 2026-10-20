@@ -1,21 +1,26 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadMySettlementCategoryPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SaveMySettlementCategoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.sql.PreparedStatement;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.UUID;
 
-/** 회원별 내 카테고리(V56 settlement_user_categories)와 기본 카테고리(settlement_categories)를 함께 읽는다. */
+/**
+ * 회원별 내 카테고리(V56 settlement_user_categories)와 기본 카테고리(settlement_categories)를 함께 읽고,
+ * 회원이 고른 값을 저장한다.
+ */
 @Component
 @RequiredArgsConstructor
-public class SettlementUserCategoryJdbcAdapter implements LoadMySettlementCategoryPort {
+public class SettlementUserCategoryJdbcAdapter implements LoadMySettlementCategoryPort, SaveMySettlementCategoryPort {
     // 정산 수와 관계없이 바인드 값이 두 개가 되도록 ID를 배열 하나로 넘긴다.
     private static final String FIND_CATEGORY_CODES = """
             SELECT settlement.id AS settlement_id,
@@ -27,6 +32,14 @@ public class SettlementUserCategoryJdbcAdapter implements LoadMySettlementCatego
                 ON classified.settlement_id = settlement.id AND classified.status = 'CLASSIFIED'
             WHERE settlement.id = ANY(?)
               AND (mine.category_code IS NOT NULL OR classified.category_code IS NOT NULL)
+            """;
+    // created_at <= updated_at 제약이 있어, 서버 시계가 뒤로 가도 updated_at이 created_at보다 앞서지 않게 한다.
+    private static final String UPSERT_CATEGORY = """
+            INSERT INTO settlement_user_categories (settlement_id, user_id, category_code, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (settlement_id, user_id) DO UPDATE
+            SET category_code = EXCLUDED.category_code,
+                updated_at = GREATEST(settlement_user_categories.created_at, EXCLUDED.updated_at)
             """;
 
     private final JdbcTemplate jdbc;
@@ -47,5 +60,10 @@ public class SettlementUserCategoryJdbcAdapter implements LoadMySettlementCatego
             codes.put(row.getObject("settlement_id", UUID.class), row.getString("category_code"));
         });
         return codes;
+    }
+
+    @Override
+    public void save(UUID settlementId, Long userId, String categoryCode, LocalDateTime now) {
+        jdbc.update(UPSERT_CATEGORY, settlementId, userId, categoryCode, now, now);
     }
 }

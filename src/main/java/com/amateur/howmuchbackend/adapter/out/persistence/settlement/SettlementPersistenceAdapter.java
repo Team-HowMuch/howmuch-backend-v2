@@ -1,13 +1,14 @@
 package com.amateur.howmuchbackend.adapter.out.persistence.settlement;
 
-import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.adapter.out.persistence.common.PostgresLockTimeoutConfigurer;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.mapper.SettlementMapper;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.SettlementJpaRepository;
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementListPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadGroupSettlementListPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadUserSettlementStatePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
@@ -18,9 +19,6 @@ import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -31,6 +29,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
@@ -38,6 +38,7 @@ public class SettlementPersistenceAdapter implements
         LoadSettlementPort,
         LoadUserSettlementStatePort,
         LoadSettlementListPort,
+        LoadGroupSettlementListPort,
         SaveSettlementPort,
         DeleteSettlementPort,
         SettlementReceivingAccountUsagePort {
@@ -113,6 +114,20 @@ public class SettlementPersistenceAdapter implements
                 .toList();
     }
 
+    @Override
+    public List<GroupSettlementListReadModel> findAllInGroup(
+            Long groupId, Long viewerId, SettlementListStatusFilter status
+    ) {
+        return settlementJpaRepository.findAllForScope(
+                        viewerId, "RECEIVE", status.name(), groupId, null, null, true).stream()
+                .map(projection -> new GroupSettlementListReadModel(
+                        toReadModel(projection, SettlementListTab.RECEIVE, List.of()),
+                        projection.getRequesterId(), projection.getRequesterName(),
+                        projection.getRequesterPublicId(), projection.getViewerParticipant(),
+                        projection.getViewerCategoryCode()))
+                .toList();
+    }
+
     private Instant monthStartUtc(YearMonth yearMonth) {
         return yearMonth.atDay(1).atStartOfDay(ZoneId.of("Asia/Seoul"))
                 .toInstant();
@@ -166,6 +181,7 @@ public class SettlementPersistenceAdapter implements
                 projection.getAmountToPay(),
                 tab == SettlementListTab.RECEIVE ? projection.getReceivableShareAmount() : null,
                 tab == SettlementListTab.PAY ? projection.getRequesterName() : null,
+                projection.getStoreName(),
                 groups
         );
     }
@@ -173,7 +189,8 @@ public class SettlementPersistenceAdapter implements
     @Override
     public boolean existsInProgressByReceivingAccountId(Long accountId) {
         return settlementJpaRepository.existsByReceivingAccountIdAndStatusNotAndDeletedAtIsNull(
-                accountId, SettlementStatus.COMPLETED);
+                accountId, SettlementStatus.COMPLETED)
+                || settlementJpaRepository.existsNettingAccountDependency(accountId);
     }
 
     @Override

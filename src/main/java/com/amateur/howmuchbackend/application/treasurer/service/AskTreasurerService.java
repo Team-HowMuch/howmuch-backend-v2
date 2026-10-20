@@ -11,7 +11,6 @@ import com.amateur.howmuchbackend.application.port.out.treasurer.SaveTreasurerAn
 import com.amateur.howmuchbackend.application.treasurer.model.InquiryScope;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerAnswerDraft;
 import com.amateur.howmuchbackend.application.treasurer.model.TreasurerGuideReply;
-import com.amateur.howmuchbackend.application.treasurer.policy.InquiryHowToPolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryParser;
 import com.amateur.howmuchbackend.application.treasurer.policy.InquiryScopePolicy;
 import com.amateur.howmuchbackend.application.treasurer.policy.TitleHintVerification;
@@ -25,6 +24,7 @@ import com.amateur.howmuchbackend.domain.treasurer.SavedTreasurerAnswer;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerGeneratedBy;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerActionType;
 import com.amateur.howmuchbackend.domain.treasurer.TreasurerAnswerView;
+import com.amateur.howmuchbackend.domain.treasurer.TreasurerRecommendation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -58,7 +58,6 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     private final CurrentActorPort currentActorPort;
     private final SaveTreasurerAnswerPort saveTreasurerAnswerPort;
     private final Clock clock;
-    private final InquiryHowToPolicy inquiryHowToPolicy;
     private final LoadTreasurerKnowledgePort loadTreasurerKnowledgePort;
     private final GenerateTreasurerGuidePort generateTreasurerGuidePort;
     private final TreasurerGuideCheck treasurerGuideCheck;
@@ -108,46 +107,85 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         }
     }
 
+    /**
+     * 안내 LLM이 먼저 질문을 나누고, LLM 응답이 없을 때만 키워드 분류로 답한다.
+     *
+     * <p>LLM은 한 번만 부른다. 안내 답변이 검사에서 버려져 키워드 분류로 돌아갈 때도 다시 부르지 않는다.
+     *
+     * <p>안내 LLM이 응답하지 않으면 문장 다듬기 LLM도 부르지 않고 서버 문구로 답한다. 공급자 장애 때 두 호출이
+     * 차례로 읽기 시간 제한까지 기다리면 응답이 두 배로 늦어진다.
+     */
     private Answered answerFor(AskTreasurerCommand command) {
-        InquiryParser.ParsedInquiry parsed = inquiryParser.parse(command.question());
-        if (parsed.intent() == InquiryIntent.UNKNOWN) {
-            if (inquiryScopePolicy.classify(command.question()) == InquiryScope.UNRELATED) {
-                return unmatchedAnswer(command.question());
-            }
-            Guided guided = guidedAnswer(command.question());
-            if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
-                return outOfScopeAnswer();
-            }
-            return guided.answer().orElseGet(() -> unmatchedAnswer(command.question()));
-        }
-        if (parsed.intent() == InquiryIntent.GUIDE) {
-            Guided guided = guidedAnswer(command.question());
-            if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
-                return outOfScopeAnswer();
-            }
-            return guided.answer()
-                    .orElseGet(() -> textAnswer(InquiryIntent.GUIDE, TreasurerCardCopy.OCR_ANSWER, List.of()));
-        }
-        if (inquiryHowToPolicy.asksHowTo(command.question())) {
-            // "송금은 어떻게 해?"처럼 키워드가 데이터 의도로 걸려도 사용법 질문일 수 있다.
-            // 안내가 데이터 질문이라고 돌려보내거나 실패하면 지금처럼 정산을 조회한다.
-            // "비트코인 송금은 어떻게 해?"처럼 무관하다고 하면 정산을 보여주지 않고 범위를 안내한다.
-            Guided guided = guidedAnswer(command.question());
-            if (guided.route() == TreasurerGuideReply.Route.UNRELATED) {
-                return outOfScopeAnswer();
-            }
-            if (guided.answer().isPresent()) {
-                return guided.answer().get();
-            }
-        }
-
         String question = command.question();
+        InquiryParser.ParsedInquiry parsed = inquiryParser.parse(question);
+        Guided guided = guidedAnswer(question);
+        if (guided.reply() == null) {
+            return keywordAnswer(question, parsed, true);
+        }
+        log.debug(
+                "Treasurer question routed. route={}, llmIntent={}, keywordIntent={}",
+                guided.reply().route(), guided.reply().intent(), parsed.intent()
+        );
+        return switch (guided.reply().route()) {
+            case UNRELATED -> outOfScopeAnswer();
+            case GUIDE -> guided.answer().orElseGet(() -> keywordAnswer(question, parsed, false));
+            case DATA -> routedDataAnswer(question, parsed, guided.reply());
+        };
+    }
+
+    /** LLM 응답이 없거나 안내 답변이 버려졌을 때의 키워드 분류 답변. */
+    private Answered keywordAnswer(String question, InquiryParser.ParsedInquiry parsed, boolean serverCopyOnly) {
+        return switch (parsed.intent()) {
+            case UNKNOWN -> unmatchedAnswer(question);
+            case GUIDE -> textAnswer(InquiryIntent.GUIDE, TreasurerCardCopy.OCR_ANSWER, List.of());
+            default -> dataAnswer(question, parsed, null, serverCopyOnly);
+        };
+    }
+
+    /**
+     * LLM이 데이터 질문이라고 한 답변.
+     *
+     * <p>LLM이 의도를 정하지 못했다고 하면 되묻는다. 의도를 비우거나 정해진 값이 아니면 키워드 분류를 쓴다.
+     *
+     * <p>기간은 질문에 기간 표현이 있을 때만 LLM 값을 쓴다. 기간을 말하지 않은 질문에 LLM이 기간을 채우면
+     * 우선순위 질문이 지난달에 밀린 정산을 놓친다. 이름은 질문에 적힌 글자일 때만 쓰고, 사용자의 정산과 맞지
+     * 않으면 키워드가 뽑은 이름으로 다시 본다.
+     */
+    private Answered routedDataAnswer(String question, InquiryParser.ParsedInquiry parsed, TreasurerGuideReply reply) {
+        if (reply.intent() == InquiryIntent.UNKNOWN) {
+            return clarifyAnswer();
+        }
+        if (reply.intent() == null) {
+            return parsed.intent() == InquiryIntent.UNKNOWN ? clarifyAnswer() : keywordAnswer(question, parsed, false);
+        }
+        InquiryPeriod period = parsed.period() != null && reply.period() != null ? reply.period() : parsed.period();
+        String titleHint = titleHintVerification.fromQuestion(question, reply.titleHint());
+        if (titleHint == null) {
+            return dataAnswer(question, new InquiryParser.ParsedInquiry(reply.intent(), period, parsed.titleHint()),
+                    null, false);
+        }
+        return dataAnswer(question, new InquiryParser.ParsedInquiry(reply.intent(), period, titleHint),
+                parsed.titleHint(), false);
+    }
+
+    /**
+     * {@code fallbackTitleHint}는 질문의 이름이 사용자의 정산과 맞지 않을 때 다시 볼 이름이다.
+     * {@code serverCopyOnly}면 문장 다듬기 LLM을 부르지 않는다.
+     */
+    private Answered dataAnswer(
+            String question,
+            InquiryParser.ParsedInquiry parsed,
+            String fallbackTitleHint,
+            boolean serverCopyOnly
+    ) {
         InquiryPeriod parsedPeriod = parsed.period();
         InquiryPeriod period = parsedPeriod == null ? InquiryPeriod.THIS_MONTH : parsedPeriod;
         Instant now = clock.instant();
         List<PersonalSettlement> all = treasurerSettlementQuery.loadMine();
-        String titleHint = titleHintVerification.verify(all, parsed.titleHint());
+        String verified = titleHintVerification.verify(all, parsed.titleHint());
+        String titleHint = verified != null ? verified : titleHintVerification.verify(all, fallbackTitleHint);
         boolean titleDropped = parsed.titleHint() != null && titleHint == null;
+        boolean deterministicOnly = titleDropped || serverCopyOnly;
         List<PersonalSettlement> mine = all.stream()
                 .filter(settlement -> titleHintVerification.matchesTitle(settlement, titleHint))
                 .toList();
@@ -157,29 +195,40 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         String scope = scopeLabel(period, titleHint, parsed.titleHint());
 
         return switch (parsed.intent()) {
-            case SEND_SETTLEMENTS -> answerList(
-                    question,
-                    parsed.intent(),
-                    period,
-                    scope,
-                    filtered.stream().filter(PersonalSettlement::isSend).filter(PersonalSettlement::isOutstanding).toList(),
-                    "보낼 정산",
-                    true,
-                    now,
-                    new TreasurerAnswerResult.Action(TreasurerAnswerActionType.SEND_LIST, "보낼 정산 확인하기"),
-                    titleDropped
-            );
+            case SEND_SETTLEMENTS -> {
+                List<TreasurerRecommendation> ordered = TreasurerRecommendation.prioritize(
+                        filtered.stream().filter(PersonalSettlement::isSend).toList(), now);
+                yield withUrgentSendNotice(answerList(
+                        question,
+                        parsed.intent(),
+                        period,
+                        scope,
+                        settlementsOf(ordered),
+                        "보낼 정산",
+                        true,
+                        now,
+                        new TreasurerAnswerResult.Action(TreasurerAnswerActionType.SEND_LIST, "보낼 정산 확인하기"),
+                        deterministicOnly
+                ), ordered);
+            }
             case RECEIVE_SETTLEMENTS -> answerList(
                     question,
                     parsed.intent(),
                     period,
                     scope,
-                    filtered.stream().filter(PersonalSettlement::isReceive).filter(PersonalSettlement::isOutstanding).toList(),
+                    settlementsOf(TreasurerRecommendation.prioritize(
+                            filtered.stream().filter(PersonalSettlement::isReceive).toList(), now)),
                     "받을 정산",
                     true,
                     now,
                     new TreasurerAnswerResult.Action(TreasurerAnswerActionType.RECEIVE_LIST, "받을 정산 확인하기"),
-                    titleDropped
+                    deterministicOnly
+            );
+            case PRIORITY_SETTLEMENTS -> answerPriority(
+                    parsedPeriod,
+                    parsedPeriod == null ? mine : filtered,
+                    parsedPeriod == null ? priorityScopeLabel(titleHint, parsed.titleHint()) : scope,
+                    now
             );
             case DUE_SETTLEMENTS -> answerList(
                     question,
@@ -194,9 +243,9 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     false,
                     now,
                     new TreasurerAnswerResult.Action(TreasurerAnswerActionType.STATUS_LIST, "정산 상태 확인하기"),
-                    titleDropped
+                    deterministicOnly
             );
-            case SETTLEMENT_STATUS -> answerStatus(question, period, scope, filtered, titleDropped);
+            case SETTLEMENT_STATUS -> answerStatus(question, period, scope, filtered, deterministicOnly);
             case EXPENSE_SUMMARY -> answerList(
                     question,
                     parsed.intent(),
@@ -207,7 +256,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                     false,
                     now,
                     new TreasurerAnswerResult.Action(TreasurerAnswerActionType.EXPENSE_LIST, "지출 내역 보기"),
-                    titleDropped
+                    deterministicOnly
             );
             case GUIDE, UNKNOWN -> throw new IllegalStateException("이미 처리됨");
         };
@@ -220,6 +269,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         return textAnswer(InquiryIntent.UNKNOWN, answer, suggestionPrompts());
     }
 
+    private Answered clarifyAnswer() {
+        return textAnswer(InquiryIntent.UNKNOWN, TreasurerCardCopy.CLARIFY_ANSWER, suggestionPrompts());
+    }
+
     private Answered outOfScopeAnswer() {
         return textAnswer(InquiryIntent.UNKNOWN, TreasurerCardCopy.UNKNOWN_ANSWER, suggestionPrompts());
     }
@@ -229,10 +282,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
     }
 
     /**
-     * 서비스 안내 문서를 근거로 사용법을 답한다.
+     * 서비스 안내 문서를 근거로 질문을 나누고 사용법을 답한다.
      *
      * <p>LLM이 사용법 질문이라고 답하고, 근거 ID와 금액 검사를 통과했을 때만 답변이 있다.
-     * 그 밖에는 경로만 돌려주고 호출자가 지금의 고정 안내나 정산 조회로 되돌린다.
+     * 그 밖에는 LLM 응답만 돌려주고 호출자가 경로에 따라 데이터 답변이나 키워드 분류로 간다.
      */
     private Guided guidedAnswer(String question) {
         var knowledge = loadTreasurerKnowledgePort.load();
@@ -262,7 +315,7 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         if (route == TreasurerGuideReply.Route.GUIDE && answer.isEmpty()) {
             log.warn("Treasurer guide answer rejected. reason={}", outcome.rejectedBecause());
         }
-        return new Guided(route, answer);
+        return new Guided(reply.get(), answer);
     }
 
     /** 후속 질문은 사용법 질문이다. 눌리면 질문 문장 그대로 다시 들어온다. */
@@ -270,8 +323,8 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         return new TreasurerAnswerResult.Prompt(InquiryIntent.GUIDE, question, question);
     }
 
-    /** 안내 경로의 결과. {@code route}는 LLM 응답이 없으면 비어 있다. */
-    private record Guided(TreasurerGuideReply.Route route, Optional<Answered> answer) {
+    /** 안내 LLM 호출 결과. {@code reply}는 LLM 응답이 없으면 비어 있다. */
+    private record Guided(TreasurerGuideReply reply, Optional<Answered> answer) {
     }
 
     private Answered textAnswer(
@@ -338,6 +391,69 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 ),
                 phrased.generatedBy()
         );
+    }
+
+    /**
+     * 먼저 처리할 정산을 추천 API와 같은 순서로 보여준다.
+     *
+     * <p>순서와 경과 시간이 답의 핵심이라 LLM 문장을 쓰지 않는다. LLM이 순서를 바꾸거나 시간을 빼면
+     * 가장 급한 정산을 놓친다.
+     */
+    private Answered answerPriority(
+            InquiryPeriod period,
+            List<PersonalSettlement> candidates,
+            String scope,
+            Instant now
+    ) {
+        List<TreasurerRecommendation> ordered = TreasurerRecommendation.prioritize(candidates, now);
+        List<PersonalSettlement> items = settlementsOf(ordered);
+        String answer = ordered.isEmpty()
+                ? "%s 먼저 처리할 정산은 없어요.".formatted(scope)
+                : "%s 먼저 처리할 정산은 %d건이에요. 가장 먼저 확인할 정산은 %s.%s".formatted(
+                        scope, ordered.size(), quotedCopula(ordered.getFirst().settlement().title()),
+                        ordered.getFirst().isUrgentSend() ? " " + ordered.getFirst().reason() : "");
+        return new Answered(
+                new TreasurerAnswerResult(
+                        null,
+                        InquiryIntent.PRIORITY_SETTLEMENTS,
+                        period,
+                        scope,
+                        TreasurerAnswerView.LIST,
+                        answer,
+                        items.isEmpty() ? null : listFooter(items.size()),
+                        items.stream().limit(CARD_LIMIT).map(item -> toItem(treasurerCardCopy.item(item, now))).toList(),
+                        null,
+                        List.of(new TreasurerAnswerResult.Action(
+                                TreasurerAnswerActionType.STATUS_LIST, "정산 상태 확인하기")),
+                        List.of()
+                ),
+                TreasurerAnswerGeneratedBy.SERVER
+        );
+    }
+
+    /** 맨 위가 기한을 넘긴 보낼 정산이면 경과 시간과 함께 빨리 정산하라고 덧붙인다. */
+    private Answered withUrgentSendNotice(Answered answered, List<TreasurerRecommendation> ordered) {
+        if (ordered.isEmpty() || !ordered.getFirst().isUrgentSend()) {
+            return answered;
+        }
+        TreasurerRecommendation top = ordered.getFirst();
+        String notice = " 가장 먼저 보낼 정산은 %s. %s".formatted(quotedCopula(top.settlement().title()), top.reason());
+        return new Answered(
+                answered.result().withAnswer(answered.result().answer() + notice),
+                answered.generatedBy()
+        );
+    }
+
+    /** 제목 끝 글자에 받침이 있으면 "이에요", 없으면 "예요"를 붙인다. 한글이 아니면 "이에요"로 둔다. */
+    private static String quotedCopula(String title) {
+        String trimmed = title == null ? "" : title.strip();
+        char last = trimmed.isEmpty() ? ' ' : trimmed.charAt(trimmed.length() - 1);
+        boolean noFinalConsonant = last >= '가' && last <= '힣' && (last - '가') % 28 == 0;
+        return "'%s'%s".formatted(title, noFinalConsonant ? "예요" : "이에요");
+    }
+
+    private List<PersonalSettlement> settlementsOf(List<TreasurerRecommendation> ordered) {
+        return ordered.stream().map(TreasurerRecommendation::settlement).toList();
     }
 
     private Answered answerStatus(
@@ -430,8 +546,9 @@ public class AskTreasurerService implements AskTreasurerUseCase {
                 items
         );
         if (deterministicOnly) {
-            // 이름으로 좁히려다 실패한 답변이다. LLM 문장을 붙이면 없는 정산을 있는 것처럼
-            // 말할 여지가 생긴다. 서버가 계산한 문구만 내보낸다.
+            // 이름으로 좁히려다 실패했으면 LLM 문장이 없는 정산을 있는 것처럼 말할 여지가 생긴다.
+            // 안내 LLM이 응답하지 않았으면 문장 다듬기 LLM도 시간 제한까지 기다릴 가능성이 크다.
+            // 둘 다 서버가 계산한 문구만 내보낸다.
             return new Phrased(draft.fallbackAnswer(), TreasurerAnswerGeneratedBy.SERVER);
         }
         return generateTreasurerAnswerPort.generate(draft)
@@ -528,6 +645,11 @@ public class AskTreasurerService implements AskTreasurerUseCase {
         return YearMonth.from(targetDate).equals(target);
     }
 
+    /** 기간을 말하지 않은 우선순위 질문은 지난달에 밀린 정산도 놓치지 않도록 전체에서 찾는다. */
+    private String priorityScopeLabel(String appliedTitleHint, String parsedTitleHint) {
+        return titleScope("끝나지 않은 정산 전체를 기준으로 조회했어요.", appliedTitleHint, parsedTitleHint);
+    }
+
     /**
      * 질문에서 뽑은 제목이 사용자의 정산 중 하나라도 맞을 때만 필터로 쓴다.
      *
@@ -543,6 +665,10 @@ public class AskTreasurerService implements AskTreasurerUseCase {
             case THIS_WEEK -> "이번 주 기준으로 조회했어요.";
             case THIS_MONTH -> "이번 달 기준으로 조회했어요.";
         };
+        return titleScope(periodLabel, appliedTitleHint, parsedTitleHint);
+    }
+
+    private String titleScope(String periodLabel, String appliedTitleHint, String parsedTitleHint) {
         if (appliedTitleHint != null) {
             return periodLabel + " '%s' 기준으로 좁혀서 조회했어요.".formatted(appliedTitleHint);
         }

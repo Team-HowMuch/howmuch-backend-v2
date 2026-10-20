@@ -1,9 +1,11 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.account.service.AccountCredentialProtectionService;
 import com.amateur.howmuchbackend.application.notification.service.BusinessNotificationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.port.out.account.AccountTransactionCoveragePort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountTransactionPort;
 import com.amateur.howmuchbackend.application.port.out.account.SaveAccountTransactionPort;
@@ -75,6 +77,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("정산 입금 대조 Application 흐름")
 class SettlementDepositServiceTest {
+    @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final Long CREATOR_ID = 1L;
     private static final UUID SETTLEMENT_ID = UUID.fromString("7c33b1fb-82f1-4a45-a834-a015a26b2ba6");
     private static final UUID OTHER_SETTLEMENT_ID = UUID.fromString("56d2237c-714e-46b0-a036-e5f44f8f509a");
@@ -125,7 +128,8 @@ class SettlementDepositServiceTest {
                 notifications,
                 mock(SettlementDepositReconciliationJobStorePort.class),
                 new SettlementTransferReconciliationPolicy(),
-                Clock.systemUTC()
+                Clock.systemUTC(),
+                estimateInvalidation
         );
         SettlementBankTransactionFetchService transactionFetchService =
                 new SettlementBankTransactionFetchService(
@@ -133,6 +137,8 @@ class SettlementDepositServiceTest {
                         bankCatalog,
                         credentialProtection,
                         mock(SettlementBankLookupBudgetPort.class),
+                        mock(AccountTransactionCoveragePort.class),
+                        loadTransactionPort,
                         Clock.systemUTC()
                 );
         service = new SettlementDepositService(
@@ -256,6 +262,8 @@ class SettlementDepositServiceTest {
         assertThat(result.confirmedAmount()).isEqualTo(3_000);
         assertThat(result.completedParticipantCount()).isZero();
         verify(saveSettlementPort, never()).update(any(Settlement.class));
+        verify(estimateInvalidation).settlementChanged(SETTLEMENT_ID);
+
     }
 
     @Test
@@ -281,6 +289,8 @@ class SettlementDepositServiceTest {
         assertThat(result.confirmedAmount()).isZero();
         verify(depositStorePort).saveAll(List.of());
         verify(saveSettlementPort, never()).update(any(Settlement.class));
+        verifyNoInteractions(estimateInvalidation);
+
     }
 
     @Test
@@ -453,6 +463,8 @@ class SettlementDepositServiceTest {
                 connectionStorePort,
                 new SettlementBankTransactionFetchService(bankTransactionPort, bankCatalog, credentialProtection,
                         mock(SettlementBankLookupBudgetPort.class),
+                        mock(AccountTransactionCoveragePort.class),
+                        loadTransactionPort,
                         Clock.systemUTC()),
                 writer, mock(SettlementDepositReader.class));
         try (var clock = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {

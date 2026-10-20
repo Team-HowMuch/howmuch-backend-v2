@@ -38,18 +38,21 @@ public class DutchPayAllocationPolicy {
                         SettlementStatusCode.SETTLEMENT_CREATOR_PARTICIPANT_NOT_FOUND
                 ));
 
-        long baseAmount = totalAmount / participants.size();
-        long remainder = totalAmount % participants.size();
         return participants.stream()
                 .map(participant -> SettlementDutchPayAllocation.create(
                         settlement.id(),
                         participant.id(),
-                        participant.id().equals(creator.id())
-                                ? Math.addExact(baseAmount, remainder)
-                                : baseAmount,
+                        equalAmount(totalAmount, participants.size(), participant.id().equals(creator.id())),
                         now
                 ))
                 .toList();
+    }
+
+    public long equalAmount(long totalAmount, int participantCount, boolean creator) {
+        if (participantCount < MIN_PARTICIPANT_COUNT) {
+            throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_PARTICIPANTS_INSUFFICIENT);
+        }
+        return totalAmount / participantCount + (creator ? totalAmount % participantCount : 0);
     }
 
     /**

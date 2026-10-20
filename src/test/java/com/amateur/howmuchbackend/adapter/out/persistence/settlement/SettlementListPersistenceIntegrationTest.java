@@ -11,9 +11,14 @@ import com.amateur.howmuchbackend.adapter.out.persistence.settlement.repository.
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListStatusFilter;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementListTab;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.GetSettlementsCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.GetGroupSettlementsCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.result.GroupSettlementListItemResult;
+import com.amateur.howmuchbackend.application.settlement.service.GroupSettlementListService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementListReadModel;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReminderFactsPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementReminderCooldownPort;
 import com.amateur.howmuchbackend.application.settlement.service.SettlementListService;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -28,6 +33,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
@@ -36,6 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.Duration;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -44,8 +53,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.Mockito.when;
 import static java.time.temporal.ChronoUnit.MICROS;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @TestPropertySource(properties = "howmuch.auth.sms.discord.webhook-url=http://127.0.0.1:9/unused")
 @DisplayName("정산 목록 영속 조회")
 class SettlementListPersistenceIntegrationTest {
@@ -56,6 +70,18 @@ class SettlementListPersistenceIntegrationTest {
 
     @Autowired
     private SettlementListService settlementListService;
+
+    @Autowired
+    private GroupSettlementListService groupSettlementListService;
+
+    @Autowired
+    private LoadSettlementReminderFactsPort reminderFactsPort;
+
+    @Autowired
+    private SettlementReminderCooldownPort cooldownPort;
+
+    @Autowired
+    private MockMvc mvc;
 
     @MockitoBean
     private CurrentActorPort currentActorPort;
@@ -207,6 +233,146 @@ class SettlementListPersistenceIntegrationTest {
         });
     }
 
+    @ParameterizedTest
+    @CsvSource(value = {
+            "RECEIPT_OCR, 1, 롯데리아",
+            "PAYMENT_HISTORY, 1, null",
+            "RECEIPT_OCR, 2, null",
+            "MANUAL, 1, null"
+    }, nullValues = "null")
+    @DisplayName("storeName은 표시 대상 지출이 단일 영수증일 때만 반환한다")
+    void settlementList_storeName_singleReceiptOcrOnly(
+            String source, int count, String expectedStoreName
+    ) {
+        for (int i = 0; i < count; i++) {
+            String description = expectedStoreName != null ? expectedStoreName : "지출" + i;
+            jdbcTemplate.update("""
+                            INSERT INTO settlement_expenses (
+                                id, settlement_id, source, source_reference, description, amount, display_order,
+                                created_at, updated_at
+                            )
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                    UUID.randomUUID(), receiveSettlementId, source,
+                    "MANUAL".equals(source) ? null : UUID.randomUUID().toString(), description, 100L, i,
+                    CREATED_AT, CREATED_AT);
+        }
+
+        var result = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS,
+                null,
+                null
+        );
+
+        assertThat(result).singleElement().satisfies(item ->
+                assertThat(item.storeName()).isEqualTo(expectedStoreName)
+        );
+    }
+
+    @Test
+    @DisplayName("storeName은 영수증 1건과 결제내역 1건이 함께 있으면 null이다")
+    void settlementList_storeName_receiptAndPaymentHistory_returnsNull() {
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_expenses (
+                            id, settlement_id, source, source_reference, description, amount, display_order,
+                            created_at, updated_at
+                        )
+                        VALUES (?, ?, 'RECEIPT_OCR', ?, '롯데리아', 100, 0, ?, ?)
+                        """,
+                UUID.randomUUID(), receiveSettlementId, UUID.randomUUID().toString(), CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("""
+                        INSERT INTO settlement_expenses (
+                            id, settlement_id, source, source_reference, description, amount, display_order,
+                            created_at, updated_at
+                        )
+                        VALUES (?, ?, 'PAYMENT_HISTORY', ?, '이체', 100, 1, ?, ?)
+                        """,
+                UUID.randomUUID(), receiveSettlementId, UUID.randomUUID().toString(), CREATED_AT, CREATED_AT);
+
+        var result = settlementPersistenceAdapter.findAll(
+                creatorId,
+                SettlementListTab.RECEIVE,
+                SettlementListStatusFilter.IN_PROGRESS,
+                null,
+                null
+        );
+
+        assertThat(result).singleElement().satisfies(item ->
+                assertThat(item.storeName()).isNull()
+        );
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = SettlementStatus.class,
+            names = {"AWAITING_DEPOSIT", "COMPLETED"})
+    @DisplayName("확정 더치페이는 0원 참여 기록을 보존하고 PAY 목록과 총무·납부 인원에서 제외한다")
+    void dutchPay_zeroAmount_hiddenFromPayAndExcludedFromCounts(SettlementStatus status) {
+        var zeroParticipant = SettlementParticipant.registeredUser(
+                paySettlementId, creatorId, "0원 참여자", 2, CREATED_AT);
+        settlementParticipantJpaRepository.saveAndFlush(new SettlementParticipantJpaEntity(zeroParticipant));
+        jdbcTemplate.update("UPDATE settlements SET status = ? WHERE id = ?", status.name(), paySettlementId);
+
+        assertThat(settlementPersistenceAdapter.findAll(
+                creatorId, SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null)).isEmpty();
+        assertThat(settlementPersistenceAdapter.findAll(
+                payerId, SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> assertThat(item.amountToPay()).isEqualTo(6_000));
+        assertThat(settlementPersistenceAdapter.findAll(
+                otherUserId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.participantCount()).isEqualTo(3);
+                    assertThat(item.payableParticipantCount()).isEqualTo(1);
+                });
+        Long zeroGroup = insertGroup("0원 그룹", otherUserId);
+        insertGroupMember(zeroGroup, creatorId, "ACTIVE");
+        jdbcTemplate.update("UPDATE settlement_participants SET source = 'GROUP_MEMBER', source_group_id = ? WHERE id = ?",
+                zeroGroup, payPayerParticipantId);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+        assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(zeroGroup, SettlementListStatusFilter.ALL)))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.viewerRole()).isEqualTo(GroupSettlementListItemResult.ViewerRole.PARTICIPANT);
+                    assertThat(item.amountToPay()).isZero();
+                    assertThat(item.receivableAmount()).isNull();
+                    assertThat(item.reminderNextAvailableAt()).isNull();
+                    assertThat(item.participantCount()).isEqualTo(3);
+                    assertThat(item.payableParticipantCount()).isEqualTo(1);
+                });
+        assertThat(settlementJpaRepository.findAllForTreasurer(creatorId, "PAY")).isEmpty();
+        assertThat(settlementJpaRepository.findAllForTreasurer(otherUserId, "RECEIVE"))
+                .singleElement().satisfies(item -> assertThat(item.getPayerCount()).isEqualTo(1));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"DUTCH_PAY,SUSPENDED", "ITEM_ALLOCATION,REQUESTED", "ITEM_ALLOCATION,SUSPENDED"})
+    @DisplayName("중단 편집과 품목 선택 중 Share 부재는 PAY 목록과 실제 참여 인원을 유지한다")
+    void unconfirmedWithoutShare_keepsPayEntryAndParticipantCount(String type, String status) {
+        jdbcTemplate.update("DELETE FROM settlement_shares WHERE settlement_id = ?", paySettlementId);
+        jdbcTemplate.update("UPDATE settlements SET allocation_type = ?, status = ? WHERE id = ?",
+                type, status, paySettlementId);
+        assertThat(settlementPersistenceAdapter.findAll(
+                payerId, SettlementListTab.PAY, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.amountToPay()).isNull();
+                });
+        assertThat(settlementPersistenceAdapter.findAll(
+                otherUserId, SettlementListTab.RECEIVE, SettlementListStatusFilter.ALL, null, null))
+                .singleElement().satisfies(item -> assertThat(item.payableParticipantCount()).isEqualTo(1));
+        assertThat(settlementJpaRepository.findAllForTreasurer(payerId, "PAY")).hasSize(1);
+        Long groupId = insertGroup("미확정 정산 그룹", otherUserId);
+        insertGroupMember(groupId, payerId, "ACTIVE");
+        jdbcTemplate.update("UPDATE settlement_participants SET source = 'GROUP_MEMBER', source_group_id = ? WHERE id = ?",
+                groupId, payPayerParticipantId);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(payerId));
+        assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null)))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.viewerRole()).isEqualTo(GroupSettlementListItemResult.ViewerRole.PARTICIPANT);
+                    assertThat(item.amountToPay()).isEqualTo(type.equals("ITEM_ALLOCATION") ? 6000L : null);
+                    assertThat(item.receivableAmount()).isNull();
+                });
+    }
+
     @Test
     @DisplayName("삭제된 정산은 생성자와 참여자의 목록에서 모두 제외한다")
     void settlementList_softDeleted_hiddenFromBothTabs() {
@@ -303,43 +469,85 @@ class SettlementListPersistenceIntegrationTest {
                 .containsExactly(receiveSettlementId);
         assertThat(all).extracting(item -> item.settlementId())
                 .containsExactly(receiveSettlementId);
+        Long group = insertGroup("초안 제외 그룹", creatorId);
+        insertGroupMember(group, creatorId, "ACTIVE");
+        jdbcTemplate.update("UPDATE settlement_participants SET source = 'GROUP_MEMBER', source_group_id = ? WHERE settlement_id IN (?, ?)",
+                group, draftId, receiveSettlementId);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+        assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(group, SettlementListStatusFilter.ALL)))
+                .extracting(GroupSettlementListItemResult::settlementId).containsExactly(receiveSettlementId);
+
     }
 
     @Test
     @DisplayName("RECEIVE는 실제 완납 참여자 수와 링크 생성 시각을 조회한다")
-    void receiveSettlement_completedMembersAndLinkTime_loaded() {
+    void receiveSettlement_completedMembersAndLinkTime_loaded() throws Exception {
         RequestFixture request = insertReceiveRequest(600L);
-        insertDeposit(request.shareId(), 300L);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+        assertThat(cooldownPort.reserve(receiveSettlementId, receivePayerParticipantId,
+                "list-reminder", Duration.ofMinutes(30))).isTrue();
+        try {
+            LocalDateTime expectedExpiry = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(30);
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .singleElement().satisfies(item -> assertThat(item.reminderNextAvailableAt())
+                            .isCloseTo(expectedExpiry, within(2, java.time.temporal.ChronoUnit.SECONDS)));
+            mvc.perform(get("/api/v2/settlements").with(user("creator")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].reminderNextAvailableAt").isString());
+            mvc.perform(get("/api/v2/settlements"))
+                    .andExpect(status().isUnauthorized());
+            when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(payerId));
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.PAY, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .allSatisfy(item -> assertThat(item.reminderNextAvailableAt()).isNull());
+            mvc.perform(get("/api/v2/settlements").param("tab", "PAY").with(user("payer")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].reminderNextAvailableAt")
+                            .value(org.hamcrest.Matchers.nullValue()));
+            when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+            insertDeposit(request.shareId(), 300L);
 
-        var partiallyPaid = settlementPersistenceAdapter.findAll(
-                creatorId,
-                SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS,
-                null,
-                null
-        );
+            var partiallyPaid = settlementPersistenceAdapter.findAll(
+                    creatorId,
+                    SettlementListTab.RECEIVE,
+                    SettlementListStatusFilter.IN_PROGRESS,
+                    null,
+                    null
+            );
 
-        assertThat(partiallyPaid).singleElement().satisfies(item -> {
-            assertThat(item.payableParticipantCount()).isEqualTo(1);
-            assertThat(item.completedParticipantCount()).isZero();
-            assertThat(item.requestedAt()).isCloseTo(request.requestedAt(), within(1, MICROS));
-        });
+            assertThat(partiallyPaid).singleElement().satisfies(item -> {
+                assertThat(item.payableParticipantCount()).isEqualTo(1);
+                assertThat(item.completedParticipantCount()).isZero();
+                assertThat(item.requestedAt()).isCloseTo(request.requestedAt(), within(1, MICROS));
+            });
 
-        insertDeposit(request.shareId(), 300L);
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .singleElement().satisfies(item -> assertThat(item.reminderNextAvailableAt()).isNull());
+            mvc.perform(get("/api/v2/settlements").with(user("creator")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].reminderNextAvailableAt")
+                            .value(org.hamcrest.Matchers.nullValue()));
 
-        var fullyPaid = settlementPersistenceAdapter.findAll(
-                creatorId,
-                SettlementListTab.RECEIVE,
-                SettlementListStatusFilter.IN_PROGRESS,
-                null,
-                null
-        );
+            insertDeposit(request.shareId(), 300L);
 
-        assertThat(fullyPaid).singleElement().satisfies(item -> {
-            // 모든 참여자를 동일한 분모와 분자로 계산해 전원 납부 시 진행률을 100%로 반환한다.
-            assertThat(item.payableParticipantCount()).isEqualTo(1);
-            assertThat(item.completedParticipantCount()).isEqualTo(1);
-        });
+            var fullyPaid = settlementPersistenceAdapter.findAll(
+                    creatorId,
+                    SettlementListTab.RECEIVE,
+                    SettlementListStatusFilter.IN_PROGRESS,
+                    null,
+                    null
+            );
+
+            assertThat(fullyPaid).singleElement().satisfies(item -> {
+                // 모든 참여자를 동일한 분모와 분자로 계산해 전원 납부 시 진행률을 100%로 반환한다.
+                assertThat(item.payableParticipantCount()).isEqualTo(1);
+                assertThat(item.completedParticipantCount()).isEqualTo(1);
+            });
+        } finally {
+            cooldownPort.release(receiveSettlementId, receivePayerParticipantId, "list-reminder");
+        }
     }
 
     @Test
@@ -412,9 +620,7 @@ class SettlementListPersistenceIntegrationTest {
             "ITEM_ALLOCATION, AWAITING_DEPOSIT, null",
             "ITEM_ALLOCATION, COMPLETED, null",
             "DUTCH_PAY, REQUESTED, null",
-            "DUTCH_PAY, SUSPENDED, null",
-            "DUTCH_PAY, AWAITING_DEPOSIT, null",
-            "DUTCH_PAY, COMPLETED, null"
+            "DUTCH_PAY, SUSPENDED, null"
     }, nullValues = "null")
     @DisplayName("본인 Share가 없는 품목 정산은 선택 대기·중단 상태에서만 총액을 표시한다")
     void paySettlement_missingShare_totalFallbackOnlyWhileItemAmountUnconfirmed(
@@ -483,7 +689,7 @@ class SettlementListPersistenceIntegrationTest {
 
     @Test
     @DisplayName("그룹 필터는 해당 그룹 출처 참여자가 있는 정산만 조회한다")
-    void settlementList_sourceGroupFilter_returnsMatchingParticipants() {
+    void settlementList_sourceGroupFilter_returnsMatchingParticipants() throws Exception {
         Long groupId = insertGroup("목록 필터 그룹", creatorId);
         Long unauthorizedGroupId = insertGroup("탈퇴한 그룹", otherUserId);
         insertGroupMember(groupId, creatorId, "ACTIVE");
@@ -523,6 +729,146 @@ class SettlementListPersistenceIntegrationTest {
             ));
         });
         assertThat(notMatching).isEmpty();
+
+        insertGroupMember(groupId, payerId, "ACTIVE");
+        jdbcTemplate.update("UPDATE settlement_participants SET linked_user_id = ? WHERE id = ?",
+                payerId, receivePayerParticipantId);
+        jdbcTemplate.update("UPDATE settlement_participants SET source = 'GROUP_MEMBER', source_group_id = ? WHERE id = ?",
+                groupId, payPayerParticipantId);
+        insertReceiveRequest(600L);
+        jdbcTemplate.update("UPDATE settlement_links SET created_at = ?, updated_at = ? WHERE settlement_id = ?",
+                CREATED_AT.plusMinutes(3), CREATED_AT.plusMinutes(3), receiveSettlementId);
+        jdbcTemplate.update("UPDATE settlements SET created_at = ?, updated_at = ? WHERE id = ?",
+                CREATED_AT.plusMinutes(1), CREATED_AT.plusMinutes(1), paySettlementId);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_categories (settlement_id, status, category_code, source, classified_at,
+                    created_at, updated_at)
+                VALUES (?, 'CLASSIFIED', 'FOOD', 'RULE', ?, ?, ?)
+                """, receiveSettlementId, CREATED_AT, CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_user_categories (settlement_id, user_id, category_code, created_at, updated_at)
+                VALUES (?, ?, 'CAFE_SNACK', ?, ?), (?, ?, 'FOOD', ?, ?)
+                """, receiveSettlementId, creatorId, CREATED_AT, CREATED_AT,
+                receiveSettlementId, payerId, CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_expenses
+                    (id, settlement_id, source, source_reference, description, amount, display_order, created_at, updated_at)
+                VALUES (?, ?, 'RECEIPT_OCR', ?, '그룹 식당', 600, 0, ?, ?)
+                """, UUID.randomUUID(), receiveSettlementId, UUID.randomUUID().toString(), CREATED_AT, CREATED_AT);
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+        assertThat(cooldownPort.reserve(receiveSettlementId, receivePayerParticipantId,
+                "group-list", Duration.ofMinutes(30))).isTrue();
+        try {
+            var groupItems = groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null));
+            assertThat(groupItems).extracting(GroupSettlementListItemResult::settlementId)
+                    .containsExactly(receiveSettlementId, paySettlementId);
+            assertThat(groupItems.get(0)).satisfies(item -> {
+                assertThat(item.viewerRole()).isEqualTo(GroupSettlementListItemResult.ViewerRole.REQUESTER);
+                assertThat(item.receivableAmount()).isEqualTo(600L);
+                assertThat(item.amountToPay()).isNull();
+                assertThat(item.reminderNextAvailableAt()).isNotNull();
+                assertThat(item.category().code()).isEqualTo("CAFE_SNACK");
+                assertThat(item.storeName()).isEqualTo("그룹 식당");
+            });
+            assertThat(groupItems.get(1)).satisfies(item -> {
+                assertThat(item.viewerRole()).isEqualTo(GroupSettlementListItemResult.ViewerRole.NONE);
+                assertThat(item.requesterName()).isEqualTo("다른 사람");
+                assertThat(item.requesterPublicId()).isNotBlank();
+                assertThat(item.totalAmount()).isEqualTo(6000L);
+                assertThat(item.participantCount()).isEqualTo(2);
+                assertThat(item.payableParticipantCount()).isEqualTo(1);
+                assertThat(item.receivableAmount()).isNull();
+                assertThat(item.amountToPay()).isNull();
+                assertThat(item.reminderNextAvailableAt()).isNull();
+                assertThat(item.category().code()).isEqualTo("UNCATEGORIZED");
+            });
+            String route = "/api/v2/groups/" + groupId + "/settlements";
+            mvc.perform(get(route).with(user("group-viewer")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].viewerRole").value("REQUESTER"))
+                    .andExpect(jsonPath("$.data[0].category.code").value("CAFE_SNACK"))
+                    .andExpect(jsonPath("$.data[0].reminderNextAvailableAt").isString())
+                    .andExpect(jsonPath("$.data[1].viewerRole").value("NONE"))
+                    .andExpect(jsonPath("$.data[1].amountToPay").value(org.hamcrest.Matchers.nullValue()))
+                    .andExpect(jsonPath("$.data[1].receivableAmount").value(org.hamcrest.Matchers.nullValue()))
+                    .andExpect(jsonPath("$.data[1].reminderNextAvailableAt").value(org.hamcrest.Matchers.nullValue()))
+                    .andExpect(jsonPath("$.data[1].accountNumber").doesNotExist())
+                    .andExpect(jsonPath("$.data[1].phoneNumber").doesNotExist())
+                    .andExpect(jsonPath("$.data[1].receivingAccountId").doesNotExist());
+            mvc.perform(get("/api/v2/settlements").param("groupId", groupId.toString())
+                            .param("scope", "GROUP").with(user("group-viewer")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.length()").value(1))
+                    .andExpect(jsonPath("$.data[0].settlementId").value(receiveSettlementId.toString()));
+            mvc.perform(get("/api/v2/settlements/" + paySettlementId).with(user("group-viewer")))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get(route)).andExpect(status().isUnauthorized());
+            mvc.perform(get(route).param("status", "INVALID").with(user("group-viewer")))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(get("/api/v2/groups/0/settlements").with(user("group-viewer")))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(get(route).param("status", "DRAFT").with(user("group-viewer")))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data").isEmpty());
+            when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(payerId));
+            var participantItems = groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null));
+            assertThat(participantItems).allSatisfy(item -> {
+                assertThat(item.viewerRole()).isEqualTo(GroupSettlementListItemResult.ViewerRole.PARTICIPANT);
+                assertThat(item.receivableAmount()).isNull();
+                assertThat(item.reminderNextAvailableAt()).isNull();
+            });
+            assertThat(participantItems).extracting(GroupSettlementListItemResult::amountToPay)
+                    .containsExactly(600L, 6000L);
+            // 조회자가 고른 값이 요청자 값보다 우선하고, 없으면 요청자 값, 그것도 없으면 자동 분류 값이다.
+            assertThat(participantItems.getFirst().category().code()).isEqualTo("FOOD");
+            jdbcTemplate.update("DELETE FROM settlement_user_categories WHERE settlement_id = ? AND user_id = ?",
+                    receiveSettlementId, payerId);
+            assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null))
+                    .getFirst().category().code()).isEqualTo("CAFE_SNACK");
+            jdbcTemplate.update("UPDATE settlement_user_categories SET category_code = 'REMOVED_CODE' WHERE settlement_id = ? AND user_id = ?",
+                    receiveSettlementId, creatorId);
+            assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null))
+                    .getFirst().category().code()).isEqualTo("UNCATEGORIZED");
+            jdbcTemplate.update("DELETE FROM settlement_user_categories WHERE settlement_id = ? AND user_id = ?",
+                    receiveSettlementId, creatorId);
+            assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null))
+                    .getFirst().category().code()).isEqualTo("FOOD");
+
+            when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+            jdbcTemplate.update("UPDATE settlements SET status = 'COMPLETED', updated_at = ? WHERE id = ?",
+                    CREATED_AT.plusMinutes(4), paySettlementId);
+            assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(
+                    groupId, SettlementListStatusFilter.COMPLETED)))
+                    .extracting(GroupSettlementListItemResult::settlementId).containsExactly(paySettlementId);
+            assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null)))
+                    .extracting(GroupSettlementListItemResult::settlementId).containsExactly(receiveSettlementId);
+            assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, SettlementListStatusFilter.ALL)))
+                    .hasSize(2);
+            jdbcTemplate.update("UPDATE settlements SET deleted_at = ? WHERE id = ?",
+                    CREATED_AT.plusDays(1), paySettlementId);
+            assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, SettlementListStatusFilter.ALL)))
+                    .extracting(GroupSettlementListItemResult::settlementId).containsExactly(receiveSettlementId);
+            when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(otherUserId));
+            mvc.perform(get(route).with(user("non-member"))).andExpect(status().isForbidden());
+            insertGroupMember(groupId, otherUserId, "LEFT");
+            mvc.perform(get(route).with(user("left-member"))).andExpect(status().isForbidden());
+            jdbcTemplate.update("UPDATE group_members SET status = 'REMOVED' WHERE group_id = ? AND user_id = ?",
+                    groupId, otherUserId);
+            mvc.perform(get(route).with(user("removed-member"))).andExpect(status().isForbidden());
+            when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+            mvc.perform(get("/api/v2/groups/" + unauthorizedGroupId + "/settlements").with(user("left-member")))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get("/api/v2/groups/" + Long.MAX_VALUE + "/settlements").with(user("member")))
+                    .andExpect(status().isNotFound());
+            Long emptyGroup = insertGroup("빈 그룹", creatorId);
+            insertGroupMember(emptyGroup, creatorId, "ACTIVE");
+            mvc.perform(get("/api/v2/groups/" + emptyGroup + "/settlements").with(user("member")))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data").isEmpty());
+            jdbcTemplate.update("UPDATE groups SET status = 'DELETED', deleted_at = ? WHERE id = ?",
+                    CREATED_AT.plusDays(2), groupId);
+            mvc.perform(get(route).with(user("member"))).andExpect(status().isNotFound());
+        } finally {
+            cooldownPort.release(receiveSettlementId, receivePayerParticipantId, "group-list");
+        }
     }
 
     @Test
@@ -576,6 +922,9 @@ class SettlementListPersistenceIntegrationTest {
     void settlementList_monthFilter_excludesUnfinishedPreservesStatus() {
         LocalDateTime completedAt = LocalDateTime.of(2026, 9, 10, 0, 0);
         for (SettlementStatus state : SettlementStatus.values()) {
+            // V53 requires immutable compression sources for this state; the real Batch flow
+            // and its list/detail projections are covered by GroupNettingDirectIntegrationTest.
+            if (state == SettlementStatus.NETTING_IN_PROGRESS) continue;
             jdbcTemplate.update("UPDATE settlements SET status = ?, updated_at = ? WHERE id = ?",
                     state.name(), completedAt, receiveSettlementId);
             var filtered = settlementPersistenceAdapter.findAll(
@@ -685,6 +1034,16 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(item.receivableAmount()).isEqualTo(10_000L);
             assertThat(item.amountToPay()).isNull();
         });
+        Long groupId = insertGroup("품목 정산 그룹", creatorId);
+        insertGroupMember(groupId, creatorId, "ACTIVE");
+        jdbcTemplate.update("UPDATE settlement_participants SET source = 'GROUP_MEMBER', source_group_id = ? WHERE id = ?",
+                groupId, receivePayerParticipantId);
+        assertThat(groupSettlementListService.get(new GetGroupSettlementsCommand(groupId, null)))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.viewerRole()).isEqualTo(GroupSettlementListItemResult.ViewerRole.REQUESTER);
+                    assertThat(item.receivableAmount()).isEqualTo(10_000L);
+                    assertThat(item.amountToPay()).isNull();
+                });
     }
 
     @Test
@@ -707,6 +1066,38 @@ class SettlementListPersistenceIntegrationTest {
             assertThat(receipt.expenses()).singleElement()
                     .satisfies(expense -> assertThat(expense.amount()).isEqualTo(12_000L));
         });
+        jdbcTemplate.update("""
+                INSERT INTO settlement_item_submissions (id, settlement_id, participant_id, submitted_at)
+                VALUES (?, ?, ?, ?)
+                """, UUID.randomUUID(), receiveSettlementId, receiveCreatorParticipantId, CREATED_AT);
+        assertThat(reminderFactsPort.findAllBySettlementIds(List.of(receiveSettlementId, paySettlementId)))
+                .anySatisfy(fact -> {
+                    assertThat(fact.participantId()).isEqualTo(receiveCreatorParticipantId);
+                    assertThat(fact.linkedNonCreator()).isFalse();
+                    assertThat(fact.submitted()).isTrue();
+                }).anySatisfy(fact -> {
+                    assertThat(fact.participantId()).isEqualTo(receivePayerParticipantId);
+                    assertThat(fact.linkedNonCreator()).isTrue();
+                    assertThat(fact.submitted()).isFalse();
+                    assertThat(fact.sharePresent()).isFalse();
+                });
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(creatorId));
+        assertThat(cooldownPort.reserve(receiveSettlementId, receivePayerParticipantId,
+                "selection-reminder", Duration.ofMinutes(30))).isTrue();
+        try {
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .singleElement().satisfies(item -> assertThat(item.reminderNextAvailableAt()).isNotNull());
+            jdbcTemplate.update("""
+                    INSERT INTO settlement_item_submissions (id, settlement_id, participant_id, submitted_at)
+                    VALUES (?, ?, ?, ?)
+                    """, UUID.randomUUID(), receiveSettlementId, receivePayerParticipantId, CREATED_AT);
+            assertThat(settlementListService.get(new GetSettlementsCommand(
+                    SettlementListTab.RECEIVE, SettlementListStatusFilter.IN_PROGRESS, null, null)))
+                    .singleElement().satisfies(item -> assertThat(item.reminderNextAvailableAt()).isNull());
+        } finally {
+            cooldownPort.release(receiveSettlementId, receivePayerParticipantId, "selection-reminder");
+        }
         assertThat(facts.get(1)).satisfies(dutchPay -> {
             assertThat(dutchPay.creatorParticipantId()).isNotNull();
             assertThat(dutchPay.items()).isEmpty();
@@ -724,6 +1115,8 @@ class SettlementListPersistenceIntegrationTest {
         assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of(receiveSettlementId)))
                 .isEmpty();
         assertThat(requestedItemReceivableFactsAdapter.findAllBySettlementIds(java.util.List.of())).isEmpty();
+        assertThat(reminderFactsPort.findAllBySettlementIds(List.of(receiveSettlementId))).isEmpty();
+        assertThat(reminderFactsPort.findAllBySettlementIds(List.of())).isEmpty();
     }
 
     @Test
