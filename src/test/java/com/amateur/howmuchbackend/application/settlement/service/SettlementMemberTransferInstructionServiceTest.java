@@ -73,6 +73,7 @@ class SettlementMemberTransferInstructionServiceTest {
                         loadSettlementSharePort,
                         loadDepositSummaryPort,
                         loadSnapshotPort,
+                        loadSettlementParticipantPort,
                         List.of(transferLinkPort),
                         bankCatalog,
                                 org.mockito.Mockito.mock(
@@ -100,7 +101,9 @@ class SettlementMemberTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID))
+                .thenReturn(Optional.of(participant(MY_PARTICIPANT_ID, MY_USER_ID)));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아", "내 이름"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?accountNo=1002123456789&amount=6000"
@@ -164,7 +167,9 @@ class SettlementMemberTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID))
+                .thenReturn(Optional.of(participant(MY_PARTICIPANT_ID, MY_USER_ID)));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아", "내 이름"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?accountNo=1002123456789&amount=6000"
@@ -194,7 +199,9 @@ class SettlementMemberTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID))
+                .thenReturn(Optional.of(participant(MY_PARTICIPANT_ID, MY_USER_ID)));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아", "내 이름"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?accountNo=1002123456789&amount=6000"
@@ -254,7 +261,9 @@ class SettlementMemberTransferInstructionServiceTest {
                 ));
         String url = "supertoss://send?accountNo=1002123456789&amount=" + expectedAmount;
         if (expectedAmount > 0) {
-            when(transferLinkPort.create("0020", "1002123456789", expectedAmount, "최수아"))
+            when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID))
+                    .thenReturn(Optional.of(participant(MY_PARTICIPANT_ID, MY_USER_ID)));
+            when(transferLinkPort.create("0020", "1002123456789", expectedAmount, "최수아", "내 이름"))
                     .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink("TOSS", url)));
         }
 
@@ -267,10 +276,11 @@ class SettlementMemberTransferInstructionServiceTest {
         if (expectedAmount == 0) {
             assertThat(result.transferLinks()).isEmpty();
             verifyNoInteractions(transferLinkPort);
+            verify(loadSettlementParticipantPort, never()).findBySettlementIdAndId(SETTLEMENT_ID, MY_PARTICIPANT_ID);
         } else {
             assertThat(result.transferLinks()).singleElement()
                     .satisfies(link -> assertThat(link.url()).isEqualTo(url));
-            verify(transferLinkPort).create("0020", "1002123456789", expectedAmount, "최수아");
+            verify(transferLinkPort).create("0020", "1002123456789", expectedAmount, "최수아", "내 이름");
         }
         verify(loadDepositSummaryPort).findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID);
     }
@@ -295,7 +305,7 @@ class SettlementMemberTransferInstructionServiceTest {
                 userId,
                 null,
                 null,
-                "참여자",
+                participantId.equals(MY_PARTICIPANT_ID) ? "내 이름" : "다른 참여자",
                 0,
                 CREATED_AT,
                 CREATED_AT
