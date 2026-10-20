@@ -6,6 +6,7 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static com.amateur.howmuchbackend.infra.settlement.config.SettlementTransferLinkProperties.Adapter.MOCK;
+import static com.amateur.howmuchbackend.infra.settlement.config.SettlementTransferLinkProperties.Adapter.MOCK2;
 import static com.amateur.howmuchbackend.infra.settlement.config.SettlementTransferLinkProperties.Adapter.TOSS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,13 +30,19 @@ class SettlementTransferLinkPropertiesTest {
     @NullAndEmptySource
     @ValueSource(strings = {" ", "/send", "http://example.com/send", "http://localhost.example.com/send",
             "https://example.com/send?sender=x", "https://example.com/send#fragment",
-            "https://user@example.com/send", "javascript:alert(1)", "https://invalid host/send"})
+            "https://user@example.com/send", "javascript:alert(1)", "https://invalid host/send", "howmuch-mock://send"})
     void transferLinkProperties_invalidMockBaseUrl_rejected(String url) {
         assertThatThrownBy(() -> new SettlementTransferLinkProperties(MOCK,
                 new SettlementTransferLinkProperties.Mock(url)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Mock transfer base URL must be HTTPS (or HTTP loopback), without user info, query or fragment.")
                 .hasNoCause();
+    }
+
+    @Test
+    void transferLinkProperties_mock2_doesNotValidateUnusedWebMockSettings() {
+        assertThat(new SettlementTransferLinkProperties(MOCK2,
+                new SettlementTransferLinkProperties.Mock("not a URL")).adapter()).isEqualTo(MOCK2);
     }
 
     @Test

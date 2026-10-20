@@ -42,14 +42,14 @@ class SettlementTransferLinkConfigTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"local,toss", "dev,toss", "prod,mock", "none,mock"})
+    @CsvSource({"local,toss", "dev,toss", "prod,mock", "none,mock", "dev,mock2", "local,mock2"})
     void transferLinkConfig_environmentSelection_overridesProfile(String profile, String selection) {
         runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", selection))
                 .withPropertyValues("spring.profiles.active=" + profile).run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(SettlementTransferLinkPort.class);
                     assertThat(context.getBean(SettlementTransferLinkPort.class))
-                            .isInstanceOf(selection.equals("mock")
-                                    ? MockSettlementTransferLinkAdapter.class : TossSettlementTransferLinkAdapter.class);
+                            .isInstanceOf(selection.equals("toss")
+                                    ? TossSettlementTransferLinkAdapter.class : MockSettlementTransferLinkAdapter.class);
                 });
     }
 
@@ -64,6 +64,37 @@ class SettlementTransferLinkConfigTest {
                     assertThat(context.getBean(SettlementTransferLinkPort.class)
                             .create("0020", "123", 1, "예금주").orElseThrow().url())
                             .startsWith("http://localhost:3000/send?bankCode=0020&bank=");
+                });
+    }
+
+    @Test
+    void transferLinkConfig_devMock_keepsWebDefault() {
+        runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", "mock"))
+                .withPropertyValues("spring.profiles.active=dev")
+                .run(context -> {
+                    assertThat(context).hasNotFailed().hasSingleBean(SettlementTransferLinkPort.class);
+                    when(context.getBean(BankCatalog.class).findBankName("0020"))
+                            .thenReturn(Optional.of("우리은행"));
+                    assertThat(context.getBean(SettlementTransferLinkPort.class)
+                            .create("0020", "123", 1, "예금주").orElseThrow().url())
+                            .startsWith("https://howmuch-mock-send.vercel.app/send?");
+                });
+    }
+
+    @Test
+    void transferLinkConfig_mock2_usesFixedAppRouteEvenWithWebOverride() {
+        runner(Map.of("SETTLEMENT_TRANSFER_LINK_ADAPTER", "mock2",
+                "SETTLEMENT_MOCK_TRANSFER_BASE_URL", "https://web.example.test/send"))
+                .withPropertyValues("spring.profiles.active=dev")
+                .run(context -> {
+                    assertThat(context).hasNotFailed().hasSingleBean(SettlementTransferLinkPort.class);
+                    when(context.getBean(BankCatalog.class).findBankName("0020"))
+                            .thenReturn(Optional.of("우리은행"));
+                    var link = context.getBean(SettlementTransferLinkPort.class)
+                            .create("0020", "1002-000-000002", 12000, "김 하늘&가").orElseThrow();
+                    assertThat(link.provider()).isEqualTo("TOSS");
+                    assertThat(link.url()).isEqualTo("howmuch-mock://send?bankCode=0020&bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
+                            + "&accountNo=1002000000002&amount=12000&receiver=%EA%B9%80+%ED%95%98%EB%8A%98%26%EA%B0%80");
                 });
     }
 
