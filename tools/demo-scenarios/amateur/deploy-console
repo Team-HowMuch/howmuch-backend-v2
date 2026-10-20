@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Deploy only the dedicated dev operator service; never replace the app or demo data."""
+import os
+from pathlib import Path
+import subprocess
+import tarfile
+import tempfile
+import uuid
+
+ROOT = Path(__file__).resolve().parent
+host = os.getenv('HOWMUCH_DEMO_SSH_HOST', 'ubuntu@192.168.1.135')
+key = os.getenv('HOWMUCH_DEMO_SSH_KEY', '/Users/wars/.ssh/howmuch_dev_deploy_ed25519')
+ssh = ['ssh', '-i', key, '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes',
+       '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=8', host]
+files = ['console-server.py', 'console-actions.py', 'prepare-netting-round.py',
+         'recap-console.b64', 'netting-round-crypto.b64', 'start-public-console.py',
+         'Dockerfile.console', 'web/console.html', 'web/console.css', 'web/console.js']
+stage = '/home/ubuntu/howmuch-amateur-demo/.deploy-' + uuid.uuid4().hex
+subprocess.run(ssh + ['umask 077; mkdir ' + stage], check=True)
+with tempfile.TemporaryFile() as archive:
+    with tarfile.open(fileobj=archive, mode='w') as tar:
+        for name in files:
+            tar.add(ROOT / name, arcname=name)
+    archive.seek(0)
+    subprocess.run(ssh + ['tar -xf - -C ' + stage], stdin=archive, check=True)
+
+script = r'''
+import os,pathlib,subprocess,sys,time
+stage=pathlib.Path(sys.argv[1]); root=stage.parent
+name='howmuch-amateur-console'; label='io.howmuch.demo-console'
+def run(args,**kw):return subprocess.run(args,check=True,**kw)
+stopped=False; started=False
+try:
+    # Durability must pass before any service or active file is changed.
+    for path in stage.rglob('*'):
+        if path.is_file():
+            with path.open('rb') as file:os.fsync(file.fileno())
+    image='howmuch-amateur-console:local'
+    with (stage/'Dockerfile.console').open('rb') as file:
+        run(['docker','build','--label',label+'=amateur','-t',image,'-'],stdin=file)
+    inspect=subprocess.run(['docker','inspect','--format','{{ index .Config.Labels "io.howmuch.demo-console" }}',name],capture_output=True,text=True)
+    if inspect.returncode==0 and inspect.stdout.strip()!='amateur':raise RuntimeError('Container name belongs to another service')
+    run(['systemctl','--user','stop','howmuch-amateur-console.service'])
+    stopped=True
+    if inspect.returncode==0:run(['docker','rm','-f',name])
+    for path in stage.rglob('*'):
+        if path.is_file():
+            target=root/path.relative_to(stage);target.parent.mkdir(exist_ok=True)
+            os.chmod(path,0o600);os.replace(path,target)
+    for directory in (root,root/'web'):
+        fd=os.open(directory,os.O_RDONLY|os.O_DIRECTORY)
+        try:os.fsync(fd)
+        finally:os.close(fd)
+    gid=str(os.stat('/var/run/docker.sock').st_gid)
+    run(['docker','run','-d','--name',name,'--label',label+'=amateur',
+         '--restart','unless-stopped','--network','host','--user',str(os.getuid())+':'+str(os.getgid()),
+         '--group-add',gid,'--cap-drop','ALL','--security-opt','no-new-privileges',
+         '--read-only','--tmpfs','/tmp:rw,nosuid,nodev,size=64m',
+         '--mount','type=bind,src='+str(root)+',dst=/opt/howmuch-demo',
+         '--mount','type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock',image],stdout=subprocess.DEVNULL)
+    started=True
+    for _ in range(60):
+        path=root/'console-state/public-origin.txt'
+        if path.exists():
+            print(path.read_text().strip()+'/admin/amateur');break
+        time.sleep(1)
+    else:raise RuntimeError('HTTPS address not ready; inspect only this console container')
+except Exception:
+    if stopped:
+        if started:subprocess.run(['docker','rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        subprocess.run(['systemctl','--user','start','howmuch-amateur-console.service'],check=False)
+    raise
+finally:
+    # Remove only this deployment's remaining files. Never touch demo state.
+    import shutil
+    shutil.rmtree(stage,ignore_errors=True)
+'''
+subprocess.run(ssh + ['python3 - ' + stage], input=script.encode(), check=True)
