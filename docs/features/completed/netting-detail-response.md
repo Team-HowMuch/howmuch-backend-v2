@@ -1,6 +1,6 @@
 # Feature Plan: 압축 정산 상세 응답 보강
 
-- 상태: 설계 완료, 구현 중
+- 상태: 완료
 - 갱신일: 2026-10-20
 - 관련 이슈: [#600](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/600)
 
@@ -8,11 +8,11 @@
 
 앱이 압축 정산 상세의 원본 카드·송금 진행 상태·완료일을 원본 상세 API의 추가 호출 없이 표시한다. 예상 압축 결과에서 버튼을 비활성화하는 이유도 구분한다.
 
-- [ ] `sources`에 상호명, 조회자 기준 카테고리, 전체·납부·완료 인원과 기존 요청자명을 제공한다.
-- [ ] `transfers`에 `UNPAID / PARTIAL / PAID`, 마지막 입금 확인 시각과 관련 원본 ID를 제공한다.
-- [ ] 세대의 `completedAt`, `supersededAt`을 저장된 UTC 시각으로 제공한다.
-- [ ] 예상 결과의 `reason`은 `NOT_ENOUGH_TARGETS / NO_REDUCTION / PROCESSING`, 압축 가능하면 `null`이다.
-- [ ] 기존 접근 권한, 원본/송금 금액, 입금·재압축 동작과 예상 건수 캐시를 유지한다.
+- [x] `sources`에 상호명, 조회자 기준 카테고리, 전체·납부·완료 인원과 기존 요청자명을 제공한다.
+- [x] `transfers`에 `UNPAID / PARTIAL / PAID`, 마지막 입금 확인 시각과 관련 원본 ID를 제공한다.
+- [x] 세대의 `completedAt`, `supersededAt`을 저장된 UTC 시각으로 제공한다.
+- [x] 예상 결과의 `reason`은 `NOT_ENOUGH_TARGETS / NO_REDUCTION / PROCESSING`, 압축 가능하면 `null`이다.
+- [x] 기존 접근 권한, 원본/송금 금액, 입금·재압축 동작과 예상 건수 캐시를 유지한다.
 
 제외: 앱 구현, 상계 알고리즘·금액 배분 변경, 은행 호출 변경, 새로운 이미지 조회 API, 운영 배포.
 
@@ -76,7 +76,7 @@
 - [x] 마이그레이션 필요 여부 결정: N/A, 기존 구조 재사용
 - [x] 상세 Result·Port·조회 SQL·Service·Web DTO·OpenAPI와 회귀 검증
 - [x] estimate reason Result·Service·Web DTO·OpenAPI와 회귀 검증
-- [ ] 검증 결과 기록 및 completed로 이동
+- [x] 검증 결과 기록 및 completed로 이동
 - N/A: 새 UseCase·Command, Domain·Policy 추가, 신규 Output Port, Infra wiring
 
 예상 커밋:
@@ -95,17 +95,22 @@ docs(settlement): 압축 정산 응답 검증 결과 정리
 - `./gradlew compileJava`, `verifyMigrationVersions`, `compileTestJava`
 - 관련 단위·통합 테스트: 상세 HTTP → 실제 DB 요약, 입금 전/부분/전액, 수동 적용, 재압축 이력, 카테고리 조회자 차이, 대상 부족/미감소/진행중과 캐시 적중
 - `/v3/api-docs`의 필드·enum·nullable·UTC 설명 확인
-- `git diff --check`, 문서 상대 링크·로컬 경로 확인, 전체 테스트(가능한 환경에서 실행)
+- `git diff --check`, 문서 상대 링크·로컬 경로 확인
+- 전체: 조건부 반복 정산·HTTP 성능을 활성화한 `bash scripts/test.sh clean test`
+- V62 적용 후 최종: 같은 테스트 전용 환경에서 `bash scripts/test.sh compileJava compileTestJava verifyMigrationVersions test --tests '*Netting*' --tests '*Recurring*' --tests '*Settlement*Schema*' --tests '*SettlementOpenApi*'`
+- Python: `PYTHONDONTWRITEBYTECODE=1 /tmp/howmuch-600-python/bin/python -m unittest discover -s scripts/tests -v`
 
 상위 AGENTS.md의 변경 동작 테스트 지침을 따른다. 하위 상세 workflow의 테스트 추가 금지 문구와 충돌할 때 상위 지침을 적용한다.
 
 | 검증 | 결과 |
 |---|---|
-| Java compile | 대기 |
+| Java compile | compileJava·compileTestJava·verifyMigrationVersions 성공 |
 | 상세 회귀 | Java 56개·JavaScript 35개 통과. 실제 DB·Redis, HTTP 요약과 OpenAPI 포함 |
-| 예상 결과 포함 관련 회귀 | Java 76개·JavaScript 35개 통과, opt-in HTTP 성능 subclass 48개는 전체 회귀에서 활성화 예정 |
-| 전체 회귀 | 대기 |
-| 문서·diff | 대기 |
+| 예상 결과 포함 관련 회귀 | Java 76개·JavaScript 35개 통과. opt-in HTTP 성능 subclass는 전체·최종 회귀에서 활성화 |
+| 전체 회귀 | Java **2,532개 / 297 suites**·JavaScript **35개** 통과, 실패·오류·건너뜀 0. 반복 정산·HTTP 성능 조건 활성화, Testcontainers PostgreSQL·Kafka 포함 |
+| V62 적용 후 최종 회귀 | 새 PostgreSQL DB에 V62까지 적용. 압축·반복·정산 스키마·OpenAPI Java **282개 / 26 suites**·JavaScript **35개** 통과, 실패·오류·건너뜀 0 |
+| 배포 스크립트 | Python **8개** 통과, 격리 Python 3.13·PyYAML 6.0.2 사용. 시스템 Python의 PyYAML 부재를 전용 venv로 해소 |
+| 문서·diff | 상대 링크·참조 로컬 경로·git diff --check 확인 |
 
 ## 7. 진행 및 결정 기록
 
@@ -114,10 +119,15 @@ docs(settlement): 압축 정산 응답 검증 결과 정리
 | 2026-10-20 | 최신 develop과 이슈·기존 PR·실제 조회 및 V53 확인 | 기존 컬럼·입금 이력 재사용, 마이그레이션 불필요 |
 | 2026-10-20 | 상세 회귀의 기존 fixture 정리 시각을 GREATEST(updated_at, DB now)로 보정 | 기존 동시성 테스트가 미래 시각을 사용해 정리 UPDATE가 불변 조건에 걸리고 다음 테스트에 작업을 남기는 문제 수정 |
 | 2026-10-20 | nullable enum을 Web enumAsRef와 기존 nullableReferenceCustomizer로 문서화 | 실제 JSON Schema 검증으로 reason null·세 enum 허용 및 UNKNOWN 거부 확인 |
+| 2026-10-20 | 전체 2,532개와 V62 적용 후 관련 282개 회귀 통과 | 반복·압축·스키마·HTTP·OpenAPI를 검증하고 문서를 완료 처리 |
 | 2026-10-20 | 원본별 기여 금액은 추정하지 않음 | 상계 결과와 원본 Share 사이에 고유 금액 배분이 없음 |
 
 ## 8. 완료 기록
 
-- 완료일: 대기
-- 최종 동작 / 검증 결과: 구현 후 갱신
-- 미검증: 실제 앱·실은행·운영 배포
+- 완료일: 2026-10-20
+- 최종 동작: 원본 카드 요약·조회자별 카테고리·납부 진행 인원, 송금 상태·확인 시각·관련 원본, 세대 종결 시각과 압축 불가 사유 제공.
+- 전체 회귀 이후 V62가 반영된 새 DB에서도 관련 282개를 검증했다. 위 두 실행의 수치는 합산하지 않는다.
+- OpenAPI를 JSON Schema로 검증하여 reason null·정의된 enum 허용, UNKNOWN 거부를 확인했다.
+- 미검증: 실제 앱·실은행·SMS·FCM·운영 배포. 원격 CI는 로컬 결과에 포함하지 않음.
+- 한계: 관련 원본은 원본별 송금 기여 금액이 아니다. 부분 상계 입금도 원본별 완료 인원에 임의 배분하지 않는다.
+- 후속 필수 작업: 없음.
