@@ -9,6 +9,7 @@ public interface LoadGroupNettingPort {
             long groupId,
             long version,
             String status,
+            long creatorId,
             LocalDateTime createdAt,
             LocalDateTime completedAt,
             LocalDateTime supersededAt,

@@ -24,13 +24,19 @@ public class GroupNettingJdbcAdapter implements LoadGroupNettingPort, SaveGroupN
     public Optional<Netting> find(long groupId, UUID id) {
         return jdbc
                 .query(
-                        "SELECT * FROM group_settlement_nettings WHERE group_id=? AND id=?",
+                        """
+                        SELECT n.*, e.actor_id AS creator_id
+                        FROM group_settlement_nettings n
+                        JOIN group_netting_executions e ON e.id=n.execution_id
+                        WHERE n.group_id=? AND n.id=?
+                        """,
                         (rs, n) ->
                                 new Netting(
                                         id,
                                         groupId,
                                         rs.getLong("version"),
                                         rs.getString("status"),
+                                        rs.getLong("creator_id"),
                                         rs.getTimestamp("created_at").toLocalDateTime(),
                                         rs.getObject("completed_at", LocalDateTime.class),
                                         rs.getObject("superseded_at", LocalDateTime.class),

@@ -11,6 +11,8 @@ public record GroupNettingResult(
         long version,
         String status,
         int openReviews,
+        long creatorId,
+        String creatorName,
         LocalDateTime createdAt,
         LocalDateTime completedAt,
         LocalDateTime supersededAt,
