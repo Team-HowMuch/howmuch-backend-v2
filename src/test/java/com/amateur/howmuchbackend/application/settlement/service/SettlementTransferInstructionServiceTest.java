@@ -13,6 +13,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.result.Settleme
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementLinkPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantContextPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
@@ -24,6 +25,8 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLink;
 import com.amateur.howmuchbackend.domain.settlement.SettlementLinkStatus;
 import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantContext;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipant;
+import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
@@ -57,6 +60,7 @@ class SettlementTransferInstructionServiceTest {
     @Mock private SettlementLinkTokenPort linkTokenPort;
     @Mock private LoadSettlementLinkPort loadSettlementLinkPort;
     @Mock private LoadSettlementParticipantContextPort loadParticipantContextPort;
+    @Mock private LoadSettlementParticipantPort loadSettlementParticipantPort;
     @Mock private LoadSettlementPort loadSettlementPort;
     @Mock private LoadSettlementSharePort loadSettlementSharePort;
     @Mock private LoadSettlementDepositSummaryPort loadDepositSummaryPort;
@@ -77,6 +81,7 @@ class SettlementTransferInstructionServiceTest {
                         loadSettlementSharePort,
                         loadDepositSummaryPort,
                         loadSnapshotPort,
+                        loadSettlementParticipantPort,
                         List.of(transferLinkPort),
                         bankCatalog,
                                 org.mockito.Mockito.mock(
@@ -103,7 +108,10 @@ class SettlementTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(new SettlementParticipant(PARTICIPANT_ID, SETTLEMENT_ID,
+                        SettlementParticipantSource.CONTACT, null, null, null, "링크 참여자", 0, CREATED_AT, CREATED_AT)));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아", "링크 참여자"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?bank=%EC%9A%B0%EB%A6%AC%EC%9D%80%ED%96%89"
@@ -148,7 +156,10 @@ class SettlementTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(new SettlementParticipant(PARTICIPANT_ID, SETTLEMENT_ID,
+                        SettlementParticipantSource.CONTACT, null, null, null, "링크 참여자", 0, CREATED_AT, CREATED_AT)));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아", "링크 참여자"))
                 .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink(
                         "TOSS",
                         "supertoss://send?bank=x&accountNo=1002123456789&amount=6000"
@@ -178,7 +189,10 @@ class SettlementTransferInstructionServiceTest {
         )));
         when(loadSnapshotPort.findBySettlementId(SETTLEMENT_ID))
                 .thenReturn(Optional.of(snapshot()));
-        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아"))
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, PARTICIPANT_ID))
+                .thenReturn(Optional.of(new SettlementParticipant(PARTICIPANT_ID, SETTLEMENT_ID,
+                        SettlementParticipantSource.CONTACT, null, null, null, "링크 참여자", 0, CREATED_AT, CREATED_AT)));
+        when(transferLinkPort.create("0020", "1002123456789", 6_000, "최수아", "링크 참여자"))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.get(RAW_TOKEN, CONTEXT_ID))
@@ -277,7 +291,10 @@ class SettlementTransferInstructionServiceTest {
                 ));
         String url = "supertoss://send?accountNo=1002123456789&amount=" + expectedAmount;
         if (expectedAmount > 0) {
-            when(transferLinkPort.create("0020", "1002123456789", expectedAmount, "최수아"))
+            when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, PARTICIPANT_ID))
+                    .thenReturn(Optional.of(new SettlementParticipant(PARTICIPANT_ID, SETTLEMENT_ID,
+                            SettlementParticipantSource.CONTACT, null, null, null, "링크 참여자", 0, CREATED_AT, CREATED_AT)));
+            when(transferLinkPort.create("0020", "1002123456789", expectedAmount, "최수아", "링크 참여자"))
                     .thenReturn(Optional.of(new SettlementTransferLinkPort.SettlementTransferLink("TOSS", url)));
         }
 
@@ -290,10 +307,11 @@ class SettlementTransferInstructionServiceTest {
         if (expectedAmount == 0) {
             assertThat(result.transferLinks()).isEmpty();
             verifyNoInteractions(transferLinkPort);
+            verify(loadSettlementParticipantPort, never()).findBySettlementIdAndId(SETTLEMENT_ID, PARTICIPANT_ID);
         } else {
             assertThat(result.transferLinks()).singleElement()
                     .satisfies(link -> assertThat(link.url()).isEqualTo(url));
-            verify(transferLinkPort).create("0020", "1002123456789", expectedAmount, "최수아");
+            verify(transferLinkPort).create("0020", "1002123456789", expectedAmount, "최수아", "링크 참여자");
         }
         verify(loadDepositSummaryPort).findConfirmedShareAmountsBySettlementId(SETTLEMENT_ID);
     }

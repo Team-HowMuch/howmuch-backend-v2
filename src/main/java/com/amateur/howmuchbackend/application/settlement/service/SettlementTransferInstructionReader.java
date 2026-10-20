@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.account.catalog.BankCatalog;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementTransferInstructionResult;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementDepositSummaryPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementReceivingAccountSnapshotPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
@@ -39,6 +40,7 @@ public class SettlementTransferInstructionReader {
     private final LoadSettlementSharePort loadSettlementSharePort;
     private final LoadSettlementDepositSummaryPort loadDepositSummaryPort;
     private final LoadSettlementReceivingAccountSnapshotPort loadSnapshotPort;
+    private final LoadSettlementParticipantPort loadParticipantPort;
     private final List<SettlementTransferLinkPort> transferLinkPorts;
     private final BankCatalog bankCatalog;
     private final com.amateur.howmuchbackend.application.port.out.settlement.netting
@@ -90,11 +92,16 @@ public class SettlementTransferInstructionReader {
                 .findFirst()
                 .orElse(0L);
         long remainingAmount = Math.max(0L, share.amount() - confirmedAmount);
+        String senderName = remainingAmount == 0 ? null : loadParticipantPort
+                .findBySettlementIdAndId(settlement.id(), participantId)
+                .orElseThrow(() -> ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_TRANSFER_INSTRUCTION_NOT_FOUND
+                )).displayName();
         List<SettlementTransferInstructionResult.TransferLink> transferLinks = remainingAmount == 0
                 ? List.of()
                 : transferLinkPorts.stream()
                 .map(port -> port.create(
-                        snapshot.organization(), snapshot.accountNumber(), remainingAmount, snapshot.accountHolder()
+                        snapshot.organization(), snapshot.accountNumber(), remainingAmount, snapshot.accountHolder(), senderName
                 ))
                 .flatMap(Optional::stream)
                 .map(generatedLink -> new SettlementTransferInstructionResult.TransferLink(

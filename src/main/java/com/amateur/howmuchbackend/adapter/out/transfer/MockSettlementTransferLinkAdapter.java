@@ -23,6 +23,17 @@ public class MockSettlementTransferLinkAdapter implements SettlementTransferLink
             long amount,
             String receiverName
     ) {
+        return create(bankCode, accountNumber, amount, receiverName, null);
+    }
+
+    @Override
+    public Optional<SettlementTransferLink> create(
+            String bankCode,
+            String accountNumber,
+            long amount,
+            String receiverName,
+            String senderName
+    ) {
         if (bankCode == null || !bankCode.matches("[0-9]{4}")
                 || accountNumber == null || amount <= 0 || !accountNumber.matches("[0-9-]+")) {
             return Optional.empty();
@@ -40,6 +51,8 @@ public class MockSettlementTransferLinkAdapter implements SettlementTransferLink
                                 + "&amount=" + amount
                                 + (receiverName == null || receiverName.isBlank()
                                 ? "" : "&receiver=" + encode(receiverName))
+                                + (senderName == null || senderName.isBlank()
+                                ? "" : "&senderName=" + encode(senderName))
                 ));
     }
 
