@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SaveSettlementItemSelectionCommand;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
@@ -32,6 +33,8 @@ class SettlementItemAllocationWriter {
     private final SaveSettlementPort saveSettlementPort;
     private final SettlementItemAllocationPolicy allocationPolicy;
     private final NettingEstimateInvalidationService estimateInvalidation;
+    private final SettlementRevisionGuard revisionGuard;
+    private final DeleteSettlementSharePort deleteSettlementSharePort;
 
     @Transactional
     public void save(
@@ -70,6 +73,7 @@ class SettlementItemAllocationWriter {
                         command.units(),
                         now
                 ));
+        invalidateSuspendedAllocation(state);
         allocationStorePort.saveSelection(selection);
     }
 
@@ -88,6 +92,7 @@ class SettlementItemAllocationWriter {
                 .orElseThrow(() -> ApplicationException.of(
                         SettlementStatusCode.SETTLEMENT_ITEM_SELECTION_NOT_FOUND
                 ));
+        invalidateSuspendedAllocation(state);
         allocationStorePort.deleteSelection(selection);
     }
 
@@ -100,15 +105,16 @@ class SettlementItemAllocationWriter {
     ) {
         var state = stateLoader.load(settlementId, participantId, true, entry);
         ensureSelectionEditable(state, entry);
+        invalidateSuspendedAllocation(state);
         allocationStorePort.saveSubmission(SettlementItemSubmission.submit(
                 settlementId,
                 participantId,
                 now
         ));
 
-        // DRAFT는 알림 발송 전이라 확정하지 않는다. 확정하면 REQUESTED를 건너뛰고
-        // AWAITING_DEPOSIT이 되어 참여자가 링크로 몫을 고를 기회를 잃는다.
-        if (state.settlement().status() == SettlementStatus.DRAFT) {
+        // Drafts have not been requested; suspended revisions must wait for an explicit resume.
+        if (state.settlement().status() == SettlementStatus.DRAFT
+                || state.settlement().status() == SettlementStatus.SUSPENDED) {
             return;
         }
 
@@ -165,6 +171,10 @@ class SettlementItemAllocationWriter {
                     SettlementStatusCode.SETTLEMENT_ITEM_SELECTION_NOT_EDITABLE
             );
         }
+        if (state.settlement().status() == SettlementStatus.SUSPENDED) {
+            revisionGuard.ensureUnpaid(state.settlement().id());
+            return;
+        }
         if (allocationStorePort.findSubmission(
                 state.settlement().id(),
                 state.participant().id()
@@ -175,13 +185,20 @@ class SettlementItemAllocationWriter {
         }
     }
 
-    /** 생성자는 알림 발송 전 DRAFT에서 고르고, 링크는 요청 이후에만 고친다. */
+    private void invalidateSuspendedAllocation(SettlementItemAllocationStateLoader.State state) {
+        if (state.settlement().status() == SettlementStatus.SUSPENDED) {
+            deleteSettlementSharePort.deleteAllBySettlementId(state.settlement().id());
+            allocationStorePort.deleteAllSubmissions(state.settlement().id());
+        }
+    }
+
+    /** Only the creator may revise a suspended settlement; participants edit before submission. */
     private boolean isEditableStatus(
             SettlementStatus status,
             SettlementItemAllocationEntry entry
     ) {
         if (entry == SettlementItemAllocationEntry.CREATOR
-                && status == SettlementStatus.DRAFT) {
+                && (status == SettlementStatus.DRAFT || status == SettlementStatus.SUSPENDED)) {
             return true;
         }
         return status == SettlementStatus.REQUESTED;

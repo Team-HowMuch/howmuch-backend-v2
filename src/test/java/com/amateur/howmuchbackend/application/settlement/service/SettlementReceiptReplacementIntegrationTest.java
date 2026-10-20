@@ -72,6 +72,7 @@ class SettlementReceiptReplacementIntegrationTest {
     @MockitoBean(name = "utcDateTimeProvider") private DateTimeProvider dateTimeProvider;
     @Autowired private SettlementReceiptReplacementService service;
     @Autowired private SettlementReceiptExpenseController controller;
+    @Autowired private com.amateur.howmuchbackend.adapter.in.web.settlement.SettlementMyItemAllocationController myItemsController;
     @Autowired private SettlementAllocationController allocationController;
     @Autowired private SettlementController settlementController;
     @Autowired private SettlementAllocationService allocationService;
@@ -122,7 +123,7 @@ class SettlementReceiptReplacementIntegrationTest {
         originalItem = items.findAllBySettlementId(settlementId).getFirst();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        http = MockMvcBuilders.standaloneSetup(controller, allocationController, settlementController).setControllerAdvice(new GlobalExceptionHandler())
+        http = MockMvcBuilders.standaloneSetup(controller, allocationController, settlementController, myItemsController).setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator).build();
     }
 
@@ -415,6 +416,97 @@ class SettlementReceiptReplacementIntegrationTest {
                 .containsExactlyInAnyOrder(6000L, 6000L);
     }
 
+    @Test
+    void suspendedReceipt_replaceOwnSelectionThenParticipants_keepsSuspended() throws Exception {
+        service.replace(settlementId, receipt.id(), command(NOW));
+        UUID itemId = items.findAllBySettlementId(settlementId).getFirst().id();
+        for (int attempt = 0; attempt < 2; attempt++) {
+            http.perform(put("/api/v2/settlements/{id}/my-items/{item}", settlementId, itemId)
+                    .contentType("application/json").content("{\"fraction\":\"ONE\",\"units\":1}"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.phase").value("SUSPENDED"));
+            http.perform(post("/api/v2/settlements/{id}/my-item-submission", settlementId))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.phase").value("SUSPENDED"));
+        }
+        var creatorSelections = allocations.findAllSelections(settlementId);
+        http.perform(get("/api/v2/settlements/{id}/participant-candidates/groups/{group}/members",
+                settlementId, Long.MAX_VALUE)).andExpect(status().isOk());
+        http.perform(post("/api/v2/settlements/{id}/participants", settlementId)
+                .contentType("application/json").content("{\"source\":\"CONTACT\",\"displayName\":\"추가 인원\"}"))
+                .andExpect(status().isOk());
+        assertThat(participants.findAllBySettlementId(settlementId))
+                .extracting(p -> p.id()).contains(creatorParticipantId, payerParticipantId).hasSize(3);
+        assertThat(allocations.findAllSelections(settlementId)).isEqualTo(creatorSelections);
+        assertThat(allocations.findAllSubmissions(settlementId)).isEmpty();
+        assertThat(loadShares.findAllBySettlementId(settlementId)).isEmpty();
+
+        insertSnapshot();
+        allocations.saveSelection(SettlementItemSelection.create(settlementId, itemId,
+                payerParticipantId, SettlementItemAllocationFraction.ONE, 1, NOW));
+        allocations.saveSubmission(SettlementItemSubmission.submit(settlementId, payerParticipantId, NOW));
+        shares.saveAll(List.of(SettlementShare.create(settlementId, payerParticipantId, 6000, NOW)));
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                "/api/v2/settlements/{id}/participants/{participant}", settlementId, payerParticipantId))
+                .andExpect(status().isOk());
+        assertThat(allocations.findAllSelections(settlementId)).isEqualTo(creatorSelections);
+        assertThat(allocations.findAllSubmissions(settlementId)).isEmpty();
+        assertThat(loadShares.findAllBySettlementId(settlementId)).isEmpty();
+        assertThat(settlements.findById(settlementId).orElseThrow().status()).isEqualTo(SettlementStatus.SUSPENDED);
+        assertThat(settlements.findById(settlementId).orElseThrow().allocationType())
+                .isEqualTo(SettlementAllocationType.ITEM_ALLOCATION);
+        assertThat(lifecycle.resume(settlementId).status()).isEqualTo(SettlementStatus.REQUESTED);
+        assertThat(allocations.findAllSelections(settlementId)).isEqualTo(creatorSelections);
+    }
+
+    @Test
+    void suspendedReceipt_confirmedPayment_blocksCandidatesSelectionAndParticipants() throws Exception {
+        insertDeposit();
+        var before = participants.findAllBySettlementId(settlementId);
+        http.perform(get("/api/v2/settlements/{id}/participant-candidates/groups/{group}/members",
+                settlementId, Long.MAX_VALUE)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_REVISION_PAYMENT_EXISTS"));
+        http.perform(put("/api/v2/settlements/{id}/my-items/{item}", settlementId, originalItem.id())
+                .contentType("application/json").content("{\"fraction\":\"ONE\",\"units\":1}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_REVISION_PAYMENT_EXISTS"));
+        http.perform(post("/api/v2/settlements/{id}/participants", settlementId)
+                .contentType("application/json").content("{\"source\":\"CONTACT\",\"displayName\":\"추가 인원\"}"))
+                .andExpect(status().isConflict());
+        assertError(() -> participantService.remove(settlementId, payerParticipantId),
+                SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS);
+        assertThat(participants.findAllBySettlementId(settlementId)).isEqualTo(before);
+        assertThat(count("settlement_shares")).isEqualTo(1);
+        assertThat(count("settlement_deposits")).isEqualTo(1);
+    }
+
+    @Test
+    void suspendedReceipt_participantAddFailure_rollsBackParticipantAndConfirmations() {
+        insertSnapshot();
+        allocations.saveSubmission(SettlementItemSubmission.submit(settlementId, creatorParticipantId, NOW));
+        shares.saveAll(List.of(SettlementShare.create(settlementId, payerParticipantId, 6000, NOW)));
+        var beforeParticipants = participants.findAllBySettlementId(settlementId);
+        var beforeShares = loadShares.findAllBySettlementId(settlementId);
+        var beforeSubmissions = allocations.findAllSubmissions(settlementId);
+        doAnswer(call -> { call.callRealMethod(); throw new IllegalStateException("synthetic revision failure"); })
+                .when(shareDeletion).deleteAllBySettlementId(settlementId);
+        assertThatThrownBy(() -> participantService.add(settlementId,
+                new com.amateur.howmuchbackend.application.port.in.settlement.command.AddSettlementParticipantCommand(
+                        com.amateur.howmuchbackend.domain.settlement.SettlementParticipantSource.CONTACT,
+                        null, null, "추가 인원", null))).isInstanceOf(IllegalStateException.class);
+        assertThat(participants.findAllBySettlementId(settlementId)).isEqualTo(beforeParticipants);
+        assertThat(loadShares.findAllBySettlementId(settlementId)).isEqualTo(beforeShares);
+        assertThat(allocations.findAllSubmissions(settlementId)).isEqualTo(beforeSubmissions);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SettlementItemAllocationEntry.class, names = {"LINK", "MEMBER"})
+    void suspendedReceipt_nonCreatorEntry_cannotChangeSelections(SettlementItemAllocationEntry entry) {
+        var command = new com.amateur.howmuchbackend.application.port.in.settlement.command.SaveSettlementItemSelectionCommand(
+                SettlementItemAllocationFraction.ONE, 1);
+        assertError(() -> itemWriter.save(settlementId, payerParticipantId, originalItem.id(), command, NOW, entry),
+                SettlementStatusCode.SETTLEMENT_ITEM_SELECTION_NOT_EDITABLE);
+        assertThat(allocations.findAllSelections(settlementId)).isEmpty();
+    }
+
     @ParameterizedTest
     @EnumSource(SettlementAllocationType.class)
     void rename_suspended_preservesIdentityAllocationsAndStatus(SettlementAllocationType type) throws Exception {
@@ -525,7 +617,8 @@ class SettlementReceiptReplacementIntegrationTest {
     }
 
     @Test
-    void suspended_addAndRemoveParticipants_remainRejected() throws Exception {
+    void dutchPay_suspendedAddAndRemoveParticipants_remainRejected() throws Exception {
+        initializeDutchPay();
         var before = participants.findAllBySettlementId(settlementId);
         http.perform(post("/api/v2/settlements/{id}/participants", settlementId)
                 .contentType("application/json").content("{\"source\":\"CONTACT\",\"displayName\":\"신규\"}"))

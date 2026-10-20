@@ -1,6 +1,7 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SaveSettlementSharePort;
@@ -40,6 +41,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("전체 할인·배달비 영수증의 품목 제출")
 class SettlementDiscountedAllocationWriterTest {
+    @Mock private SettlementRevisionGuard revisionGuard;
+    @Mock private DeleteSettlementSharePort deleteSettlementSharePort;
     @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final UUID SETTLEMENT_ID = UUID.randomUUID();
     private static final UUID FIRST_ID = UUID.randomUUID();
@@ -61,7 +64,9 @@ class SettlementDiscountedAllocationWriterTest {
         writer = new SettlementItemAllocationWriter(
                 stateLoader, participantPort, allocationStore, sharePort,
                 settlementPort, new SettlementItemAllocationPolicy(),
-                estimateInvalidation
+                estimateInvalidation,
+                revisionGuard,
+                deleteSettlementSharePort
         );
         item = SettlementItem.fromReceipt(
                 SETTLEMENT_ID, UUID.randomUUID(), "커피", 1, 1_000, 0, NOW

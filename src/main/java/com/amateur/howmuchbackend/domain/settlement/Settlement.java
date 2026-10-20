@@ -92,7 +92,12 @@ public record Settlement(
     }
 
     public void ensureParticipantsEditable() {
-        requireDraft();
+        if (status == SettlementStatus.DRAFT
+                || (status == SettlementStatus.SUSPENDED
+                    && allocationType == SettlementAllocationType.ITEM_ALLOCATION)) {
+            return;
+        }
+        throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_NOT_EDITABLE);
     }
 
     public void ensureParticipantRenameable() {

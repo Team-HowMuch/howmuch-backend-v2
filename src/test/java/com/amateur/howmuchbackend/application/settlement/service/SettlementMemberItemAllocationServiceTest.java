@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.settlement.service;
 import com.amateur.howmuchbackend.application.settlement.netting.service.NettingEstimateInvalidationService;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
@@ -42,6 +43,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("참여자 본인 품목 몫 선택 Application 흐름")
 class SettlementMemberItemAllocationServiceTest {
+    @Mock private SettlementRevisionGuard revisionGuard;
+    @Mock private DeleteSettlementSharePort deleteSettlementSharePort;
     @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final Long CREATOR_ID = 1L;
     private static final Long OTHER_USER_ID = 99L;
@@ -79,7 +82,9 @@ class SettlementMemberItemAllocationServiceTest {
                 saveSettlementSharePort,
                 saveSettlementPort,
                 policy,
-                estimateInvalidation
+                estimateInvalidation,
+                revisionGuard,
+                deleteSettlementSharePort
         );
         SettlementItemAllocationReader reader = new SettlementItemAllocationReader(
                 stateLoader,

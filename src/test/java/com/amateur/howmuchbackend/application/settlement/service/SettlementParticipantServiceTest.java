@@ -10,6 +10,8 @@ import com.amateur.howmuchbackend.application.port.in.settlement.command.SearchS
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SettlementContactCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupMembersPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.SettlementItemAllocationStorePort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
@@ -65,6 +67,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("정산 참여자 조회 Application 흐름")
 class SettlementParticipantServiceTest {
+    @Mock private DeleteSettlementSharePort deleteSettlementSharePort;
+    @Mock private SettlementItemAllocationStorePort itemAllocationStorePort;
     private static final Long CREATOR_ID = 1L;
     private static final Long LINKED_USER_ID = 2L;
     private static final Long OTHER_USER_ID = 3L;
@@ -152,7 +156,9 @@ class SettlementParticipantServiceTest {
                 new SettlementContactMatchQuotaPolicy(),
                 saveSettlementPort,
                 allocationDraftInvalidator,
-                revisionGuard
+                revisionGuard,
+                deleteSettlementSharePort,
+                itemAllocationStorePort
         );
         lenient().when(allocationDraftInvalidator.invalidate(any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -836,6 +842,102 @@ class SettlementParticipantServiceTest {
                         SettlementStatusCode.SETTLEMENT_PARTICIPANT_CANDIDATE_NOT_FOUND
                 ));
         verifyNoInteractions(saveSettlementParticipantPort);
+    }
+
+    @Test
+    @DisplayName("중단된 영수증 정산도 그룹 후보를 조회하고 기존 참여자는 제외한다")
+    void groupCandidates_suspendedReceipt_excludesExistingParticipants() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(suspendedReceipt()));
+        when(loadGroupMembersPort.findActiveRoster(10L)).thenReturn(Optional.of(
+                new GroupMemberRoster(10L, List.of(CREATOR_ID, LINKED_USER_ID, OTHER_USER_ID))));
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(registeredCreator(), linkedContact()));
+        when(loadUserPort.findAllByIds(List.of(CREATOR_ID, LINKED_USER_ID, OTHER_USER_ID)))
+                .thenReturn(List.of(creator(), linkedUser(null), user(OTHER_USER_ID, "new.member", null)));
+
+        var result = settlementParticipantService.get(SETTLEMENT_ID, 10L);
+
+        assertThat(result).extracting(item -> item.publicId()).containsExactly("new.member");
+        verify(revisionGuard).ensureUnpaid(SETTLEMENT_ID);
+        verifyNoInteractions(deleteSettlementSharePort, itemAllocationStorePort);
+    }
+
+    @Test
+    @DisplayName("중단된 영수증에 인원을 추가해도 정산 유형과 기존 참여자는 유지한다")
+    void participantAdd_suspendedReceipt_preservesTypeAndClearsConfirmations() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(suspendedReceipt()));
+        when(loadSettlementParticipantPort.nextDisplayOrder(SETTLEMENT_ID)).thenReturn(3);
+        when(saveSettlementParticipantPort.save(any())).thenAnswer(call -> call.getArgument(0));
+
+        var added = settlementParticipantService.add(SETTLEMENT_ID,
+                new AddSettlementParticipantCommand(SettlementParticipantSource.CONTACT,
+                        null, null, "추가 인원", null));
+
+        assertThat(added.displayName()).isEqualTo("추가 인원");
+        assertThat(added.displayOrder()).isEqualTo(3);
+        verify(revisionGuard).ensureUnpaid(SETTLEMENT_ID);
+        verify(deleteSettlementSharePort).deleteAllBySettlementId(SETTLEMENT_ID);
+        verify(itemAllocationStorePort).deleteAllSubmissions(SETTLEMENT_ID);
+        verifyNoInteractions(allocationDraftInvalidator, saveSettlementPort, deleteSettlementParticipantPort);
+    }
+
+    @Test
+    @DisplayName("중단된 영수증의 참여자는 Share를 지운 뒤 제거한다")
+    void participantRemove_suspendedReceipt_deletesShareBeforeParticipant() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(suspendedReceipt()));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, LINKED_PARTICIPANT_ID))
+                .thenReturn(Optional.of(linkedContact()));
+
+        settlementParticipantService.remove(SETTLEMENT_ID, LINKED_PARTICIPANT_ID);
+
+        var ordered = org.mockito.Mockito.inOrder(deleteSettlementSharePort, deleteSettlementParticipantPort);
+        ordered.verify(deleteSettlementSharePort).deleteAllBySettlementId(SETTLEMENT_ID);
+        ordered.verify(deleteSettlementParticipantPort).delete(linkedContact());
+        verify(itemAllocationStorePort).deleteAllSubmissions(SETTLEMENT_ID);
+        verifyNoInteractions(allocationDraftInvalidator, saveSettlementPort);
+    }
+
+    @Test
+    @DisplayName("입금이 확인된 중단 정산은 후보 조회와 인원 추가를 모두 거부한다")
+    void participants_suspendedPaidReceipt_rejectsBeforeLookupOrWrites() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(suspendedReceipt()));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(suspendedReceipt()));
+        org.mockito.Mockito.doThrow(ApplicationException.of(SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS))
+                .when(revisionGuard).ensureUnpaid(SETTLEMENT_ID);
+
+        assertThatThrownBy(() -> settlementParticipantService.get(SETTLEMENT_ID, 10L))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS));
+        assertThatThrownBy(() -> settlementParticipantService.add(SETTLEMENT_ID,
+                new AddSettlementParticipantCommand(SettlementParticipantSource.CONTACT,
+                        null, null, "추가 인원", null)))
+                .isInstanceOf(ApplicationException.class);
+        verifyNoInteractions(loadGroupMembersPort, saveSettlementParticipantPort,
+                deleteSettlementParticipantPort, deleteSettlementSharePort, itemAllocationStorePort);
+    }
+
+    @Test
+    @DisplayName("중단된 영수증에서도 생성자 참여자는 제거하지 못한다")
+    void participantRemove_suspendedReceipt_cannotRemoveCreator() {
+        when(currentActorPort.getCurrentActor()).thenReturn(new CurrentActor(CREATOR_ID));
+        when(loadSettlementPort.findByIdForUpdate(SETTLEMENT_ID)).thenReturn(Optional.of(suspendedReceipt()));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, CREATOR_PARTICIPANT_ID))
+                .thenReturn(Optional.of(registeredCreator()));
+
+        assertThatThrownBy(() -> settlementParticipantService.remove(SETTLEMENT_ID, CREATOR_PARTICIPANT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_CREATOR_PARTICIPANT_REQUIRED));
+        verifyNoInteractions(deleteSettlementSharePort, itemAllocationStorePort, deleteSettlementParticipantPort);
+    }
+
+    private Settlement suspendedReceipt() {
+        return new Settlement(SETTLEMENT_ID, CREATOR_ID, "중단된 영수증", 30_000,
+                com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType.ITEM_ALLOCATION,
+                SettlementStatus.SUSPENDED, CREATED_AT, CREATED_AT);
     }
 
     private Settlement settlement() {

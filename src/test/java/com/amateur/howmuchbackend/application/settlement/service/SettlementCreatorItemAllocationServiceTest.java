@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.settlement.netting.service.Netting
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
 import com.amateur.howmuchbackend.application.port.in.settlement.command.SaveSettlementItemSelectionCommand;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.settlement.DeleteSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementItemPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementExpensePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementParticipantPort;
@@ -47,6 +48,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("생성자 품목 몫 선택 Application 흐름")
 class SettlementCreatorItemAllocationServiceTest {
+    @Mock private SettlementRevisionGuard revisionGuard;
+    @Mock private DeleteSettlementSharePort deleteSettlementSharePort;
     @org.mockito.Mock private NettingEstimateInvalidationService estimateInvalidation;
     private static final Long CREATOR_ID = 1L;
     private static final Long OTHER_USER_ID = 99L;
@@ -84,7 +87,9 @@ class SettlementCreatorItemAllocationServiceTest {
                 saveSettlementSharePort,
                 saveSettlementPort,
                 policy,
-                estimateInvalidation
+                estimateInvalidation,
+                revisionGuard,
+                deleteSettlementSharePort
         );
         SettlementItemAllocationReader reader = new SettlementItemAllocationReader(
                 stateLoader,
@@ -195,6 +200,76 @@ class SettlementCreatorItemAllocationServiceTest {
                 .isInstanceOfSatisfying(ApplicationException.class, exception ->
                         assertThat(exception.getStatusCode())
                                 .isEqualTo(SettlementStatusCode.SETTLEMENT_ITEM_SELECTION_NOT_EDITABLE));
+    }
+
+    @Test
+    @DisplayName("중단 상태에서도 제출 이력을 초기화하고 생성자 자신의 몫을 다시 저장한다")
+    void creatorItemSelection_suspended_savesWithoutResume() {
+        arrangeCreatorAccess(SettlementStatus.SUSPENDED);
+        lenient().when(allocationStorePort.findSubmission(SETTLEMENT_ID, CREATOR_PARTICIPANT_ID))
+                .thenReturn(Optional.of(allSubmissions().getFirst()));
+
+        var result = service.saveMyItem(SETTLEMENT_ID, ITEM_ID,
+                new SaveSettlementItemSelectionCommand(SettlementItemAllocationFraction.HALF, 1));
+
+        assertThat(result.phase().name()).isEqualTo("SUSPENDED");
+        verify(revisionGuard).ensureUnpaid(SETTLEMENT_ID);
+        verify(allocationStorePort).saveSelection(any(SettlementItemSelection.class));
+        verify(allocationStorePort).deleteAllSubmissions(SETTLEMENT_ID);
+        verify(deleteSettlementSharePort).deleteAllBySettlementId(SETTLEMENT_ID);
+        verify(saveSettlementPort, never()).update(any());
+        verify(saveSettlementSharePort, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("중단 상태에서 생성자의 선택을 취소해도 정산 상태를 바꾸지 않는다")
+    void creatorItemSelection_suspended_removesWithoutResume() {
+        arrangeCreatorAccess(SettlementStatus.SUSPENDED);
+        var selection = selection(CREATOR_PARTICIPANT_ID, SettlementItemAllocationFraction.HALF);
+        when(allocationStorePort.findSelection(SETTLEMENT_ID, ITEM_ID, CREATOR_PARTICIPANT_ID))
+                .thenReturn(Optional.of(selection));
+
+        service.removeMyItem(SETTLEMENT_ID, ITEM_ID);
+
+        verify(allocationStorePort).deleteSelection(selection);
+        verify(allocationStorePort).deleteAllSubmissions(SETTLEMENT_ID);
+        verify(deleteSettlementSharePort).deleteAllBySettlementId(SETTLEMENT_ID);
+        verify(saveSettlementPort, never()).update(any());
+    }
+
+    @Test
+    @DisplayName("중단 상태에서 전원이 제출해도 Share를 확정하거나 상태를 전환하지 않는다")
+    void creatorItemAllocation_suspended_neverFinalizes() {
+        arrangeCreatorAccess(SettlementStatus.SUSPENDED);
+        when(allocationStorePort.findAllSelections(SETTLEMENT_ID)).thenReturn(exactSelections());
+        when(allocationStorePort.findAllSubmissions(SETTLEMENT_ID)).thenReturn(allSubmissions());
+
+        var result = service.submitMyItems(SETTLEMENT_ID);
+
+        assertThat(result.phase().name()).isEqualTo("SUSPENDED");
+        verify(revisionGuard).ensureUnpaid(SETTLEMENT_ID);
+        verify(allocationStorePort).saveSubmission(any(SettlementItemSubmission.class));
+        verify(allocationStorePort).deleteAllSubmissions(SETTLEMENT_ID);
+        verify(deleteSettlementSharePort).deleteAllBySettlementId(SETTLEMENT_ID);
+        verify(saveSettlementSharePort, never()).saveAll(any());
+        verify(saveSettlementPort, never()).update(any());
+        verify(estimateInvalidation, never()).settlementChanged(any());
+    }
+
+    @Test
+    @DisplayName("입금이 확인된 중단 정산에서는 생성자의 선택도 수정하지 않는다")
+    void creatorItemSelection_suspendedPaid_rejectsBeforeWrites() {
+        arrangeCreatorAccess(SettlementStatus.SUSPENDED);
+        org.mockito.Mockito.doThrow(ApplicationException.of(SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS))
+                .when(revisionGuard).ensureUnpaid(SETTLEMENT_ID);
+
+        assertThatThrownBy(() -> service.saveMyItem(SETTLEMENT_ID, ITEM_ID,
+                new SaveSettlementItemSelectionCommand(SettlementItemAllocationFraction.HALF, 1)))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_REVISION_PAYMENT_EXISTS));
+        verify(allocationStorePort, never()).saveSelection(any());
+        verify(allocationStorePort, never()).deleteAllSubmissions(any());
+        verify(deleteSettlementSharePort, never()).deleteAllBySettlementId(any());
     }
 
     private void arrangeCreatorAccess(SettlementStatus status) {
