@@ -32,8 +32,9 @@ public class KafkaMessagingConfig {
             if (!Set.of("DIRECT", "KAFKA").contains(mode)) {
                 throw new IllegalArgumentException("Notification delivery mode must be DIRECT or KAFKA.");
             }
-            if ((mode.equals("KAFKA") || properties.recapConsumerEnabled()) && !properties.enabled()) {
-                throw new IllegalArgumentException("Kafka delivery and recap consumers require enabled Kafka transport.");
+            boolean recapPublication = env.getProperty("howmuch.recap.publication.enabled", Boolean.class, false);
+            if ((mode.equals("KAFKA") || properties.recapConsumerEnabled() || recapPublication) && !properties.enabled()) {
+                throw new IllegalArgumentException("Kafka delivery, recap publication and consumers require enabled Kafka transport.");
             }
             if (properties.notificationConsumerEnabled() && (!mode.equals("KAFKA") || !properties.enabled())) {
                 throw new IllegalArgumentException("Notification Kafka consumers require enabled transport and KAFKA mode.");
