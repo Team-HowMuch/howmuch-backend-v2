@@ -75,7 +75,7 @@
 
 - [x] 마이그레이션 필요 여부 결정: N/A, 기존 구조 재사용
 - [x] 상세 Result·Port·조회 SQL·Service·Web DTO·OpenAPI와 회귀 검증
-- [ ] estimate reason Result·Service·Web DTO·OpenAPI와 회귀 검증
+- [x] estimate reason Result·Service·Web DTO·OpenAPI와 회귀 검증
 - [ ] 검증 결과 기록 및 completed로 이동
 - N/A: 새 UseCase·Command, Domain·Policy 추가, 신규 Output Port, Infra wiring
 
@@ -103,6 +103,7 @@ docs(settlement): 압축 정산 응답 검증 결과 정리
 |---|---|
 | Java compile | 대기 |
 | 상세 회귀 | Java 56개·JavaScript 35개 통과. 실제 DB·Redis, HTTP 요약과 OpenAPI 포함 |
+| 예상 결과 포함 관련 회귀 | Java 76개·JavaScript 35개 통과, opt-in HTTP 성능 subclass 48개는 전체 회귀에서 활성화 예정 |
 | 전체 회귀 | 대기 |
 | 문서·diff | 대기 |
 
@@ -112,6 +113,7 @@ docs(settlement): 압축 정산 응답 검증 결과 정리
 |---|---|---|
 | 2026-10-20 | 최신 develop과 이슈·기존 PR·실제 조회 및 V53 확인 | 기존 컬럼·입금 이력 재사용, 마이그레이션 불필요 |
 | 2026-10-20 | 상세 회귀의 기존 fixture 정리 시각을 GREATEST(updated_at, DB now)로 보정 | 기존 동시성 테스트가 미래 시각을 사용해 정리 UPDATE가 불변 조건에 걸리고 다음 테스트에 작업을 남기는 문제 수정 |
+| 2026-10-20 | nullable enum을 Web enumAsRef와 기존 nullableReferenceCustomizer로 문서화 | 실제 JSON Schema 검증으로 reason null·세 enum 허용 및 UNKNOWN 거부 확인 |
 | 2026-10-20 | 원본별 기여 금액은 추정하지 않음 | 상계 결과와 원본 Share 사이에 고유 금액 배분이 없음 |
 
 ## 8. 완료 기록

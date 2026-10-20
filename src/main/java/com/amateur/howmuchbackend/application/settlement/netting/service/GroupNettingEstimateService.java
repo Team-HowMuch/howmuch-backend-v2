@@ -54,15 +54,17 @@ public class GroupNettingEstimateService implements GetGroupNettingEstimateUseCa
             groups.requireActiveMember(groupId, userId);
             if (debts.hasOpenReviews(groupId))
                 throw ApplicationException.of(NettingStatusCode.NETTING_ALREADY_ACTIVE);
+            var reason = compression.unavailableReason(
+                    counts.compressionTargetCount(), counts.beforeTransferCount(), counts.afterTransferCount(),
+                    availability.isGroupReplacementPending(groupId));
             return new GroupNettingEstimateResult(
                     groupId,
                     counts.eligibleSettlementCount(),
                     counts.beforeTransferCount(),
                     counts.afterTransferCount(),
                     counts.reducedTransferCount(),
-                    compression.canCompress(counts.compressionTargetCount())
-                            && counts.beforeTransferCount() > counts.afterTransferCount()
-                            && !availability.isGroupReplacementPending(groupId));
+                    reason == null,
+                    reason);
         } catch (ApplicationException failure) {
             if (failure.getStatusCode() == NettingStatusCode.NETTING_ESTIMATE_BUSY)
                 outcome = "busy";

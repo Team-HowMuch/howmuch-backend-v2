@@ -1307,7 +1307,8 @@ class GroupNettingDirectIntegrationTest {
                 .andExpect(jsonPath("$.data.beforeTransferCount").value(2))
                 .andExpect(jsonPath("$.data.afterTransferCount").value(1))
                 .andExpect(jsonPath("$.data.reducedTransferCount").value(1))
-                .andExpect(jsonPath("$.data.canCompress").value(true));
+                .andExpect(jsonPath("$.data.canCompress").value(true))
+                .andExpect(jsonPath("$.data.reason").isEmpty());
         assertThat(estimates.estimate(f.group()).afterTransferCount()).isEqualTo(1);
         verify(estimateCalculation, times(1)).calculate(f.group());
         verifyNoInteractions(bank);
@@ -1338,6 +1339,11 @@ class GroupNettingDirectIntegrationTest {
         var queued =
                 executions.execute(f.group(), new ExecuteGroupNettingCommand(UUID.randomUUID()));
         assertThat(estimates.estimate(f.group()).canCompress()).isFalse();
+        mvc.perform(get("/api/v2/groups/{g}/settlement-nettings/estimate", f.group())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canCompress").value(false))
+                .andExpect(jsonPath("$.data.reason").value("PROCESSING"));
         assertThat(settlements.findAllForUser(f.a(), "RECEIVE", "ALL", f.group(), null, null))
                 .hasSize(1);
         dispatcher.dispatch();
@@ -1467,13 +1473,39 @@ class GroupNettingDirectIntegrationTest {
     void detailOpenApiDocumentsNullableFieldsAndTransferStatus() throws Exception {
         String body = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        var schemas = new tools.jackson.databind.ObjectMapper().readTree(body).path("components").path("schemas");
+        var json = new tools.jackson.databind.ObjectMapper();
+        var document = json.readTree(body);
+        var schemas = document.path("components").path("schemas");
         var detail = schemas.path("GroupNettingWebResponse");
         assertThat(detail.path("required").toString()).contains("completedAt", "supersededAt");
         for (String field : List.of("completedAt", "supersededAt")) {
             assertThat(detail.path("properties").path(field).path("type").toString()).contains("null");
             assertThat(detail.path("properties").path(field).path("description").stringValue()).contains("UTC");
         }
+        var estimate = schemas.path("GroupNettingEstimateWebResponse");
+        assertThat(estimate.path("required").toString()).contains("reason");
+        assertThat(estimate.path("properties").path("reason").path("anyOf").toString())
+                .contains("GroupNettingCompressionUnavailableReason", "null");
+        assertThat(schemas.path("GroupNettingCompressionUnavailableReason").path("enum").toString())
+                .contains("NOT_ENOUGH_TARGETS", "NO_REDUCTION", "PROCESSING");
+        var rootSchema = json.createObjectNode();
+        rootSchema.put("$ref", "#/components/schemas/GroupNettingEstimateWebResponse");
+        rootSchema.set("components", document.path("components"));
+        var validator = com.networknt.schema.SchemaRegistry.withDefaultDialect(
+                com.networknt.schema.SpecificationVersion.DRAFT_2020_12).getSchema(rootSchema);
+        var payload = json.readTree("""
+                {"groupId":1,"eligibleSettlementCount":2,"beforeTransferCount":2,"afterTransferCount":1,
+                 "reducedTransferCount":1,"canCompress":true,"reason":null}
+                """);
+        assertThat(validator.validate(payload)).isEmpty();
+        var withReason = (tools.jackson.databind.node.ObjectNode) payload.deepCopy();
+        withReason.put("canCompress", false);
+        for (String reason : List.of("NOT_ENOUGH_TARGETS", "NO_REDUCTION", "PROCESSING")) {
+            withReason.put("reason", reason);
+            assertThat(validator.validate(withReason)).isEmpty();
+        }
+        withReason.put("reason", "UNKNOWN");
+        assertThat(validator.validate(withReason)).isNotEmpty();
         var source = schemas.path("GroupNettingSource");
         assertThat(source.path("required").toString()).contains("storeName", "category", "participantCount",
                 "payableParticipantCount", "completedParticipantCount");
@@ -1487,7 +1519,18 @@ class GroupNettingDirectIntegrationTest {
     }
 
     @Test
-    void unchangedPositiveTransferCountDoesNotOfferCompression() {
+    void completedGroupEstimateExplainsNotEnoughTargetsThroughHttp() throws Exception {
+        var f = fixture(10000, 10000);
+        compress(f);
+        mvc.perform(get("/api/v2/groups/{g}/settlement-nettings/estimate", f.group())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canCompress").value(false))
+                .andExpect(jsonPath("$.data.reason").value("NOT_ENOUGH_TARGETS"));
+    }
+
+    @Test
+    void unchangedPositiveTransferCountDoesNotOfferCompression() throws Exception {
         var f = fixture(15000, 10000);
         as(f.a());
         suspendUseCase.suspend(f.ba());
@@ -1502,6 +1545,11 @@ class GroupNettingDirectIntegrationTest {
         assertThat(estimate.beforeTransferCount()).isEqualTo(2);
         assertThat(estimate.afterTransferCount()).isEqualTo(2);
         assertThat(estimate.reducedTransferCount()).isZero();
+        assertThat(estimate.reason()).isEqualTo(GroupNettingEstimateResult.Reason.NO_REDUCTION);
+        mvc.perform(get("/api/v2/groups/{g}/settlement-nettings/estimate", f.group())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reason").value("NO_REDUCTION"));
         assertThat(estimate.canCompress()).isFalse();
         assertThat(estimates.estimate(f.group())).isEqualTo(estimate);
         verifyNoInteractions(bank);

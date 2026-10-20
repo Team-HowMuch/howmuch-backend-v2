@@ -33,7 +33,9 @@ public interface GroupNettingDocs {
             summary = "압축 전 예상 송금 건수 조회",
             description =
                     "활성 그룹 멤버 전용. 현재 DB 미납으로 계산한 그룹 공통 건수를 기본 30초 캐시하며 입력 변경 커밋 후 무효화합니다."
-                        + " afterTransferCount로 안내하고 canCompress로 활성 멤버의 압축 버튼을 제어합니다. 현재 합칠 정산이 2건"
+                        + " afterTransferCount로 안내하고 canCompress로 활성 멤버의 압축 버튼을 제어합니다. reason은 불가 사유이며"
+                        + " PROCESSING(진행 중) 우선, NOT_ENOUGH_TARGETS(대상 부족), NO_REDUCTION(건수 미감소), 가능하면 null입니다."
+                        + " 미결 입금 검토는 기존 409 NETTING_ALREADY_ACTIVE를 유지합니다. 현재 합칠 정산이 2건"
                         + " 미만이면 false이며 기존 압축은 1건으로 셉니다. 실행 접수·미리보기 생성·은행 조회는 하지 않으며 확정 전 동기화에 따라"
                         + " 결과가 달라질 수 있습니다. 캐시 장애/장기 경합 시 503과"
                         + " NETTING_ESTIMATE_UNAVAILABLE/NETTING_ESTIMATE_BUSY를 반환합니다.")
