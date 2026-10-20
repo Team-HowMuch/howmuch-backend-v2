@@ -151,6 +151,7 @@ howmuch:
     publication:
       enabled: ${RECAP_PUBLICATION_ENABLED:false}
       poll-interval: 10s
+      initial-delay: 30s
     image:
       storage-dir: ${RECAP_IMAGE_STORAGE_DIR:./uploads/recap-images}
   profile:

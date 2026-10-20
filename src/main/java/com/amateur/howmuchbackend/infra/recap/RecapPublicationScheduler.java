@@ -14,7 +14,9 @@ import org.springframework.stereotype.Component;
 public class RecapPublicationScheduler {
     private final PublishRecapEventsUseCase publication;
 
-    @Scheduled(fixedDelayString = "${howmuch.recap.publication.poll-interval:10s}", initialDelayString = "30s")
+    @Scheduled(fixedDelayString = "${howmuch.recap.publication.poll-interval:10s}",
+            initialDelayString = "${howmuch.recap.publication.initial-delay:30s}",
+            scheduler = "recapPublicationTaskScheduler")
     public void publish() {
         try { publication.publishBatch(100); }
         catch (RuntimeException exception) {
