@@ -1,0 +1,15 @@
+[Unit]
+Description=HowMuch dev demo operator console (loopback only)
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/howmuch-amateur-demo
+ExecStart=/usr/bin/python3 %h/howmuch-amateur-demo/console-server.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

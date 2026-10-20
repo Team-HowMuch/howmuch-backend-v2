@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec python3 "$SCRIPT_DIR/prepare-netting-round.py" \
+  --manifest "$SCRIPT_DIR/applied.json" \
+  --state-dir "$SCRIPT_DIR/state" --apply "$@"

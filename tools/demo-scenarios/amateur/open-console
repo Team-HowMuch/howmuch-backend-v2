@@ -1,0 +1,19 @@
+#!/bin/sh
+# Keep the operator connection encrypted without opening a public server port.
+set -eu
+SSH_KEY=${HOWMUCH_DEMO_SSH_KEY:-/Users/wars/.ssh/howmuch_dev_deploy_ed25519}
+SSH_HOST=${HOWMUCH_DEMO_SSH_HOST:-ubuntu@192.168.1.135}
+LOCAL_PORT=${HOWMUCH_DEMO_LOCAL_PORT:-18120}
+case "$LOCAL_PORT" in ''|*[!0-9]*) exit 2;; esac
+if ! curl --noproxy '*' --fail --silent --max-time 2 "http://127.0.0.1:$LOCAL_PORT/console.js" >/dev/null; then
+  ssh -fT -i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes \
+    -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
+    -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+    -L "127.0.0.1:$LOCAL_PORT:127.0.0.1:18120" "$SSH_HOST" \
+    'systemctl --user start howmuch-amateur-console.service && exec sleep infinity'
+fi
+if command -v open >/dev/null 2>&1; then
+  open "http://127.0.0.1:$LOCAL_PORT/admin/amateur"
+else
+  printf '%s\n' "http://127.0.0.1:$LOCAL_PORT/admin/amateur"
+fi

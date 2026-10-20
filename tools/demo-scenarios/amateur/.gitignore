@@ -1,0 +1,10 @@
+credentials.private.json
+*.private.*
+__pycache__/
+console-state/
+state/
+applied.json
+verification.json
+database-verification.json
+mock-verification.json
+*.class
