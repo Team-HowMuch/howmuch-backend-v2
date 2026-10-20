@@ -59,6 +59,7 @@ public record GroupSettlementListItemWebResponse(
     }
 
     @Schema(name = "GroupSettlementCategoryWebResponse", requiredProperties = {"code", "name", "icon"},
-            description = "요청자가 지정한 카테고리, 없으면 자동 분류 값. 없거나 비활성 코드는 UNCATEGORIZED입니다.")
+            description = "조회자가 지정한 카테고리, 없으면 요청자가 지정한 값, 그것도 없으면 자동 분류 값. "
+                    + "없거나 비활성 코드는 UNCATEGORIZED입니다.")
     public record GroupSettlementCategoryWebResponse(String code, String name, @Schema(nullable = true) String icon) {}
 }

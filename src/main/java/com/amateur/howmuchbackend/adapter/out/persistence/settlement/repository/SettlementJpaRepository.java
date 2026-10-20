@@ -31,7 +31,8 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 settlement.creator_id AS requesterId,
                 creator.public_id AS requesterPublicId,
                 COALESCE(BOOL_OR(participant.linked_user_id = :userId), FALSE) AS viewerParticipant,
-                MAX(COALESCE(requester_category.category_code, classified.category_code)) AS requesterCategoryCode,
+                MAX(COALESCE(viewer_category.category_code, requester_category.category_code,
+                             classified.category_code)) AS viewerCategoryCode,
                 COUNT(DISTINCT participant.id) AS participantCount,
                 COUNT(DISTINCT CASE
                         WHEN (participant.linked_user_id IS NULL
@@ -66,6 +67,9 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
                 ON store_info.settlement_id = settlement.id
               JOIN users creator
                 ON creator.id = settlement.creator_id
+              LEFT JOIN settlement_user_categories viewer_category
+                ON :groupScope = TRUE AND viewer_category.settlement_id = settlement.id
+               AND viewer_category.user_id = :userId
               LEFT JOIN settlement_user_categories requester_category
                 ON :groupScope = TRUE AND requester_category.settlement_id = settlement.id
                AND requester_category.user_id = settlement.creator_id
@@ -372,7 +376,7 @@ public interface SettlementJpaRepository extends JpaRepository<SettlementJpaEnti
 
         boolean getViewerParticipant();
 
-        String getRequesterCategoryCode();
+        String getViewerCategoryCode();
 
         long getParticipantCount();
 
