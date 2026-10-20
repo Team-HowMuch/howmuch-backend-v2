@@ -26,6 +26,12 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import com.amateur.howmuchbackend.application.port.in.settlement.CreateRecurringSettlementFromFormUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.UpdateRecurringSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.DeleteRecurringSettlementUseCase;
+import com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request.RecurringSettlementFormWebRequest;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,6 +45,9 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(prefix = "howmuch.settlement.recurring", name = "enabled", havingValue = "true")
 public class RecurringSettlementController implements RecurringSettlementDocs {
     private final CreateRecurringSettlementUseCase create;
+    private final CreateRecurringSettlementFromFormUseCase createForm;
+    private final UpdateRecurringSettlementUseCase update;
+    private final DeleteRecurringSettlementUseCase delete;
     private final GetGroupRecurringSettlementsUseCase list;
     private final GetRecurringSettlementUseCase get;
     private final GetRecurringSettlementOccurrencesUseCase history;
@@ -49,7 +58,8 @@ public class RecurringSettlementController implements RecurringSettlementDocs {
     @PostMapping
     public ApiResponse<RecurringSettlementWebResponse> create(@PathVariable Long groupId,
             @Valid @RequestBody CreateRecurringSettlementWebRequest request) {
-        return ApiResponse.success(RecurringSettlementWebResponse.from(create.create(groupId, request.toCommand())));
+        return ApiResponse.success(RecurringSettlementWebResponse.from(request.sourceSettlementId() == null
+                ? createForm.create(groupId, request.toFormCommand()) : create.create(groupId, request.toCommand())));
     }
 
     @Override
@@ -75,6 +85,20 @@ public class RecurringSettlementController implements RecurringSettlementDocs {
         return ApiResponse.success(RecurringSettlementSchedulePreviewWebResponse.from(
                 preview.preview(groupId, new RecurringSettlementSchedulePreviewCommand(frequency, dayOfWeek,
                         dayOfMonth, firstRunDate))));
+    }
+
+    @Override
+    @PutMapping("/{id}")
+    public ApiResponse<RecurringSettlementWebResponse> update(@PathVariable Long groupId, @PathVariable UUID id,
+            @Valid @RequestBody RecurringSettlementFormWebRequest request) {
+        return ApiResponse.success(RecurringSettlementWebResponse.from(update.update(groupId, id, request.toCommand())));
+    }
+
+    @Override
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long groupId, @PathVariable UUID id) {
+        delete.delete(groupId, id);
+        return ApiResponse.success();
     }
 
     @Override

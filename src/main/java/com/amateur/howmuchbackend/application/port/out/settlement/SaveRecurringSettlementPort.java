@@ -6,4 +6,6 @@ public interface SaveRecurringSettlementPort {
     void save(RecurringSettlement recurring);
 
     void update(RecurringSettlement recurring);
+
+    void replace(RecurringSettlement recurring);
 }

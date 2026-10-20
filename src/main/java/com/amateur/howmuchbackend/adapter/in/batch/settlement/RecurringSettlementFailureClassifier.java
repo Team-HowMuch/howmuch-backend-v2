@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.adapter.in.batch.settlement;
 
+import com.amateur.howmuchbackend.application.settlement.model.RecurringSettlementSnapshotChangedException;
+
 import java.sql.SQLException;
 import java.sql.SQLTransientException;
 import java.util.Collections;
@@ -14,6 +16,9 @@ public final class RecurringSettlementFailureClassifier {
     public static boolean transientDatabaseFailure(Throwable failure) {
         var seen = Collections.newSetFromMap(new IdentityHashMap<Throwable, Boolean>());
         for (Throwable cause = failure; cause != null && seen.add(cause); cause = cause.getCause()) {
+            if (cause instanceof RecurringSettlementSnapshotChangedException) {
+                return true;
+            }
             if (cause instanceof TransientDataAccessException || cause instanceof SQLTransientException) {
                 return true;
             }

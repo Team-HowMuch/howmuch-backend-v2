@@ -147,6 +147,9 @@ public class RecurringSettlementService implements CreateRecurringSettlementUseC
     private RecurringSettlementResult replayRegistration(RecurringSettlement existing, Long groupId, Long actorId,
             CreateRecurringSettlementCommand command) {
         access.requireCreator(existing, actorId);
+        if (existing.deletedAt() != null) {
+            throw ApplicationException.of(RecurringSettlementStatusCode.RECURRING_SETTLEMENT_NOT_FOUND);
+        }
         // Compare the request shape against the stored snapshot without future-date validation or a catalog lookup,
         // so a deactivated catalog entry or an elapsed first run never mutates or replaces the original template.
         if (!sameRequest(existing, groupId, command)) {
@@ -233,7 +236,7 @@ public class RecurringSettlementService implements CreateRecurringSettlementUseC
     @Override
     @Transactional
     public RecurringSettlementResult cancel(Long groupId, UUID id) {
-        var value = recurring.findByIdForUpdate(id).filter(item -> item.groupId().equals(groupId))
+        var value = recurring.findByIdForUpdate(id).filter(item -> item.groupId().equals(groupId) && item.deletedAt() == null)
                 .orElseThrow(() -> ApplicationException.of(RecurringSettlementStatusCode.RECURRING_SETTLEMENT_NOT_FOUND));
         access.requireCreator(value, currentActorPort.getCurrentActor().userId());
         var cancelled = value.cancel(RecurringSettlement.CancellationReason.USER_CANCELLED, LocalDateTime.now(clock));
@@ -242,7 +245,7 @@ public class RecurringSettlementService implements CreateRecurringSettlementUseC
     }
 
     private RecurringSettlement load(Long groupId, UUID id) {
-        return recurring.findById(id).filter(value -> value.groupId().equals(groupId))
+        return recurring.findById(id).filter(value -> value.groupId().equals(groupId) && value.deletedAt() == null)
                 .orElseThrow(() -> ApplicationException.of(RecurringSettlementStatusCode.RECURRING_SETTLEMENT_NOT_FOUND));
     }
 

@@ -1,5 +1,16 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.model.RecurringSettlementSnapshotChangedException;
+import com.amateur.howmuchbackend.application.port.in.settlement.CreateRecurringSettlementFromFormUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.UpdateRecurringSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.DeleteRecurringSettlementUseCase;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.WriteRecurringSettlementCommand;
+import com.amateur.howmuchbackend.adapter.in.batch.settlement.RecurringSettlementFailureClassifier;
+import java.util.Optional;
+import java.time.DayOfWeek;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.mockito.Mockito;
+
 import com.amateur.howmuchbackend.adapter.out.persistence.external.CodefSecretCipher;
 import com.amateur.howmuchbackend.adapter.out.persistence.settlement.RecurringSettlementPersistenceAdapter;
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
@@ -163,6 +174,9 @@ class RecurringSettlementFlowIntegrationTest {
     @Autowired DataSource dataSource;
     @Autowired MutableClock clock;
     @Autowired CreateRecurringSettlementUseCase create;
+    @Autowired CreateRecurringSettlementFromFormUseCase createForm;
+    @Autowired UpdateRecurringSettlementUseCase updateForm;
+    @Autowired DeleteRecurringSettlementUseCase deleteForm;
     @Autowired GetRecurringSettlementUseCase get;
     @Autowired GetGroupRecurringSettlementsUseCase list;
     @Autowired GetRecurringSettlementHomeUseCase home;
@@ -728,6 +742,157 @@ class RecurringSettlementFlowIntegrationTest {
         var beforeRetry = recurring.findDue(FIRST, FIRST, null, 10).stream()
                 .map(LoadRecurringSettlementPort.DueOccurrence::id).toList();
         assertThat(beforeRetry).contains(horizonFresh.id()).doesNotContain(retry.id(), postHorizon.id());
+    }
+
+    @Test
+    void directForm_updateAfterPublishing_thenDelete_preservesBothOccurrenceSnapshots() {
+        var f = fixture();
+        int beforeDrafts = jdbc.queryForObject("SELECT count(*) FROM settlements", Integer.class);
+        var value = createForm.create(f.group(), form(f, 20001, List.of(f.creator(), f.member())));
+        assertThat(recurring.findById(value.id()).orElseThrow().sourceSettlementId()).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM settlements", Integer.class)).isEqualTo(beforeDrafts);
+        assertThat(value.participants()).extracting(RecurringSettlement.Participant::amount).containsExactly(10001L, 10000L);
+        clock.at(FIRST.plusMinutes(1));
+        worker.process(value.id(), FIRST);
+        var first = occurrences.findBySchedule(value.id(), FIRST).orElseThrow();
+        var changed = updateForm.update(f.group(), value.id(), form(f, 30003, List.of(f.observer(), f.creator(), f.member())));
+        assertThat(changed.id()).isEqualTo(value.id());
+        assertThat(changed.createdAt()).isEqualTo(value.createdAt());
+        assertThat(changed.nextRunAt()).isEqualTo(LocalDateTime.of(2026, 11, 30, 0, 0));
+        assertThat(jdbc.queryForObject("SELECT total_amount FROM settlements WHERE id=?", Long.class, first.settlementId())).isEqualTo(20001L);
+        clock.at(changed.nextRunAt().plusMinutes(1));
+        worker.process(value.id(), changed.nextRunAt());
+        var second = occurrences.findBySchedule(value.id(), changed.nextRunAt()).orElseThrow();
+        assertThat(jdbc.queryForObject("SELECT total_amount FROM settlements WHERE id=?", Long.class, second.settlementId())).isEqualTo(30003L);
+        assertThat(jdbc.queryForList("SELECT amount FROM settlement_shares WHERE settlement_id=? ORDER BY amount", Long.class, second.settlementId())).containsExactly(10001L, 10001L, 10001L);
+        deleteForm.delete(f.group(), value.id());
+        deleteForm.delete(f.group(), value.id());
+        var deleted = recurring.findById(value.id()).orElseThrow();
+        assertThat(deleted.deletedAt()).isNotNull();
+        assertThat(deleted.status()).isEqualTo(RecurringSettlement.Status.CANCELLED);
+        assertThat(list.get(f.group(), page(RecurringSettlementScope.ALL, RecurringSettlementStatusFilter.CANCELLED, null)).items()).isEmpty();
+        assertThatThrownBy(() -> get.get(f.group(), value.id())).isInstanceOf(ApplicationException.class);
+        assertThatThrownBy(() -> history.get(f.group(), value.id(), page(RecurringSettlementScope.ALL, RecurringSettlementStatusFilter.ACTIVE, null))).isInstanceOf(ApplicationException.class);
+        assertThat(count("recurring_settlement_occurrences", "recurring_settlement_id", value.id())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM settlements WHERE id IN (?,?)", Integer.class, first.settlementId(), second.settlementId())).isEqualTo(2);
+        assertThat(dispatcher.dispatch(50)).isZero();
+    }
+
+    @Test
+    void formApi_validatesExclusiveShapes_andSupportsPutDelete() throws Exception {
+        var f = fixture();
+        String path = "/api/v2/groups/" + f.group() + "/recurring-settlements";
+        String body = formJson(f, "form HTTP", 20001);
+        mvc.perform(post(path).with(user("signed")).contentType("application/json").content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("data.title").value("form HTTP"))
+                .andExpect(jsonPath("data.participants[0].amount").value(10001));
+        UUID id = jdbc.queryForObject("SELECT id FROM recurring_settlements WHERE group_id=?", UUID.class, f.group());
+        mvc.perform(MockMvcRequestBuilders.put(path + "/" + id)
+                        .with(user("signed")).contentType("application/json").content(formJson(f, "edited HTTP", 30000)))
+                .andExpect(status().isOk()).andExpect(jsonPath("data.id").value(id.toString()))
+                .andExpect(jsonPath("data.title").value("edited HTTP"));
+        for (String bad : List.of(body.replaceFirst("\\{", "{\"frequency\":\"MONTHLY\","),
+                body.replace("\"title\":", "\"sourceSettlementId\":\"" + f.source() + "\",\"title\":"),
+                body.replace("\"receivingAccountId\":" + f.account(), "\"receivingAccountId\":null"),
+                body.replace("[" + f.creator() + "," + f.member() + "]", "[" + f.creator() + ",null]"))) {
+            mvc.perform(post(path).with(user("signed")).contentType("application/json").content(bad)).andExpect(status().isBadRequest());
+        }
+        mvc.perform(MockMvcRequestBuilders.put(path + "/" + id)
+                        .contentType("application/json").content(body)).andExpect(status().isUnauthorized());
+        when(actor.getCurrentActor()).thenReturn(new CurrentActor(f.member()));
+        mvc.perform(MockMvcRequestBuilders.delete(path + "/" + id).with(user("signed")))
+                .andExpect(status().isForbidden());
+        mvc.perform(MockMvcRequestBuilders.put(path + "/" + id)
+                        .with(user("signed")).contentType("application/json").content(body)).andExpect(status().isForbidden());
+        when(actor.getCurrentActor()).thenReturn(new CurrentActor(f.creator()));
+        mvc.perform(MockMvcRequestBuilders.delete(path + "/" + id).with(user("signed"))).andExpect(status().isOk());
+        mvc.perform(MockMvcRequestBuilders.delete(path + "/" + id).with(user("signed"))).andExpect(status().isOk());
+        mvc.perform(get(path + "/" + id).with(user("signed"))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void invalidFormMembershipAllocationsAndAccount_doNotPersistAnything() {
+        var f = fixture();
+        for (var ids : List.of(List.of(f.creator(), f.creator()), List.of(f.member(), f.observer()), List.of(f.creator(), 999999999L))) {
+            assertThatThrownBy(() -> createForm.create(f.group(), form(f, 20000, ids))).isInstanceOf(ApplicationException.class);
+        }
+        assertThatThrownBy(() -> createForm.create(f.group(), form(f, 1, List.of(f.creator(), f.member())))).isInstanceOf(ApplicationException.class);
+        var other = fixture();
+        when(actor.getCurrentActor()).thenReturn(new CurrentActor(f.creator()));
+        var input = form(f, 20000, List.of(f.creator(), f.member()));
+        var wrongAccount = new WriteRecurringSettlementCommand(
+                input.title(), input.amount(), input.categoryCode(), input.frequency(), input.dayOfWeek(), input.dayOfMonth(),
+                null, input.participantUserIds(), other.account());
+        assertThatThrownBy(() -> createForm.create(f.group(), wrongAccount)).isInstanceOf(ApplicationException.class);
+        jdbc.update("UPDATE group_members SET status='LEFT',left_at=? WHERE group_id=? AND user_id=?", CREATED, f.group(), f.member());
+        assertThatThrownBy(() -> createForm.create(f.group(), input)).isInstanceOf(ApplicationException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM recurring_settlements WHERE group_id=?", Integer.class, f.group())).isZero();
+    }
+
+    @Test
+    void dueFailedCancelledAndWrongGroupEdits_areRejected_withoutSkippingOccurrences() {
+        var f = fixture(); var value = register(f);
+        var input = form(f, 30000, List.of(f.creator(), f.member()));
+        assertThatThrownBy(() -> updateForm.update(f.group() + 99999, value.id(), input)).isInstanceOf(ApplicationException.class);
+        clock.at(FIRST);
+        assertThatThrownBy(() -> updateForm.update(f.group(), value.id(), input)).isInstanceOf(ApplicationException.class);
+        clock.at(CREATED);
+        jdbc.update("UPDATE recurring_settlements SET last_failure_code='RECURRING_MANUAL_EXECUTION_FAILURE',last_failure_at=? WHERE id=?", CREATED, value.id());
+        assertThatThrownBy(() -> updateForm.update(f.group(), value.id(), input)).isInstanceOf(ApplicationException.class);
+        cancel.cancel(f.group(), value.id());
+        assertThatThrownBy(() -> updateForm.update(f.group(), value.id(), input)).isInstanceOf(ApplicationException.class);
+        clock.at(CREATED.plusDays(1)); deleteForm.delete(f.group(), value.id());
+        assertThat(recurring.findById(value.id()).orElseThrow().cancelledAt()).isEqualTo(CREATED);
+        assertThatThrownBy(() -> create.create(f.group(), command(f.source()))).isInstanceOf(ApplicationException.class);
+    }
+
+    @Test
+    void cadenceChange_recomputesFutureSchedule_andReplacesParticipantsAtomically() {
+        var f = fixture();var value = register(f);
+        var input = new WriteRecurringSettlementCommand(
+                "매주 수정", 31001, "SHOPPING", RecurrenceSchedule.Frequency.WEEKLY, DayOfWeek.FRIDAY, null,
+                null, List.of(f.observer(), f.creator()), f.account());
+        var changed = updateForm.update(f.group(), value.id(), input);
+        assertThat(changed.schedule().frequency()).isEqualTo(RecurrenceSchedule.Frequency.WEEKLY);
+        assertThat(changed.nextRunAt()).isEqualTo(LocalDateTime.of(2026, 10, 16, 0, 0));
+        assertThat(changed.participants()).extracting(RecurringSettlement.Participant::userId).containsExactly(f.observer(), f.creator());
+        assertThat(changed.participants()).extracting(RecurringSettlement.Participant::amount).containsExactly(15500L, 15501L);
+        assertThat(changed.expenses()).singleElement().satisfies(cost -> assertThat(cost.description()).isEqualTo("매주 수정"));
+        assertThat(recurring.findById(value.id()).orElseThrow().sourceSettlementId()).isEqualTo(f.source());
+    }
+
+    @Test
+    void deletedCursorAndOtherCreator_areNotAllowed() {
+        var f=fixture();var value=register(f);cancel.cancel(f.group(),value.id());deleteForm.delete(f.group(),value.id());
+        assertThatThrownBy(() -> list.get(f.group(), page(RecurringSettlementScope.ALL, RecurringSettlementStatusFilter.CANCELLED, value.id()))).isInstanceOf(ApplicationException.class);
+        when(actor.getCurrentActor()).thenReturn(new CurrentActor(f.member()));
+        assertThatThrownBy(() -> deleteForm.delete(f.group(),value.id())).isInstanceOf(ApplicationException.class);
+    }
+
+    @Test
+    void workerRejectsSnapshotChangedWhileAcquiringLocks_andClassifiesItForRetry() {
+        var f=fixture();var value=register(f);clock.at(FIRST.plusMinutes(1));
+        var original=recurring.findById(value.id()).orElseThrow();
+        var alternate=original.revise("edited", "SHOPPING", 30000, f.account(), original.schedule(),
+                List.of(new RecurringSettlement.Participant(f.creator(),15000,0),new RecurringSettlement.Participant(f.observer(),15000,1)),CREATED);
+        Mockito.doReturn(Optional.of(alternate)).when(persistenceTarget()).findByIdForUpdate(value.id());
+        assertThatThrownBy(() -> worker.process(value.id(), FIRST))
+                .isInstanceOf(RecurringSettlementSnapshotChangedException.class)
+                .satisfies(error -> assertThat(RecurringSettlementFailureClassifier.transientDatabaseFailure(error)).isTrue());
+        assertThat(count("recurring_settlement_occurrences","recurring_settlement_id",value.id())).isZero();
+    }
+
+    private WriteRecurringSettlementCommand form(Fixture f, long amount, List<Long> people) {
+        return new WriteRecurringSettlementCommand(
+                "직접 월세", amount, "HOUSING_TELECOM", RecurrenceSchedule.Frequency.MONTHLY, null,31,null,people,f.account());
+    }
+
+    private String formJson(Fixture f, String title, long amount) {
+        return """
+                {"title":"%s","amount":%d,"categoryCode":"HOUSING_TELECOM",
+                 "cadence":{"frequency":"MONTHLY","dayOfMonth":31},"firstRunDate":"2026-10-31",
+                 "participantUserIds":[%d,%d],"receivingAccountId":%d}
+                """.formatted(title,amount,f.creator(),f.member(),f.account());
     }
 
     private RecurringSettlementPageCommand page(RecurringSettlementScope scope,
