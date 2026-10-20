@@ -1,30 +1,49 @@
 package com.amateur.howmuchbackend.adapter.in.web.settlement.dto.request;
 
 import com.amateur.howmuchbackend.application.port.in.settlement.command.CreateRecurringSettlementCommand;
+import com.amateur.howmuchbackend.application.port.in.settlement.command.WriteRecurringSettlementCommand;
 import com.amateur.howmuchbackend.domain.settlement.recurring.RecurrenceSchedule;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
+@Schema(description = "초안 전환(sourceSettlementId + frequency) 또는 직접 등록(title/amount/cadence/participantUserIds/receivingAccountId) 중 하나만 입력한다.")
 public record CreateRecurringSettlementWebRequest(
-        @NotNull @Schema(description = "반복 설정으로 전환할 정산 초안 ID") UUID sourceSettlementId,
-        @NotNull RecurrenceSchedule.Frequency frequency,
-        @Schema(description = "매주 선택 시 요일, 매월이면 null") DayOfWeek dayOfWeek,
-        @Min(1) @Max(31) @Schema(description = "매월 선택 시 날짜, 매주이면 null") Integer dayOfMonth,
-        @Schema(description = "한국 날짜 기준 첫 정산일. 생략하면 가장 가까운 미래 유효 일정을 서버가 계산한다.",
-                example = "2026-10-31")
+        UUID sourceSettlementId,
+        RecurrenceSchedule.Frequency frequency,
+        DayOfWeek dayOfWeek,
+        @Min(1) @Max(31) Integer dayOfMonth,
         LocalDate firstRunDate,
-        @NotBlank @Schema(description = "설정의 기본 카테고리 코드. GET /api/v2/settlement-categories의 선택 가능 코드",
-                example = "HOUSING_TELECOM")
-        String categoryCode
+        @NotBlank String categoryCode,
+        @Size(max = 100) String title,
+        @Positive Long amount,
+        @Valid RecurringSettlementFormWebRequest.Cadence cadence,
+        @Size(min = 2) List<@NotNull @Positive Long> participantUserIds,
+        @Positive Long receivingAccountId
 ) {
+    @AssertTrue(message = "초안 전환 본문 또는 완전한 직접 등록 폼 중 하나만 입력해주세요.")
+    @Schema(hidden = true)
+    public boolean isValidRegistration() {
+        if (sourceSettlementId != null) {
+            return frequency != null && title == null && amount == null && cadence == null
+                    && participantUserIds == null && receivingAccountId == null;
+        }
+        return frequency == null && dayOfWeek == null && dayOfMonth == null
+                && title != null && !title.isBlank() && amount != null && cadence != null
+                && participantUserIds != null && receivingAccountId != null;
+    }
+
     public CreateRecurringSettlementCommand toCommand() {
         return new CreateRecurringSettlementCommand(sourceSettlementId, frequency, dayOfWeek, dayOfMonth,
                 firstRunDate, categoryCode);
+    }
+
+    public WriteRecurringSettlementCommand toFormCommand() {
+        return new RecurringSettlementFormWebRequest(title, amount, categoryCode, cadence, firstRunDate,
+                participantUserIds, receivingAccountId).toCommand();
     }
 }

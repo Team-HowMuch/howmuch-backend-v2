@@ -90,7 +90,7 @@ class RecurringSettlementDispatcherTest {
                 List.of(new RecurringSettlement.Participant(CREATOR, 12_000, 0),
                         new RecurringSettlement.Participant(MEMBER, 8_000, 1)),
                 List.of(new RecurringSettlement.Expense("월세", 20_000, 0)),
-                failures, retryAt, failureCode, failureCode == null ? null : CREATED, null, null, CREATED, CREATED);
+                failures, retryAt, failureCode, failureCode == null ? null : CREATED, null, null, CREATED, CREATED, null);
     }
 
     static final class MutableClock extends Clock {

@@ -56,6 +56,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 @Service
 @RequiredArgsConstructor
@@ -87,6 +88,7 @@ public class RecurringSettlementService implements CreateRecurringSettlementUseC
     private final RecurringSettlementSummaryAssembler summaryAssembler;
     private final SettlementCategoryCatalog categoryCatalog;
     private final Clock clock;
+    private final RecurringSettlementPresentationAssembler presentation;
 
     @Override
     @Transactional
@@ -141,18 +143,21 @@ public class RecurringSettlementService implements CreateRecurringSettlementUseC
                         cost.description(), cost.amount(), cost.displayOrder())).toList(), now);
         saveRecurring.save(saved);
         deleteSettlement.delete(draft.id(), now);
-        return RecurringSettlementResult.from(saved);
+        return presentation.assemble(saved);
     }
 
     private RecurringSettlementResult replayRegistration(RecurringSettlement existing, Long groupId, Long actorId,
             CreateRecurringSettlementCommand command) {
         access.requireCreator(existing, actorId);
+        if (existing.deletedAt() != null) {
+            throw ApplicationException.of(RecurringSettlementStatusCode.RECURRING_SETTLEMENT_NOT_FOUND);
+        }
         // Compare the request shape against the stored snapshot without future-date validation or a catalog lookup,
         // so a deactivated catalog entry or an elapsed first run never mutates or replaces the original template.
         if (!sameRequest(existing, groupId, command)) {
             throw ApplicationException.of(RecurringSettlementStatusCode.RECURRING_SETTLEMENT_SOURCE_ALREADY_USED);
         }
-        return RecurringSettlementResult.from(existing);
+        return presentation.assemble(existing);
     }
 
     private boolean sameRequest(RecurringSettlement existing, Long groupId, CreateRecurringSettlementCommand command) {
@@ -173,7 +178,7 @@ public class RecurringSettlementService implements CreateRecurringSettlementUseC
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public RecurringSettlementSchedulePreviewResult preview(Long groupId, RecurringSettlementSchedulePreviewCommand command) {
         Long actorId = currentActorPort.getCurrentActor().userId();
         if (!activeMember(groupId, actorId)) {
@@ -184,7 +189,7 @@ public class RecurringSettlementService implements CreateRecurringSettlementUseC
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public RecurringSettlementPageResult<RecurringSettlementSummaryResult> get(Long groupId,
             RecurringSettlementPageCommand query) {
         Long actorId = currentActorPort.getCurrentActor().userId();
@@ -204,16 +209,16 @@ public class RecurringSettlementService implements CreateRecurringSettlementUseC
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public RecurringSettlementResult get(Long groupId, UUID id) {
         var value = load(groupId, id);
         Long actorId = currentActorPort.getCurrentActor().userId();
         access.requireRead(value, actorId, activeMember(groupId, actorId));
-        return RecurringSettlementResult.from(value);
+        return presentation.assemble(value);
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public RecurringSettlementPageResult<RecurringSettlementOccurrenceResult> get(Long groupId, UUID id,
             RecurringSettlementPageCommand query) {
         var value = load(groupId, id);
@@ -233,16 +238,16 @@ public class RecurringSettlementService implements CreateRecurringSettlementUseC
     @Override
     @Transactional
     public RecurringSettlementResult cancel(Long groupId, UUID id) {
-        var value = recurring.findByIdForUpdate(id).filter(item -> item.groupId().equals(groupId))
+        var value = recurring.findByIdForUpdate(id).filter(item -> item.groupId().equals(groupId) && item.deletedAt() == null)
                 .orElseThrow(() -> ApplicationException.of(RecurringSettlementStatusCode.RECURRING_SETTLEMENT_NOT_FOUND));
         access.requireCreator(value, currentActorPort.getCurrentActor().userId());
         var cancelled = value.cancel(RecurringSettlement.CancellationReason.USER_CANCELLED, LocalDateTime.now(clock));
         saveRecurring.update(cancelled);
-        return RecurringSettlementResult.from(cancelled);
+        return presentation.assemble(cancelled);
     }
 
     private RecurringSettlement load(Long groupId, UUID id) {
-        return recurring.findById(id).filter(value -> value.groupId().equals(groupId))
+        return recurring.findById(id).filter(value -> value.groupId().equals(groupId) && value.deletedAt() == null)
                 .orElseThrow(() -> ApplicationException.of(RecurringSettlementStatusCode.RECURRING_SETTLEMENT_NOT_FOUND));
     }
 

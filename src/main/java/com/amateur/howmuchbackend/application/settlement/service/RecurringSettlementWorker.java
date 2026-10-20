@@ -1,5 +1,7 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
+import com.amateur.howmuchbackend.application.settlement.model.RecurringSettlementSnapshotChangedException;
+
 import com.amateur.howmuchbackend.application.port.in.settlement.ProcessRecurringSettlementUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.RecurringSettlementExecutionResult;
 import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
@@ -69,7 +71,7 @@ public class RecurringSettlementWorker implements ProcessRecurringSettlementUseC
             return RecurringSettlementExecutionResult.ALREADY_PUBLISHED;
         }
         var snapshot = load(id, false);
-        // Participant/account choices are immutable, so discover IDs before acquiring shared locks.
+        // Discover IDs before shared locks; revalidate the mutable snapshot under the template lock.
         Map<Long, User> currentUsers = new HashMap<>();
         snapshot.participants().stream().map(RecurringSettlement.Participant::userId).sorted()
                 .forEach(userId -> users.findByIdForUpdate(userId).ifPresent(user -> currentUsers.put(userId, user)));
@@ -82,6 +84,10 @@ public class RecurringSettlementWorker implements ProcessRecurringSettlementUseC
         }
         if (value.status() == RecurringSettlement.Status.CANCELLED) {
             return RecurringSettlementExecutionResult.CANCELLED;
+        }
+        if (!snapshot.participants().equals(value.participants())
+                || !snapshot.receivingAccountId().equals(value.receivingAccountId())) {
+            throw new RecurringSettlementSnapshotChangedException();
         }
         LocalDateTime now = LocalDateTime.now(clock);
         if (!scheduledFor.equals(value.nextRunAt()) || scheduledFor.isAfter(now)) {

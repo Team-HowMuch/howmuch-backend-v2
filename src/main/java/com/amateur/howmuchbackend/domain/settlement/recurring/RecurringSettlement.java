@@ -21,7 +21,7 @@ public record RecurringSettlement(
         LocalDateTime nextRunAt, Status status, List<Participant> participants, List<Expense> expenses,
         int failureCount, LocalDateTime retryAt, String lastFailureCode, LocalDateTime lastFailureAt,
         CancellationReason cancellationReason, LocalDateTime cancelledAt,
-        LocalDateTime createdAt, LocalDateTime updatedAt
+        LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime deletedAt
 ) {
     public static final int MAX_AUTOMATIC_ATTEMPTS = 3;
     public static final String TRANSIENT_FAILURE = "RECURRING_TRANSIENT_DATABASE_FAILURE";
@@ -54,7 +54,6 @@ public record RecurringSettlement(
 
     public RecurringSettlement {
         Objects.requireNonNull(id);
-        Objects.requireNonNull(sourceSettlementId);
         Objects.requireNonNull(schedule);
         Objects.requireNonNull(status);
         Objects.requireNonNull(createdAt);
@@ -97,6 +96,10 @@ public record RecurringSettlement(
                 || (status == Status.CANCELLED && (nextRunAt != null || cancellationReason == null || cancelledAt == null))) {
             invalidSource();
         }
+        if (deletedAt != null && (status != Status.CANCELLED || cancelledAt == null
+                || cancelledAt.isBefore(createdAt) || deletedAt.isBefore(cancelledAt) || deletedAt.isAfter(updatedAt))) {
+            invalidSource();
+        }
         if ((lastFailureCode == null) != (lastFailureAt == null)
                 || (lastFailureCode != null && !List.of(TRANSIENT_FAILURE, UNEXPECTED_FAILURE, MANUAL_FAILURE).contains(lastFailureCode))
                 || (retryAt != null && (status != Status.ACTIVE || failureCount < 1
@@ -111,7 +114,37 @@ public record RecurringSettlement(
         schedule.requireFutureFirstRun(now);
         return new RecurringSettlement(UUID.randomUUID(), groupId, creatorId, sourceId,
                 title, categoryCode, total, accountId, schedule, schedule.firstRunAt(), Status.ACTIVE,
-                participants, expenses, 0, null, null, null, null, null, now, now);
+                participants, expenses, 0, null, null, null, null, null, now, now, null);
+    }
+
+    public void requireEditable(LocalDateTime now) {
+        if (deletedAt != null || status != Status.ACTIVE || !nextRunAt.isAfter(now) || lastFailureCode != null) {
+            throw ApplicationException.of(RecurringSettlementStatusCode.RECURRING_SETTLEMENT_NOT_EDITABLE);
+        }
+    }
+
+    public RecurringSettlement revise(String newTitle, String category, long amount, Long accountId,
+            RecurrenceSchedule newSchedule, List<Participant> people, LocalDateTime now) {
+        requireEditable(now);
+        LocalDateTime next = schedule.equals(newSchedule) ? nextRunAt : newSchedule.firstRunAt();
+        if (!next.isAfter(now)) {
+            throw ApplicationException.of(RecurringSettlementStatusCode.INVALID_RECURRENCE_SCHEDULE);
+        }
+        return new RecurringSettlement(id, groupId, creatorId, sourceSettlementId, newTitle, category,
+                amount, accountId, newSchedule, next, status, people,
+                List.of(new Expense(newTitle, amount, 0)), 0, null, null, null, null, null,
+                createdAt, now, null);
+    }
+
+    public RecurringSettlement delete(LocalDateTime now) {
+        if (deletedAt != null) {
+            return this;
+        }
+        var cancelled = cancel(CancellationReason.USER_CANCELLED, now);
+        return new RecurringSettlement(id, groupId, creatorId, sourceSettlementId, title, categoryCode,
+                totalAmount, receivingAccountId, schedule, null, Status.CANCELLED, participants, expenses,
+                failureCount, null, lastFailureCode, lastFailureAt, cancelled.cancellationReason(),
+                cancelled.cancelledAt(), createdAt, now, now);
     }
 
     public boolean automaticDue(LocalDateTime now) {
@@ -157,7 +190,7 @@ public record RecurringSettlement(
             CancellationReason reason, LocalDateTime cancelled, LocalDateTime now) {
         return new RecurringSettlement(id, groupId, creatorId, sourceSettlementId,
                 title, categoryCode, totalAmount, receivingAccountId, schedule, next, newStatus, participants,
-                expenses, failures, retry, failureCode, failureAt, reason, cancelled, createdAt, now);
+                expenses, failures, retry, failureCode, failureAt, reason, cancelled, createdAt, now, deletedAt);
     }
 
     private static void invalidSource() {

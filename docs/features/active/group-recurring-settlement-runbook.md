@@ -1,5 +1,7 @@
 # 그룹 반복 정산 후속 구현 운영·검증 메모
 
+> 2026-10-20 후속: 폼 직접 생성·전체 수정·삭제와 편집용 표시 응답은 [정기 정산 관리 API](../completed/recurring-settlement-management.md)를 우선 참고한다. 아래 초기 구현 기록의 범위 제외·마스킹 정보 제외는 #574 당시 기준이다.
+
 - Last updated: 2026-10-18
 - Related Feature Plan: [그룹 반복 정산](group-recurring-settlement.md)
 - 범위: 격리 워크트리에서의 로컬 구현 활성화·검증·제한된 수동 복구 절차. 운영 배포 기록이 아니다.

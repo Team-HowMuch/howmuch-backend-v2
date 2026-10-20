@@ -263,6 +263,41 @@ class RecurringSettlementHttpIntegrationTest {
                 """.formatted(source, CATEGORY)).statusCode()).isEqualTo(403);
     }
 
+    @Test
+    void authenticatedFormManagement_andOpenApiContract() throws Exception {
+        String form = """
+                {"title":"직접 HTTP","amount":20001,"categoryCode":"HOUSING_TELECOM",
+                 "cadence":{"frequency":"MONTHLY","dayOfMonth":31},
+                 "participantUserIds":[%d,%d],"receivingAccountId":%d}
+                """.formatted(creator,member,account);
+        assertThat(post(groupListPath(), null, form).statusCode()).isEqualTo(401);
+        var created=post(groupListPath(),creatorToken,form);
+        assertThat(created.statusCode()).isEqualTo(200);
+        String id=data(created).path("id").stringValue();
+        String path=groupListPath()+"/"+id;
+        assertThat(data(created).path("participants").get(0).path("name").stringValue()).isEqualTo("생성자");
+        assertThat(data(created).path("receivingAccount").path("maskedNumber").stringValue()).isEqualTo("****1234");
+        assertThat(send("PUT",path,memberToken,form).statusCode()).isEqualTo(403);
+        assertThat(send("DELETE",path,memberToken,null).statusCode()).isEqualTo(403);
+        assertThat(get(path,unrelatedToken).statusCode()).isEqualTo(403);
+        var edited=send("PUT",path,creatorToken,form.replace("직접 HTTP","수정 HTTP").replace("20001","30001"));
+        assertThat(edited.statusCode()).isEqualTo(200);
+        assertThat(data(edited).path("title").stringValue()).isEqualTo("수정 HTTP");
+        assertThat(data(edited).path("id").stringValue()).isEqualTo(id);
+        assertThat(send("DELETE",path,creatorToken,null).statusCode()).isEqualTo(200);
+        assertThat(send("DELETE",path,creatorToken,null).statusCode()).isEqualTo(200);
+        assertThat(get(path,creatorToken).statusCode()).isEqualTo(404);
+        assertThat(data(get(groupListPath()+"?status=CANCELLED",creatorToken)).path("items")).isEmpty();
+        assertThat(data(get("/api/v2/recurring-settlements/home",creatorToken))).isEmpty();
+        var response=get("/v3/api-docs",creatorToken);
+        assertThat(response.statusCode()).isEqualTo(200);
+        var spec=json.readTree(response.body());
+        var operations=spec.path("paths").path("/api/v2/groups/{groupId}/recurring-settlements/{id}");
+        assertThat(operations.has("put")).isTrue();assertThat(operations.has("delete")).isTrue();
+        var properties=spec.path("components").path("schemas").path("RecurringSettlementWebResponse").path("properties");
+        assertThat(properties.has("category")).isTrue();assertThat(properties.has("receivingAccount")).isTrue();
+    }
+
     private String groupListPath() {
         return "/api/v2/groups/" + group + "/recurring-settlements";
     }

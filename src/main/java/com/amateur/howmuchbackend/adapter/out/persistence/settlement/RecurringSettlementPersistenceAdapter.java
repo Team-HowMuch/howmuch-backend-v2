@@ -26,6 +26,16 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "howmuch.settlement.recurring", name = "enabled", havingValue = "true")
 public class RecurringSettlementPersistenceAdapter implements LoadRecurringSettlementPort, SaveRecurringSettlementPort {
+    private static final String SNAPSHOT = """
+            SELECT r.*,
+                ARRAY(SELECT user_id FROM recurring_settlement_participants WHERE recurring_settlement_id=r.id ORDER BY display_order) AS person_ids,
+                ARRAY(SELECT amount FROM recurring_settlement_participants WHERE recurring_settlement_id=r.id ORDER BY display_order) AS person_amounts,
+                ARRAY(SELECT display_order FROM recurring_settlement_participants WHERE recurring_settlement_id=r.id ORDER BY display_order) AS person_orders,
+                ARRAY(SELECT description FROM recurring_settlement_expenses WHERE recurring_settlement_id=r.id ORDER BY display_order) AS cost_descriptions,
+                ARRAY(SELECT amount FROM recurring_settlement_expenses WHERE recurring_settlement_id=r.id ORDER BY display_order) AS cost_amounts,
+                ARRAY(SELECT display_order FROM recurring_settlement_expenses WHERE recurring_settlement_id=r.id ORDER BY display_order) AS cost_orders
+            FROM recurring_settlements r
+            """;
     private static final String FRESH_DUE = """
             SELECT id, next_run_at FROM recurring_settlements
             WHERE status='ACTIVE' AND failure_count<3 AND retry_at IS NULL AND next_run_at<=:scheduledThrough
@@ -44,7 +54,7 @@ public class RecurringSettlementPersistenceAdapter implements LoadRecurringSettl
 
     @Override
     public Optional<RecurringSettlement> findById(UUID id) {
-        return find("SELECT * FROM recurring_settlements WHERE id=:id", id);
+        return find(SNAPSHOT + " WHERE r.id=:id", id);
     }
 
     @Override
@@ -52,27 +62,34 @@ public class RecurringSettlementPersistenceAdapter implements LoadRecurringSettl
     public Optional<RecurringSettlement> findByIdForUpdate(UUID id) {
         jdbc.getJdbcTemplate().queryForObject("SELECT set_config('lock_timeout', ?, true)", String.class,
                 concurrency.lockTimeout().toMillis() + "ms");
-        return find("SELECT * FROM recurring_settlements WHERE id=:id FOR UPDATE", id);
+        var locked = jdbc.query("SELECT id FROM recurring_settlements WHERE id=:id FOR UPDATE", Map.of("id", id),
+                (row, number) -> row.getObject("id", UUID.class));
+        return locked.isEmpty() ? Optional.empty() : findById(id);
     }
 
     @Override
     public Optional<RecurringSettlement> findBySourceSettlementId(UUID sourceId) {
-        return find("SELECT * FROM recurring_settlements WHERE source_settlement_id=:id", sourceId);
+        return find(SNAPSHOT + " WHERE r.source_settlement_id=:id", sourceId);
     }
 
     private Optional<RecurringSettlement> find(String sql, UUID id) {
         return jdbc.query(sql, Map.of("id", id), (row, number) -> {
-            UUID recurringId = row.getObject("id", UUID.class);
-            var participants = jdbc.query("""
-                    SELECT user_id, amount, display_order FROM recurring_settlement_participants
-                    WHERE recurring_settlement_id=:id ORDER BY display_order
-                    """, Map.of("id", recurringId), (child, index) -> new RecurringSettlement.Participant(
-                    child.getLong("user_id"), child.getLong("amount"), child.getInt("display_order")));
-            var expenses = jdbc.query("""
-                    SELECT description, amount, display_order FROM recurring_settlement_expenses
-                    WHERE recurring_settlement_id=:id ORDER BY display_order
-                    """, Map.of("id", recurringId), (child, index) -> new RecurringSettlement.Expense(
-                    child.getString("description"), child.getLong("amount"), child.getInt("display_order")));
+            var participants = new java.util.ArrayList<RecurringSettlement.Participant>();
+            Object[] ids = (Object[]) row.getArray("person_ids").getArray();
+            Object[] amounts = (Object[]) row.getArray("person_amounts").getArray();
+            Object[] orders = (Object[]) row.getArray("person_orders").getArray();
+            for (int i = 0; i < ids.length; i++) {
+                participants.add(new RecurringSettlement.Participant(((Number) ids[i]).longValue(),
+                        ((Number) amounts[i]).longValue(), ((Number) orders[i]).intValue()));
+            }
+            var expenses = new java.util.ArrayList<RecurringSettlement.Expense>();
+            Object[] descriptions = (Object[]) row.getArray("cost_descriptions").getArray();
+            amounts = (Object[]) row.getArray("cost_amounts").getArray();
+            orders = (Object[]) row.getArray("cost_orders").getArray();
+            for (int i = 0; i < descriptions.length; i++) {
+                expenses.add(new RecurringSettlement.Expense((String) descriptions[i],
+                        ((Number) amounts[i]).longValue(), ((Number) orders[i]).intValue()));
+            }
             return RecurringSettlementMapper.toDomain(row, participants, expenses);
         }).stream().findFirst();
     }
@@ -106,6 +123,10 @@ public class RecurringSettlementPersistenceAdapter implements LoadRecurringSettl
                     :weekday, :monthDay, :firstDate, :next, :status, :failures, :retry, :failureCode,
                     :failureAt, :reason, :cancelledAt, :createdAt, :updatedAt)
                 """, RecurringSettlementMapper.parameters(value));
+        saveChildren(value);
+    }
+
+    private void saveChildren(RecurringSettlement value) {
         for (var participant : value.participants()) {
             jdbc.update("""
                     INSERT INTO recurring_settlement_participants
@@ -126,11 +147,27 @@ public class RecurringSettlementPersistenceAdapter implements LoadRecurringSettl
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
+    public void replace(RecurringSettlement value) {
+        if (jdbc.update("""
+                UPDATE recurring_settlements SET title=:title, category_code=:categoryCode, total_amount=:total,
+                    receiving_account_id=:accountId, frequency=:frequency, day_of_week=:weekday,
+                    day_of_month=:monthDay, first_run_date=:firstDate, next_run_at=:next, updated_at=:updatedAt
+                WHERE id=:id AND status='ACTIVE' AND deleted_at IS NULL
+                """, RecurringSettlementMapper.parameters(value)) != 1) {
+            throw new IllegalStateException("RECURRING_REPLACE_NOT_FOUND");
+        }
+        jdbc.update("DELETE FROM recurring_settlement_participants WHERE recurring_settlement_id=:id", Map.of("id", value.id()));
+        jdbc.update("DELETE FROM recurring_settlement_expenses WHERE recurring_settlement_id=:id", Map.of("id", value.id()));
+        saveChildren(value);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public void update(RecurringSettlement value) {
         if (jdbc.update("""
                 UPDATE recurring_settlements SET next_run_at=:next, status=:status, failure_count=:failures,
                     retry_at=:retry, last_failure_code=:failureCode, last_failure_at=:failureAt,
-                    cancellation_reason=:reason, cancelled_at=:cancelledAt, updated_at=:updatedAt
+                    cancellation_reason=:reason, cancelled_at=:cancelledAt, updated_at=:updatedAt, deleted_at=:deletedAt
                 WHERE id=:id
                 """, RecurringSettlementMapper.parameters(value)) != 1) {
             throw new IllegalStateException("RECURRING_UPDATE_NOT_FOUND");

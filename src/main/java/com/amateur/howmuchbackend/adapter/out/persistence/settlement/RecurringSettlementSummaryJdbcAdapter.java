@@ -42,7 +42,7 @@ public class RecurringSettlementSummaryJdbcAdapter implements LoadRecurringSettl
                     + " WHERE p2.recurring_settlement_id = r.id AND p2.user_id = :viewerId) ";
     private static final String CURSOR = """
              AND (r.created_at, r.id) < (SELECT created_at, id FROM recurring_settlements
-                 WHERE id = :cursor AND group_id = :groupId)
+                 WHERE id = :cursor AND group_id = :groupId AND deleted_at IS NULL)
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -58,7 +58,7 @@ public class RecurringSettlementSummaryJdbcAdapter implements LoadRecurringSettl
             case ALL -> "";
         };
         String cursorClause = cursor == null ? "" : CURSOR;
-        String sql = SELECT + " WHERE r.group_id = :groupId AND r.status = :status" + scopeClause + cursorClause
+        String sql = SELECT + " WHERE r.group_id = :groupId AND r.status = :status AND r.deleted_at IS NULL" + scopeClause + cursorClause
                 + " ORDER BY r.created_at DESC, r.id DESC LIMIT :limit";
         return jdbc.query(sql, parameters, this::map);
     }
@@ -69,7 +69,7 @@ public class RecurringSettlementSummaryJdbcAdapter implements LoadRecurringSettl
         String sql = SELECT + """
                  JOIN group_members m ON m.group_id = r.group_id AND m.user_id = :viewerId AND m.status = 'ACTIVE'
                  JOIN groups g ON g.id = r.group_id AND g.status = 'ACTIVE'
-                WHERE r.status = 'ACTIVE' AND p.amount IS NOT NULL
+                WHERE r.status = 'ACTIVE' AND r.deleted_at IS NULL AND p.amount IS NOT NULL
                 ORDER BY r.next_run_at, r.id
                 LIMIT :limit
                 """;
@@ -89,7 +89,7 @@ public class RecurringSettlementSummaryJdbcAdapter implements LoadRecurringSettl
         String sql = "SELECT EXISTS (SELECT 1 FROM recurring_settlements r"
                 + " LEFT JOIN recurring_settlement_participants p"
                 + " ON p.recurring_settlement_id = r.id AND p.user_id = :viewerId"
-                + " WHERE r.id = :cursor AND r.group_id = :groupId AND r.status = :status" + scopeClause + ")";
+                + " WHERE r.id = :cursor AND r.group_id = :groupId AND r.status = :status AND r.deleted_at IS NULL" + scopeClause + ")";
         return Boolean.TRUE.equals(jdbc.queryForObject(sql, parameters, Boolean.class));
     }
 

@@ -1,5 +1,7 @@
 # 고정 지출 · 그룹 반복 정산 인수인계
 
+> 2026-10-20 후속: 폼 직접 생성·전체 수정·삭제와 편집용 표시 응답은 [정기 정산 관리 API](../completed/recurring-settlement-management.md)를 우선 참고한다. 아래 초기 구현 기록의 범위 제외·마스킹 정보 제외는 #574 당시 기준이다.
+
 - 확인일: 2026-10-18
 - 상태: **후속 구현 완료(격리 워크트리 `feat/574-group-recurring-settlement`, V59 기반)** — 아래 1~3절은 후속 구현 착수 전 분석 기록이며, 최신 상태는 [Feature Plan](group-recurring-settlement.md)과 [운영 메모](group-recurring-settlement-runbook.md)를 따른다.
 - 기준: 후속 구현은 `develop` `3d386b3a`(V59 병합)에서 진행했다. 아래 분석은 당시 로컬 작업본과 `origin/develop` (`a30875b1`) 기준이다.

@@ -1,5 +1,7 @@
 # Feature Plan: 그룹 고정 지출 반복 정산 (후속 구현)
 
+> 2026-10-20 후속: 폼 직접 생성·전체 수정·삭제와 편집용 표시 응답은 [정기 정산 관리 API](../completed/recurring-settlement-management.md)를 우선 참고한다. 아래 초기 구현 기록의 범위 제외·마스킹 정보 제외는 #574 당시 기준이다.
+
 - **Status:** 격리 워크트리(`feat/574-group-recurring-settlement`)에서 구현·검증 완료 — 이슈 #574·구현 PR #575 게시 완료, 리뷰 반영
 - **Last updated:** 2026-10-18
 - **Source:** 기존 로컬 구현(읽기 전용 참조), 인수인계 문서, 2026-10-17 화면 흐름 대조, 후속 구현 지시
@@ -73,7 +75,7 @@ ProcessRecurringSettlementUseCase.process(recurringSettlementId, scheduledFor)
 | `GET` | `/api/v2/recurring-settlements/home` | 현재 사용자 참여 반복 설정 요약 |
 
 - 목록·홈 요약 필드: `category(code/name/icon)`, `cadence(frequency/dayOfWeek/dayOfMonth)`, `totalAmount`, `myAmount`(비참여 시 null), `isParticipant`, `nextRunAt`(UTC), `daysUntilNextRun`(KST 달력일), `displayState`.
-- 시각은 UTC ISO offset을 쓰고, D-day는 KST 달력일 기준 실제 달력 거리로 계산한다(고정 30일 아님).
+- 시각은 기존 계약인 offset 없는 UTC LocalDateTime을 쓰고, D-day는 KST 달력일 기준 실제 달력 거리로 계산한다(고정 30일 아님).
 - 홈/목록은 다른 사용자의 계좌·비밀 정보를 포함하지 않는다.
 
 ### 일정 정책

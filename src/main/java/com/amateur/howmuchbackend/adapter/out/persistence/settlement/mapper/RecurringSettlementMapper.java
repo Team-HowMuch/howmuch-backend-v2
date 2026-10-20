@@ -32,7 +32,7 @@ public final class RecurringSettlementMapper {
                 participants, expenses, row.getInt("failure_count"), time(row, "retry_at"),
                 row.getString("last_failure_code"), time(row, "last_failure_at"),
                 reason == null ? null : RecurringSettlement.CancellationReason.valueOf(reason),
-                time(row, "cancelled_at"), time(row, "created_at"), time(row, "updated_at"));
+                time(row, "cancelled_at"), time(row, "created_at"), time(row, "updated_at"), time(row, "deleted_at"));
     }
 
     public static RecurringSettlementOccurrence occurrence(ResultSet row, int number) throws SQLException {
@@ -56,7 +56,7 @@ public final class RecurringSettlementMapper {
                 .addValue("failureCode", value.lastFailureCode()).addValue("failureAt", value.lastFailureAt())
                 .addValue("reason", value.cancellationReason() == null ? null : value.cancellationReason().name())
                 .addValue("cancelledAt", value.cancelledAt()).addValue("createdAt", value.createdAt())
-                .addValue("updatedAt", value.updatedAt());
+                .addValue("updatedAt", value.updatedAt()).addValue("deletedAt", value.deletedAt());
     }
 
     private static LocalDateTime time(ResultSet row, String column) throws SQLException {
