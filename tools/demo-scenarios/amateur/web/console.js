@@ -49,12 +49,33 @@ function duplicateRecipe(r){openEditor({...clone(r),id:null,name:r.name.slice(0,
 function setupPeople(containerId,members,ownerId,onchange){const root=$(containerId);root.replaceChildren();PEOPLE.forEach(p=>{const label=node('label',undefined,'person-chip');const input=node('input');input.type='checkbox';input.value=p;input.checked=members.includes(p);input.addEventListener('change',onchange);label.append(input,node('span',p));root.append(label);});const owner=$(ownerId);owner.replaceChildren();PEOPLE.filter(p=>members.includes(p)).forEach(p=>owner.add(new Option(p,p)));}
 function checkedMembers(id){return [...$(id).querySelectorAll('input:checked')].map(i=>i.value);}
 function syncOwners(containerId,ownerId){const members=checkedMembers(containerId),owner=$(ownerId),previous=owner.value;owner.replaceChildren();members.forEach(p=>owner.add(new Option(p,p)));if(members.includes(previous))owner.value=previous;return members;}
-function openEditor(recipe){draft=recipe?clone(recipe):{id:null,name:'',group:'',owner:'문채원',members:[...PEOPLE],rows:[makeRow('',40000)]};initialDraft=JSON.stringify(draft);$('editor-title').textContent=recipe?.id?'시나리오 수정':recipe?'시나리오 복제':'새 시나리오';$('save-recipe').textContent=recipe?.id?'변경 저장':'시나리오 저장';$('recipe-name').value=draft.name;$('recipe-group').value=draft.group;$('editor-error').hidden=true;setupPeople('members',draft.members,'recipe-owner',()=>{draft.members=syncOwners('members','recipe-owner');draft.owner=$('recipe-owner').value;updateDraftSummary();});$('recipe-owner').value=draft.owner;renderEditRows();updateDraftSummary();showDialog('editor');$('recipe-name').focus();}
+// Reconcile every row before redrawing member controls. Preserve valid subsets.
+function reconcileRowMembers(rows, previousMembers, members, owner) {
+  for (const row of rows) {
+    const participants = (row.participants || previousMembers).filter(p => members.includes(p));
+    const creator = members.includes(row.creator) ? row.creator : members.includes(owner) ? owner : members[0];
+    if (creator && !participants.includes(creator)) participants.push(creator);
+    for (const member of members) {
+      if (participants.length >= 2) break;
+      if (!participants.includes(member)) participants.push(member);
+    }
+    row.creator = creator;
+    row.participants = participants;
+  }
+}
+function syncDraftMembers() {
+  const previous = draft.members;
+  draft.members = syncOwners('members', 'recipe-owner');
+  draft.owner = $('recipe-owner').value;
+  reconcileRowMembers(draft.rows, previous, draft.members, draft.owner);
+  renderEditRows();
+}
+function openEditor(recipe){draft=recipe?clone(recipe):{id:null,name:'',group:'',owner:'문채원',members:[...PEOPLE],rows:[makeRow('',40000)]};initialDraft=JSON.stringify(draft);$('editor-title').textContent=recipe?.id?'시나리오 수정':recipe?'시나리오 복제':'새 시나리오';$('save-recipe').textContent=recipe?.id?'변경 저장':'시나리오 저장';$('recipe-name').value=draft.name;$('recipe-group').value=draft.group;$('editor-error').hidden=true;setupPeople('members',draft.members,'recipe-owner',syncDraftMembers);$('recipe-owner').value=draft.owner;renderEditRows();updateDraftSummary();showDialog('editor');$('recipe-name').focus();}
 function readTopFields(){if(!draft)return;draft.name=$('recipe-name').value;draft.group=$('recipe-group').value;draft.owner=$('recipe-owner').value;draft.members=checkedMembers('members');}
 $('recipe-name').oninput=readTopFields;$('recipe-group').oninput=readTopFields;$('recipe-owner').onchange=readTopFields;
 function closeEditor(force=false){readTopFields();if(!force&&draft&&JSON.stringify(draft)!==initialDraft){confirmAction('수정한 내용을 버릴까요?','아직 저장하지 않은 변경 내용은 사라져요.','변경 버리기',()=>closeEditor(true));return;}closeDialog('editor');draft=null;}
 $('close-editor').onclick=()=>closeEditor();$('cancel-editor').onclick=()=>closeEditor();$('editor').addEventListener('cancel',e=>{e.preventDefault();closeEditor();});
-$('select-people').onclick=()=>{document.querySelectorAll('#members input').forEach(i=>i.checked=true);draft.members=syncOwners('members','recipe-owner');draft.owner=$('recipe-owner').value;updateDraftSummary();};
+$('select-people').onclick=()=>{document.querySelectorAll('#members input').forEach(i=>i.checked=true);syncDraftMembers();};
 function editField(label,value,type='text'){const l=node('label',label,'field'),input=node('input');input.type=type;input.value=value;input.required=true;l.append(input);return {l,input};}
 function renderEditRows(focusIndex=null){const root=$('edit-rows');root.replaceChildren();draft.rows.forEach((r,index)=>{const wrap=node('article',undefined,'edit-row');const head=node('div',undefined,'edit-row-head'),num=node('div',undefined,'edit-row-number');num.append(node('span',String(index+1).padStart(2,'0')),badge(r.recurring?'정기 정산':'일반 정산',r.recurring?'blue':'gray'));const actions=node('div',undefined,'row-actions');const up=iconBtn('up',(index+1)+'번 정산 위로 이동',()=>{[draft.rows[index-1],draft.rows[index]]=[draft.rows[index],draft.rows[index-1]];renderEditRows(index-1);});up.disabled=index===0;const down=iconBtn('down',(index+1)+'번 정산 아래로 이동',()=>{[draft.rows[index],draft.rows[index+1]]=[draft.rows[index+1],draft.rows[index]];renderEditRows(index+1);});down.disabled=index===draft.rows.length-1;const copy=iconBtn('copy',(index+1)+'번 정산 복제',()=>{if(draft.rows.length>=20)return;draft.rows.splice(index+1,0,clone(r));renderEditRows(index+1);});copy.disabled=draft.rows.length>=20;const del=iconBtn('trash',(index+1)+'번 정산 삭제',()=>{draft.rows.splice(index,1);renderEditRows();},'red');actions.append(up,down,copy,del);head.append(num,actions);
 const title=editField('정산 이름',r.title);title.input.maxLength=100;title.input.placeholder='예: 첫 모임 저녁 식사';title.input.dataset.title=String(index);title.input.oninput=()=>{r.title=title.input.value;};

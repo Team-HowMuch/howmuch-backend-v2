@@ -20,6 +20,12 @@
 
 2026-10-21 기준 이전 버전의 콘솔이 dev 호스트에서 실행 중이다. 최신 부스 화면·그룹 및 좌우 2인 템플릿·리캡 UI·외부 HTTPS 배포는 서버 저장소의 `fsync`/`ENOSPC` 장애로 대기 중이다. 실제 압축 다음 회차 저장과 최신 UI의 최종 통합 확인도 남아 있다. 아래 기능 목록은 이 PR의 구현 범위이며 최신 배포 완료를 의미하지 않는다.
 
+## 접속 모드 설정
+
+`deploy-console`과 `start-public-console.py`는 기본적으로 `HOWMUCH_DEMO_ACCESS_MODE=fixed`를 사용한다. 이 모드에서는 고정 dev origin을 직접 기록하고 터널 없이 콘솔을 시작한다. `HOWMUCH_DEMO_PROXY_BIND`(기본 `192.168.1.135`)와 `HOWMUCH_DEMO_PROXY_ALLOW_ADDRESS`(기본 `192.168.1.20`)를 배포 시 Docker 환경변수로 전달하며, 지정 프록시만 추가 리스너에 접속할 수 있다. 사설 IPv4 주소만 허용한다.
+
+임시 HTTPS 미리보기가 필요한 경우에만 `HOWMUCH_DEMO_ACCESS_MODE=tunnel`로 배포한다. 이 모드는 loopback 서버와 Cloudflare 임시 터널을 시작하고 발급된 origin을 기록한다. NPM의 페이지·정적 파일·콘솔 API 경로 프록시 설정 자체는 별도 인프라 설정이다.
+
 ## 사전 조건
 
 - 기존 아마추어 dev 템플릿 실행으로 사용자 85~88, 활성 수취 계좌, 모임, 미납 정산 5건이 이미 존재해야 한다. 이 PR에는 전체 초기화 SQL이나 실제 실행 결과를 포함하지 않는다.
