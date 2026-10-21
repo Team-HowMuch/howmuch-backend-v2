@@ -6,6 +6,7 @@ public record SettlementLinkParticipantResult(
         UUID participantId,
         String displayName,
         boolean isRequester,
-        Long amount
+        Long amount,
+        String avatarVersion
 ) {
 }

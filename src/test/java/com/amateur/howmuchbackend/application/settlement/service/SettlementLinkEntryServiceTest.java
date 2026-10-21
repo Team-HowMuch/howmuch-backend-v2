@@ -1,6 +1,16 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
+import com.amateur.howmuchbackend.application.user.model.ProfileImage;
+import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.UserRole;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementLinkEntryMode;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementRequestPhase;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -42,6 +52,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -66,6 +77,9 @@ class SettlementLinkEntryServiceTest {
     @Mock private LoadSettlementExpensePort loadSettlementExpensePort;
     @Mock private IssueSettlementParticipantContextPort issueParticipantContextPort;
 
+    @Mock private LoadUserPort loadUserPort;
+    @Mock private ProfileImageStoragePort profileImageStoragePort;
+
     private SettlementLinkEntryService service;
 
     @BeforeEach
@@ -78,7 +92,9 @@ class SettlementLinkEntryServiceTest {
                 loadSettlementSharePort,
                 currentActorPort,
                 loadSettlementExpensePort,
-                issueParticipantContextPort
+                issueParticipantContextPort,
+                loadUserPort,
+                profileImageStoragePort
         );
     }
 
@@ -341,6 +357,158 @@ class SettlementLinkEntryServiceTest {
                 .extracting(candidate -> candidate.amount()).containsOnlyNulls();
     }
 
+    @Test
+    @DisplayName("후보는 회원을 중복 없이 한 번 조회하고 비회원·탈퇴·사진 없음은 비운다")
+    void avatars_browserCandidates_batchLookupPreservesOrderAndNulls() {
+        arrangeItemAllocationAccess();
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID)).thenReturn(List.of(
+                participants().getFirst(),
+                participant(UUID.randomUUID(), null, "비회원", 1),
+                participant(UUID.randomUUID(), 2L, "사진 없음", 2),
+                participant(UUID.randomUUID(), 3L, "탈퇴 회원", 3),
+                participant(UUID.randomUUID(), 4L, "삭제된 회원", 4),
+                participant(UUID.randomUUID(), 1L, "중복 연결", 5)
+        ));
+        when(loadUserPort.findAllByIds(List.of(1L, 2L, 3L, 4L))).thenReturn(List.of(
+                user(3L, "withdrawn.png", false), user(1L, "creator.png", true), user(2L, null, true)
+        ));
+
+        var result = service.resolve(RAW_TOKEN);
+
+        assertThat(result.participantCandidates()).extracting(candidate -> candidate.avatarVersion())
+                .containsExactly(ImageCacheVersion.fromNullableFileName("creator.png"), null, null,
+                        null, null, ImageCacheVersion.fromNullableFileName("creator.png"));
+        assertThat(result.participantCandidates()).extracting(candidate -> candidate.displayName())
+                .containsExactly("최수아", "비회원", "사진 없음", "탈퇴 회원", "삭제된 회원", "중복 연결");
+        verify(loadUserPort).findAllByIds(List.of(1L, 2L, 3L, 4L));
+        verify(loadUserPort, never()).findById(any());
+        verifyNoInteractions(profileImageStoragePort);
+    }
+
+    @Test
+    @DisplayName("APP_DIRECT는 자동 선택된 회원의 아바타만 조회한다")
+    void avatars_appDirect_loadsOnlyMatchedUser() {
+        arrangeItemAllocationAccess();
+        when(currentActorPort.findCurrentActor()).thenReturn(Optional.of(new CurrentActor(2L)));
+        when(loadUserPort.findAllByIds(List.of(2L))).thenReturn(List.of(user(2L, "member.png", true)));
+        arrangeContext(PAYER_PARTICIPANT_ID);
+
+        var result = service.resolve(RAW_TOKEN);
+
+        assertThat(result.selectedParticipant().avatarVersion())
+                .isEqualTo(ImageCacheVersion.fromNullableFileName("member.png"));
+        verify(loadUserPort).findAllByIds(List.of(2L));
+        verify(loadUserPort, never()).findById(any());
+        verifyNoInteractions(profileImageStoragePort);
+    }
+
+    @Test
+    @DisplayName("비회원만 있는 후보는 사용자 조회를 하지 않는다")
+    void avatars_onlyGuests_skipsUserAndImageLookup() {
+        arrangeItemAllocationAccess();
+        when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
+                .thenReturn(List.of(participant(PAYER_PARTICIPANT_ID, null, "비회원", 0)));
+
+        assertThat(service.resolve(RAW_TOKEN).participantCandidates().getFirst().avatarVersion()).isNull();
+        verifyNoInteractions(loadUserPort, profileImageStoragePort);
+    }
+
+    @Test
+    @DisplayName("선택 결과에도 연결된 회원 사진의 버전을 제공한다")
+    void avatars_browserSelection_includesSelectedAvatar() {
+        arrangeAvatarAccess(2L);
+        when(loadUserPort.findAllByIds(List.of(2L))).thenReturn(List.of(user(2L, "member.png", true)));
+        arrangeContext(PAYER_PARTICIPANT_ID);
+
+        assertThat(service.select(RAW_TOKEN, PAYER_PARTICIPANT_ID).participant().avatarVersion())
+                .isEqualTo(ImageCacheVersion.fromNullableFileName("member.png"));
+    }
+
+    @Test
+    @DisplayName("아바타는 유효한 링크의 같은 정산 참여자에게만 제공한다")
+    void avatar_validLink_returnsLinkedActiveMemberImage() {
+        arrangeAvatarAccess(2L);
+        when(loadUserPort.findById(2L)).thenReturn(Optional.of(user(2L, "member.png", true)));
+        var image = new ProfileImage("image/png", new byte[]{1, 2, 3});
+        when(profileImageStoragePort.load("member.png")).thenReturn(Optional.of(image));
+
+        assertThat(service.get(RAW_TOKEN, PAYER_PARTICIPANT_ID)).isSameAs(image);
+        verify(loadSettlementParticipantPort).findBySettlementIdAndId(SETTLEMENT_ID, PAYER_PARTICIPANT_ID);
+        verifyNoInteractions(currentActorPort);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"guest", "missing-user", "inactive", "no-avatar", "missing-file"})
+    @DisplayName("비회원·탈퇴·삭제·사진 미등록·파일 없음은 이미지 404이다")
+    void avatar_unavailableProfile_notFound(String reason) {
+        arrangeAvatarAccess(reason.equals("guest") ? null : 2L);
+        if (!reason.equals("guest")) {
+            when(loadUserPort.findById(2L)).thenReturn(reason.equals("missing-user") ? Optional.empty()
+                    : Optional.of(user(2L, reason.equals("no-avatar") ? null : "member.png", !reason.equals("inactive"))));
+        }
+
+        assertThatThrownBy(() -> service.get(RAW_TOKEN, PAYER_PARTICIPANT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, error ->
+                        assertThat(error.getStatusCode()).isEqualTo(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+        if (!reason.equals("missing-file")) verifyNoInteractions(profileImageStoragePort);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SettlementLinkStatus.class, names = {"REVOKED", "EXPIRED"})
+    @DisplayName("폐기·만료된 링크로는 이미지를 조회할 수 없다")
+    void avatar_inactiveLink_rejectedBeforeUserLookup(SettlementLinkStatus status) {
+        when(linkTokenPort.hash(RAW_TOKEN)).thenReturn(TOKEN_HASH);
+        when(loadSettlementLinkPort.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.of(new SettlementLink(
+                UUID.randomUUID(), SETTLEMENT_ID, TOKEN_HASH, status,
+                CREATED_AT.plusYears(100), CREATED_AT, CREATED_AT)));
+
+        assertThatThrownBy(() -> service.get(RAW_TOKEN, PAYER_PARTICIPANT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND));
+        verifyNoInteractions(loadSettlementParticipantPort, loadUserPort, profileImageStoragePort);
+    }
+
+    @Test
+    @DisplayName("ACTIVE여도 유효기간이 지난 링크는 이미지를 차단한다")
+    void avatar_pastExpiry_rejected() {
+        when(linkTokenPort.hash(RAW_TOKEN)).thenReturn(TOKEN_HASH);
+        when(loadSettlementLinkPort.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.of(new SettlementLink(
+                UUID.randomUUID(), SETTLEMENT_ID, TOKEN_HASH, SettlementLinkStatus.ACTIVE,
+                CREATED_AT.plusMinutes(1), CREATED_AT, CREATED_AT)));
+
+        assertThatThrownBy(() -> service.get(RAW_TOKEN, PAYER_PARTICIPANT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_LINK_NOT_FOUND));
+        verifyNoInteractions(loadUserPort, profileImageStoragePort);
+    }
+
+    @Test
+    @DisplayName("다른 정산의 참여자 ID는 이미지 조회에 사용할 수 없다")
+    void avatar_outsideLinkSettlement_rejected() {
+        arrangeLink();
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
+                settlement(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.REQUESTED)));
+
+        assertThatThrownBy(() -> service.get(RAW_TOKEN, PAYER_PARTICIPANT_ID))
+                .isInstanceOfSatisfying(ApplicationException.class, error -> assertThat(error.getStatusCode())
+                        .isEqualTo(SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND));
+        verify(loadSettlementParticipantPort).findBySettlementIdAndId(SETTLEMENT_ID, PAYER_PARTICIPANT_ID);
+        verifyNoInteractions(loadUserPort, profileImageStoragePort);
+    }
+
+    private void arrangeAvatarAccess(Long userId) {
+        arrangeLink();
+        when(loadSettlementPort.findById(SETTLEMENT_ID)).thenReturn(Optional.of(
+                settlement(SettlementAllocationType.ITEM_ALLOCATION, SettlementStatus.REQUESTED)));
+        when(loadSettlementParticipantPort.findBySettlementIdAndId(SETTLEMENT_ID, PAYER_PARTICIPANT_ID))
+                .thenReturn(Optional.of(participant(PAYER_PARTICIPANT_ID, userId, "참여자", 1)));
+    }
+
+    private User user(Long id, String fileName, boolean active) {
+        return new User(id, "identity-" + id, "회원", "user" + id, null, null, "test-phone", "unused",
+                null, fileName, true, UserRole.USER, active, null, null, null, CREATED_AT, CREATED_AT);
+    }
+
     private void arrangeDutchPayAccess() {
         arrangeDutchPayAccessWithoutParticipants();
         when(loadSettlementParticipantPort.findAllBySettlementId(SETTLEMENT_ID))
@@ -448,7 +616,7 @@ class SettlementLinkEntryServiceTest {
         return new SettlementParticipant(
                 id,
                 SETTLEMENT_ID,
-                SettlementParticipantSource.REGISTERED_USER,
+                linkedUserId == null ? SettlementParticipantSource.CONTACT : SettlementParticipantSource.REGISTERED_USER,
                 linkedUserId,
                 null,
                 null,
