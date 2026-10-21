@@ -42,21 +42,21 @@ public interface GroupNettingDocs {
     ApiResponse<GroupNettingEstimateWebResponse> estimate(long groupId);
 
     @Operation(summary = "그룹 압축 정산 이력 조회",
-            description = "transfers.reminderNextAvailableAt은 송금별 다음 수동 독촉 가능 시각(UTC offset 없는 값)이며, 활성 쿨다운이 없으면 null입니다. 독촉 권한·상태 조건은 별도로 적용합니다.")
+            description = "transfers.reminderNextAvailableAt은 송금별 다음 수동 독촉 가능 시각(UTC offset 없는 값)이며, 활성 쿨다운이 없으면 null입니다. reminderBlockedReason은 비활성·입금 검토·입금 확인 차단 사유이며 없으면 null입니다. 수취인 권한·쿨다운·압축 진행 제한은 별도로 적용합니다.")
     ApiResponse<List<GroupNettingWebResponse>> list(long groupId);
 
     @Operation(
             summary = "모든 멤버가 공유하는 최종 압축 정산 조회",
             description =
                     "일반 목록에서 숨긴 원본 정산의 상호명·조회자 카테고리·전체/납부/완료 인원을 sources로 제공합니다. transfers의"
-                        + " payerName/receiverName 및 payerPublicId/receiverPublicId로 표시·프로필을 연결합니다. transfers.reminderNextAvailableAt은 다음 수동 독촉 가능 시각이며 활성 쿨다운이 없으면 null입니다."
+                        + " payerName/receiverName 및 payerPublicId/receiverPublicId로 표시·프로필을 연결합니다. transfers.reminderNextAvailableAt은 다음 수동 독촉 가능 시각이며 활성 쿨다운이 없으면 null입니다. reminderBlockedReason으로 비활성·입금 검토·입금 확인 차단 사유를 제공합니다."
                         + " 원본 금액, 실제 입금과 대체 금액을 구분합니다. status(UNPAID/PARTIAL/PAID)·confirmedAt과 세대의 completedAt/supersededAt을 제공합니다. 시각은 UTC offset 없는 값입니다. sourceSettlementIds는 송금자 또는 수취인이 미납 채무 당사자인 관련 원본(선대 포함)이며 원본별 최종 송금 기여액이나 직접 채권 관계가 아닙니다.")
     ApiResponse<GroupNettingWebResponse> get(long groupId, UUID nettingId);
 
     @Operation(
             summary = "Current group netting",
             description =
-                    "Returns the active or latest completed result; 404 when there is no history. transfers.reminderNextAvailableAt은 UTC offset 없는 다음 수동 독촉 가능 시각이며 활성 쿨다운이 없으면 null입니다.")
+                    "Returns the active or latest completed result; 404 when there is no history. transfers.reminderNextAvailableAt은 UTC offset 없는 다음 수동 독촉 가능 시각이며 활성 쿨다운이 없으면 null입니다. reminderBlockedReason은 비활성·입금 검토·입금 확인 차단 사유입니다.")
     ApiResponse<GroupNettingWebResponse> current(long groupId);
 
     @Operation(
@@ -72,6 +72,9 @@ public interface GroupNettingDocs {
             description = "수취인 전용. HTTP 202로 비동기 접수합니다. 표시값이 없거나 금액이 모호하면 실제 거래 검토가 생성됩니다.")
     ApiResponse<NettingExecutionWebResponse> reconcile(long groupId, UUID nettingId, UUID key);
 
-    @Operation(summary = "최종 송금 독촉", description = "수취인 전용. 30분 쿨다운, 부분 입금·검토 중 독촉 제외.")
+    @Operation(summary = "최종 송금 독촉", description = "수취인 전용. 30분 쿨다운은 기존 429 SETTLEMENT_REMINDER_COOLDOWN_ACTIVE입니다. "
+            + "비활성 압축은 409 NETTING_REMINDER_NOT_ACTIVE, 열린 검토는 409 NETTING_REMINDER_DEPOSIT_REVIEW_OPEN, "
+            + "일부/전액 입금 확인은 409 NETTING_REMINDER_DEPOSIT_RECEIVED로 거절합니다. "
+            + "이 우선순위는 transfers.reminderBlockedReason과 같습니다. 압축 진행 중 NETTING_PROCESSING과 수취인 권한 제한은 유지합니다.")
     ApiResponse<Void> remind(long groupId, UUID nettingId, UUID transferId);
 }

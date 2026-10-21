@@ -25,6 +25,9 @@ public enum NettingStatusCode implements StatusCode {
     NETTING_EXECUTION_EXPIRED("실행 시간이 초과되었습니다. 다시 확인해주세요.", 409),
     NETTING_EXECUTION_FENCED("다른 작업자가 실행을 복구했습니다.", 409),
     NETTING_REVIEW_REQUIRED("자동으로 확인할 수 없는 입금이 있어 검토가 필요합니다.", 409),
+    NETTING_REMINDER_NOT_ACTIVE("진행 중인 압축 정산의 송금만 독촉할 수 있습니다.", 409),
+    NETTING_REMINDER_DEPOSIT_REVIEW_OPEN("압축 정산의 입금 내역을 검토 중이라 독촉할 수 없습니다.", 409),
+    NETTING_REMINDER_DEPOSIT_RECEIVED("이미 입금이 확인된 압축 송금은 독촉할 수 없습니다.", 409),
     NETTING_INVALID_REVIEW("실제 입금 내역과 처리 근거를 확인해주세요.", 422),
     NETTING_TRANSFER_REPLACED("압축 정산의 최종 송금 안내를 확인해주세요.", 409);
 

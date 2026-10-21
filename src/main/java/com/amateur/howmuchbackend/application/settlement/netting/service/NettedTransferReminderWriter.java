@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.settlement.netting.service;
 
 import com.amateur.howmuchbackend.application.port.out.group.LoadGroupPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.netting.*;
+import com.amateur.howmuchbackend.application.settlement.netting.policy.NettedTransferReminderPolicy;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 
@@ -23,6 +24,7 @@ public class NettedTransferReminderWriter {
     private final NettingNotificationService notifications;
     private final LoadGroupNettingDebtPort inputs;
     private final NettingTransferAvailabilityPort availability;
+    private final NettedTransferReminderPolicy reminderPolicy;
 
     @Transactional
     public void remind(
@@ -50,10 +52,10 @@ public class NettedTransferReminderWriter {
                         .orElseThrow();
         if (actor != null && t.receiverId() != actor)
             throw ApplicationException.of(SettlementStatusCode.SETTLEMENT_ACCESS_DENIED);
-        if (!"ACTIVE".equals(n.status()) || n.openReviews() > 0 || t.confirmedAmount() != 0) {
+        var blockedReason = reminderPolicy.blockedReason(n.status(), n.openReviews(), t.confirmedAmount());
+        if (blockedReason != null) {
             if (automatic) return;
-            throw ApplicationException.of(
-                    SettlementStatusCode.SETTLEMENT_REMINDER_TARGET_NOT_UNPAID);
+            throw ApplicationException.of(reminderPolicy.rejectionCode(blockedReason));
         }
         var interval =
                 automatic
