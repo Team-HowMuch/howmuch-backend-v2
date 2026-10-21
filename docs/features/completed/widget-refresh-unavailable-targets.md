@@ -1,6 +1,6 @@
 # Feature Plan: 대조 불가 정산의 위젯 새로고침 격리
 
-- 상태: 진행 중
+- 상태: 완료
 - 작성일: 2026-10-22
 - 관련 이슈: [#629](https://github.com/Team-HowMuch/howmuch-backend-v2/issues/629)
 
@@ -57,7 +57,7 @@
 - [x] Application Service 수정
 - [x] Web Swagger 설명 수정 (DTO·Controller 변경 N/A)
 - [x] Infra: N/A
-- [ ] 회귀 테스트 및 검증 결과 기록
+- [x] 회귀 테스트 및 검증 결과 기록
 
 예정 커밋:
 
@@ -77,5 +77,18 @@ Java 21과 격리 PostgreSQL/Redis를 사용한다. 실제 은행 API는 mock으
 ## 8. 진행과 완료 기록
 
 - 2026-10-22: 이슈·HTTP→Application→은행 조회/Writer→저장소 흐름 확인. 스키마 변경 불필요.
-- 검증 결과: 진행 중.
+- 2026-10-22: 구현 및 회귀 검증 완료. 완료 기준의 모든 시나리오 통과.
+
+| 검증 | 결과 |
+|---|---|
+| Java 21 `./gradlew compileJava` | 성공 |
+| 서비스 단위 검사 | 23개 통과: 스냅샷/연결/계좌 누락, 네 가지 Writer 오류, 같은 계좌 조회 공유, 치명적 오류·리스 만료 전파, 성공 시각 |
+| 실제 HTTP/PostgreSQL/Redis 위젯 검사 | 21개 통과: 신규 5개 포함. 상태 경합 후 다음 Writer 트랜잭션 정상 커밋, 400원 입금 반영, 쿨다운·잠금 해제·기존 인증/Swagger 회귀 |
+| 기존 요약 Policy 검사 | 10개 통과 |
+| 기존 JavaScript 검사 | 35개 통과 |
+| `git diff --check`, 문서의 로컬 경로 확인 | 통과 |
+
+실행 환경: 격리 PostgreSQL 18, Redis 8, Java 21. `DB_URL`·`REDIS_PORT`는 격리 인스턴스로 지정하고 `bash scripts/test.sh`의 합성 설정을 사용했다. 은행 API는 mock이며 실제 은행 호출은 없다. 실패·오류·스킵은 모두 0이다.
+
+전체 저장소 테스트·실제 은행·모바일 연동·배포는 수행하지 않았다. 개별 정산 대조 API의 해지 계좌 오류는 이 이슈의 일괄 새로고침 범위에 포함하지 않는다.
 - 실제 은행·모바일 앱·서버 배포 검증은 범위 밖이다.

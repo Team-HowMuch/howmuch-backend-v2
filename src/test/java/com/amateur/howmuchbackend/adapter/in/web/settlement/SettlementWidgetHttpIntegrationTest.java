@@ -327,6 +327,78 @@ class SettlementWidgetHttpIntegrationTest {
     }
 
     @Test
+    void missingSnapshotDoesNotBlockHealthySettlement() throws Exception {
+        UUID missing = receiving(SettlementStatus.REQUESTED, 1_000, "누락 참여자");
+        UUID healthy = receiving(SettlementStatus.AWAITING_DEPOSIT, 1_000, "정상 참여자");
+        jdbc.update("DELETE FROM settlement_receiving_account_snapshots WHERE settlement_id=?", missing);
+        bankReturns(List.of(income(400, "정상 참여자 입금")));
+        var data = data(request("POST", PATH + "/refresh", widget));
+        assertThat(find(data, "receivable", healthy).path("remainingAmount").longValue()).isEqualTo(600);
+        assertThat(data.path("lastReconciledAt").isNull()).isFalse();
+        assertThat(redis.hasKey(key("lock"))).isFalse();
+    }
+
+    @Test
+    void disconnectedBankReturnsStoredSummaryAndPreservesPreviousSuccess() throws Exception {
+        UUID id = receiving(SettlementStatus.AWAITING_DEPOSIT, 1_000, "연결 해제 참여자");
+        var previous = now().minusDays(1).withNano(0);
+        assertThat(refreshStore.tryAcquire(creator, "previous")).isTrue();
+        refreshStore.finish(creator, "previous", previous);
+        redis.delete(key("cooldown"));
+        when(connections.findActiveByUserId(creator)).thenReturn(Optional.empty());
+        var data = data(request("POST", PATH + "/refresh", widget));
+        assertThat(find(data, "receivable", id).path("remainingAmount").longValue()).isEqualTo(1_000);
+        assertThat(refreshStore.lastReconciledAt(creator)).contains(previous);
+        verifyNoInteractions(bank);
+        assertThat(redis.hasKey(key("lock"))).isFalse();
+        assertThat(request("POST", PATH + "/refresh", widget).statusCode()).isEqualTo(429);
+    }
+
+    @Test
+    void closedAccountReturnsStoredSummaryWithoutCallingBank() throws Exception {
+        UUID id = receiving(SettlementStatus.AWAITING_DEPOSIT, 1_000, "해지 참여자");
+        jdbc.update("UPDATE accounts SET active=false WHERE id=?", accountId);
+        var data = data(request("POST", PATH + "/refresh", widget));
+        assertThat(find(data, "receivable", id).path("remainingAmount").longValue()).isEqualTo(1_000);
+        assertThat(data.path("lastReconciledAt").isNull()).isTrue();
+        verifyNoInteractions(bank);
+        assertThat(redis.hasKey(key("lock"))).isFalse();
+    }
+
+    @Test
+    void stateChangeDuringFetchRollsBackOnlyUnavailableTarget() throws Exception {
+        UUID changed = receiving(SettlementStatus.AWAITING_DEPOSIT, 1_000, "중단 참여자");
+        UUID healthy = receiving(SettlementStatus.AWAITING_DEPOSIT, 1_000, "정상 참여자");
+        // 최신 생성순으로 중단 대상이 먼저 처리되어도 다음 Writer 트랜잭션이 성공해야 한다.
+        jdbc.update("UPDATE settlements SET created_at=? WHERE id=?", now().plusMinutes(1), changed);
+        when(bank.fetch(anyString(), anyString(), anyString(), any(), any(), any())).thenAnswer(call -> {
+            jdbc.update("UPDATE settlements SET status='SUSPENDED' WHERE id=?", changed);
+            return List.of(income(400, "정상 참여자 입금"));
+        });
+        var data = data(request("POST", PATH + "/refresh", widget));
+        assertThat(find(data, "receivable", healthy).path("remainingAmount").longValue()).isEqualTo(600);
+        assertThat(data.path("lastReconciledAt").isNull()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM settlement_deposits WHERE settlement_id=?",
+                Long.class, changed)).isZero();
+        assertThat(redis.hasKey(key("lock"))).isFalse();
+    }
+
+    @Test
+    void accountClosedDuringFetchSkipsWriterWithoutClaimingSuccess() throws Exception {
+        UUID id = receiving(SettlementStatus.AWAITING_DEPOSIT, 1_000, "해지 참여자");
+        when(bank.fetch(anyString(), anyString(), anyString(), any(), any(), any())).thenAnswer(call -> {
+            jdbc.update("UPDATE accounts SET active=false WHERE id=?", accountId);
+            return List.of(income(400, "해지 참여자 입금"));
+        });
+        var data = data(request("POST", PATH + "/refresh", widget));
+        assertThat(find(data, "receivable", id).path("remainingAmount").longValue()).isEqualTo(1_000);
+        assertThat(data.path("lastReconciledAt").isNull()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM account_transactions WHERE account_id=?",
+                Long.class, accountId)).isZero();
+        assertThat(redis.hasKey(key("lock"))).isFalse();
+    }
+
+    @Test
     void requestedSettlementsDoNotStealAmbiguousDepositsFromEachOther() throws Exception {
         UUID first = receiving(SettlementStatus.REQUESTED, 1_000, "같은 이름");
         UUID second = receiving(SettlementStatus.REQUESTED, 1_000, "같은 이름");
