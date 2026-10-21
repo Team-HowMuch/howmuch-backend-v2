@@ -4,6 +4,7 @@ import com.amateur.howmuchbackend.application.port.in.settlement.RefreshSettleme
 import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementWidgetSummaryUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementWidgetSummaryResult;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
+import com.amateur.howmuchbackend.application.port.out.account.LoadAccountPort;
 import com.amateur.howmuchbackend.application.port.out.external.ExternalConnectionStorePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementWidgetPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
@@ -11,20 +12,22 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementWidgetRefreshStorePort;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.common.exception.status.CommonStatusCode;
-import com.amateur.howmuchbackend.domain.external.status.ExternalConnectionStatusCode;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementReceivingAccountSnapshot;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SettlementWidgetRefreshService implements RefreshSettlementWidgetSummaryUseCase {
@@ -33,6 +36,7 @@ public class SettlementWidgetRefreshService implements RefreshSettlementWidgetSu
     private final LoadSettlementPort settlementPort;
     private final LoadSettlementReceivingAccountSnapshotPort snapshotPort;
     private final ExternalConnectionStorePort connectionPort;
+    private final LoadAccountPort accountPort;
     private final SettlementWidgetRefreshStorePort refreshStore;
     private final SettlementBankTransactionFetchService fetchService;
     private final SettlementDepositWriter writer;
@@ -57,36 +61,65 @@ public class SettlementWidgetRefreshService implements RefreshSettlementWidgetSu
                 if (settlement == null || !settlement.isCreatedBy(userId)
                         || (settlement.status() != SettlementStatus.REQUESTED
                         && settlement.status() != SettlementStatus.AWAITING_DEPOSIT)) continue;
-                var snapshot = snapshotPort.findBySettlementId(id).orElseThrow(() -> ApplicationException.of(
-                        SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND));
+                var snapshot = snapshotPort.findBySettlementId(id).orElse(null);
+                if (snapshot == null) {
+                    log.info("Skipping widget reconciliation: settlementId={}, code={}", id,
+                            SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND.getCode());
+                    continue;
+                }
                 var key = new AccountKey(snapshot.sourceAccountId(), snapshot.organization(), snapshot.accountNumber());
                 groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(new Target(settlement, snapshot));
             }
-            if (!groups.isEmpty()) {
-                var connection = connectionPort.findActiveByUserId(userId).orElseThrow(() -> ApplicationException.of(
-                        ExternalConnectionStatusCode.EXTERNAL_CONNECTION_NOT_FOUND));
-                for (var entry : groups.entrySet()) {
-                    requireLease(userId, owner);
-                    var key = entry.getKey();
-                    var targets = entry.getValue();
-                    var from = targets.stream().map(target -> target.snapshot().createdAt())
-                            .min(LocalDateTime::compareTo).orElseThrow();
-                    var transactions = fetchService.fetchForWidget(connection, key.accountId(), key.organization(),
-                            key.accountNumber(), from, until, () -> requireLease(userId, owner));
-                    for (var target : targets) {
-                        requireLease(userId, owner);
-                        // REQUESTED도 이미 확정된 Share만 기존 대조 규칙으로 매칭한다.
-                        writer.reconcileForWidget(target.settlement().id(), userId, target.snapshot(),
-                                target.settlement().status(), transactions, until);
-                    }
-                }
-                requireLease(userId, owner);
+            if (!groups.isEmpty() && reconcileGroups(userId, owner, groups, until)) {
                 successfulAt = until;
             }
         } finally {
             refreshStore.finish(userId, owner, successfulAt);
         }
         return summaryUseCase.getSummary();
+    }
+
+    private boolean reconcileGroups(Long userId, String owner, Map<AccountKey, List<Target>> groups,
+            LocalDateTime until) {
+        var connection = connectionPort.findActiveByUserId(userId).orElse(null);
+        if (connection == null) return false;
+        boolean reconciled = false;
+        for (var entry : groups.entrySet()) {
+            requireLease(userId, owner);
+            var key = entry.getKey();
+            if (accountPort.findActiveByIdAndUserId(key.accountId(), userId).isEmpty()) {
+                log.info("Skipping widget reconciliation: accountId={}, reason=ACCOUNT_UNAVAILABLE", key.accountId());
+                continue;
+            }
+            var targets = entry.getValue();
+            var from = targets.stream().map(target -> target.snapshot().createdAt())
+                    .min(LocalDateTime::compareTo).orElseThrow();
+            var transactions = fetchService.fetchForWidget(connection, key.accountId(), key.organization(),
+                    key.accountNumber(), from, until, () -> requireLease(userId, owner));
+            for (var target : targets) {
+                requireLease(userId, owner);
+                try {
+                    // REQUESTED도 이미 확정된 Share만 기존 대조 규칙으로 매칭한다.
+                    writer.reconcileForWidget(target.settlement().id(), userId, target.snapshot(),
+                            target.settlement().status(), transactions, until);
+                    reconciled = true;
+                } catch (ApplicationException failure) {
+                    if (!isUnavailableTarget(failure)) throw failure;
+                    log.info("Skipping widget reconciliation: settlementId={}, code={}",
+                            target.settlement().id(), failure.getStatusCode().getCode());
+                }
+            }
+        }
+        requireLease(userId, owner);
+        return reconciled;
+    }
+
+    private boolean isUnavailableTarget(ApplicationException failure) {
+        var status = failure.getStatusCode();
+        return status == CommonStatusCode.CONCURRENT_UPDATE
+                || status == SettlementStatusCode.SETTLEMENT_NOT_FOUND
+                || status == SettlementStatusCode.SETTLEMENT_DEPOSIT_DATA_NOT_FOUND
+                || status == SettlementStatusCode.SETTLEMENT_DEPOSIT_RECONCILIATION_NOT_AVAILABLE;
     }
 
     private void requireLease(Long userId, String owner) {
