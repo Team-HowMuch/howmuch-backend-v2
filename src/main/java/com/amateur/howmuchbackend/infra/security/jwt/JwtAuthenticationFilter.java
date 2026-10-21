@@ -26,6 +26,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final java.util.regex.Pattern WIDGET_RECONCILE_PATH = java.util.regex.Pattern.compile(
+            "/api/v2/settlements/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/deposits/reconcile");
 
     private final AuthTokenPort authTokenPort;
     private final AuthSessionPort authSessionPort;
@@ -52,7 +54,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return ("GET".equals(request.getMethod())
                 && "/api/v2/settlements/widget-summary".equals(path))
                 || ("POST".equals(request.getMethod())
-                && "/api/v2/settlements/widget-summary/refresh".equals(path));
+                && ("/api/v2/settlements/widget-summary/refresh".equals(path)
+                || WIDGET_RECONCILE_PATH.matcher(path).matches()));
     }
 
     private void authenticateCurrentSession(JwtPayload payload) {

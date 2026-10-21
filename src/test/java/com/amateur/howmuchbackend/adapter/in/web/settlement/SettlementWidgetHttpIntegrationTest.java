@@ -124,7 +124,7 @@ class SettlementWidgetHttpIntegrationTest {
     }
 
     @Test
-    void widgetScopeAllowsOnlyTwoExactEndpointsAndRejectsRefreshTokens() throws Exception {
+    void widgetScopeAllowsOnlyExplicitEndpointsAndRejectsRefreshTokens() throws Exception {
         assertThat(request("GET", PATH, widget).statusCode()).isEqualTo(200);
         assertThat(request("POST", PATH + "/refresh", widget).statusCode()).isEqualTo(200);
         for (String path : List.of("/api/v2/settlements", "/api/v2/settlements/unpaid-summary", "/api/v2/accounts")) {
@@ -137,6 +137,41 @@ class SettlementWidgetHttpIntegrationTest {
         assertThat(request("GET", PATH, refresh).statusCode()).isEqualTo(401);
         assertThat(request("GET", PATH, null).statusCode()).isEqualTo(401);
         assertThat(request("GET", PATH, "bad-jwt").statusCode()).isEqualTo(401);
+        verifyNoInteractions(bank, connections);
+    }
+
+    @Test
+    void individualReconcileUsesWidgetAfterAccessExpiryAndKeepsSessionBoundary() throws Exception {
+        UUID id = receiving(SettlementStatus.AWAITING_DEPOSIT, 1_000, "위젯 참여자");
+        bankReturns(List.of(income(400, "위젯 참여자 입금")));
+        var properties = new com.amateur.howmuchbackend.infra.security.config.JwtProperties(
+                System.getenv("JWT_SECRET"), -1, 1209600);
+        var expiredProvider = new com.amateur.howmuchbackend.adapter.out.security.jwt.JwtTokenProvider(properties);
+        String expiredAccess = expiredProvider.createAccessToken(users.findById(creator).orElseThrow(), sessionId);
+        String path = "/api/v2/settlements/" + id + "/deposits/reconcile";
+        assertThat(request("POST", path, expiredAccess).statusCode()).isEqualTo(401);
+        verifyNoInteractions(bank);
+        assertThat(request("POST", path, widget).statusCode()).isEqualTo(200);
+        verify(bank, times(1)).fetch(anyString(), anyString(), anyString(), any(), any(), any());
+        assertThat(jdbc.queryForObject("SELECT sum(t.amount) FROM settlement_deposits d "
+                + "JOIN account_transactions t ON t.id=d.account_transaction_id WHERE d.settlement_id=?",
+                Long.class, id)).isEqualTo(400);
+        sessions.deleteByUserId(creator);
+        assertThat(request("POST", path, widget).statusCode()).isEqualTo(401);
+        verifyNoMoreInteractions(bank);
+    }
+
+    @Test
+    void individualWidgetReconcileRejectsOtherOwnersAndNonScopedMethods() throws Exception {
+        UUID other = fixtures.settlement(payer, SettlementStatus.AWAITING_DEPOSIT, SettlementAllocationType.DUTCH_PAY);
+        String base = "/api/v2/settlements/" + other + "/deposits";
+        assertThat(request("POST", base + "/reconcile", widget).statusCode()).isEqualTo(403);
+        for (String method : List.of("GET", "PUT", "DELETE")) {
+            assertThat(request(method, base + "/reconcile", widget).statusCode()).isEqualTo(401);
+        }
+        assertThat(request("GET", base, widget).statusCode()).isEqualTo(401);
+        assertThat(request("POST", base + "/reconcile/extra", widget).statusCode()).isEqualTo(401);
+        assertThat(request("POST", "/api/v2/settlements/not-a-uuid/deposits/reconcile", widget).statusCode()).isEqualTo(401);
         verifyNoInteractions(bank, connections);
     }
 
