@@ -30,7 +30,7 @@ public record SettlementLinkEntryWebResponse(
         String participantContext,
         LocalDateTime contextExpiresAt
 ) {
-    public static SettlementLinkEntryWebResponse from(SettlementLinkEntryResult result) {
+    public static SettlementLinkEntryWebResponse from(String token, SettlementLinkEntryResult result) {
         return new SettlementLinkEntryWebResponse(
                 result.settlementId(),
                 result.settlementTitle(),
@@ -43,9 +43,9 @@ public record SettlementLinkEntryWebResponse(
                 result.entryMode(),
                 result.selectedParticipant() == null
                         ? null
-                        : SettlementLinkParticipantWebResponse.from(result.selectedParticipant()),
+                        : SettlementLinkParticipantWebResponse.from(token, result.selectedParticipant()),
                 result.participantCandidates().stream()
-                        .map(SettlementLinkParticipantWebResponse::from)
+                        .map(participant -> SettlementLinkParticipantWebResponse.from(token, participant))
                         .toList(),
                 result.participantContext(),
                 result.contextExpiresAt()

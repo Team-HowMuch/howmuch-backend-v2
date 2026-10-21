@@ -1,6 +1,8 @@
 package com.amateur.howmuchbackend.application.settlement.service;
 
 import com.amateur.howmuchbackend.application.auth.model.CurrentActor;
+import com.amateur.howmuchbackend.application.image.ImageCacheVersion;
+import com.amateur.howmuchbackend.application.port.in.settlement.GetSettlementLinkParticipantAvatarUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.ResolveSettlementLinkUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.SelectSettlementLinkParticipantUseCase;
 import com.amateur.howmuchbackend.application.port.in.settlement.result.SettlementLinkEntryMode;
@@ -16,6 +18,9 @@ import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlement
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementPort;
 import com.amateur.howmuchbackend.application.port.out.settlement.LoadSettlementSharePort;
 import com.amateur.howmuchbackend.application.port.out.settlement.SettlementLinkTokenPort;
+import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
+import com.amateur.howmuchbackend.application.port.out.user.ProfileImageStoragePort;
+import com.amateur.howmuchbackend.application.user.model.ProfileImage;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
 import com.amateur.howmuchbackend.domain.settlement.Settlement;
 import com.amateur.howmuchbackend.domain.settlement.SettlementAllocationType;
@@ -25,6 +30,8 @@ import com.amateur.howmuchbackend.domain.settlement.SettlementParticipantContext
 import com.amateur.howmuchbackend.domain.settlement.SettlementShare;
 import com.amateur.howmuchbackend.domain.settlement.SettlementStatus;
 import com.amateur.howmuchbackend.domain.settlement.status.SettlementStatusCode;
+import com.amateur.howmuchbackend.domain.user.User;
+import com.amateur.howmuchbackend.domain.user.status.UserStatusCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +40,7 @@ import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -41,7 +49,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SettlementLinkEntryService implements
         ResolveSettlementLinkUseCase,
-        SelectSettlementLinkParticipantUseCase {
+        SelectSettlementLinkParticipantUseCase,
+        GetSettlementLinkParticipantAvatarUseCase {
     /**
      * 링크로 들어올 수 있는 정산 상태. 몫을 고르는 REQUESTED 이후에도 계속 열어둔다.
      * 송금 화면을 닫고 은행 앱을 켠 뒤 계좌번호를 다시 보러 오는 동선이 가장 흔하다.
@@ -64,6 +73,8 @@ public class SettlementLinkEntryService implements
     private final CurrentActorPort currentActorPort;
     private final LoadSettlementExpensePort loadSettlementExpensePort;
     private final IssueSettlementParticipantContextPort issueParticipantContextPort;
+    private final LoadUserPort loadUserPort;
+    private final ProfileImageStoragePort profileImageStoragePort;
 
     @Override
     public SettlementLinkEntryResult resolve(String rawToken) {
@@ -86,7 +97,8 @@ public class SettlementLinkEntryService implements
             SettlementLinkParticipantResult selectedParticipant = toResult(
                     access.settlement(),
                     matchedParticipant,
-                    amountByParticipantId
+                    amountByParticipantId,
+                    loadAvatarVersions(List.of(matchedParticipant))
             );
             SettlementParticipantContext context = issueContext(access, matchedParticipant, now);
             return new SettlementLinkEntryResult(
@@ -106,6 +118,7 @@ public class SettlementLinkEntryService implements
             );
         }
 
+        Map<Long, String> avatarVersions = loadAvatarVersions(participants);
         return new SettlementLinkEntryResult(
                 access.settlement().id(),
                 access.settlement().title(),
@@ -121,7 +134,8 @@ public class SettlementLinkEntryService implements
                         .map(participant -> toResult(
                                 access.settlement(),
                                 participant,
-                                amountByParticipantId
+                                amountByParticipantId,
+                                avatarVersions
                         ))
                         .toList(),
                 null,
@@ -145,7 +159,8 @@ public class SettlementLinkEntryService implements
         SettlementLinkParticipantResult participantResult = toResult(
                 access.settlement(),
                 participant,
-                amountByParticipantId
+                amountByParticipantId,
+                loadAvatarVersions(List.of(participant))
         );
         SettlementParticipantContext context = issueContext(access, participant, now);
         return new SettlementLinkParticipantSelectionResult(
@@ -155,6 +170,43 @@ public class SettlementLinkEntryService implements
                 context.token(),
                 context.expiresAt()
         );
+    }
+
+    @Override
+    public ProfileImage get(String rawToken, UUID participantId) {
+        LinkAccess access = loadAccess(rawToken, LocalDateTime.now(ZoneOffset.UTC));
+        SettlementParticipant participant = loadSettlementParticipantPort
+                .findBySettlementIdAndId(access.settlement().id(), participantId)
+                .orElseThrow(() -> ApplicationException.of(
+                        SettlementStatusCode.SETTLEMENT_PARTICIPANT_NOT_FOUND
+                ));
+        if (participant.linkedUserId() == null) {
+            throw ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND);
+        }
+        User user = loadUserPort.findById(participant.linkedUserId())
+                .filter(User::active)
+                .filter(found -> found.avatarFileName() != null)
+                .orElseThrow(() -> ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+        return profileImageStoragePort.load(user.avatarFileName())
+                .orElseThrow(() -> ApplicationException.of(UserStatusCode.PROFILE_IMAGE_NOT_FOUND));
+    }
+
+    private Map<Long, String> loadAvatarVersions(List<SettlementParticipant> participants) {
+        List<Long> userIds = participants.stream()
+                .map(SettlementParticipant::linkedUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        return loadUserPort.findAllByIds(userIds).stream()
+                .filter(User::active)
+                .filter(user -> user.avatarFileName() != null)
+                .collect(Collectors.toUnmodifiableMap(
+                        User::id,
+                        user -> ImageCacheVersion.fromNullableFileName(user.avatarFileName())
+                ));
     }
 
     private LinkAccess loadAccess(String rawToken, LocalDateTime now) {
@@ -218,7 +270,8 @@ public class SettlementLinkEntryService implements
     private SettlementLinkParticipantResult toResult(
             Settlement settlement,
             SettlementParticipant participant,
-            Map<UUID, Long> amountByParticipantId
+            Map<UUID, Long> amountByParticipantId,
+            Map<Long, String> avatarVersions
     ) {
         Long amount = settlement.allocationType() == SettlementAllocationType.DUTCH_PAY
                 ? amountByParticipantId.getOrDefault(participant.id(),
@@ -228,7 +281,8 @@ public class SettlementLinkEntryService implements
                 participant.id(),
                 participant.displayName(),
                 participant.isLinkedTo(settlement.creatorId()),
-                amount
+                amount,
+                participant.linkedUserId() == null ? null : avatarVersions.get(participant.linkedUserId())
         );
     }
 

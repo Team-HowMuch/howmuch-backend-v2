@@ -14,11 +14,12 @@ public record SettlementLinkParticipantSelectionWebResponse(
         LocalDateTime expiresAt
 ) {
     public static SettlementLinkParticipantSelectionWebResponse from(
+            String token,
             SettlementLinkParticipantSelectionResult result
     ) {
         return new SettlementLinkParticipantSelectionWebResponse(
                 result.settlementId(),
-                SettlementLinkParticipantWebResponse.from(result.participant()),
+                SettlementLinkParticipantWebResponse.from(token, result.participant()),
                 result.nextPhase(),
                 result.participantContext(),
                 result.expiresAt()
