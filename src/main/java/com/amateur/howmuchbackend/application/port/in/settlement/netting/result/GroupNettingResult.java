@@ -49,7 +49,8 @@ public record GroupNettingResult(
             String receiverPublicId,
             TransferStatus status,
             LocalDateTime confirmedAt,
-            List<UUID> sourceSettlementIds) {}
+            List<UUID> sourceSettlementIds,
+            LocalDateTime reminderNextAvailableAt) {}
 
     public enum TransferStatus {
         UNPAID, PARTIAL, PAID

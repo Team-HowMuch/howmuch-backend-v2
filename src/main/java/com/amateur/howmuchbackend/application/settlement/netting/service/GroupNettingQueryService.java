@@ -2,6 +2,7 @@ package com.amateur.howmuchbackend.application.settlement.netting.service;
 
 import com.amateur.howmuchbackend.application.group.service.GroupAccessService;
 import com.amateur.howmuchbackend.application.settlement.service.MySettlementCategoryReader;
+import com.amateur.howmuchbackend.application.settlement.policy.SettlementReminderPolicy;
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.*;
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.result.*;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -19,6 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +43,8 @@ public class GroupNettingQueryService
     private final SettlementTransferLinkPort links;
     private final NettingTransferAvailabilityPort availability;
     private final MySettlementCategoryReader categories;
+    private final NettedTransferReminderStorePort reminders;
+    private final Clock clock;
 
     public List<GroupNettingResult> list(long groupId) {
         long user = actor.getCurrentActor().userId();
@@ -45,11 +52,12 @@ public class GroupNettingQueryService
         boolean deleted =
                 groupRecords.findById(groupId).orElseThrow().status()
                         == com.amateur.howmuchbackend.domain.group.GroupStatus.DELETED;
-        return nettings.findAll(groupId).stream()
+        var visibleNettings = nettings.findAll(groupId).stream()
                 .map(id -> nettings.find(groupId, id).orElseThrow())
                 .filter(n -> !deleted || n.partyIds().contains(user))
-                .map(n -> result(n, user))
                 .toList();
+        var reminderTimes = reminderNextAvailableAt(visibleNettings);
+        return visibleNettings.stream().map(n -> result(n, user, reminderTimes)).toList();
     }
 
     public GroupNettingResult current(long groupId) {
@@ -60,7 +68,8 @@ public class GroupNettingQueryService
 
     public GroupNettingResult get(long groupId, UUID id) {
         long user = actor.getCurrentActor().userId();
-        return result(access.requireAccess(groupId, id, user), user);
+        var n = access.requireAccess(groupId, id, user);
+        return result(n, user, reminderNextAvailableAt(List.of(n)));
     }
 
     public GroupNettingResult getById(UUID id) {
@@ -119,7 +128,22 @@ public class GroupNettingQueryService
                 link == null ? null : link.url());
     }
 
-    private GroupNettingResult result(LoadGroupNettingPort.Netting n, long viewerId) {
+    private Map<UUID, LocalDateTime> reminderNextAvailableAt(List<LoadGroupNettingPort.Netting> visibleNettings) {
+        var transferIds = visibleNettings.stream()
+                .flatMap(n -> n.transfers().stream())
+                .map(LoadGroupNettingPort.Transfer::id)
+                .distinct()
+                .toList();
+        if (transferIds.isEmpty()) return Map.of();
+        var now = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+        return reminders.findLastRemindedAt(transferIds).entrySet().stream()
+                .map(entry -> Map.entry(entry.getKey(), entry.getValue().plus(SettlementReminderPolicy.COOLDOWN)))
+                .filter(entry -> entry.getValue().isAfter(now))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private GroupNettingResult result(LoadGroupNettingPort.Netting n, long viewerId,
+            Map<UUID, LocalDateTime> reminderTimes) {
         var sourceCategories = categories.read(
                 viewerId, n.sources().stream().map(LoadGroupNettingPort.SourceAmount::settlementId).toList());
         var displayUserIds =
@@ -191,7 +215,8 @@ public class GroupNettingQueryService
                                                                 || s.debtPartyIds().contains(t.receiverId()))
                                                         .map(LoadGroupNettingPort.SourceAmount::settlementId)
                                                         .distinct()
-                                                        .toList()))
+                                                        .toList(),
+                                                reminderTimes.get(t.id())))
                         .toList());
     }
 }

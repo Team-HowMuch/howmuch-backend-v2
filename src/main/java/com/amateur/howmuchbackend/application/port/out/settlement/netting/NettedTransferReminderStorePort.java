@@ -9,4 +9,6 @@ public interface NettedTransferReminderStorePort {
     List<Candidate> automaticCandidates(LocalDateTime now, int limit);
 
     OptionalLong reserve(UUID transferId, LocalDateTime now, Duration interval);
+
+    Map<UUID, LocalDateTime> findLastRemindedAt(Collection<UUID> transferIds);
 }

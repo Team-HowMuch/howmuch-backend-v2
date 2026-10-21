@@ -51,7 +51,7 @@ public record GroupNettingWebResponse(
 
     @Schema(name = "GroupNettingTransfer", requiredProperties = {"transferId", "payerId", "receiverId",
             "amount", "confirmedAmount", "reference", "organization", "maskedNumber", "payerName",
-            "payerPublicId", "receiverName", "receiverPublicId", "status", "confirmedAt", "sourceSettlementIds"})
+            "payerPublicId", "receiverName", "receiverPublicId", "status", "confirmedAt", "sourceSettlementIds", "reminderNextAvailableAt"})
     public record Transfer(
             UUID transferId,
             long payerId,
@@ -70,7 +70,9 @@ public record GroupNettingWebResponse(
             @Schema(description = "마지막 자동 입금 귀속 또는 수동 검토 적용 시각. UTC 기준 offset 없는 값. 입금 전 null이며 부분 입금에도 제공", nullable = true)
             LocalDateTime confirmedAt,
             @Schema(description = "송금자 또는 수취인이 미납 채무 당사자인 관련 원본 정산 ID(선대 포함). 원본별 송금 금액 귀속이나 직접 채권 관계를 뜻하지 않음")
-            List<UUID> sourceSettlementIds) {}
+            List<UUID> sourceSettlementIds,
+            @Schema(description = "다음 수동 독촉 가능 시각. UTC 기준 offset 없는 값. 최근 수동·자동 독촉에서 수동 쿨다운을 더한 시각이며, 기록이 없거나 이미 지났으면 null. null은 독촉 권한·상태를 보장하지 않음", nullable = true)
+            LocalDateTime reminderNextAvailableAt) {}
 
     public static GroupNettingWebResponse from(GroupNettingResult r) {
         return new GroupNettingWebResponse(
@@ -97,7 +99,7 @@ public record GroupNettingWebResponse(
                                 t.transferId(), t.payerId(), t.receiverId(), t.amount(), t.confirmedAmount(),
                                 t.reference(), t.organization(), t.maskedNumber(), t.payerName(),
                                 t.payerPublicId(), t.receiverName(), t.receiverPublicId(),
-                                t.status(), t.confirmedAt(), t.sourceSettlementIds()))
+                                t.status(), t.confirmedAt(), t.sourceSettlementIds(), t.reminderNextAvailableAt()))
                         .toList());
     }
 }
