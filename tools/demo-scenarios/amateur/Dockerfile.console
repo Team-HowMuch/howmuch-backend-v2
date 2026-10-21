@@ -1,6 +1,6 @@
 FROM cloudflare/cloudflared:2026.10.2 AS tunnel
 FROM docker:27.5.1-cli
-RUN apk add --no-cache python3 postgresql-client
+RUN apk add --no-cache python3 tzdata postgresql-client
 COPY --from=tunnel /usr/local/bin/cloudflared /usr/local/bin/cloudflared
 WORKDIR /opt/howmuch-demo
 ENTRYPOINT ["python3", "/opt/howmuch-demo/start-public-console.py"]
