@@ -8,6 +8,7 @@ import fcntl
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -27,6 +28,9 @@ spec.loader.exec_module(engine)
 actions_spec = importlib.util.spec_from_file_location("console_actions", ROOT / "console-actions.py")
 actions_module = importlib.util.module_from_spec(actions_spec)
 actions_spec.loader.exec_module(actions_module)
+booth_spec = importlib.util.spec_from_file_location("booth_actions", ROOT / "booth-actions.py")
+booth_module = importlib.util.module_from_spec(booth_spec)
+booth_spec.loader.exec_module(booth_module)
 UPSTREAM = "http://127.0.0.1:8080"
 STATES = {"idle", "receipt", "guide", "money"}
 
@@ -69,6 +73,7 @@ class Console:
         by_id = {s["id"]: s for s in self.baseline["settlements"]}
         self.baseline["settlements"] = [by_id[sid] for sid in self.manifest["ordinary_ids"]]
         self.actions = actions_module.Actions(self, engine, reject)
+        self.booth = booth_module.Booth(self, engine, reject)
 
     @contextlib.contextmanager
     def lock(self):
@@ -375,7 +380,8 @@ class Handler(BaseHTTPRequestHandler):
         local = bool(re.fullmatch(r"(?:127\.0\.0\.1|localhost)(?::[0-9]{1,5})?", host))
         public = self.server.public_origin_file
         public_origin = public.read_text().strip() if public.exists() else ""
-        valid_public = bool(re.fullmatch(r"https://[a-z0-9]+(?:-[a-z0-9]+)*\.trycloudflare\.com", public_origin))
+        valid_public = public_origin == "https://dev.howmuch.wars.p-e.kr" or bool(
+            re.fullmatch(r"https://[a-z0-9]+(?:-[a-z0-9]+)*\.trycloudflare\.com", public_origin))
         if not local and (not valid_public or host != public_origin.removeprefix("https://")):
             reject("INVALID_HOST", "안내된 운영 주소로 접속해주세요.", 400)
         if self.command != "GET":
@@ -422,6 +428,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(status, data)
         self.admin()
         console = self.server.console
+        if self.path == "/console/api/booth/state" and self.command == "GET":
+            return self.send(200, {"data": console.booth.state()})
+        if self.path == "/console/api/booth/templates" and self.command == "POST":
+            return self.send(200, {"data": console.booth.save(self.body())})
+        booth_operations = {"/console/api/booth/apply": "apply", "/console/api/booth/groups": "group", "/console/api/booth/delete": "delete"}
+        if self.path in booth_operations and self.command == "POST":
+            return self.send(200, {"data": console.booth.operate(self.body(), booth_operations[self.path])})
         if self.path == "/console/api/state" and self.command == "GET":
             return self.send(200, {"data": console.snapshot()})
         if self.path == "/console/api/phones" and self.command == "PUT":
@@ -459,12 +472,21 @@ class Handler(BaseHTTPRequestHandler):
     do_PUT = handle_request
 
 
+class TrustedProxyServer(ThreadingHTTPServer):
+    def verify_request(self, request, client_address):
+        return client_address[0] == self.allowed_proxy_address
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=18120)
+    parser.add_argument("--proxy-bind", type=ipaddress.IPv4Address)
+    parser.add_argument("--proxy-allow-address", type=ipaddress.IPv4Address)
     parser.add_argument("--state-dir", type=Path, default=ROOT / "console-state")
     parser.add_argument("--public-origin-file", type=Path, default=ROOT / "console-state" / "public-origin.txt")
     args = parser.parse_args()
+    if bool(args.proxy_bind) != bool(args.proxy_allow_address):
+        parser.error("--proxy-bind and --proxy-allow-address must be provided together")
     os.umask(0o077)
     service = Console(args.state_dir)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
@@ -473,6 +495,13 @@ def main():
     server.public_origin_file = args.public_origin_file
     server.login_lock = threading.Lock()
     server.login_attempts = deque()
+    if args.proxy_bind:
+        proxy = TrustedProxyServer((str(args.proxy_bind), args.port), Handler)
+        proxy.allowed_proxy_address = str(args.proxy_allow_address)
+        proxy.daemon_threads = True
+        for attribute in ("console", "public_origin_file", "login_lock", "login_attempts"):
+            setattr(proxy, attribute, getattr(server, attribute))
+        threading.Thread(target=proxy.serve_forever, daemon=True).start()
     server.serve_forever()
 
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Deploy only the dedicated dev operator service; never replace the app or demo data."""
 import os
+import ipaddress
 from pathlib import Path
 import subprocess
 import tarfile
@@ -12,10 +13,17 @@ host = os.getenv('HOWMUCH_DEMO_SSH_HOST', 'ubuntu@192.168.1.135')
 key = os.getenv('HOWMUCH_DEMO_SSH_KEY', '/Users/wars/.ssh/howmuch_dev_deploy_ed25519')
 ssh = ['ssh', '-i', key, '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes',
        '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=8', host]
-files = ['console-server.py', 'console-actions.py', 'prepare-netting-round.py',
+files = ['console-server.py', 'console-actions.py', 'booth-actions.py', 'prepare-netting-round.py',
          'recap-console.b64', 'netting-round-crypto.b64', 'start-public-console.py',
          'Dockerfile.console', 'web/console.html', 'web/console.css', 'web/console.js']
 stage = '/home/ubuntu/howmuch-amateur-demo/.deploy-' + uuid.uuid4().hex
+mode = os.getenv('HOWMUCH_DEMO_ACCESS_MODE', 'fixed')
+if mode not in ('fixed', 'tunnel'):
+    raise SystemExit('HOWMUCH_DEMO_ACCESS_MODE must be fixed or tunnel')
+proxy_bind = str(ipaddress.IPv4Address(os.getenv('HOWMUCH_DEMO_PROXY_BIND', '192.168.1.135')))
+proxy_allow = str(ipaddress.IPv4Address(os.getenv('HOWMUCH_DEMO_PROXY_ALLOW_ADDRESS', '192.168.1.20')))
+if mode == 'fixed' and (not ipaddress.IPv4Address(proxy_bind).is_private or not ipaddress.IPv4Address(proxy_allow).is_private):
+    raise SystemExit('Fixed console proxy addresses must be private')
 subprocess.run(ssh + ['umask 077; mkdir ' + stage], check=True)
 with tempfile.TemporaryFile() as archive:
     with tarfile.open(fileobj=archive, mode='w') as tar:
@@ -27,6 +35,7 @@ with tempfile.TemporaryFile() as archive:
 script = r'''
 import os,pathlib,subprocess,sys,time
 stage=pathlib.Path(sys.argv[1]); root=stage.parent
+mode,proxy_bind,proxy_allow=sys.argv[2:5]
 name='howmuch-amateur-console'; label='io.howmuch.demo-console'
 def run(args,**kw):return subprocess.run(args,check=True,**kw)
 stopped=False; started=False
@@ -53,7 +62,10 @@ try:
         finally:os.close(fd)
     gid=str(os.stat('/var/run/docker.sock').st_gid)
     run(['docker','run','-d','--name',name,'--label',label+'=amateur',
-         '--restart','unless-stopped','--network','host','--user',str(os.getuid())+':'+str(os.getgid()),
+         '--restart','unless-stopped','--network','host',
+         '--env','HOWMUCH_DEMO_ACCESS_MODE='+mode,
+         '--env','HOWMUCH_DEMO_PROXY_BIND='+proxy_bind,
+         '--env','HOWMUCH_DEMO_PROXY_ALLOW_ADDRESS='+proxy_allow,'--user',str(os.getuid())+':'+str(os.getgid()),
          '--group-add',gid,'--cap-drop','ALL','--security-opt','no-new-privileges',
          '--read-only','--tmpfs','/tmp:rw,nosuid,nodev,size=64m',
          '--mount','type=bind,src='+str(root)+',dst=/opt/howmuch-demo',
@@ -75,4 +87,4 @@ finally:
     import shutil
     shutil.rmtree(stage,ignore_errors=True)
 '''
-subprocess.run(ssh + ['python3 - ' + stage], input=script.encode(), check=True)
+subprocess.run(ssh + ['python3 - ' + ' '.join([stage, mode, proxy_bind, proxy_allow])], input=script.encode(), check=True)
