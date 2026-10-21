@@ -51,7 +51,7 @@ public record GroupNettingWebResponse(
 
     @Schema(name = "GroupNettingTransfer", requiredProperties = {"transferId", "payerId", "receiverId",
             "amount", "confirmedAmount", "reference", "organization", "maskedNumber", "payerName",
-            "payerPublicId", "receiverName", "receiverPublicId", "status", "confirmedAt", "sourceSettlementIds", "reminderNextAvailableAt"})
+            "payerPublicId", "receiverName", "receiverPublicId", "status", "confirmedAt", "sourceSettlementIds", "reminderNextAvailableAt", "reminderBlockedReason"})
     public record Transfer(
             UUID transferId,
             long payerId,
@@ -72,7 +72,9 @@ public record GroupNettingWebResponse(
             @Schema(description = "송금자 또는 수취인이 미납 채무 당사자인 관련 원본 정산 ID(선대 포함). 원본별 송금 금액 귀속이나 직접 채권 관계를 뜻하지 않음")
             List<UUID> sourceSettlementIds,
             @Schema(description = "다음 수동 독촉 가능 시각. UTC 기준 offset 없는 값. 최근 수동·자동 독촉에서 수동 쿨다운을 더한 시각이며, 기록이 없거나 이미 지났으면 null. null은 독촉 권한·상태를 보장하지 않음", nullable = true)
-            LocalDateTime reminderNextAvailableAt) {}
+            LocalDateTime reminderNextAvailableAt,
+            @Schema(description = "독촉 차단 사유. 비활성 압축 NETTING_NOT_ACTIVE → 입금 검토 중 DEPOSIT_REVIEW_OPEN → 일부/전액 입금 확인 DEPOSIT_RECEIVED 순으로 우선 적용. 해당 사유가 없으면 null이며 수취인 권한·쿨다운·압축 진행 제한은 별도 확인", nullable = true)
+            GroupNettingResult.ReminderBlockedReason reminderBlockedReason) {}
 
     public static GroupNettingWebResponse from(GroupNettingResult r) {
         return new GroupNettingWebResponse(
@@ -99,7 +101,7 @@ public record GroupNettingWebResponse(
                                 t.transferId(), t.payerId(), t.receiverId(), t.amount(), t.confirmedAmount(),
                                 t.reference(), t.organization(), t.maskedNumber(), t.payerName(),
                                 t.payerPublicId(), t.receiverName(), t.receiverPublicId(),
-                                t.status(), t.confirmedAt(), t.sourceSettlementIds(), t.reminderNextAvailableAt()))
+                                t.status(), t.confirmedAt(), t.sourceSettlementIds(), t.reminderNextAvailableAt(), t.reminderBlockedReason()))
                         .toList());
     }
 }

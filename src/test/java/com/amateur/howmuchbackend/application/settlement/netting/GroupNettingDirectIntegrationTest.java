@@ -1582,10 +1582,13 @@ class GroupNettingDirectIntegrationTest {
                 "payableParticipantCount", "completedParticipantCount");
         assertThat(source.path("properties").path("category").toString()).contains("SettlementMyCategoryWebResponse", "null");
         var transfer = schemas.path("GroupNettingTransfer");
-        assertThat(transfer.path("required").toString()).contains("status", "confirmedAt", "sourceSettlementIds", "reminderNextAvailableAt");
+        assertThat(transfer.path("required").toString()).contains("status", "confirmedAt", "sourceSettlementIds", "reminderNextAvailableAt", "reminderBlockedReason");
         var reminder = transfer.path("properties").path("reminderNextAvailableAt");
         assertThat(reminder.path("type").toString()).contains("null");
         assertThat(reminder.path("description").stringValue()).contains("UTC", "null");
+        var blocked = transfer.path("properties").path("reminderBlockedReason");
+        assertThat(blocked.path("type").toString()).contains("null");
+        assertThat(blocked.path("enum").toString()).contains("NETTING_NOT_ACTIVE", "DEPOSIT_REVIEW_OPEN", "DEPOSIT_RECEIVED");
         assertThat(transfer.path("properties").path("status").path("enum").toString()).contains("UNPAID", "PARTIAL", "PAID");
         assertThat(transfer.path("properties").path("confirmedAt").path("type").toString()).contains("null");
         assertThat(transfer.path("properties").path("sourceSettlementIds").path("description").stringValue())
@@ -1598,6 +1601,7 @@ class GroupNettingDirectIntegrationTest {
         var n = compress(f);
         var t = n.transfers().getFirst();
         assertThat(t.reminderNextAvailableAt()).isNull();
+        assertThat(t.reminderBlockedReason()).isNull();
         as(t.receiverId());
         String reminderPath = "/api/v2/groups/" + f.group() + "/settlement-nettings/" + n.nettingId()
                 + "/transfers/" + t.transferId() + "/reminders";
@@ -1620,15 +1624,58 @@ class GroupNettingDirectIntegrationTest {
             mvc.perform(get(path).with(org.springframework.security.test.web.servlet.request
                             .SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.transfers[0].reminderNextAvailableAt").value(next.toString()));
+                    .andExpect(jsonPath("$.data.transfers[0].reminderNextAvailableAt").value(next.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
         }
         mvc.perform(get(base).with(org.springframework.security.test.web.servlet.request
                         .SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].transfers[0].reminderNextAvailableAt").value(next.toString()));
+                .andExpect(jsonPath("$.data[0].transfers[0].reminderNextAvailableAt").value(next.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
     }
 
     @Autowired NettedTransferReminderStorePort transferReminders;
+
+    @ParameterizedTest
+    @CsvSource({"PARTIAL,DEPOSIT_RECEIVED,NETTING_REMINDER_DEPOSIT_RECEIVED",
+            "PAID,NETTING_NOT_ACTIVE,NETTING_REMINDER_NOT_ACTIVE",
+            "REVIEW,DEPOSIT_REVIEW_OPEN,NETTING_REMINDER_DEPOSIT_REVIEW_OPEN",
+            "SUPERSEDED,NETTING_NOT_ACTIVE,NETTING_REMINDER_NOT_ACTIVE"})
+    void blockedReminderReasonMatchesHttpRejectionAfterRealStateChanges(String scenario,
+            GroupNettingResult.ReminderBlockedReason expectedReason, NettingStatusCode expectedCode) throws Exception {
+        var f = fixture(15000, 10000);
+        var n = compress(f);
+        var t = n.transfers().getFirst();
+        if (scenario.equals("SUPERSEDED")) {
+            original(f.group(), f.a(), f.b(), f.accountA(), 1000, LocalDateTime.now(ZoneOffset.UTC));
+            compress(f);
+        } else {
+            income(f.accountB(), scenario.equals("PAID") ? t.amount() : 1000,
+                    scenario.equals("REVIEW") ? "No reference" : t.reference());
+            as(f.b());
+            var q = reconciliation.reconcile(f.group(), n.nettingId(), UUID.randomUUID());
+            dispatcher.dispatch();
+            assertThat(executions.getExecution(f.group(), q.executionId()).status()).isEqualTo("SUCCEEDED");
+        }
+        as(t.receiverId());
+        var current = nettings.get(f.group(), n.nettingId());
+        assertThat(current.transfers().getFirst().reminderBlockedReason()).isEqualTo(expectedReason);
+        assertThat(nettings.list(f.group())).filteredOn(item -> item.nettingId().equals(n.nettingId()))
+                .singleElement().satisfies(item -> assertThat(item.transfers().getFirst().reminderBlockedReason())
+                        .isEqualTo(expectedReason));
+        mvc.perform(get("/api/v2/groups/{g}/settlement-nettings/{id}", f.group(), n.nettingId())
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
+                                .user("test").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.transfers[0].reminderBlockedReason").value(expectedReason.name()));
+        mvc.perform(post("/api/v2/groups/{g}/settlement-nettings/{id}/transfers/{transfer}/reminders",
+                        f.group(), n.nettingId(), t.transferId())
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
+                                .user("test").roles("USER")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value(expectedCode.name()))
+                .andExpect(jsonPath("$.error.message").value(expectedCode.getMessage()));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM netted_transfer_reminders WHERE transfer_id=?",
+                Integer.class, t.transferId())).isZero();
+    }
 
     @Test
     void automaticReminderRecordUsesManualCooldownAndExpiredRecordIsNull() {

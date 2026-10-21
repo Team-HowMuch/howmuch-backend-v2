@@ -3,6 +3,7 @@ package com.amateur.howmuchbackend.application.settlement.netting.service;
 import com.amateur.howmuchbackend.application.group.service.GroupAccessService;
 import com.amateur.howmuchbackend.application.settlement.service.MySettlementCategoryReader;
 import com.amateur.howmuchbackend.application.settlement.policy.SettlementReminderPolicy;
+import com.amateur.howmuchbackend.application.settlement.netting.policy.NettedTransferReminderPolicy;
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.*;
 import com.amateur.howmuchbackend.application.port.in.settlement.netting.result.*;
 import com.amateur.howmuchbackend.application.port.out.auth.CurrentActorPort;
@@ -45,6 +46,7 @@ public class GroupNettingQueryService
     private final MySettlementCategoryReader categories;
     private final NettedTransferReminderStorePort reminders;
     private final Clock clock;
+    private final NettedTransferReminderPolicy reminderPolicy;
 
     public List<GroupNettingResult> list(long groupId) {
         long user = actor.getCurrentActor().userId();
@@ -216,7 +218,8 @@ public class GroupNettingQueryService
                                                         .map(LoadGroupNettingPort.SourceAmount::settlementId)
                                                         .distinct()
                                                         .toList(),
-                                                reminderTimes.get(t.id())))
+                                                reminderTimes.get(t.id()),
+                                                reminderPolicy.blockedReason(n.status(), n.openReviews(), t.confirmedAmount())))
                         .toList());
     }
 }

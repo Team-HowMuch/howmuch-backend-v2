@@ -8,6 +8,10 @@ import com.amateur.howmuchbackend.application.port.out.settlement.SettlementTran
 import com.amateur.howmuchbackend.application.port.out.settlement.netting.*;
 import com.amateur.howmuchbackend.application.port.out.user.LoadUserPort;
 import com.amateur.howmuchbackend.application.settlement.netting.service.GroupNettingAccessService;
+import com.amateur.howmuchbackend.application.settlement.netting.policy.NettedTransferReminderPolicy;
+import com.amateur.howmuchbackend.application.port.in.settlement.netting.result.GroupNettingResult.ReminderBlockedReason;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import com.amateur.howmuchbackend.application.settlement.netting.service.GroupNettingQueryService;
 import com.amateur.howmuchbackend.application.settlement.service.MySettlementCategoryReader;
 import com.amateur.howmuchbackend.common.exception.ApplicationException;
@@ -48,7 +52,7 @@ class GroupNettingQueryServiceTest {
     void setUp() {
         service = new GroupNettingQueryService(actor, access, groups, groupRecords, nettings, users,
                 links, availability, categories, reminders,
-                Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneId.of("Asia/Seoul")));
+                Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneId.of("Asia/Seoul")), new NettedTransferReminderPolicy());
         when(actor.getCurrentActor()).thenReturn(new CurrentActor(1L));
     }
 
@@ -120,6 +124,26 @@ class GroupNettingQueryServiceTest {
                 .thenThrow(ApplicationException.of(NettingStatusCode.NETTING_ACCESS_DENIED));
         assertThatThrownBy(() -> service.get(GROUP, id)).isInstanceOf(ApplicationException.class);
         verifyNoInteractions(reminders, users);
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {"ACTIVE,0,0,ALLOWED", "ACTIVE,0,1,DEPOSIT_RECEIVED",
+            "ACTIVE,0,1000,DEPOSIT_RECEIVED", "ACTIVE,1,0,DEPOSIT_REVIEW_OPEN",
+            "ACTIVE,1,1,DEPOSIT_REVIEW_OPEN", "COMPLETED,0,1000,NETTING_NOT_ACTIVE",
+            "SUPERSEDED,1,1000,NETTING_NOT_ACTIVE"}, nullValues = "ALLOWED")
+    void get_andList_exposeSameBlockedReason(String status, int reviews, long confirmed,
+            ReminderBlockedReason expected) {
+        var original = netting(UUID.randomUUID());
+        var t = original.transfers().getFirst();
+        var n = new LoadGroupNettingPort.Netting(original.id(), GROUP, 1, status, 1L, NOW,
+                null, null, List.of(), List.of(new LoadGroupNettingPort.Transfer(t.id(), t.nettingId(),
+                t.payerId(), t.receiverId(), t.amount(), confirmed, t.reference(), t.accountId(),
+                t.organization(), t.maskedNumber(), t.activatedAt(), null)), Set.of(1L, 2L), reviews);
+        when(access.requireAccess(GROUP, n.id(), 1L)).thenReturn(n);
+        arrangeList(List.of(n));
+        arrangeUsers();
+        assertThat(service.get(GROUP, n.id()).transfers().getFirst().reminderBlockedReason()).isEqualTo(expected);
+        assertThat(service.list(GROUP).getFirst().transfers().getFirst().reminderBlockedReason()).isEqualTo(expected);
     }
 
     private void arrangeList(List<LoadGroupNettingPort.Netting> values) {

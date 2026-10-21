@@ -50,7 +50,12 @@ public record GroupNettingResult(
             TransferStatus status,
             LocalDateTime confirmedAt,
             List<UUID> sourceSettlementIds,
-            LocalDateTime reminderNextAvailableAt) {}
+            LocalDateTime reminderNextAvailableAt,
+            ReminderBlockedReason reminderBlockedReason) {}
+
+    public enum ReminderBlockedReason {
+        NETTING_NOT_ACTIVE, DEPOSIT_REVIEW_OPEN, DEPOSIT_RECEIVED
+    }
 
     public enum TransferStatus {
         UNPAID, PARTIAL, PAID
