@@ -19,9 +19,18 @@ class Booth:
         self.reject('INVALID_BOOTH_REQUEST', message, 400)
 
     def recipes(self):
-        normal = [dict(title=s['title'], amount=s['total_amount'], creatorId=s['creator_id'], participants=list(self.users), daysAgo=0, recurring=False) for s in self.c.baseline['settlements']]
-        recurring = [dict(title=t, amount=a, creatorId=o, participants=p, daysAgo=days, recurring=True) for t,a,o,p,days in [
-            ('스터디룸 정기 이용권',60000,86,[85,86],3), ('배드민턴 정기 대관',40000,87,[87,88],7), ('공동 구독료',33000,88,list(self.users),14)]]
+        category_by_settlement = {row['settlement_id']: row['category_code']
+                                  for row in self.c.baseline.get('settlement_categories', [])}
+        normal = [dict(title=s['title'], amount=s['total_amount'], creatorId=s['creator_id'],
+                       participants=list(self.users), daysAgo=0, recurring=False,
+                       categoryCode=category_by_settlement.get(s['id']) or 'FOOD')
+                  for s in self.c.baseline['settlements']]
+        recurring = [dict(title=t, amount=a, creatorId=o, participants=p, daysAgo=days,
+                          recurring=True, categoryCode=category)
+                     for t,a,o,p,days,category in [
+            ('스터디룸 정기 이용권',60000,86,[85,86],3,'EDUCATION'),
+            ('배드민턴 정기 대관',40000,87,[87,88],7,'HOBBY_LEISURE'),
+            ('공동 구독료',33000,88,list(self.users),14,'SUBSCRIPTION')]]
         base = dict(groupName='아마추어', ownerId=86, members=list(self.users))
         defaults = [dict(base, id='compression', name='압축 정산 · 기본 5건', settlements=normal),
                     dict(base, id='combined', name='압축 + 3일 전 정기 정산', settlements=normal + [dict(s, daysAgo=3) for s in recurring]),
@@ -30,7 +39,21 @@ class Booth:
         saved = self.stored_recipes()
         overrides = {v['id']: v for v in saved['templates']}
         hidden = set(saved['hidden'])
-        return [overrides.pop(v['id'], v) for v in defaults if v['id'] not in hidden] + [v for v in overrides.values() if v['id'] not in hidden]
+        recipes = ([overrides.pop(v['id'], v) for v in defaults if v['id'] not in hidden]
+                   + [v for v in overrides.values() if v['id'] not in hidden])
+        # Templates saved before category selection remain editable and keep their old FOOD default.
+        for recipe in recipes:
+            for row in recipe['settlements']:
+                row.setdefault('categoryCode', 'FOOD')
+        return recipes
+
+    def categories(self):
+        return self.c.database.query("""SELECT coalesce(json_agg(json_build_object('code',code,'name',name) ORDER BY sort_order),'[]'::json)
+          FROM common_code_detail
+          WHERE group_code='SETTLEMENT_CATEGORY' AND use_yn AND attr2='Y'
+            AND EXISTS (SELECT 1 FROM common_code_group g
+                        WHERE g.group_code=common_code_detail.group_code AND g.use_yn)
+            AND code ~ '^[A-Z][A-Z_]{0,49}$'""")
 
     def stored_recipes(self):
         path = self.c.directory / 'booth-templates.json'
@@ -54,15 +77,21 @@ class Booth:
         items = body['settlements']
         if not isinstance(items,list) or not 1 <= len(items) <= 20:
             self.fail('정산은 1~20개까지 등록할 수 있어요.')
+        allowed_categories = {category['code'] for category in self.categories()}
         result=[]
         for row in items:
-            if not isinstance(row,dict) or set(row) != {'title','amount','creatorId','participants','daysAgo','recurring'}:
+            if (not isinstance(row,dict)
+                    or set(row) not in ({'title','amount','creatorId','participants','daysAgo','recurring'},
+                                       {'title','amount','creatorId','participants','daysAgo','recurring','categoryCode'})):
                 self.fail('정산 항목을 확인해주세요.')
             people=self.people(row['participants'],row['creatorId'],2)
             if not set(people).issubset(members): self.fail('정산 참여자는 그룹 멤버여야 해요.')
             if type(row['amount']) is not int or not 100 <= row['amount'] <= 10000000 or type(row['daysAgo']) is not int or not 0 <= row['daysAgo'] <= 60 or type(row['recurring']) is not bool:
                 self.fail('금액은 100~1천만원, 날짜는 0~60일 전으로 입력해주세요.')
-            result.append(dict(row,title=self.name(row['title'],100),participants=people))
+            category = row.get('categoryCode', 'FOOD')
+            if type(category) is not str or category not in allowed_categories:
+                self.fail('정산 카테고리를 다시 선택해주세요.')
+            result.append(dict(row,categoryCode=category,title=self.name(row['title'],100),participants=people))
         return dict(name=self.name(body['name'],40),groupName=self.name(body['groupName'],20),ownerId=body['ownerId'],members=members,settlements=result)
 
     def save(self, body):
@@ -106,7 +135,8 @@ class Booth:
           ORDER BY g.id DESC) t""")
 
     def state(self):
-        return dict(actors=[dict(userId=a['user_id'],name=a['name']) for a in self.users.values()],groups=self.groups(),templates=self.recipes())
+        return dict(actors=[dict(userId=a['user_id'],name=a['name']) for a in self.users.values()],
+                    groups=self.groups(),templates=self.recipes(),categories=self.categories())
 
     def insert(self, table, row):
         allowed=set(self.e.TABLES)|{'group_members','recurring_settlements','recurring_settlement_participants','recurring_settlement_expenses','recurring_settlement_occurrences'}
@@ -177,7 +207,11 @@ class Booth:
             recurring_id=str(uuid.uuid5(sub,'recurring'))
             for table,values in rows.items():
                 for row in values:
-                    if table=='settlement_categories' and item['recurring']: row.update(source='RECURRING')
+                    if table=='settlement_categories':
+                        category = item['categoryCode']
+                        source = ('UNCATEGORIZED' if category == 'UNCATEGORIZED'
+                                  else 'RECURRING' if item['recurring'] else 'RULE')
+                        row.update(category_code=category,source=source)
                     sql.append(self.insert(table,row))
             if item['recurring']:
                 local=at.replace(tzinfo=dt.timezone.utc).astimezone(KST);day=local.day
@@ -188,7 +222,7 @@ class Booth:
                     y,m=(y+1,1) if m==12 else (y,m+1)
                     next_at=dt.datetime(y,m,min(day,calendar.monthrange(y,m)[1]),9,tzinfo=KST)
                 account=self.users[item['creatorId']]['account_id']
-                sql.append(self.insert('recurring_settlements',dict(id=recurring_id,group_id='__NEW_GROUP__',creator_id=item['creatorId'],source_settlement_id=None,title=item['title'],total_amount=item['amount'],category_code='FOOD',receiving_account_id=account,frequency='MONTHLY',day_of_month=day,first_run_date=local.date().isoformat(),next_run_at=next_at.astimezone(dt.timezone.utc).replace(tzinfo=None).isoformat(),status='ACTIVE',failure_count=0,created_at=at_text,updated_at=at_text)))
+                sql.append(self.insert('recurring_settlements',dict(id=recurring_id,group_id='__NEW_GROUP__',creator_id=item['creatorId'],source_settlement_id=None,title=item['title'],total_amount=item['amount'],category_code=item['categoryCode'],receiving_account_id=account,frequency='MONTHLY',day_of_month=day,first_run_date=local.date().isoformat(),next_run_at=next_at.astimezone(dt.timezone.utc).replace(tzinfo=None).isoformat(),status='ACTIVE',failure_count=0,created_at=at_text,updated_at=at_text)))
                 people=sorted(item['participants'])
                 for position,user in enumerate(people):
                     sql.append(self.insert('recurring_settlement_participants',dict(recurring_settlement_id=recurring_id,user_id=user,amount=item['amount']//len(people)+int(position<item['amount']%len(people)),display_order=position)))
