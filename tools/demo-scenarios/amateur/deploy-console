@@ -12,7 +12,7 @@ host = os.getenv('HOWMUCH_DEMO_SSH_HOST', 'ubuntu@192.168.1.135')
 key = os.getenv('HOWMUCH_DEMO_SSH_KEY', '/Users/wars/.ssh/howmuch_dev_deploy_ed25519')
 ssh = ['ssh', '-i', key, '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes',
        '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=8', host]
-files = ['console-server.py', 'console-actions.py', 'prepare-netting-round.py',
+files = ['console-server.py', 'console-actions.py', 'booth-actions.py', 'prepare-netting-round.py',
          'recap-console.b64', 'netting-round-crypto.b64', 'start-public-console.py',
          'Dockerfile.console', 'web/console.html', 'web/console.css', 'web/console.js']
 stage = '/home/ubuntu/howmuch-amateur-demo/.deploy-' + uuid.uuid4().hex

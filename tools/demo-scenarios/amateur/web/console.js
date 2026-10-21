@@ -1,385 +1,132 @@
-(() => {
-  'use strict';
-  const root = document.getElementById('howmuch-demo-console');
-  const q = id => root.querySelector('#hm-' + id);
-  const selects = [...root.querySelectorAll('[data-phone]')];
-  const order = [0, 2, 3, 1];
-  const ACCESS = 'howmuch.amateur.admin.access';
-  const REFRESH = 'howmuch.amateur.admin.refresh';
-  const PENDING = 'howmuch.amateur.pending-round';
-  const currency = value => Number(value).toLocaleString('ko-KR') + '원';
-  let snapshot = null, available = false, busy = false, polling = null, refreshing = null;
-  let pending = null, retryPending = false, guideOpen = false;
-  const ACTION_PENDING = 'howmuch.amateur.pending-action';
-  let actionPending = null, notificationKind = 'SETTLEMENT_REQUEST';
-  try { actionPending = JSON.parse(sessionStorage.getItem(ACTION_PENDING) || 'null'); } catch { sessionStorage.removeItem(ACTION_PENDING); }
-  try { pending = JSON.parse(sessionStorage.getItem(PENDING) || 'null'); } catch { sessionStorage.removeItem(PENDING); }
 
-  function text(tag, value, className) {
-    const node = document.createElement(tag);
-    node.textContent = value;
-    if (className) node.className = className;
-    return node;
-  }
-  function loggedOut(message = '') {
-    available = false;
-    sessionStorage.removeItem(ACCESS); sessionStorage.removeItem(REFRESH);
-    q('workspace').hidden = true; q('login').hidden = false; q('logout').hidden = true;
-    q('login-message').textContent = message;
-    snapshot = null;
-  }
+'use strict';
+/* Dev ADMIN console. The server owns saved recipes and group state. */
+const KEY='howmuch-booth-console-v2';
+const PEOPLE=['한승환','문채원','최영헌','최수아'];
+const $=id=>document.getElementById(id);
+const clone=x=>JSON.parse(JSON.stringify(x));
+const won=n=>new Intl.NumberFormat('ko-KR').format(n)+'원';
+const fmt=n=>new Intl.NumberFormat('ko-KR').format(n);
+const node=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
+function icon(name,cls=''){const s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('class','i '+cls);s.setAttribute('aria-hidden','true');const u=document.createElementNS('http://www.w3.org/2000/svg','use');u.setAttribute('href','#i-'+name);s.append(u);return s;}
+function btn(text,cls,fn,iconName){const b=node('button',undefined,cls);b.type='button';if(iconName)b.append(icon(iconName,'sm'));if(text)b.append(node('span',text));if(fn)b.addEventListener('click',fn);return b;}
+function iconBtn(name,label,fn,cls=''){const b=btn('',`icon-btn ${cls}`,fn,name);b.title=label;b.setAttribute('aria-label',label);return b;}
+function badge(text,type='gray'){return node('span',text,'badge '+type);}
+const makeRow=(title,amount,daysAgo=0,recurring=false)=>({title,amount,daysAgo,recurring});
+const total=rows=>rows.reduce((s,r)=>s+r.amount,0);
+const recurringCount=rows=>rows.filter(r=>r.recurring).length;
+function validRow(r){return r&&typeof r.title==='string'&&r.title.trim().length>0&&r.title.length<=100&&Number.isSafeInteger(r.amount)&&r.amount>=100&&r.amount<=10000000&&Number.isInteger(r.daysAgo)&&r.daysAgo>=0&&r.daysAgo<=60&&typeof r.recurring==='boolean';}
+function validMembers(x){return Array.isArray(x.members)&&x.members.length>=2&&x.members.length<=PEOPLE.length&&new Set(x.members).size===x.members.length&&x.members.every(p=>PEOPLE.includes(p))&&x.members.includes(x.owner);}
+function validState(x){if(!x||x.version!==2||!Array.isArray(x.recipes)||!Array.isArray(x.groups))return false;const entries=[...x.recipes,...x.groups];if(!entries.every(r=>r&&Number.isSafeInteger(r.id)&&r.id>0&&typeof r.name==='string'&&r.name.trim()&&r.name.length<=90&&validMembers(r)&&Array.isArray(r.rows)&&r.rows.length<=20&&r.rows.every(validRow)))return false;if(!x.recipes.every(r=>r.rows.length>=1&&typeof r.group==='string'&&r.group.trim()&&r.group.length<=60)||!x.groups.every(g=>typeof g.archived==='boolean'))return false;return new Set(x.recipes.map(r=>r.id)).size===x.recipes.length&&new Set(x.groups.map(r=>r.id)).size===x.groups.length;}
+let data={recipes:[],groups:[],selectedRecipe:null},storageError=false,recovered=false;
+let actors=[],busy=false,pending=null,refreshing=null;
+const ACCESS='howmuch.amateur.admin.access',REFRESH='howmuch.amateur.admin.refresh',PENDING='howmuch.booth.pending';
+try{pending=JSON.parse(sessionStorage.getItem(PENDING)||'null');}catch{sessionStorage.removeItem(PENDING);}
+let view='prepare',archiveView=false,selectedGroups=new Set(),draft=null,initialDraft='',lastCreated=null,toastTimer=null,applyBusy=false,previewObserver=null;
+function persist(){}
+function updateStorage(){$('storage-status').lastElementChild.textContent='개발 서버에 저장';document.querySelector('.footer-note span').textContent='기존 계정과 데이터는 유지하며, 새 그룹만 추가합니다.';}
+function toast(message,actionLabel,action){clearTimeout(toastTimer);$('toast-message').textContent=message;$('toast').hidden=false;$('toast-action').hidden=!actionLabel;$('toast-action').textContent=actionLabel||'';$('toast-action').onclick=()=>{$('toast').hidden=true;action?.();};toastTimer=setTimeout(()=>$('toast').hidden=true,actionLabel?8000:4200);}
+$('toast-close').onclick=()=>$('toast').hidden=true;
+function showDialog(id){$(id).showModal();document.body.classList.add('modal-open');}
+function closeDialog(id){$(id).close();if(!document.querySelector('dialog[open]'))document.body.classList.remove('modal-open');}
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeDialog(b.dataset.close));
+document.querySelectorAll('dialog').forEach(d=>d.addEventListener('close',()=>{if(!document.querySelector('dialog[open]'))document.body.classList.remove('modal-open');}));
+function confirmAction(title,body,label,action,list=[],primary=false){$('confirm-title').textContent=title;$('confirm-body').textContent=body;$('confirm-ok').textContent=label;$('confirm-ok').className='btn '+(primary?'primary':'danger');$('confirm-list').hidden=!list.length;$('confirm-list').textContent=list.join('\n');$('confirm-ok').onclick=()=>{closeDialog('confirm');action();};showDialog('confirm');$('confirm-cancel').focus();}
+function setView(next){view=next;document.querySelectorAll('[data-view]').forEach(b=>{const active=b.dataset.view===next;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});$('prepare-view').hidden=next!=='prepare';$('groups-view').hidden=next!=='groups';$('breadcrumb-title').textContent=next==='prepare'?'시연 준비':'그룹 관리';$('page-title').textContent=next==='prepare'?'다음 시연, 바로 준비해요':'사용한 그룹, 한 번에 정리해요';$('page-subtitle').textContent=next==='prepare'?'시나리오를 고르고, 확인한 뒤 새로운 그룹으로 시작하세요.':'시연용 그룹을 확인하고, 다 쓴 그룹을 선택해 삭제하세요.';$('new-recipe').title=next==='prepare'?'새 시나리오 만들기':'빈 그룹 만들기';$('new-recipe').querySelector('.btn-label').textContent=next==='prepare'?'새 시나리오':'빈 그룹 만들기';if(next==='groups')renderGroups();window.scrollTo({top:0,behavior:'auto'});}
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
+function splitAmounts(rows,members){const values=members.map(()=>0);rows.forEach(r=>{const base=Math.floor(r.amount/members.length),remainder=r.amount%members.length;members.forEach((_,i)=>values[i]+=base+(i<remainder?1:0));});return values;}
+function splitLabel(rows,members){const amounts=splitAmounts(rows,members),min=Math.min(...amounts),max=Math.max(...amounts);return min===max?won(min):won(min)+' ~ '+won(max);}
+function renderRecipes(){const root=$('recipes');root.replaceChildren();$('recipe-count').textContent=data.recipes.length;
+data.recipes.forEach((r,index)=>{const n=recurringCount(r.rows),chosen=r.id===data.selectedRecipe;const article=node('article',undefined,'scenario-card'+(chosen?' chosen':''));const select=btn('', 'scenario-select',()=>selectRecipe(r.id));select.setAttribute('aria-label',r.name+' 선택');select.setAttribute('aria-pressed',String(chosen));article.append(select);const main=node('div',undefined,'scenario-main');const ico=node('div',undefined,'scenario-icon'+(n===r.rows.length?' clock':n?' repeat':''));ico.append(icon(n===r.rows.length?'clock':n?'repeat':'layers','lg'));const info=node('div',undefined,'scenario-info');info.append(node('h3',r.name,'scenario-title'),node('p',r.group+' · 반장 '+r.owner,'scenario-description'));const choice=node('span',undefined,'choice');choice.append(icon('check'));main.append(ico,info,choice);const bottom=node('div',undefined,'scenario-bottom'),stats=node('div',undefined,'scenario-stats');[['일반',r.rows.length-n+'건'],['정기',n+'건'],['참여',r.members.length+'명']].forEach(([label,value],i)=>{if(i)stats.append(node('span',undefined,'sep'));const s=node('span',label);s.append(node('strong',value));stats.append(s);});const tools=node('div',undefined,'scenario-tools');tools.append(btn('편집','btn ghost',()=>openEditor(r),'edit'),iconBtn('copy',r.name+' 복제',()=>duplicateRecipe(r)),iconBtn('trash',r.name+' 삭제',()=>removeRecipe(r),'red'));bottom.append(stats,tools);article.append(main,bottom);root.append(article);});
+if(!data.recipes.length){const e=node('div',undefined,'empty');e.append(icon('layers'),node('b','저장된 시나리오가 없어요'),node('p','자주 사용하는 정산 구성을 먼저 만들어보세요.'),btn('첫 시나리오 만들기','btn primary small',()=>openEditor(null),'plus'));root.append(e);}renderPreview();}
+function selectRecipe(id){data.selectedRecipe=id;persist();renderRecipes();$('recipes').querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});}
+function settlementList(rows,createdAt=null){const list=node('div',undefined,'settlement-list');rows.forEach(r=>{const line=node('div',undefined,'settlement-row');const ic=node('span',undefined,'settlement-icon'+(r.recurring?' recurring':''));ic.append(icon(r.recurring?'repeat':'receipt','sm'));const info=node('div',undefined,'settlement-info');info.append(node('b',r.title),node('small',(r.recurring?'정기 정산':'일반 정산')+' · '+(r.daysAgo?r.daysAgo+'일 전':'오늘')+' 생성'+(r.recurring?' · 미납':'')));line.append(ic,info,node('strong',won(r.amount),'num'));list.append(line);});return list;}
+function renderPreview(){previewObserver?.disconnect();const r=data.recipes.find(r=>r.id===data.selectedRecipe),root=$('preview');root.replaceChildren();if(!r){const e=node('div',undefined,'preview-card empty');e.append(icon('layers'),node('b','시나리오를 선택해주세요'),node('p','그룹과 정산 구성이 여기에 표시돼요.'));root.append(e);return;}
+const card=node('div',undefined,'preview-card'),summary=node('div',undefined,'preview-summary');const eyebrow=node('div',undefined,'preview-eyebrow');eyebrow.append(node('span','새로 생성할 그룹'),badge(r.members.length+'명','blue'));summary.append(eyebrow,node('h3',r.group,'preview-group'),node('p','반장 '+r.owner+' · '+r.rows.length+'건의 정산','preview-group-info'));const amount=node('div',undefined,'preview-amount'),av=node('div',undefined,'avatar-stack');r.members.forEach(p=>{const a=node('span',p.slice(-2),'avatar');a.title=p;av.append(a);});const amountText=node('div');amountText.append(node('p','정산 총액','label'));const strong=node('strong',fmt(total(r.rows)),'num');strong.append(node('small','원'));amountText.append(strong);amount.append(amountText,av);summary.append(amount);const detail=node('div',undefined,'preview-detail'),head=node('div',undefined,'preview-row-head');head.append(node('span','정산 내역 · '+r.rows.length+'건'),node('span','생성일 기준'));const split=node('div',undefined,'split-note');split.append(node('span','참여자별 분담금 범위'),node('b',splitLabel(r.rows,r.members),'num'));detail.append(head,settlementList(r.rows),split);const footer=node('div',undefined,'preview-footer');const apply=btn('새 그룹으로 준비하기','btn primary wide',applyScenario);apply.id='apply-scenario';apply.append(icon('arrow','sm'));footer.append(apply,node('p','새 그룹만 생성되며 기존 그룹은 변경하지 않아요.','preview-footnote'));card.append(summary,detail,footer);root.append(card);const scrolling=detail.querySelector('.settlement-list');scrolling.tabIndex=0;scrolling.setAttribute('aria-label','정산 내역 '+r.rows.length+'건. 스크롤하여 확인');const hint=()=>{head.lastElementChild.textContent=scrolling.scrollHeight>scrolling.clientHeight+2?'스크롤하여 전체 확인':'생성일 기준';};if(typeof ResizeObserver!=='undefined'){previewObserver=new ResizeObserver(hint);previewObserver.observe(scrolling);}requestAnimationFrame(hint);}
+$('last-created-view').onclick=()=>showGroup(lastCreated);
+function duplicateRecipe(r){openEditor({...clone(r),id:null,name:r.name.slice(0,55)+' 복사본'});}
+/* Editor: mutable draft is isolated from saved recipes until submit. */
+function setupPeople(containerId,members,ownerId,onchange){const root=$(containerId);root.replaceChildren();PEOPLE.forEach(p=>{const label=node('label',undefined,'person-chip');const input=node('input');input.type='checkbox';input.value=p;input.checked=members.includes(p);input.addEventListener('change',onchange);label.append(input,node('span',p));root.append(label);});const owner=$(ownerId);owner.replaceChildren();PEOPLE.filter(p=>members.includes(p)).forEach(p=>owner.add(new Option(p,p)));}
+function checkedMembers(id){return [...$(id).querySelectorAll('input:checked')].map(i=>i.value);}
+function syncOwners(containerId,ownerId){const members=checkedMembers(containerId),owner=$(ownerId),previous=owner.value;owner.replaceChildren();members.forEach(p=>owner.add(new Option(p,p)));if(members.includes(previous))owner.value=previous;return members;}
+function openEditor(recipe){draft=recipe?clone(recipe):{id:null,name:'',group:'',owner:'문채원',members:[...PEOPLE],rows:[makeRow('',40000)]};initialDraft=JSON.stringify(draft);$('editor-title').textContent=recipe?.id?'시나리오 수정':recipe?'시나리오 복제':'새 시나리오';$('save-recipe').textContent=recipe?.id?'변경 저장':'시나리오 저장';$('recipe-name').value=draft.name;$('recipe-group').value=draft.group;$('editor-error').hidden=true;setupPeople('members',draft.members,'recipe-owner',()=>{draft.members=syncOwners('members','recipe-owner');draft.owner=$('recipe-owner').value;updateDraftSummary();});$('recipe-owner').value=draft.owner;renderEditRows();updateDraftSummary();showDialog('editor');$('recipe-name').focus();}
+function readTopFields(){if(!draft)return;draft.name=$('recipe-name').value;draft.group=$('recipe-group').value;draft.owner=$('recipe-owner').value;draft.members=checkedMembers('members');}
+$('recipe-name').oninput=readTopFields;$('recipe-group').oninput=readTopFields;$('recipe-owner').onchange=readTopFields;
+function closeEditor(force=false){readTopFields();if(!force&&draft&&JSON.stringify(draft)!==initialDraft){confirmAction('수정한 내용을 버릴까요?','아직 저장하지 않은 변경 내용은 사라져요.','변경 버리기',()=>closeEditor(true));return;}closeDialog('editor');draft=null;}
+$('close-editor').onclick=()=>closeEditor();$('cancel-editor').onclick=()=>closeEditor();$('editor').addEventListener('cancel',e=>{e.preventDefault();closeEditor();});
+$('select-people').onclick=()=>{document.querySelectorAll('#members input').forEach(i=>i.checked=true);draft.members=syncOwners('members','recipe-owner');draft.owner=$('recipe-owner').value;updateDraftSummary();};
+function editField(label,value,type='text'){const l=node('label',label,'field'),input=node('input');input.type=type;input.value=value;input.required=true;l.append(input);return {l,input};}
+function renderEditRows(focusIndex=null){const root=$('edit-rows');root.replaceChildren();draft.rows.forEach((r,index)=>{const wrap=node('article',undefined,'edit-row');const head=node('div',undefined,'edit-row-head'),num=node('div',undefined,'edit-row-number');num.append(node('span',String(index+1).padStart(2,'0')),badge(r.recurring?'정기 정산':'일반 정산',r.recurring?'blue':'gray'));const actions=node('div',undefined,'row-actions');const up=iconBtn('up',(index+1)+'번 정산 위로 이동',()=>{[draft.rows[index-1],draft.rows[index]]=[draft.rows[index],draft.rows[index-1]];renderEditRows(index-1);});up.disabled=index===0;const down=iconBtn('down',(index+1)+'번 정산 아래로 이동',()=>{[draft.rows[index],draft.rows[index+1]]=[draft.rows[index+1],draft.rows[index]];renderEditRows(index+1);});down.disabled=index===draft.rows.length-1;const copy=iconBtn('copy',(index+1)+'번 정산 복제',()=>{if(draft.rows.length>=20)return;draft.rows.splice(index+1,0,clone(r));renderEditRows(index+1);});copy.disabled=draft.rows.length>=20;const del=iconBtn('trash',(index+1)+'번 정산 삭제',()=>{draft.rows.splice(index,1);renderEditRows();},'red');actions.append(up,down,copy,del);head.append(num,actions);
+const title=editField('정산 이름',r.title);title.input.maxLength=100;title.input.placeholder='예: 첫 모임 저녁 식사';title.input.dataset.title=String(index);title.input.oninput=()=>{r.title=title.input.value;};
+const amount=editField('총액 (원)',r.amount,'number');amount.input.min=100;amount.input.max=10000000;amount.input.step=1;amount.input.inputMode='numeric';amount.input.oninput=()=>{r.amount=Number(amount.input.value);updateDraftSummary();};
+const age=editField('경과일 (0~60일)',r.daysAgo,'number');age.input.min=0;age.input.max=60;age.input.step=1;age.input.oninput=()=>{r.daysAgo=Number(age.input.value);};
+const typ=node('label','정산 유형','field'),select=node('select');select.add(new Option('일반 정산','normal'));select.add(new Option('정기 정산','recurring'));select.value=r.recurring?'recurring':'normal';select.onchange=()=>{r.recurring=select.value==='recurring';const old=num.querySelector('.badge');old.replaceWith(badge(r.recurring?'정기 정산':'일반 정산',r.recurring?'blue':'gray'));};typ.append(select);
+const grid=node('div',undefined,'row-grid');grid.append(amount.l,age.l,typ);const creator=node('label','정산 생성자','field'),creatorSelect=node('select');draft.members.forEach(p=>creatorSelect.add(new Option(p,p)));creatorSelect.value=r.creator||draft.owner;creatorSelect.onchange=()=>r.creator=creatorSelect.value;creator.append(creatorSelect);const participants=node('div',undefined,'people');draft.members.forEach(p=>{const label=node('label',undefined,'person-chip'),c=node('input');c.type='checkbox';c.value=p;c.checked=(r.participants||draft.members).includes(p);c.onchange=()=>{r.participants=[...participants.querySelectorAll('input:checked')].map(x=>x.value);};label.append(c,node('span',p));participants.append(label);});wrap.append(head,title.l,grid,creator,node('p','참여자 · 생성자 포함','inline-note'),participants);root.append(wrap);});updateDraftSummary();if(focusIndex!==null){const target=root.querySelector(`[data-title="${focusIndex}"]`);target?.focus();target?.closest('.edit-row').scrollIntoView({block:'nearest',behavior:'auto'});}}
+function updateDraftSummary(){if(!draft)return;$('member-count').textContent=draft.members.length;$('row-count').textContent=draft.rows.length;$('draft-count').textContent='총 '+draft.rows.length+'건 · '+draft.members.length+'명 참여';$('draft-total').textContent=won(draft.rows.reduce((s,r)=>s+(Number.isFinite(r.amount)?r.amount:0),0));$('add-row').disabled=draft.rows.length>=20;document.querySelectorAll('[data-preset]').forEach(b=>b.disabled=draft.rows.length>=20);}
+function addDraftRow(r){if(draft.rows.length>=20)return;draft.rows.push(r);renderEditRows(draft.rows.length-1);}
+$('add-row').onclick=()=>addDraftRow(makeRow('',40000));
+document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>addDraftRow(b.dataset.preset==='meal'?makeRow('모임 식사',80000):b.dataset.preset==='room'?makeRow('작업실 대여',48000):makeRow('공동 구독료',24000,7,true)));
+function formError(id,message){$(id).textContent=message;$(id).hidden=false;$(id).scrollIntoView({block:'nearest'});}
+$('recipe-form').onsubmit=e=>{e.preventDefault();readTopFields();draft.name=draft.name.trim();draft.group=draft.group.trim();draft.rows.forEach(r=>r.title=r.title.trim());if(!draft.name||!draft.group)return formError('editor-error','시나리오 이름과 그룹 이름을 입력해주세요.');if(!validMembers(draft))return formError('editor-error','반장을 포함해 참여자를 2명 이상 선택해주세요.');if(!draft.rows.length)return formError('editor-error','정산을 1건 이상 추가해주세요.');if(!draft.rows.every(validRow))return formError('editor-error','정산 이름, 총액(100~10,000,000원), 경과일(0~60일)을 확인해주세요. 소수는 입력할 수 없어요.');const saved=clone(draft);if(!saved.id){saved.id=data.nextRecipe++;data.recipes.push(saved);}else data.recipes=data.recipes.map(r=>r.id===saved.id?saved:r);data.selectedRecipe=saved.id;persist();closeEditor(true);renderRecipes();toast('시나리오를 저장했어요. 기존 그룹은 변경되지 않아요.');};
+$('new-recipe').onclick=()=>view==='prepare'?openEditor(null):openBlank();
+/* Blank groups */
+function openBlank(){$('blank-name').value='';$('blank-error').hidden=true;setupPeople('blank-members',PEOPLE,'blank-owner',()=>syncOwners('blank-members','blank-owner'));$('blank-owner').value='문채원';showDialog('blank-dialog');$('blank-name').focus();}
+$('blank-group').onclick=openBlank;$('blank-all').onclick=()=>{document.querySelectorAll('#blank-members input').forEach(i=>i.checked=true);syncOwners('blank-members','blank-owner');};
+$('blank-form').onsubmit=e=>{e.preventDefault();const name=$('blank-name').value.trim(),members=checkedMembers('blank-members'),owner=$('blank-owner').value;if(!name)return formError('blank-error','그룹 이름을 입력해주세요.');if(!validMembers({members,owner}))return formError('blank-error','반장을 포함해 참여자를 2명 이상 선택해주세요.');const id=data.nextGroup++;data.groups.unshift({id,name,owner,members,rows:[],createdAt:new Date().toISOString(),archived:false});persist();closeDialog('blank-dialog');updateCounts();if(view==='groups')renderGroups();lastCreated=id;$('last-created-name').textContent=name;$('last-created').hidden=false;toast('빈 그룹을 만들었어요.','그룹 보기',()=>showGroup(id));};
+/* Group lifecycle: archive, not destructive deletion. */
+function filteredGroups(){const query=$('group-search').value.trim().toLocaleLowerCase();return data.groups.filter(g=>g.archived===archiveView&&(!query||(g.name+' '+g.owner).toLocaleLowerCase().includes(query)));}
+function updateCounts(){const active=data.groups.filter(g=>!g.archived).length;$('nav-group-count').textContent=active;$('active-count').textContent=active;$('archive-count').textContent=data.groups.length-active;}
+function renderGroupsDesign(){updateCounts();const groups=filteredGroups(),visibleIds=new Set(groups.map(g=>g.id));selectedGroups=new Set([...selectedGroups].filter(id=>visibleIds.has(id)));const root=$('groups');root.replaceChildren();groups.forEach(g=>{const article=node('article',undefined,'group-row'+(selectedGroups.has(g.id)?' selected':''));const check=node('input');check.type='checkbox';check.checked=selectedGroups.has(g.id);check.setAttribute('aria-label',g.name+' 선택');check.onchange=()=>{check.checked?selectedGroups.add(g.id):selectedGroups.delete(g.id);article.classList.toggle('selected',check.checked);updateSelection();};
+const name=node('div',undefined,'group-name-cell'),ico=node('span',undefined,'group-symbol');ico.append(icon('users','sm'));const inf=node('div');inf.append(btn(g.name,'',()=>showGroup(g.id)),node('small',g.createdAt?new Date(g.createdAt).toLocaleDateString('ko-KR',{month:'long',day:'numeric'})+' 생성 · #'+g.id:'그룹 · #'+g.id));name.append(ico,inf);const owner=node('div',undefined,'group-secondary group-owner');owner.append(node('span','반장 '+g.owner),node('small',g.members.length+'명 참여'));const counts=node('div',undefined,'group-secondary settlement-count'),rec=recurringCount(g.rows);counts.append(node('span','일반 '+(g.rows.length-rec)+' · 정기 '+rec),node('small',g.rows.length?won(total(g.rows)):'정산 없는 빈 그룹'));const actions=node('div',undefined,'actions');actions.append(iconBtn('info',g.name+' 상세 보기',()=>showGroup(g.id)),btn(g.running?'압축 진행 중':'삭제','btn '+(g.archived?'secondary':'ghost')+' small',()=>archiveGroups([g.id])));article.append(check,name,owner,counts,actions);root.append(article);});if(!groups.length){const e=node('div',undefined,'empty');e.append(icon(archiveView?'archive':'users'),node('b',$('group-search').value?'검색 결과가 없어요.':archiveView?'보관한 그룹이 없어요.':'사용 중인 그룹이 없어요.'),node('p',$('group-search').value?'그룹 이름이나 반장 이름을 다시 확인해주세요.':archiveView?'사용한 그룹을 보관하면 이곳에서 복원할 수 있어요.':'시나리오를 적용하거나 빈 그룹을 만들어보세요.'));root.append(e);}updateSelection();}
+function updateSelection(){const groups=filteredGroups(),count=selectedGroups.size;$('selection-count').textContent=count+'개 선택';$('bulk-action').disabled=count===0;$('bulk-action').querySelector('span').textContent='선택 삭제'+(count?' ('+count+')':'');$('bulk-action').className='btn '+(archiveView?'secondary':'danger')+' small';$('bulk-action').querySelector('use').setAttribute('href','#i-'+(archiveView?'undo':'archive'));$('all-groups').checked=groups.length>0&&count===groups.length;$('all-groups').indeterminate=count>0&&count<groups.length;$('all-groups').disabled=groups.length===0;}
+function setArchive(v){archiveView=v;selectedGroups.clear();$('active-groups').classList.toggle('active',!v);$('active-groups').setAttribute('aria-pressed',String(!v));$('archived-groups').classList.toggle('active',v);$('archived-groups').setAttribute('aria-pressed',String(v));$('group-note').textContent=v?'보관된 그룹의 정산 구성은 유지돼요. 복원하면 사용 중 목록으로 돌아가요.':'보관하면 사용 중 목록에서 제외해요. 시나리오와 정산 구성은 보관함에 남아 복원할 수 있어요.';renderGroups();}
+$('active-groups').onclick=()=>setArchive(false);$('archived-groups').onclick=()=>setArchive(true);$('group-search').oninput=renderGroups;$('all-groups').onchange=()=>{selectedGroups=$('all-groups').checked?new Set(filteredGroups().map(g=>g.id)):new Set();renderGroups();};$('bulk-action').onclick=()=>archiveGroups([...selectedGroups]);
+/* Backup and safe reset */
+function exportData(){const payload={...clone(data),exportedAt:new Date().toISOString(),notice:'로컬 시연 설정. 실제 앱 데이터가 아니며 자동 적용되지 않습니다.'};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='howmuch-booth-settings.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('설정 JSON을 내보냈어요.');}
+$('export').onclick=exportData;$('help-export').onclick=exportData;
+function showHelp(){showDialog('help-dialog');}$('help').onclick=showHelp;$('mobile-help').onclick=showHelp;$('notice-help').onclick=e=>{e.preventDefault();showHelp();};
+document.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]'))return;const editing=['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)||document.activeElement.isContentEditable;if(editing)return;if(view==='prepare'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&/^[1-9]$/.test(e.key)){const r=data.recipes[Number(e.key)-1];if(r){e.preventDefault();selectRecipe(r.id);}}if(view==='prepare'&&(e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();applyScenario();}});
+// Warn when another tab saves. No cross-tab merge is performed.
+window.addEventListener('storage',e=>{if(e.key===KEY&&e.newValue){toast('다른 창에서 설정이 변경됐어요. 다시 열어 최신 상태를 확인하세요.');}});
+
+
   async function api(path, options = {}, retry = true) {
-    const headers = new Headers(options.headers);
-    headers.set('Authorization', 'Bearer ' + (sessionStorage.getItem(ACCESS) || ''));
+    const headers = new Headers(options.headers); headers.set('Authorization', 'Bearer ' + (sessionStorage.getItem(ACCESS) || ''));
     if (options.body) headers.set('Content-Type', 'application/json');
-    let response;
-    try { response = await fetch('/console/api/' + path, {...options, headers, signal: AbortSignal.timeout(65000)}); }
-    catch { const error = new Error('서버 응답을 확인하지 못했어요. 준비 요청은 결과 확인을 먼저 해주세요.'); error.code = 'NETWORK_UNCONFIRMED'; throw error; }
-    if (response.status === 401 && retry && sessionStorage.getItem(REFRESH)) {
-      if (!refreshing) refreshing = fetch('/console/api/refresh', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({requestToken: sessionStorage.getItem(REFRESH)}), signal: AbortSignal.timeout(12000)
-      }).then(async result => {
-        const value = await result.json();
-        if (!result.ok || !value.data?.accessToken) { loggedOut('관리자 로그인이 필요해요.'); throw new Error('관리자 로그인이 필요해요.'); }
+    const r = await fetch('/console/api/' + path, {...options, headers, signal: AbortSignal.timeout(65000)});
+    if (r.status === 401 && retry && sessionStorage.getItem(REFRESH)) {
+      if (!refreshing) refreshing = fetch('/console/api/refresh', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({requestToken: sessionStorage.getItem(REFRESH)}), signal: AbortSignal.timeout(15000)}).then(async response => {
+        const value = await response.json(); if (!response.ok || !value.data?.accessToken) throw new Error('관리자 로그인이 필요해요.');
         sessionStorage.setItem(ACCESS, value.data.accessToken); sessionStorage.setItem(REFRESH, value.data.requestToken);
       }).finally(() => { refreshing = null; });
-      await refreshing;
+      try { await refreshing; } catch (e) { logout(e.message); throw e; }
       return api(path, options, false);
     }
-    const value = await response.json();
-    if (!response.ok) {
-      if ([401, 403].includes(response.status)) loggedOut(value.error?.message || '관리자 로그인이 필요해요.');
-      const error = new Error(value.error?.message || '요청을 완료하지 못했어요.');
-      error.code = value.error?.code; error.status = response.status;
-      throw error;
-    }
+    const value = await r.json();
+    if (!r.ok) { if (r.status === 401 || r.status === 403) logout('관리자 로그인이 필요해요.'); const e = new Error(value.error?.message || '작업을 완료하지 못했어요.'); e.status = r.status; throw e; }
     return value.data;
   }
-  function showLog(message) { q('log').textContent = message; }
-  function controls() {
-    const current = snapshot?.current;
-    q('prepare').disabled = busy || !available || (!!snapshot?.moneyProtected && (!pending || retryPending)) || (!pending && !['COMPLETE', 'CHANGED'].includes(current?.status));
-    q('prepare').textContent = busy ? '처리 중…' : pending ? (retryPending ? '같은 요청 다시 시도' : '처리 결과 확인') : current?.status === 'CHANGED' ? '기준 회차 새로 준비' : '다음 회차 준비';
-    selects.forEach(select => { select.disabled = busy || !available; });
-    q('refresh').disabled = busy;
-    root.querySelectorAll('[data-create-scenario], [data-send-action]').forEach(button => { button.disabled = busy || !available || !!actionPending || (button.hasAttribute('data-create-scenario') && snapshot?.moneyProtected); });
-    q('send-notification').disabled = busy || !available || !!actionPending || !q('notify-target').value;
-    q('action-retry').disabled = busy || !available;
-    q('action-retry').hidden = !actionPending;
-    q('prepare').disabled ||= !!actionPending;
-    q('start-guide').disabled = busy || !available;
-    q('start-guide').textContent = ['guide', 'money'].includes(snapshot?.phones?.[1]) ? '설명 시연 마치기' : '설명 시연 시작';
-  }
-  function renderGuide() {
-    q('phone-guide').hidden = !guideOpen;
-    if (!snapshot) return;
-    const c = snapshot.current;
-    q('phone-guide').textContent = c.status === 'COMPLETE'
-      ? '이 회차의 압축은 완료됐어요. 다음 회차를 준비한 뒤 문채원·최수아 폰에서 그룹 목록을 새로고침하고 새 모임을 선택하세요.'
-      : `문채원 폰: 그룹 → 목록 새로고침 → ${c.groupName} 선택 → 내역 → 압축 정산. 앱에서 직접 실행하고 웹에서는 상태를 확인해요. 다른 폰을 자동으로 이동시키지 않아요.`;
-  }
-  function render() {
-    if (!snapshot) return;
-    q('workspace').hidden = false; q('login').hidden = true; q('logout').hidden = false;
-    const c = snapshot.current;
-    q('sync').textContent = available ? `마지막 조회 ${new Date(snapshot.updatedAt).toLocaleTimeString('ko-KR')} · 5초마다 확인` : '서버 연결 확인 필요 · 마지막 조회 값 표시 중';
-    q('group').textContent = c.groupName + ' · #' + c.groupId;
-    q('round-badge').textContent = c.round + '회차';
-    const labels = {READY: '압축 전', COMPLETE: '압축 완료', RUNNING: '압축 처리 중', CHANGED: '기준과 다름'};
-    q('netting-state').textContent = labels[c.status] || '확인 필요';
-    const metrics = root.querySelectorAll('.hm-value');
-    if (c.result) {
-      metrics[0].textContent = `${c.expected.baseline_transfers}회 → ${c.result.compressed_transfers}회`;
-      metrics[1].textContent = `${currency(c.result.baseline_amount)} → ${currency(c.result.compressed_amount)}`;
-      q('metric-label').textContent = '서버에 저장된 실제 압축 결과';
-    } else if (c.expected) {
-      metrics[0].textContent = `${c.expected.baseline_transfers}회 → ${c.expected.compressed_transfers}회`;
-      metrics[1].textContent = `${currency(c.expected.baseline_amount)} → ${currency(c.expected.compressed_amount)}`;
-      q('metric-label').textContent = '현재 기준 5건의 예상값 · 압축은 앱에서 실행';
-    } else {
-      metrics[0].textContent = '대상 확인 필요'; metrics[1].textContent = '다시 계산 필요';
-      q('metric-label').textContent = '기준과 다른 상태에서는 예상 결과를 표시하지 않아요.';
-    }
-    const messages = {
-      READY: '기준 정산 5건이 준비됐어요.\n문채원 폰에서 현재 모임의 압축을 실행하세요.',
-      COMPLETE: '압축이 완료됐어요.\n다음 회차에는 같은 네 계정으로 새 모임과 미납 정산 5건만 추가해요.',
-      RUNNING: '앱에서 요청한 압축을 처리 중이에요.\n완료될 때까지 새 회차 준비를 기다려주세요.',
-      CHANGED: '정산·입금 또는 압축 대상이 기준과 달라졌어요.\n기존 내역을 보존하고 기준 정산 5건으로 새 모임을 준비할 수 있어요.'
-    };
-    q('notice').textContent = !available ? '서버 상태를 확인하지 못했어요.\n마지막 조회 값을 표시하며 회차 준비는 잠시 멈춰요.' : busy ? '작업을 처리하고 있어요.\n응답이 끊겨도 같은 요청의 결과를 다시 확인해요.' : pending ? '이전 준비 요청의 결과를 확인해야 해요.\n새 요청을 만들지 않고 같은 요청을 계속 사용해요.' : snapshot.moneyProtected ? '홈·AI 금액을 설명 중인 폰이 있어요.\n설명을 마치고 해당 폰을 대기로 바꾸면 회차를 준비할 수 있어요.' : messages[c.status];
-    q('notice').classList.toggle('hm-warning', !available || !!pending || snapshot.moneyProtected || c.status === 'CHANGED');
-    q('action-help').textContent = '다른 폰을 이동시키거나 기존 회차를 초기화하지 않아요. 새 정산은 홈·AI 전체 합계에도 반영돼요.';
-    selects.forEach((select, i) => { select.value = snapshot.phones[order[i]]; });
-    const tbody = root.querySelector('tbody');
-    tbody.replaceChildren(...c.settlements.map(s => {
-      const row = document.createElement('tr');
-      row.append(text('td', s.title), text('td', s.status === 'AWAITING_DEPOSIT' ? '입금 대기' : s.status === 'NETTING_IN_PROGRESS' ? '압축됨' : s.status), text('td', currency(s.amount)));
-      return row;
-    }));
-    const heads = root.querySelectorAll('thead th'); heads[1].textContent = '상태';
-    q('history').replaceChildren(...snapshot.history.map(r => {
-      const row = text('div', '', 'hm-history-item');
-      row.append(text('span', `${r.round}회차 · ${r.groupName} · #${r.groupId}`));
-      if (r.groupId === c.groupId) row.append(text('span', '현재 회차'));
-      else {
-        const button = text('button', '이 회차 사용', 'hm-button hm-secondary'); button.type = 'button'; button.disabled = busy || !available;
-        button.addEventListener('click', async () => {
-          if (busy || actionPending || pending) return;
-          busy = true; controls();
-          try { await api('current-round', {method: 'POST', body: JSON.stringify({expectedGroupId: snapshot.current.groupId, groupId: r.groupId})}); }
-          catch (error) { showLog(error.message); }
-          finally { busy = false; await refresh(true); }
-        }); row.append(button);
-      }
-      return row;
-    }));
-    if (snapshot.events.length) showLog(snapshot.events.map(event => `${new Date(event.at).toLocaleTimeString('ko-KR')} · ${event.message}`).join('\n'));
-    else showLog('아직 운영 화면에서 실행한 준비 작업이 없어요.');
-    renderGuide(); renderActions(); controls();
-  }
-  async function refresh(force = false) {
-    if (polling) { await polling; if (!force) return; }
-    polling = (async () => {
-      try { snapshot = await api('state'); available = true; render(); }
-      catch (error) {
-        if (error.code === 'OPERATION_BUSY') return;
-        available = false; render();
-        if (snapshot) showLog(error.message);
-        else q('login-message').textContent = error.message;
-        controls();
-      }
-    })().finally(() => { polling = null; });
-    await polling;
-  }
-  function keepPending(value) {
-    pending = value; retryPending = false;
-    if (value) sessionStorage.setItem(PENDING, JSON.stringify(value)); else sessionStorage.removeItem(PENDING);
-  }
-  async function roundResult() {
-    const result = await api('requests/' + pending.requestId);
-    if (result.status === 'SUCCEEDED') {
-      keepPending(null); await refresh(true);
-      showLog(`${result.round}회차 준비 완료 · 모임 #${result.groupId}. 폰에서 그룹 목록을 새로고침해 선택해주세요.`);
-    } else {
-      retryPending = true;
-      showLog('아직 성공 결과를 확인하지 못했어요. 같은 요청 다시 시도를 눌러도 동일한 회차 하나만 준비해요.');
-    }
-  }
-  q('prepare').addEventListener('click', async () => {
-    if (busy || q('prepare').disabled) return;
-    busy = true; render();
-    try {
-      if (pending && !retryPending) { await roundResult(); return; }
-      if (!pending) keepPending({requestId: crypto.randomUUID(), expectedGroupId: snapshot.current.groupId, mode: snapshot.current.status === 'CHANGED' ? 'RECOVER' : 'NEXT'});
-      const result = await api('rounds', {method: 'POST', body: JSON.stringify(pending)});
-      if (result.status === 'SUCCEEDED') {
-        keepPending(null); await refresh(true);
-        showLog(`${result.round}회차 준비 완료 · 모임 #${result.groupId}. 기존 계정과 이전 회차는 유지했어요.`);
-      }
-    } catch (error) {
-      if (error.status && error.status < 500 && !['OPERATION_BUSY', 'LOGIN_REQUIRED', 'ADMIN_REQUIRED'].includes(error.code)) keepPending(null);
-      else retryPending = false;
-      await refresh(true); showLog(error.message);
-    } finally { busy = false; const message = q('log').textContent; render(); showLog(message); controls(); }
-  });
-  selects.forEach((select, i) => select.addEventListener('change', async () => {
-    if (!snapshot || busy) return;
-    const phones = [...snapshot.phones]; phones[order[i]] = select.value;
-    busy = true; controls();
-    try { await api('phones', {method: 'PUT', body: JSON.stringify({revision: snapshot.revision, phones})}); }
-    catch (error) { showLog(error.message); }
-    finally { busy = false; await refresh(true); }
-  }));
-  const features = {
-    'basic-demo': ['오른쪽 두 폰 · 기본 시연 3분', '문채원: 더치페이 생성 → 영수증 생성. 최수아: 알림 열기 → 메뉴 선택 → 송금 안내.', 'PPT·영상은 모니터에서 유지하고 설명자는 오른쪽 두 폰으로 진행해요. 왼쪽 두 폰은 별도 모임에서 체험해요.'],
-    receipt: ['문채원 → 최수아', '별도 설명용 모임에서 촬영 → 메뉴 확인 → 요청 → 참여 메뉴 선택 → 송금 안내까지.', '자유 체험도 별도 모임에서 진행하세요. 압축용 모임에 정산을 추가하면 기준 변경으로 표시돼요.'],
-    basic: ['문채원 → 최수아', '별도 설명용 모임에서 20,000원 정산 → 각 10,000원 확인 → 요청.', '설명용·자유 체험용 모임은 앱에서 따로 선택하거나 생성해주세요.'],
-    deposit: ['문채원 폰 · 별도 정산 한 건', '한 번에 한 건씩 입금 확인과 독촉을 보여주세요. 자유 체험은 송금 안내 화면까지 진행해요.', '이 화면에서는 입금을 생성하지 않아요. 압축 회차 준비는 은행 거래를 추가하지 않아요.'],
-    ai: ['문채원 폰', '“아직 송금 안 한 사람 누구야?” → 답변 카드 → 정산 상세.', '금액을 설명하는 동안 해당 폰을 홈·AI 금액 설명 중으로 표시하고 다른 폰의 생성·입금도 잠시 맞춰주세요.'],
-    fixed: ['원래 아마추어 모임', '고정 지출 → 스터디룸 정기 이용권 → 발행 내역.', '원래 모임의 고정 지출·완료 이력을 사용해요. 새 압축 회차에는 복사하지 않아요.'],
-    recap: ['각 계정 · 2026년 9월', '리캡 → 9월 → 지난달·이번 달 지출 비교.', '기존 8·9월 리캡을 사용해요. 10월 확정 리캡은 없어요.']
-  };
-  const kindLabels = {SETTLEMENT_REQUEST: '정산 요청', SETTLEMENT_REMINDER: '독촉', REMINDER_TEST: '리마인드', SETTLEMENT_COMPLETED: '정산 완료', SETTLEMENT_PAYMENT_COMPLETED: '입금 확인', MONTHLY_RECAP: '리캡'};
-  function setOptions(select, options, fallback = '') {
-    const previous = select.value;
-    select.replaceChildren(...options.map(([value, label]) => { const option = text('option', label); option.value = String(value); return option; }));
-    if (options.some(([value]) => String(value) === previous)) select.value = previous;
-    else if (options.some(([value]) => String(value) === fallback)) select.value = fallback;
-  }
-  function renderNotificationTargets() {
-    if (!snapshot) return;
-    const recipient = Number(q('notify-recipient').value), catalog = snapshot.catalog;
-    const values = notificationKind === 'MONTHLY_RECAP'
-      ? catalog.recaps.filter(r => r.userId === recipient).map(r => [r.month, r.month + ' 리캡'])
-      : catalog.settlements.filter(s => {
-        if (!(s.participants || []).includes(recipient)) return false;
-        if (notificationKind === 'SETTLEMENT_COMPLETED') return s.status === 'COMPLETED';
-        if (notificationKind === 'SETTLEMENT_PAYMENT_COMPLETED') return s.creator_id === recipient && s.deposits > 0;
-        return s.creator_id !== recipient && ['REQUESTED', 'AWAITING_DEPOSIT'].includes(s.status);
-      }).map(s => [s.id, s.title]);
-    setOptions(q('notify-target'), values);
-    q('target-label').firstChild.textContent = notificationKind === 'MONTHLY_RECAP' ? '연결할 리캡 월' : '연결할 정산';
-    const device = catalog.devices.find(d => d.userId === recipient);
-    q('device-note').textContent = !values.length ? '연결 가능한 내역이 없어요. 다른 폰이나 알림을 선택해주세요.' : device?.registered ? '푸시 토큰 등록됨 · 실제 폰 수신은 발송 후 직접 확인해주세요.' : '푸시 토큰 미등록 · 앱 로그인과 알림 권한을 확인해주세요. 알림함에는 기록돼요.';
-    const actor = snapshot.actors.find(a => a.userId === recipient);
-    q('send-notification').textContent = `${actor?.name || ''}에게 ${kindLabels[notificationKind]} 보내기`;
-    q('notify-kinds').querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.kind === notificationKind)));
-    controls();
-  }
-  function renderActions() {
-    if (!snapshot?.catalog) return;
-    const catalog = snapshot.catalog;
-    setOptions(q('recap-user'), [['all', '네 계정 모두'], ...snapshot.actors.map(a => [a.userId, a.name])]);
-    setOptions(q('notify-recipient'), order.map(i => [snapshot.actors[i].userId, snapshot.actors[i].name]), '88');
-    if (!q('notify-kinds').children.length) Object.entries(kindLabels).forEach(([kind, label]) => {
-      const button = text('button', label, 'hm-button hm-secondary'); button.type = 'button'; button.dataset.kind = kind;
-      button.addEventListener('click', () => { notificationKind = kind; renderNotificationTargets(); }); q('notify-kinds').append(button);
-    });
-    q('scenario-buttons').replaceChildren(...catalog.templates.map(template => {
-      const names = template.participants.map(id => snapshot.actors.find(a => a.userId === id)?.name).join('·');
-      const button = text('button', `${template.name} · ${names} · 데이터 넣기`, 'hm-button hm-secondary'); button.type = 'button'; button.dataset.createScenario = template.id;
-      button.addEventListener('click', () => runAction('scenarios', {requestId: crypto.randomUUID(), templateId: template.id, sendNotifications: q('scenario-push').checked}, 'scenario-feedback'));
-      return button;
-    }));
-    if (!q('template-creator').children.length) {
-      setOptions(q('template-creator'), snapshot.actors.map(a => [a.userId, a.name]), '86');
-      snapshot.actors.forEach(actor => {
-        const label = text('label', '', 'hm-check'); const check = document.createElement('input'); check.type = 'checkbox'; check.value = String(actor.userId); check.checked = true;
-        label.append(check, text('span', actor.name)); q('template-participants').append(label);
-      });
-    }
-    q('created-scenarios').replaceChildren(...catalog.scenarios.map(s => text('p', `${s.groupName} · #${s.groupId}`, 'hm-muted')));
-    const delivery = {PENDING: '발송 대기', PROCESSING: '발송 중', RETRY: '재시도 대기', SUCCEEDED: '제공자 접수', FAILED: '발송 실패'};
-    q('notification-history').replaceChildren(...catalog.notifications.map(n => {
-      const row = text('div', '', 'hm-notification-row');
-      const actor = snapshot.actors.find(a => a.userId === n.recipient_user_id);
-      const registered = catalog.devices.find(d => d.userId === n.recipient_user_id)?.registered;
-      const failure = n.last_failure_code === 'TARGET_UNAVAILABLE' && !registered ? '앱에서 로그인·알림 허용 후 다시 보내주세요' : n.last_failure_code ? '알림 대상·연결 상태를 확인해주세요' : '';
-      row.append(text('span', `${actor?.name} · ${n.title} · ${delivery[n.status] || '처리 확인 중'}${failure ? ' · ' + failure : ''}`));
-      const received = catalog.received.includes(n.id);
-      const button = text('button', received ? '폰 수신 확인됨' : '폰에서 받았어요', 'hm-button hm-secondary'); button.type = 'button'; button.disabled = received;
-      button.addEventListener('click', async () => {
-        if (busy) return;
-        try { await api('received/' + n.id, {method: 'POST'}); await refresh(true); }
-        catch (error) { q('notification-feedback').textContent = error.message; }
-      });
-      row.append(button); return row;
-    }));
-    if (!catalog.notifications.length) q('notification-history').append(text('p', '아직 이 화면에서 보낸 알림이 없어요.', 'hm-muted'));
-    renderNotificationTargets();
-  }
-  function keepAction(value) {
-    actionPending = value;
-    if (value) sessionStorage.setItem(ACTION_PENDING, JSON.stringify(value)); else sessionStorage.removeItem(ACTION_PENDING);
-  }
-  async function runAction(endpoint, payload, feedback) {
-    if (busy || !available || actionPending) return;
-    keepAction({endpoint, payload, feedback}); await executeAction(false);
-  }
-  async function executeAction(checkFirst) {
-    if (!actionPending || busy) return;
-    const task = actionPending; busy = true; controls();
-    try {
-      let result = checkFirst ? await api('requests/' + task.payload.requestId) : null;
-      if (result?.status !== 'SUCCEEDED') result = await api(task.endpoint, {method: 'POST', body: JSON.stringify(task.payload)});
-      if (result.status === 'SUCCEEDED') {
-        keepAction(null); await refresh(true);
-        q(task.feedback).textContent = result.notificationId ? '알림 발송을 요청했어요. 아래 발송 결과와 실제 폰을 확인해주세요.' : result.recaps ? '리캡 준비 결과를 아래에서 확인해주세요.' : `${result.groupName} · #${result.groupId} 생성 완료. 폰에서 그룹 목록을 새로고침해주세요.`;
-        if (result.recaps) renderRecaps(result.recaps);
-      }
-    } catch (error) {
-      const safe = ['INVALID_SCENARIO', 'INVALID_NOTIFICATION', 'TARGET_UNAVAILABLE', 'TARGET_ALREADY_PAID', 'RECAP_UNAVAILABLE', 'MONEY_VIEW_BUSY', 'TEMPLATE_UNAVAILABLE', 'INVALID_RECAP', 'INVALID_RECAP_MONTH'];
-      if (safe.includes(error.code)) keepAction(null);
-      q(task.feedback).textContent = error.message + (actionPending ? ' 이전 작업 결과 확인 버튼으로 같은 요청을 이어갈 수 있어요.' : '');
-    } finally { busy = false; controls(); }
-  }
-  q('action-retry').addEventListener('click', () => executeAction(true));
-  q('notify-recipient').addEventListener('change', renderNotificationTargets);
-  q('send-notification').addEventListener('click', () => {
-    if (q('send-notification').disabled) return;
-    runAction('notifications', {requestId: crypto.randomUUID(), type: notificationKind, recipientId: Number(q('notify-recipient').value), settlementId: notificationKind === 'MONTHLY_RECAP' ? null : q('notify-target').value, month: notificationKind === 'MONTHLY_RECAP' ? q('notify-target').value : null}, 'notification-feedback');
-  });
-  q('template-kind').addEventListener('change', () => {
-    const kind = q('template-kind').value;
-    q('template-amount').disabled = kind !== 'BASIC';
-    if (kind !== 'BASIC') q('template-amount').value = kind === 'RECEIPT' ? '24000' : kind === 'GROUP' ? '0' : '308000';
-    else if (Number(q('template-amount').value) < 100) q('template-amount').value = '20000';
-    q('template-creator').disabled = kind === 'NETTING';
-    if (kind === 'NETTING') q('template-creator').value = '86';
-    q('template-participants').querySelectorAll('input').forEach(input => { input.disabled = kind === 'NETTING'; if (kind === 'NETTING') input.checked = true; });
-  });
-  q('template-form').addEventListener('submit', async event => {
-    event.preventDefault(); if (busy || !snapshot) return;
-    const body = {name: q('template-name').value, kind: q('template-kind').value, title: q('template-title').value, amount: Number(q('template-amount').value), creatorId: Number(q('template-creator').value), participants: [...q('template-participants').querySelectorAll('input:checked')].map(input => Number(input.value))};
-    busy = true; controls();
-    try { await api('templates', {method: 'POST', body: JSON.stringify(body)}); await refresh(true); q('scenario-feedback').textContent = '시나리오를 저장했어요. 위의 데이터 넣기 버튼으로 바로 사용할 수 있어요.'; }
-    catch (error) { q('scenario-feedback').textContent = error.message; }
-    finally { busy = false; controls(); }
-  });
-  const stepLists = {
-    'basic-demo': ['문채원 폰 · 더치페이 생성 (45초)', '문채원 폰 · 영수증 촬영·요청 (50초)', '최수아 폰 · 알림·메뉴 선택·송금 안내 (60초)', '마무리 · 질문 또는 추가 기능 (25초)'],
-    receipt: ['문채원 · 영수증 요청 또는 준비한 카페 모임 선택', '최수아 · 알림에서 메뉴 선택', '최수아 · 수량과 금액 확인 → 송금 안내'],
-    basic: ['문채원 · 금액과 참여자 선택', '문채원 · 각자 부담액 확인 → 요청', '최수아 · 알림 확인 → 송금 안내'],
-    deposit: ['별도 정산과 수취인 확인', '해당 폰에서 입금 내역 새로고침', '정산 현황과 미납자 독촉 확인'],
-    ai: ['다른 폰의 생성·입금을 잠시 맞추기', '문채원 · 미납자 질문', '답변 카드 → 실제 정산 상세'],
-    fixed: ['원래 아마추어 모임 → 고정 지출', '참여 중·미참여 설정 비교', '발행 내역과 다음 일정 확인'],
-    recap: ['아래에서 9월 리캡 준비 결과 확인', '폰 · 리캡 → 9월', '카드 넘기기 → 지난달과 비교']
-  };
-  let guideStep = 0;
-  function feature() {
-    q('feature-content').replaceChildren(...features[q('feature').value].map((value, i) => text(i === 0 ? 'h3' : 'p', value, i === 2 ? 'hm-muted' : '')));
-    q('guide-steps').replaceChildren(...stepLists[q('feature').value].map((label, i) => { const item = text('li', label); if (i === guideStep) item.setAttribute('aria-current', 'step'); return item; }));
-  }
-  q('next-step').addEventListener('click', () => { guideStep = (guideStep + 1) % stepLists[q('feature').value].length; feature(); });
-  q('start-guide').addEventListener('click', async () => {
-    if (!snapshot || busy || !available) return;
-    const phones = [...snapshot.phones], ending = ['guide', 'money'].includes(phones[1]);
-    phones[1] = ending ? 'idle' : q('feature').value === 'ai' ? 'money' : 'guide'; phones[3] = ending ? 'idle' : 'guide';
-    busy = true; controls();
-    try { await api('phones', {method: 'PUT', body: JSON.stringify({revision: snapshot.revision, phones})}); guideStep = 0; feature(); }
-    catch (error) { showLog(error.message); }
-    finally { busy = false; await refresh(true); }
-  });
-  function renderRecaps(results) {
-    q('recap-results').replaceChildren(...results.map(result => {
-      const section = text('section', '', 'hm-recap-result');
-      const labels = {EXISTING: '기존 리캡 유지', CREATED: '확정 리캡 생성', PREVIEW: '미리보기 · 저장 안 함', NO_COMPLETED_DATA: '완료 내역 없음'};
-      section.append(text('h3', result.name + ' · ' + labels[result.status]));
-      const recap = result.data;
-      if (recap) {
-        section.append(text('p', `${recap.yearMonth} · 완료 ${recap.completedSettlementCount}건 · 본인 지출 ${currency(recap.totalOwnAmount)}`));
-        if (recap.categories?.length) section.append(text('p', recap.categories.map(c => `${c.category.name} ${currency(c.totalOwnAmount)}`).join(' · ')));
-        if (recap.companion) section.append(text('p', '가장 많이 함께한 사람 · ' + recap.companion.displayName));
-        if (recap.record?.fastestSettlement) section.append(text('p', '가장 빠른 정산 · ' + recap.record.fastestSettlement.title));
-      }
-      return section;
-    }));
-  }
-  function recapAction(mode) {
-    if (!snapshot || busy || !available) return;
-    const users = q('recap-user').value === 'all' ? snapshot.actors.map(a => a.userId) : [Number(q('recap-user').value)];
-    runAction('recaps', {requestId: crypto.randomUUID(), userIds: users, yearMonth: q('recap-month').value, mode}, 'recap-feedback');
-  }
-  q('recap-generate').addEventListener('click', () => recapAction('GENERATE'));
-  q('recap-preview').addEventListener('click', () => recapAction('PREVIEW'));
-  q('feature').addEventListener('change', () => { guideStep = 0; feature(); }); feature();
-  q('guide').addEventListener('click', () => { guideOpen = !guideOpen; renderGuide(); });
-  q('refresh').addEventListener('click', () => refresh(true));
-  q('logout').addEventListener('click', () => loggedOut('이 브라우저의 관리자 인증을 지웠어요.'));
-  q('login-form').addEventListener('submit', async event => {
-    event.preventDefault();
-    const button = event.currentTarget.querySelector('button'); button.disabled = true;
-    const body = {phoneNumber: q('login-phone').value.trim(), pin: q('login-pin').value}; q('login-pin').value = '';
-    try {
-      const response = await fetch('/console/api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body), signal: AbortSignal.timeout(15000)});
-      const value = await response.json();
-      if (!response.ok) throw new Error(value.error?.message || '관리자 로그인을 확인해주세요.');
-      sessionStorage.setItem(ACCESS, value.data.accessToken); sessionStorage.setItem(REFRESH, value.data.requestToken);
-      q('login-message').textContent = ''; await refresh(true);
-    } catch (error) { q('login-message').textContent = error.message; }
-    finally { button.disabled = false; }
-  });
-  if (sessionStorage.getItem(ACCESS)) refresh();
-  setInterval(() => { if (!document.hidden && !busy && sessionStorage.getItem(ACCESS)) refresh(); }, 5000);
-})();
+
+function logout(text='') {sessionStorage.removeItem(ACCESS);sessionStorage.removeItem(REFRESH);$('live-shell').hidden=true;$('live-login').hidden=false;$('login-message').textContent=text;document.querySelectorAll('dialog[open]').forEach(d=>d.close());}
+const actorName=id=>actors.find(a=>a.userId===id)?.name||String(id);
+const actorId=name=>actors.find(a=>a.name===name)?.userId;
+function liveRecipe(r){return {id:r.id,name:r.name,group:r.groupName,owner:actorName(r.ownerId),members:r.members.map(actorName),rows:r.settlements.map(s=>({...s,creator:actorName(s.creatorId),participants:s.participants.map(actorName)}))};}
+function recipeBody(r){return {name:r.name,groupName:r.group,ownerId:actorId(r.owner),members:r.members.map(actorId),settlements:r.rows.map(s=>({title:s.title,amount:s.amount,creatorId:actorId(s.creator||r.owner),participants:(s.participants||r.members).map(actorId),daysAgo:s.daysAgo,recurring:s.recurring}))};}
+function lockUI(value){busy=value;document.body.classList.toggle('live-busy',value);$('live-retry').hidden=!pending;}
+async function refreshLive(){const result=await api('booth/state');actors=result.actors;data.recipes=result.templates.map(liveRecipe);data.groups=result.groups.map(g=>({...g,owner:actorName(g.ownerId),members:(g.members||[]).map(actorName),rows:[],archived:false}));if(!data.recipes.some(r=>r.id===data.selectedRecipe))data.selectedRecipe=data.recipes[0]?.id??null;$('live-login').hidden=true;$('live-shell').hidden=false;renderRecipes();renderGroups();updateStorage();$('live-retry').hidden=!pending;}
+async function mutate(path,body){if(pending)throw new Error('먼저 작업 결과 확인 버튼을 눌러 이전 요청을 확인해주세요.');pending={path,body};sessionStorage.setItem(PENDING,JSON.stringify(pending));return completePending();}
+async function completePending(){if(!pending)return;try{const result=await api(pending.path,{method:'POST',body:JSON.stringify(pending.body)});pending=null;sessionStorage.removeItem(PENDING);return result;}catch(e){if(e.status>=400&&e.status<500&&![401,403,423,429].includes(e.status)){pending=null;sessionStorage.removeItem(PENDING);}throw e;}finally{$('live-retry').hidden=!pending;}}
+async function doLive(action){if(busy)return;lockUI(true);try{await action();}catch(e){toast(e.message+(pending?' · 작업 결과 확인을 눌러주세요.':''));}finally{lockUI(false);}}
+async function applyScenario(){const r=data.recipes.find(r=>r.id===data.selectedRecipe);if(!r)return;await doLive(async()=>{const result=await mutate('booth/apply',{requestId:crypto.randomUUID(),templateId:r.id});await refreshLive();lastCreated=result.groupId;$('last-created-name').textContent=result.groupName;$('last-created').hidden=false;toast('새 그룹을 준비했어요. 폰의 그룹 목록을 새로고침해주세요.');});}
+function removeRecipe(r){confirmAction('시나리오를 삭제할까요?','서버에 저장된 시나리오를 삭제합니다. 이미 만든 그룹은 유지됩니다.','삭제',()=>doLive(async()=>{await api('booth/templates',{method:'POST',body:JSON.stringify({id:r.id,action:'delete'})});await refreshLive();toast('시나리오를 삭제했어요.');}),[r.name]);}
+$('recipe-name').maxLength=40;$('recipe-group').maxLength=20;$('blank-name').maxLength=20;
+$('recipe-form').onsubmit=e=>{e.preventDefault();readTopFields();if(!validMembers(draft)||!draft.rows.length||!draft.rows.every(validRow))return formError('editor-error','참여자와 정산 구성을 확인해주세요.');const saved=clone(draft),body=recipeBody(saved);if(saved.id)body.id=saved.id;doLive(async()=>{const result=await api('booth/templates',{method:'POST',body:JSON.stringify(body)});data.selectedRecipe=result.id;closeEditor(true);await refreshLive();toast('시나리오를 저장했어요.');});};
+$('blank-form').onsubmit=e=>{e.preventDefault();const members=checkedMembers('blank-members'),owner=$('blank-owner').value;if(!validMembers({members,owner}))return formError('blank-error','반장을 포함해 2명 이상 선택해주세요.');doLive(async()=>{await mutate('booth/groups',{requestId:crypto.randomUUID(),groupName:$('blank-name').value.trim(),ownerId:actorId(owner),members:members.map(actorId)});closeDialog('blank-dialog');await refreshLive();toast('빈 그룹을 만들었어요. 폰의 그룹 목록을 새로고침해주세요.');});};
+function renderGroups(){renderGroupsDesign();document.querySelectorAll('#groups .group-row').forEach((row,i)=>{const g=filteredGroups()[i];row.querySelector('.settlement-count').replaceChildren(node('span','미납 '+g.unpaidCount+'건'),node('small','정기 설정 '+g.recurringCount+'개'));if(g.running){row.querySelector('input').disabled=true;row.querySelector('.actions button:last-child').disabled=true;selectedGroups.delete(g.id);}});$('group-note').textContent='삭제하면 정기 발행이 중단됩니다. 기존 정산·입금·압축 기록은 보존하며, 이 화면에서 복원할 수 없습니다.';updateSelection();}
+$('all-groups').onchange=()=>{selectedGroups=$('all-groups').checked?new Set(filteredGroups().filter(g=>!g.running).map(g=>g.id)):new Set();renderGroups();};
+function archiveGroups(ids){const groups=data.groups.filter(g=>ids.includes(g.id)&&!g.running);if(!groups.length)return;confirmAction('그룹 '+groups.length+'개를 삭제할까요?','실제 앱의 그룹 목록에서 사라지고 정기 발행이 중단됩니다. 정산·입금·압축 기록은 보존합니다. 복원은 제공하지 않습니다.','삭제',()=>doLive(async()=>{let completed=0;try{for(const g of groups){await mutate('booth/delete',{requestId:crypto.randomUUID(),groupId:g.id,expectedName:g.name});completed++;selectedGroups.delete(g.id);}}finally{await refreshLive();toast(completed+'개 삭제 완료'+(completed<groups.length?' · 나머지는 목록에서 다시 확인해주세요.':''));}}),groups.map(g=>g.name));}
+function showGroup(id){const g=data.groups.find(g=>g.id===id);if(!g)return;$('detail-title').textContent=g.name;$('detail-subtitle').textContent='개발 서버 · 그룹 #'+g.id;$('detail-content').replaceChildren(node('p','반장 '+g.owner+' · '+g.members.join(', '),'detail-members'),node('p','미납 정산 '+g.unpaidCount+'건 · 정기 설정 '+g.recurringCount+'개'),node('p','정산 상세와 현재 금액은 폰에서 이 그룹을 열어 확인하세요.','inline-note'));$('detail-manage').onclick=()=>{closeDialog('group-detail');setView('groups');};showDialog('group-detail');}
+function splitAmounts(rows,members){const values=members.map(()=>0);rows.forEach(r=>{const ps=r.participants||members;const base=Math.floor(r.amount/ps.length),rest=r.amount%ps.length;ps.forEach((p,i)=>{const index=members.indexOf(p);if(index>=0)values[index]+=base+(i<rest?1:0);});});return values;}
+$('live-refresh').onclick=()=>doLive(refreshLive);$('live-retry').onclick=()=>doLive(async()=>{await completePending();await refreshLive();toast('이전 작업 결과를 확인했어요.');});$('live-logout').onclick=()=>logout();
+$('live-login-form').onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector('button');b.disabled=true;try{const response=await fetch('/console/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phoneNumber:$('live-phone').value.replace(/\D/g,''),pin:$('live-pin').value}),signal:AbortSignal.timeout(15000)});const value=await response.json();if(!response.ok)throw new Error(value.error?.message||'로그인하지 못했어요.');sessionStorage.setItem(ACCESS,value.data.accessToken);sessionStorage.setItem(REFRESH,value.data.requestToken);$('live-pin').value='';await refreshLive();}catch(e){$('login-message').textContent=e.message;}finally{b.disabled=false;}};
+if(sessionStorage.getItem(ACCESS)||sessionStorage.getItem(REFRESH))doLive(refreshLive);else logout();
