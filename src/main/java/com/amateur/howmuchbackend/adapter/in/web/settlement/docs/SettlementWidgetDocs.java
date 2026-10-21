@@ -18,7 +18,7 @@ public interface SettlementWidgetDocs {
                     + "PAYABLE은 송금 가능, SELECTION_REQUIRED는 몫 선택 미제출, WAITING은 확정 대기 또는 납부 완료입니다. "
                     + "확정된 더치페이의 0원 참여자는 payable 목록과 생성자의 미납 인원에서 제외합니다. "
                     + "품목 정산의 0원 참여와 양수 몫 납부 완료 참여는 진행 정산이면 목록에 남습니다. 빈 목록의 합계와 건수는 0입니다. "
-                    + "lastReconciledAt은 마지막 성공한 위젯 전체 대조의 조회 기준 UTC 시각이며 최초·기록 만료 시 null입니다.")
+                    + "lastReconciledAt은 대조 불가 대상을 제외한 위젯 대조가 한 건 이상 성공하고 나머지 처리가 오류 없이 끝난 마지막 조회 기준 UTC 시각이며 최초·기록 만료 시 null입니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
                     description = "요약 조회 성공", useReturnTypeSchema = true),
@@ -31,14 +31,14 @@ public interface SettlementWidgetDocs {
                     + "REQUESTED에서도 이미 확정된 몫만 대조합니다. 같은 계좌는 조회를 공유합니다. 계좌 sync가 커밋한 동일 범위의 60초 이내 snapshot은 저장 거래로 대조합니다. "
                     + "월별 은행 조회마다 서비스 공유·사용자 KST 일일 예산을 사용합니다(정산 조회 총 100회, 자동 80회). "
                     + "동시 요청·새로고침 종료 후 60초 이내 재요청은 429이며 실패에도 제한을 유지합니다. "
-                    + "일부 대조가 성공한 뒤 오류가 나면 성공한 입금 반영은 유지하고 전체 성공 시각은 갱신하지 않습니다. "
-                    + "대조할 생성자 정산이 없으면 CODEF 조회 없이 요약만 반환합니다. 은행 조회는 동기 처리입니다.")
+                    + "스냅샷 누락·비활성 계좌·개별 대조 중 정산 변경/삭제로 대조할 수 없는 대상은 건너뜁니다.  "
+                    + "은행 연결이 없거나 대조할 대상이 없으면 저장된 요약만 반환하며 lastReconciledAt은 유지합니다. "
+                    + "한 건 이상 대조하고 나머지가 성공하거나 건너뛴 경우에만 lastReconciledAt을 갱신합니다. "
+                    + "은행 조회 실패·429·리스 만료 등은 전파하며, 앞서 성공한 입금 반영은 유지하고 성공 시각은 갱신하지 않습니다. 은행 조회는 동기 처리입니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
-                    description = "전체 대조 및 요약 성공", useReturnTypeSchema = true),
+                    description = "대조 가능한 정산 처리 및 요약 성공", useReturnTypeSchema = true),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "UNAUTHORIZED - 세션 인증 필요"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "금융 연결 또는 정산 대조 데이터 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CONCURRENT_UPDATE - 조회 중 정산 변경"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "TOO_MANY_REQUEST - 새로고침 처리 중, 60초 제한 또는 일일 조회 예산 소진"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "TEMPORARILY_UNAVAILABLE - 대조 잠금 만료 또는 외부 조회 실패")
     })
