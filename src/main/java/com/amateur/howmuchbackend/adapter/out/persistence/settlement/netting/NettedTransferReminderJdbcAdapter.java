@@ -5,6 +5,7 @@ import com.amateur.howmuchbackend.application.port.out.settlement.netting.Netted
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.*;
@@ -14,6 +15,20 @@ import java.util.*;
 @RequiredArgsConstructor
 public class NettedTransferReminderJdbcAdapter implements NettedTransferReminderStorePort {
     private final JdbcTemplate jdbc;
+    private final NamedParameterJdbcTemplate namedJdbc;
+
+    @Override
+    public Map<UUID, LocalDateTime> findLastRemindedAt(Collection<UUID> transferIds) {
+        if (transferIds.isEmpty()) return Map.of();
+        Map<UUID, LocalDateTime> times = new HashMap<>();
+        namedJdbc.query(
+                "SELECT transfer_id,last_at FROM netted_transfer_reminders WHERE transfer_id IN (:ids)",
+                Map.of("ids", transferIds),
+                (org.springframework.jdbc.core.RowCallbackHandler) rs -> times.put(
+                        rs.getObject("transfer_id", UUID.class),
+                        rs.getObject("last_at", LocalDateTime.class)));
+        return Map.copyOf(times);
+    }
 
     public List<Candidate> automaticCandidates(LocalDateTime now, int limit) {
         return jdbc.query(

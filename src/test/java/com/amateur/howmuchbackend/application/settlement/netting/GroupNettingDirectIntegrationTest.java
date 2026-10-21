@@ -1582,11 +1582,71 @@ class GroupNettingDirectIntegrationTest {
                 "payableParticipantCount", "completedParticipantCount");
         assertThat(source.path("properties").path("category").toString()).contains("SettlementMyCategoryWebResponse", "null");
         var transfer = schemas.path("GroupNettingTransfer");
-        assertThat(transfer.path("required").toString()).contains("status", "confirmedAt", "sourceSettlementIds");
+        assertThat(transfer.path("required").toString()).contains("status", "confirmedAt", "sourceSettlementIds", "reminderNextAvailableAt");
+        var reminder = transfer.path("properties").path("reminderNextAvailableAt");
+        assertThat(reminder.path("type").toString()).contains("null");
+        assertThat(reminder.path("description").stringValue()).contains("UTC", "null");
         assertThat(transfer.path("properties").path("status").path("enum").toString()).contains("UNPAID", "PARTIAL", "PAID");
         assertThat(transfer.path("properties").path("confirmedAt").path("type").toString()).contains("null");
         assertThat(transfer.path("properties").path("sourceSettlementIds").path("description").stringValue())
                 .contains("귀속");
+    }
+
+    @Test
+    void reminderCooldownAppearsInAllReadRoutesAndStillRejectsRepeatedReminder() throws Exception {
+        var f = fixture(15000, 10000);
+        var n = compress(f);
+        var t = n.transfers().getFirst();
+        assertThat(t.reminderNextAvailableAt()).isNull();
+        as(t.receiverId());
+        String reminderPath = "/api/v2/groups/" + f.group() + "/settlement-nettings/" + n.nettingId()
+                + "/transfers/" + t.transferId() + "/reminders";
+        mvc.perform(post(reminderPath).with(org.springframework.security.test.web.servlet.request
+                        .SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isAccepted());
+        mvc.perform(post(reminderPath).with(org.springframework.security.test.web.servlet.request
+                        .SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error.code").value("SETTLEMENT_REMINDER_COOLDOWN_ACTIVE"));
+        var next = jdbc.queryForObject("SELECT last_at FROM netted_transfer_reminders WHERE transfer_id=?",
+                LocalDateTime.class, t.transferId()).plus(
+                        com.amateur.howmuchbackend.application.settlement.policy.SettlementReminderPolicy.COOLDOWN);
+        assertThat(nettings.get(f.group(), n.nettingId()).transfers().getFirst().reminderNextAvailableAt()).isEqualTo(next);
+        assertThat(nettings.list(f.group()).getFirst().transfers().getFirst().reminderNextAvailableAt()).isEqualTo(next);
+        String base = "/api/v2/groups/" + f.group() + "/settlement-nettings";
+        for (String path : List.of(base + "/" + n.nettingId(), base + "/current",
+                "/api/v2/settlement-nettings/" + n.nettingId(),
+                "/api/v2/settlements/" + f.ab() + "/netting")) {
+            mvc.perform(get(path).with(org.springframework.security.test.web.servlet.request
+                            .SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.transfers[0].reminderNextAvailableAt").value(next.toString()));
+        }
+        mvc.perform(get(base).with(org.springframework.security.test.web.servlet.request
+                        .SecurityMockMvcRequestPostProcessors.user("test").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].transfers[0].reminderNextAvailableAt").value(next.toString()));
+    }
+
+    @Autowired NettedTransferReminderStorePort transferReminders;
+
+    @Test
+    void automaticReminderRecordUsesManualCooldownAndExpiredRecordIsNull() {
+        var f = fixture(15000, 10000);
+        var n = compress(f);
+        var t = n.transfers().getFirst();
+        var last = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5).withNano(0);
+        assertThat(transferReminders.reserve(t.transferId(), last,
+                com.amateur.howmuchbackend.application.settlement.policy.SettlementReminderPolicy.AUTOMATIC_INTERVAL))
+                .isPresent();
+        assertThat(transferReminders.findLastRemindedAt(List.of(t.transferId(), UUID.randomUUID())))
+                .containsExactlyEntriesOf(Map.of(t.transferId(), last));
+        assertThat(transferReminders.findLastRemindedAt(List.of())).isEmpty();
+        assertThat(nettings.get(f.group(), n.nettingId()).transfers().getFirst().reminderNextAvailableAt())
+                .isEqualTo(last.plusMinutes(30));
+        jdbc.update("UPDATE netted_transfer_reminders SET last_at=? WHERE transfer_id=?",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(31), t.transferId());
+        assertThat(nettings.get(f.group(), n.nettingId()).transfers().getFirst().reminderNextAvailableAt()).isNull();
     }
 
     @Test
